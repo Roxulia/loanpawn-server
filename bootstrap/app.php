@@ -11,6 +11,7 @@ use App\Http\Middleware\EnsurePlatformRole;
 use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsureTenantPermission;
+use App\Http\Middleware\LogHttpOperation;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(LogHttpOperation::class);
         $middleware->statefulApi();
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->is('admin') || $request->is('admin/*')) {

@@ -31,16 +31,15 @@ class BillingManagementController extends Controller
             'payment_screenshot' => ['required', 'image', 'max:4096'],
             'payment_reference' => ['nullable', 'string', 'max:120'],
             'note' => ['nullable', 'string', 'max:1000'],
-            'code'=>['required'],
+            'update_key' => ['required', 'integer', 'min:0'],
         ]);
 
         $this->tenantRequestService->submitPaymentScreenshot(new TenantRequestPaymentSubmit(
             tenantRequestId: $tenantRequest,
-            code: $validated['code'],
             paymentScreenshot: $validated['payment_screenshot'],
             paymentReference: $validated['payment_reference'] ?? null,
             note: $validated['note'] ?? null,
-            updateKey: $validated['update_key'] ?? 0
+            updateKey: $validated['update_key']
         ));
 
         return redirect()

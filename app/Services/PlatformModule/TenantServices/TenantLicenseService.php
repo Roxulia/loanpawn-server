@@ -9,15 +9,15 @@ use App\Exceptions\PremiumPlanRequired;
 use App\Exceptions\TenantNotFound;
 use App\Mail\TenantLicenseExpiringMail;
 use App\Models\PlatformModule\LicenseStatusLog;
-use App\Models\PlatformModule\TenantRequest;
 use App\Models\PlatformModule\TenantLicense;
+use App\Models\PlatformModule\TenantRequest;
 use App\Repository\TenantLicenseRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\AuthService;
 use App\Services\PlatformModule\PackageService;
-use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class TenantLicenseService extends BaseTenantService
 {
@@ -27,10 +27,7 @@ class TenantLicenseService extends BaseTenantService
         private TenantLicenseRepository $repository,
         private AuthService $authService,
         private PackageService $packageService
-    )
-    {
-
-    }
+    ) {}
 
     public function getCurrentTenantLicense(): TenantLicense
     {
@@ -89,7 +86,7 @@ class TenantLicenseService extends BaseTenantService
         $license = $this->getTenantLicense($tenantId);
 
         if (! $this->packageService->planHasFeature($license->plan_type, $featureCode)) {
-            throw new FeatureNotAvailableForPlan();
+            throw new FeatureNotAvailableForPlan;
         }
 
         return $license;
@@ -112,31 +109,32 @@ class TenantLicenseService extends BaseTenantService
         $license = $this->getTenantLicense($tenantId);
 
         if ($license->plan_type !== 'premium') {
-            throw new PremiumPlanRequired();
+            throw new PremiumPlanRequired;
         }
 
         return $license;
     }
 
-    public function createLicense($tenantId,$approvedBy,TenantCreate $request) : TenantLicense
+    public function createLicense($tenantId, $approvedBy, TenantCreate $request): TenantLicense
     {
         $issuedAt = now();
-        $startsAt = $request -> status === 'active' ? $issuedAt : null;
-        $activatedAt = $request -> status === 'active' ? $issuedAt : null;
+        $startsAt = $request->status === 'active' ? $issuedAt : null;
+        $activatedAt = $request->status === 'active' ? $issuedAt : null;
         $expiresAt = $request->expireAt
             ? Carbon::parse($request->expireAt)
             : $issuedAt->copy()->addMonths(3);
         $license = TenantLicense::query()->create([
-                'tenant_id' => $tenantId,
-                'license_key' => $this->generateLicenseKey(),
-                'plan_type' => $request->planType,
-                'status' => $request->status,
-                'starts_at' => $startsAt,
-                'expires_at' => $expiresAt,
-                'activated_at' => $activatedAt,
-                'approved_by' => $approvedBy,
-                'notes' => $request->notes,
-            ]);
+            'tenant_id' => $tenantId,
+            'license_key' => $this->generateLicenseKey(),
+            'plan_type' => $request->planType,
+            'status' => $request->status,
+            'starts_at' => $startsAt,
+            'expires_at' => $expiresAt,
+            'activated_at' => $activatedAt,
+            'approved_by' => $approvedBy,
+            'notes' => $request->notes,
+        ]);
+
         return $license;
     }
 
@@ -153,7 +151,7 @@ class TenantLicenseService extends BaseTenantService
             'status' => 'active',
             'approved_by' => $approvedBy,
             'notes' => $adminReviewNote ?? $license->notes,
-            'update_key' => $license->update_key+1
+            'update_key' => $license->update_key + 1,
         ];
 
         if ($tenantRequest->request_type === 'extension') {
@@ -190,31 +188,33 @@ class TenantLicenseService extends BaseTenantService
 
     public function checkExpire(): int
     {
-        return $this->repository->checkExpire();
+        return $this->runLoggedOperation(__METHOD__, fn (): int => $this->repository->checkExpire());
     }
 
     public function sendExpiringSoonNotifications(int $thresholdDays = 7): int
     {
-        $sent = 0;
-        $billingUrl = route('platform.billing.index');
+        return $this->runLoggedOperation(__METHOD__, function () use ($thresholdDays): int {
+            $sent = 0;
+            $billingUrl = route('platform.billing.index');
 
-        foreach ($this->repository->activeLicensesExpiringInDays($thresholdDays) as $license) {
-            if ($this->repository->hasNotificationLog($license->id, self::NOTIFICATION_LICENSE_EXPIRING, $thresholdDays)) {
-                continue;
+            foreach ($this->repository->activeLicensesExpiringInDays($thresholdDays) as $license) {
+                if ($this->repository->hasNotificationLog($license->id, self::NOTIFICATION_LICENSE_EXPIRING, $thresholdDays)) {
+                    continue;
+                }
+
+                $ownerEmail = $license->tenant?->owner?->email;
+
+                if ($ownerEmail === null || $ownerEmail === '') {
+                    continue;
+                }
+
+                Mail::to($ownerEmail)->send(new TenantLicenseExpiringMail($license, $billingUrl));
+                $this->repository->createNotificationLog($license->id, self::NOTIFICATION_LICENSE_EXPIRING, $thresholdDays);
+                $sent++;
             }
 
-            $ownerEmail = $license->tenant?->owner?->email;
-
-            if ($ownerEmail === null || $ownerEmail === '') {
-                continue;
-            }
-
-            Mail::to($ownerEmail)->send(new TenantLicenseExpiringMail($license, $billingUrl));
-            $this->repository->createNotificationLog($license->id, self::NOTIFICATION_LICENSE_EXPIRING, $thresholdDays);
-            $sent++;
-        }
-
-        return $sent;
+            return $sent;
+        });
     }
 
     protected function generateLicenseKey(): string
@@ -225,6 +225,4 @@ class TenantLicenseService extends BaseTenantService
 
         return $licenseKey;
     }
-
-
 }

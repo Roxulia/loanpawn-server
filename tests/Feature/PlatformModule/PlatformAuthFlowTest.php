@@ -35,6 +35,8 @@ class PlatformAuthFlowTest extends TestCase
             ->assertJsonPath('redirect', route('platform.register.verify', ['email' => $user->email]));
 
         $this->assertSame($user->email, session('platform_user_register_email'));
-        Mail::assertSent(PlatformRegistrationVerificationMail::class);
+        Mail::assertQueued(PlatformRegistrationVerificationMail::class, function (PlatformRegistrationVerificationMail $mail): bool {
+            return $mail->queue === 'mail';
+        });
     }
 }

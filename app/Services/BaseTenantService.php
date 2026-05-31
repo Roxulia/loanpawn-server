@@ -4,10 +4,13 @@ namespace App\Services;
 
 use App\Exceptions\TenantNotFound;
 use App\Models\PlatformModule\Tenant;
+use App\Support\LogsServiceOperations;
 use App\Support\TenantContext;
 
 abstract class BaseTenantService
 {
+    use LogsServiceOperations;
+
     protected function resolveCurrentTenantId(): int
     {
         $tenantId = app(TenantContext::class)->id();

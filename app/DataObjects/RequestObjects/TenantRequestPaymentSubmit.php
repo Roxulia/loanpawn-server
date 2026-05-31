@@ -9,7 +9,6 @@ class TenantRequestPaymentSubmit extends BaseDataObject
 {
     public function __construct(
         public int $tenantRequestId,
-        public string $code,
         public int $updateKey,
         public UploadedFile $paymentScreenshot,
         public ?string $paymentReference = null,

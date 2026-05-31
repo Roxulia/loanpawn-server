@@ -23,6 +23,7 @@ class TenantRequest extends Model
         'reviewed_by',
         'reviewed_at',
         'admin_review_note',
+        'update_key',
     ];
 
     protected function casts(): array

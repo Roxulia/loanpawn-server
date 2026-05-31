@@ -21,6 +21,7 @@ class ManualPaymentRequest extends Model
         'submitted_at',
         'reviewed_at',
         'reviewed_by',
+        'update_key',
     ];
 
     protected function casts(): array

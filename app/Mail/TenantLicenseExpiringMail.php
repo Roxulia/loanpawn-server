@@ -4,12 +4,13 @@ namespace App\Mail;
 
 use App\Models\PlatformModule\TenantLicense;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class TenantLicenseExpiringMail extends Mailable
+class TenantLicenseExpiringMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -17,6 +18,7 @@ class TenantLicenseExpiringMail extends Mailable
         public readonly TenantLicense $license,
         public readonly string $billingUrl,
     ) {
+        $this->onQueue('mail');
     }
 
     public function envelope(): Envelope

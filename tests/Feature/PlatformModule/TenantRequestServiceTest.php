@@ -14,6 +14,7 @@ use App\Services\PlatformModule\TenantRequestService;
 use App\Services\PlatformModule\TenantServices\TenantManagementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -114,6 +115,7 @@ class TenantRequestServiceTest extends TestCase
 
         $submitted = app(TenantRequestService::class)->submitPaymentScreenshot(new TenantRequestPaymentSubmit(
             tenantRequestId: $requestDetail->id,
+            updateKey: $requestDetail->updateKey,
             paymentScreenshot: UploadedFile::fake()->image('payment.png'),
             paymentReference: 'PAY-001',
             note: 'Paid by KBZPay',
@@ -135,6 +137,49 @@ class TenantRequestServiceTest extends TestCase
         $attachment = \App\Models\PlatformModule\ManualPaymentAttachment::query()->first();
         $this->assertNotNull($attachment);
         Storage::disk('public')->assertExists($attachment->file_path);
+    }
+
+    public function test_platform_user_can_submit_payment_screenshot_from_billing_route(): void
+    {
+        Storage::fake('public');
+        $this->createDefaultAdminRole();
+        $this->createPackages();
+
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Billing Route User',
+            'email' => 'billing-route@example.com',
+            'phone' => '09222222223',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($platformUser, 'platformuser');
+
+        $tenant = app(TenantManagementService::class)->createTenant(new TenantCreate(
+            name: 'Billing Route Tenant',
+            code: 'billing-route-tenant',
+            subdomain: 'billing-route-subdomain',
+            createdByAdmin: false,
+            planType: null,
+        ));
+
+        $requestDetail = app(TenantRequestService::class)->createRequest(new TenantRequestCreate(
+            tenantId: $tenant->id,
+            requestType: 'plan_change',
+            requestedPlanType: 'premium',
+        ));
+
+        $this->post(route('platform.billing.payment.submit', $requestDetail->id), [
+            'update_key' => $requestDetail->updateKey,
+            'payment_screenshot' => UploadedFile::fake()->image('billing-route.png'),
+        ])->assertRedirect(route('platform.billing.index'));
+
+        $this->assertDatabaseHas('tenant_requests', [
+            'id' => $requestDetail->id,
+            'request_status' => 'pending_approval',
+            'update_key' => 1,
+        ]);
     }
 
     public function test_extension_request_uses_current_plan_pricing(): void
@@ -212,6 +257,7 @@ class TenantRequestServiceTest extends TestCase
 
     public function test_platform_admin_can_accept_or_decline_request(): void
     {
+        Mail::fake();
         Storage::fake('public');
         $this->createDefaultAdminRole();
         $this->createPackages();
@@ -252,6 +298,7 @@ class TenantRequestServiceTest extends TestCase
 
         app(TenantRequestService::class)->submitPaymentScreenshot(new TenantRequestPaymentSubmit(
             tenantRequestId: $requestDetail->id,
+            updateKey: $requestDetail->updateKey,
             paymentScreenshot: UploadedFile::fake()->image('approval.png'),
         ));
 
@@ -261,6 +308,9 @@ class TenantRequestServiceTest extends TestCase
 
         $this->assertSame('approved', $accepted->requestStatus);
         $this->assertSame('Accepted by admin', $accepted->adminReviewNote);
+        Mail::assertQueued(\App\Mail\PaymentRequestReviewedMail::class, function ($mail): bool {
+            return $mail->queue === 'mail';
+        });
     }
 
     protected function createDefaultAdminRole(): TenantRole

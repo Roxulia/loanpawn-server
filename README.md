@@ -136,6 +136,16 @@ Run development services:
 composer run dev
 ```
 
+The development command starts separate workers for the `default`, `scheduled`, and `mail` queues, along with `php artisan schedule:work`.
+
+Production deployments should invoke Laravel's scheduler every minute and run separate queue workers:
+
+```bash
+php artisan queue:work --queue=default
+php artisan queue:work --queue=scheduled
+php artisan queue:work --queue=mail --tries=3
+```
+
 Run test suite:
 
 ```bash

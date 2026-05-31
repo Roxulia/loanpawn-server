@@ -88,6 +88,7 @@
             <dialog class="platform-dialog" id="payment-dialog-{{ $payment->id }}">
                 <form method="POST" action="{{ route('platform.billing.payment.submit', $payment->tenant_request_id) }}" enctype="multipart/form-data">
                     @csrf
+                    <input type="hidden" name="update_key" value="{{ $payment->tenantRequest->update_key }}">
                     <div class="dialog-header">
                         <h2>Submit Payment Attachment</h2>
                         <button type="button" class="dialog-close" data-close-dialog="payment-dialog-{{ $payment->id }}">Close</button>

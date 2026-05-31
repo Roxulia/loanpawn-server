@@ -3,12 +3,13 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class PlatformPasswordResetOtpMail extends Mailable
+class PlatformPasswordResetOtpMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -17,6 +18,7 @@ class PlatformPasswordResetOtpMail extends Mailable
         public readonly int $expiresInMinutes,
         public readonly ?string $recipientName = null,
     ) {
+        $this->onQueue('mail');
     }
 
     public function envelope(): Envelope

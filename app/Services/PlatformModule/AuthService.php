@@ -14,6 +14,7 @@ use App\Models\PlatformModule\PlatformUser;
 use App\Repository\PlatformAdminRepository;
 use App\Repository\PlatformUserRepository;
 use App\Services\TableIdGenerationService;
+use App\Support\LogsServiceOperations;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Support\Facades\Auth;
@@ -23,18 +24,22 @@ use Illuminate\Support\Facades\Mail;
 
 class AuthService
 {
+    use LogsServiceOperations;
+
     /**
      * Create a new class instance.
      */
     private PlatformAdminRepository $adminRepository;
+
     private PlatformUserRepository $userRepository;
-    public function __construct(PlatformAdminRepository $adminRepository,PlatformUserRepository $userRepository, private TableIdGenerationService $tableIdGenerationService)
+
+    public function __construct(PlatformAdminRepository $adminRepository, PlatformUserRepository $userRepository, private TableIdGenerationService $tableIdGenerationService)
     {
         $this->adminRepository = $adminRepository;
         $this->userRepository = $userRepository;
     }
 
-    public function registerUser(PlatformUserRegister $request) : PlatformUser
+    public function registerUser(PlatformUserRegister $request): PlatformUser
     {
         return DB::transaction(fn () => PlatformUser::query()->create([
             'code' => $this->tableIdGenerationService->generateForPlatform('platform_users', CarbonImmutable::now()),
@@ -45,7 +50,7 @@ class AuthService
         ]));
     }
 
-    public function loginUser(string $email,string $password) : PlatformUserDetail
+    public function loginUser(string $email, string $password): PlatformUserDetail
     {
         $user = $this->userRepository->findByEmail($email);
 
@@ -62,7 +67,8 @@ class AuthService
         }
         Auth::guard('platformadmin')->logout();
         Auth::guard('platformuser')->login($user);
-        return new PlatformUserDetail($user->email,$user->name);
+
+        return new PlatformUserDetail($user->email, $user->name);
     }
 
     public function pendingVerificationLoginCandidate(string $email, string $password): ?PlatformUser
@@ -76,7 +82,7 @@ class AuthService
         return $user;
     }
 
-    public function loginAdmin(string $email,string $password) : PlatformAdmin
+    public function loginAdmin(string $email, string $password): PlatformAdmin
     {
         $admin = $this->adminRepository->findByEmail($email);
 
@@ -95,47 +101,51 @@ class AuthService
         Auth::guard($guard)->logout();
     }
 
-    public function requestOTP(string $email,bool $isAdmin): void
+    public function requestOTP(string $email, bool $isAdmin): void
     {
-        $account = $this->resolveAccount($email, $isAdmin);
-        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $passwordConfig = $this->passwordConfig($isAdmin);
+        $this->runLoggedOperation(__METHOD__, function () use ($email, $isAdmin): void {
+            $account = $this->resolveAccount($email, $isAdmin);
+            $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $passwordConfig = $this->passwordConfig($isAdmin);
 
-        DB::table($passwordConfig['table'])->updateOrInsert(
-            ['email' => $email],
-            [
-                'token' => Hash::make($otp),
-                'created_at' => now(),
-            ],
-        );
+            DB::table($passwordConfig['table'])->updateOrInsert(
+                ['email' => $email],
+                [
+                    'token' => Hash::make($otp),
+                    'created_at' => now(),
+                ],
+            );
 
-        Mail::to($account->email)->send(new PlatformPasswordResetOtpMail(
-            otp: $otp,
-            expiresInMinutes: $passwordConfig['expire'],
-            recipientName: $account->name,
-        ));
+            Mail::to($account->email)->send(new PlatformPasswordResetOtpMail(
+                otp: $otp,
+                expiresInMinutes: $passwordConfig['expire'],
+                recipientName: $account->name,
+            ));
+        });
     }
 
     public function requestRegistrationVerification(string $email): void
     {
-        $account = $this->resolveAccount($email, false);
-        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $passwordConfig = $this->passwordConfig(false);
+        $this->runLoggedOperation(__METHOD__, function () use ($email): void {
+            $account = $this->resolveAccount($email, false);
+            $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $passwordConfig = $this->passwordConfig(false);
 
-        DB::table('platform_user_email_verification_tokens')->updateOrInsert(
-            ['email' => $email],
-            [
-                'token' => Hash::make($otp),
-                'created_at' => now(),
-                'consumed_at' => null,
-            ],
-        );
+            DB::table('platform_user_email_verification_tokens')->updateOrInsert(
+                ['email' => $email],
+                [
+                    'token' => Hash::make($otp),
+                    'created_at' => now(),
+                    'consumed_at' => null,
+                ],
+            );
 
-        Mail::to($account->email)->send(new PlatformRegistrationVerificationMail(
-            otp: $otp,
-            expiresInMinutes: $passwordConfig['expire'],
-            recipientName: $account->name,
-        ));
+            Mail::to($account->email)->send(new PlatformRegistrationVerificationMail(
+                otp: $otp,
+                expiresInMinutes: $passwordConfig['expire'],
+                recipientName: $account->name,
+            ));
+        });
     }
 
     public function verifyRegistrationOTP(string $email, string $otp): void
@@ -166,7 +176,7 @@ class AuthService
         });
     }
 
-    public function verifyOTP(string $email,string $otp,bool $isAdmin): void
+    public function verifyOTP(string $email, string $otp, bool $isAdmin): void
     {
         $this->resolveAccount($email, $isAdmin);
 
@@ -174,17 +184,17 @@ class AuthService
         $row = DB::table($passwordConfig['table'])->where('email', $email)->first();
 
         if (! $row || ! is_string($row->token) || ! Hash::check($otp, $row->token)) {
-            throw new InvalidCredential("Invalid OTP");
+            throw new InvalidCredential('Invalid OTP');
         }
 
         if (now()->diffInMinutes($row->created_at) > $passwordConfig['expire']) {
             DB::table($passwordConfig['table'])->where('email', $email)->delete();
 
-            throw new InvalidCredential("OTP Expired");
+            throw new InvalidCredential('OTP Expired');
         }
     }
 
-    public function resetPassword(string $email,string $newPassword,bool $isAdmin): void
+    public function resetPassword(string $email, string $newPassword, bool $isAdmin): void
     {
         $account = $this->resolveAccount($email, $isAdmin);
         $account->forceFill([
@@ -195,25 +205,22 @@ class AuthService
         DB::table($this->passwordConfig($isAdmin)['table'])->where('email', $email)->delete();
     }
 
-    public function changePassword(string $currentPassword,string $newPassword,bool $isAdmin): void
+    public function changePassword(string $currentPassword, string $newPassword, bool $isAdmin): void
     {
         $guard = $isAdmin ? 'platformadmin' : 'platformuser';
         $account = Auth::guard($guard)->user();
 
         if (! $account) {
-            throw new AuthenticationException();
+            throw new AuthenticationException;
         }
 
         if (! Hash::check($currentPassword, $account->password)) {
             throw new InvalidCredential(null);
         }
-        if($isAdmin)
-        {
-            PlatformAdmin::where('id',$account->id)->update(['password' => Hash::make($newPassword)]);
-        }
-        else
-        {
-            PlatformUser::where('id',$account->id)->update(['password' => Hash::make($newPassword)]);
+        if ($isAdmin) {
+            PlatformAdmin::where('id', $account->id)->update(['password' => Hash::make($newPassword)]);
+        } else {
+            PlatformUser::where('id', $account->id)->update(['password' => Hash::make($newPassword)]);
         }
     }
 
@@ -237,26 +244,21 @@ class AuthService
 
     public function getCurrentUser(?string $guard)
     {
-        if($guard != null)
-        {
+        if ($guard != null) {
             $account = Auth::guard($guard)->user();
-            if(!$account)
-            {
+            if (! $account) {
                 throw new UserNotLoggedIn(null);
             }
-        }
-        else
-        {
+        } else {
             $account = Auth::guard('platformadmin')->user();
-            if(!$account)
-            {
+            if (! $account) {
                 $account = Auth::guard('platformuser')->user();
-                if(!$account)
-                {
+                if (! $account) {
                     throw new UserNotLoggedIn(null);
                 }
             }
         }
+
         return $account;
     }
 }
