@@ -1,0 +1,76 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+:root {
+  /* Primary */
+  --color-primary-50: #FFFFFF;
+  --color-primary-100: #F9F9F9;
+  --color-primary-200: #EDEDED;
+  --color-primary-300: #D6D6D6;
+  --color-primary-400: #BFBFBF;
+
+  /* Secondary */
+  --color-secondary-100: #0A0A5A;
+  --color-secondary-200: #03003D;
+  --color-secondary-300: #02002F;
+  --color-secondary-400: #010022;
+  --color-secondary-500: #000015;
+
+  /* Accent */
+  --color-accent-100: #FFD166;
+  --color-accent-200: #F5A700;
+  --color-accent-300: #D48E00;
+  --color-accent-400: #A86F00;
+  --color-accent-500: #7A5100;
+
+  /* Neutral Black */
+  --color-neutral-100: #2A2A2A;
+  --color-neutral-200: #0A0A0A;
+  --color-neutral-300: #050505;
+  --color-neutral-400: #020202;
+  --color-neutral-500: #000000;
+
+  /* Semantic usage */
+  --color-background: var(--color-primary-100);
+  --color-surface: var(--color-primary-50);
+  --color-border: var(--color-primary-200);
+  --color-border-strong: var(--color-primary-300);
+
+  --color-text: var(--color-neutral-200);
+  --color-text-muted: var(--color-neutral-100);
+  --color-heading: var(--color-secondary-200);
+
+  --color-primary: var(--color-secondary-200);
+  --color-primary-hover: var(--color-secondary-300);
+  --color-on-primary: var(--color-primary-50);
+
+  --color-brand: var(--color-secondary-200);
+  --color-brand-hover: var(--color-secondary-100);
+  --color-brand-active: var(--color-secondary-300);
+
+  --color-accent: var(--color-accent-200);
+  --color-accent-hover: var(--color-accent-300);
+  --color-cta: var(--color-accent-200);
+  --color-cta-hover: var(--color-accent-100);
+  --color-cta-active: var(--color-accent-300);
+
+  --color-danger: #DC2626;
+  --color-danger-soft: #FEF2F2;
+  --color-success: #16A34A;
+  --color-success-soft: #F0FDF4;
+  --color-info: #2563EB;
+  --color-info-soft: #EFF6FF;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --shadow-focus: 0 0 0 3px rgba(3, 0, 61, 0.14);
+}

@@ -1,0 +1,12 @@
+loanpawn.1morebit.tech <- base backend host
+
+/admin
+/register
+/login
+/forgot-password
+/create-tenant
+/tenant
+/update-tenant
+/request-tenant-upgrade
+/request-tenant-extend
+/submit-payment

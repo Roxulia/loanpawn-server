@@ -1,0 +1,262 @@
+<?php
+
+namespace App\Services\PlatformModule;
+
+use App\DataObjects\RequestObjects\PlatformUserRegister;
+use App\DataObjects\ResponseObjects\PlatformUserDetail;
+use App\Exceptions\AccountNotFound;
+use App\Exceptions\InvalidCredential;
+use App\Exceptions\UserNotLoggedIn;
+use App\Mail\PlatformPasswordResetOtpMail;
+use App\Mail\PlatformRegistrationVerificationMail;
+use App\Models\PlatformModule\PlatformAdmin;
+use App\Models\PlatformModule\PlatformUser;
+use App\Repository\PlatformAdminRepository;
+use App\Repository\PlatformUserRepository;
+use App\Services\TableIdGenerationService;
+use Carbon\CarbonImmutable;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+
+class AuthService
+{
+    /**
+     * Create a new class instance.
+     */
+    private PlatformAdminRepository $adminRepository;
+    private PlatformUserRepository $userRepository;
+    public function __construct(PlatformAdminRepository $adminRepository,PlatformUserRepository $userRepository, private TableIdGenerationService $tableIdGenerationService)
+    {
+        $this->adminRepository = $adminRepository;
+        $this->userRepository = $userRepository;
+    }
+
+    public function registerUser(PlatformUserRegister $request) : PlatformUser
+    {
+        return DB::transaction(fn () => PlatformUser::query()->create([
+            'code' => $this->tableIdGenerationService->generateForPlatform('platform_users', CarbonImmutable::now()),
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'status' => 'pending_verification',
+        ]));
+    }
+
+    public function loginUser(string $email,string $password) : PlatformUserDetail
+    {
+        $user = $this->userRepository->findByEmail($email);
+
+        if (! $user || ! Hash::check($password, $user->password)) {
+            throw new InvalidCredential(null);
+        }
+
+        if ($user->status === 'pending_verification') {
+            throw new InvalidCredential('Verify your email before logging in.');
+        }
+
+        if ($user->status !== 'active') {
+            throw new InvalidCredential(null);
+        }
+        Auth::guard('platformadmin')->logout();
+        Auth::guard('platformuser')->login($user);
+        return new PlatformUserDetail($user->email,$user->name);
+    }
+
+    public function pendingVerificationLoginCandidate(string $email, string $password): ?PlatformUser
+    {
+        $user = $this->userRepository->findByEmail($email);
+
+        if (! $user || $user->status !== 'pending_verification' || ! Hash::check($password, $user->password)) {
+            return null;
+        }
+
+        return $user;
+    }
+
+    public function loginAdmin(string $email,string $password) : PlatformAdmin
+    {
+        $admin = $this->adminRepository->findByEmail($email);
+
+        if (! $admin || $admin->status !== 'active' || ! Hash::check($password, $admin->password)) {
+            throw new InvalidCredential(null);
+        }
+
+        Auth::guard('platformuser')->logout();
+        Auth::guard('platformadmin')->login($admin);
+
+        return $admin;
+    }
+
+    public function logout(string $guard): void
+    {
+        Auth::guard($guard)->logout();
+    }
+
+    public function requestOTP(string $email,bool $isAdmin): void
+    {
+        $account = $this->resolveAccount($email, $isAdmin);
+        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $passwordConfig = $this->passwordConfig($isAdmin);
+
+        DB::table($passwordConfig['table'])->updateOrInsert(
+            ['email' => $email],
+            [
+                'token' => Hash::make($otp),
+                'created_at' => now(),
+            ],
+        );
+
+        Mail::to($account->email)->send(new PlatformPasswordResetOtpMail(
+            otp: $otp,
+            expiresInMinutes: $passwordConfig['expire'],
+            recipientName: $account->name,
+        ));
+    }
+
+    public function requestRegistrationVerification(string $email): void
+    {
+        $account = $this->resolveAccount($email, false);
+        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $passwordConfig = $this->passwordConfig(false);
+
+        DB::table('platform_user_email_verification_tokens')->updateOrInsert(
+            ['email' => $email],
+            [
+                'token' => Hash::make($otp),
+                'created_at' => now(),
+                'consumed_at' => null,
+            ],
+        );
+
+        Mail::to($account->email)->send(new PlatformRegistrationVerificationMail(
+            otp: $otp,
+            expiresInMinutes: $passwordConfig['expire'],
+            recipientName: $account->name,
+        ));
+    }
+
+    public function verifyRegistrationOTP(string $email, string $otp): void
+    {
+        $account = $this->resolveAccount($email, false);
+        $passwordConfig = $this->passwordConfig(false);
+        $row = DB::table('platform_user_email_verification_tokens')->where('email', $email)->first();
+
+        if (! $row || $row->consumed_at !== null || ! is_string($row->token) || ! Hash::check($otp, $row->token)) {
+            throw new InvalidCredential('Invalid verification code.');
+        }
+
+        if (now()->diffInMinutes($row->created_at) > $passwordConfig['expire']) {
+            DB::table('platform_user_email_verification_tokens')->where('email', $email)->delete();
+
+            throw new InvalidCredential('Verification code expired.');
+        }
+
+        DB::transaction(function () use ($account, $email): void {
+            $account->forceFill([
+                'email_verified_at' => now(),
+                'status' => 'active',
+            ])->save();
+
+            DB::table('platform_user_email_verification_tokens')
+                ->where('email', $email)
+                ->update(['consumed_at' => now()]);
+        });
+    }
+
+    public function verifyOTP(string $email,string $otp,bool $isAdmin): void
+    {
+        $this->resolveAccount($email, $isAdmin);
+
+        $passwordConfig = $this->passwordConfig($isAdmin);
+        $row = DB::table($passwordConfig['table'])->where('email', $email)->first();
+
+        if (! $row || ! is_string($row->token) || ! Hash::check($otp, $row->token)) {
+            throw new InvalidCredential("Invalid OTP");
+        }
+
+        if (now()->diffInMinutes($row->created_at) > $passwordConfig['expire']) {
+            DB::table($passwordConfig['table'])->where('email', $email)->delete();
+
+            throw new InvalidCredential("OTP Expired");
+        }
+    }
+
+    public function resetPassword(string $email,string $newPassword,bool $isAdmin): void
+    {
+        $account = $this->resolveAccount($email, $isAdmin);
+        $account->forceFill([
+            'password' => Hash::make($newPassword),
+            'remember_token' => null,
+        ])->save();
+
+        DB::table($this->passwordConfig($isAdmin)['table'])->where('email', $email)->delete();
+    }
+
+    public function changePassword(string $currentPassword,string $newPassword,bool $isAdmin): void
+    {
+        $guard = $isAdmin ? 'platformadmin' : 'platformuser';
+        $account = Auth::guard($guard)->user();
+
+        if (! $account) {
+            throw new AuthenticationException();
+        }
+
+        if (! Hash::check($currentPassword, $account->password)) {
+            throw new InvalidCredential(null);
+        }
+        if($isAdmin)
+        {
+            PlatformAdmin::where('id',$account->id)->update(['password' => Hash::make($newPassword)]);
+        }
+        else
+        {
+            PlatformUser::where('id',$account->id)->update(['password' => Hash::make($newPassword)]);
+        }
+    }
+
+    protected function resolveAccount(string $email, bool $isAdmin): PlatformAdmin|PlatformUser
+    {
+        $account = $isAdmin
+            ? $this->adminRepository->findByEmail($email)
+            : $this->userRepository->findByEmail($email);
+
+        if (! $account) {
+            throw new AccountNotFound(null);
+        }
+
+        return $account;
+    }
+
+    protected function passwordConfig(bool $isAdmin): array
+    {
+        return config('auth.passwords.'.($isAdmin ? 'platformadmins' : 'platformusers'));
+    }
+
+    public function getCurrentUser(?string $guard)
+    {
+        if($guard != null)
+        {
+            $account = Auth::guard($guard)->user();
+            if(!$account)
+            {
+                throw new UserNotLoggedIn(null);
+            }
+        }
+        else
+        {
+            $account = Auth::guard('platformadmin')->user();
+            if(!$account)
+            {
+                $account = Auth::guard('platformuser')->user();
+                if(!$account)
+                {
+                    throw new UserNotLoggedIn(null);
+                }
+            }
+        }
+        return $account;
+    }
+}

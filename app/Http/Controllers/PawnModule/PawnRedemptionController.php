@@ -1,0 +1,124 @@
+<?php
+
+namespace App\Http\Controllers\PawnModule;
+
+use App\DataObjects\RequestObjects\PawnRedemptionCreate;
+use App\DataObjects\ResponseObjects\InterestBreakDown;
+use App\Http\Controllers\Controller;
+use App\Services\PawnModule\PawnRedemptionService;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
+class PawnRedemptionController extends Controller
+{
+    public function __construct(
+        private PawnRedemptionService $redemptionService,
+    ) {
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+
+        $validated = $validator->validated();
+
+        return response()->json([
+            'data' => $this->redemptionService->list((int) ($validated['per_page'] ?? 15))->toArray(),
+        ]);
+    }
+
+    public function calculate(string $slipNo): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->redemptionService->getRedemptionResultBySlipNo($slipNo)->toArray(),
+        ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $input = array_merge($request->all(), [
+            'idempotency_key' => $request->header('Idempotency-Key'),
+        ]);
+
+        $validator = Validator::make($input, [
+            'slip_no' => ['required', 'string', 'max:60'],
+            'calculated_total' => ['required', 'numeric', 'min:0'],
+            'payment_amount' => ['required', 'numeric', 'min:0'],
+            'interests' => ['present', 'array'],
+            'interests.*.id' => ['required', 'integer', 'min:1'],
+            'interests.*.update_key' => ['required', 'integer', 'min:0'],
+            'interests.*.interest_amount' => ['required', 'numeric', 'min:0'],
+            'interests.*.start_date' => ['nullable', 'date'],
+            'interests.*.end_date' => ['nullable', 'date'],
+            'debts' => ['present', 'array'],
+            'debts.*.id' => ['required', 'integer', 'min:1'],
+            'debts.*.update_key' => ['required', 'integer', 'min:0'],
+            'debts.*.amount' => ['required', 'numeric', 'min:0'],
+            'redemption_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string'],
+            'created_by' => ['nullable', 'integer'],
+            'idempotency_key' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+
+        $validated = $validator->validated();
+        $redemption = $this->redemptionService->createRedemption(new PawnRedemptionCreate(
+            slipNo: $validated['slip_no'],
+            calculatedTotal: (float) $validated['calculated_total'],
+            paymentAmount: (float) $validated['payment_amount'],
+            debts: array_map(
+                fn (array $debt): object => (object) [
+                    'id' => (int) $debt['id'],
+                    'updateKey' => (int) $debt['update_key'],
+                    'amount' => (float) $debt['amount'],
+                ],
+                $validated['debts']
+            ),
+            interests: array_map(
+                fn (array $breakdown): InterestBreakDown => InterestBreakDown::fromValues(
+                    id: (int) $breakdown['id'],
+                    updateKey: (int) $breakdown['update_key'],
+                    interestAmount: (float) $breakdown['interest_amount'],
+                    startDate: $breakdown['start_date'] ?? null,
+                    endDate: $breakdown['end_date'] ?? null,
+                ),
+                $validated['interests']
+            ),
+            redemptionDate: isset($validated['redemption_date']) ? CarbonImmutable::parse($validated['redemption_date']) : null,
+            notes: $validated['notes'] ?? null,
+            createdBy: $validated['created_by'] ?? null,
+            idempotencyKey: $validated['idempotency_key'] ?? null,
+        ));
+
+        return response()->json([
+            'message' => 'Pawn redemption created successfully.',
+            'data' => $redemption->toArray(),
+        ], 201);
+    }
+
+    public function show(string $slipNumber): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->redemptionService->findBySlipNumber($slipNumber)->toArray(),
+        ]);
+    }
+
+    protected function validationFailed($validator): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Validation failed.',
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+}

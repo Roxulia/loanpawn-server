@@ -1,0 +1,66 @@
+LoanContractSlipCreation Flow:
+- perform validation check :
+	customer email or phone is required,
+	collateral item list must not be empty,
+	Interest Rate,Expire Quota,LoanAmount must greater than 0.
+- get current logged in tenant user's id
+- calculate expire date based on quota and type.(e.g curr_date = 2026/04/23,expire_quota = 4,quota_type = month, expire_date should be 2026/08/23)
+- begin DB transaction
+- find customer by email or phone, if exist use that customer as customer_id. if not create new customer and use as customer_id
+- generate slip_no using generate function from TableIdGenerationService (tenant_code+year+month+h3digit hexadecimal of current_id from tableId)
+- create loancontractslip with related values
+- using collateral item list from request
+	- create collateral items
+	- create SlipItem using related item key and slip id
+- create InterestPayment records based on interest rate,interest type,expire date,start date.
+	e.g 1 : interest_type = monthly,start_date = 2026/02/28,expire_date = 2026/06/28, row created = 4 (1st row start = 2026/02/28, end = 2026/03/27 23:59:59)
+	e.g 2 : interest_type = weekly , start_date = 2026/02/28 , expire_date = 2026/06/28 , row created = 18 (1st row start date = 2026/02/28 , end date = 2026/03/06 23:59:59 | 2nd row start date = 2026/03/07 , end date = 2026/03/13 23:59:59)
+	rule : if end_date of the interestpayment row is 2026/02/28 and expire date is 2026/03/01,must create one extra row.
+- create accounting transaction
+- record audit log
+
+
+Interest Payment Flow:
+- contain two part:
+	1. Interest Calculation
+	2. Payment Process
+- Interest Calculation:
+	- accept slip number (system generated one)
+	- check if slip is exist or if slip is active
+	- else throw error InvalidRequest (400)
+	- get current date
+	- get unpaid interestpayment rows until start date greater than current date.(e.g current date = 2026/04/04, get rows start date before 2026/04/04 and end date after 2026/04/04)
+	- calculate total amount and return response
+- Payment Process:
+	- accept payment amount
+	- check if it satisfy total interest amount
+	- then check if request contain recordDebt and its value is true, if false throw not enough error
+	- start loop until payment amount become 0 or all unpaid rows until start date greater than current date are satisfied
+	- if recordDebt is true, record interest amount - left amount as debt and set that row status as paid.
+	- delete all record after that last paid record.
+	- update last_interest_paid_date in related slip to current date.
+	- update expire date in related slip to current date + (expire quota) quotatype
+	- generate new interest records as in LoanContractSlipCreation flow.
+	- return debt amount or change amount as response
+
+Redemption Process
+- Contain two part :
+    1.Calculation :
+        - Find by slip number
+        - if it is expired or redeemed, throw invalid request
+        - get loan amount
+        - get calculated Interest as in Interest Calculation
+        - get all debt related to this slip
+        - calculate total of all payable amounts and return response.
+        - response will contain slip detail, interest list until now(both paid and unpaid),all debt list,calculated total,customer detail,collateral detail.(just use N+1 query style since it only select for one slip)
+    2.Payment Process:
+        - user will request with calculated total , payment amount.
+        - check if payment is lower than total, then throw Bad request
+        - calculate change amount
+        - change all interest payment to paid, remove future payment rows wont record accoounting
+        - change all debt to paid.wont record accounting
+        - record changeamount and redeemed status to slip
+        - change item status to redeemed to related collateral items.
+        - record accounting about Redemption.
+        - return success message and change amount.
+

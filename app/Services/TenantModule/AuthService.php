@@ -1,0 +1,183 @@
+<?php
+
+namespace App\Services\TenantModule;
+
+use App\DataObjects\RequestObjects\TenantUserPublicLogin;
+use App\DataObjects\RequestObjects\TenantUserSubdomainLogin;
+use App\DataObjects\ResponseObjects\TenantUserAuthSession;
+use App\DataObjects\ResponseObjects\TenantUserDetail;
+use App\Exceptions\InvalidCredential;
+use App\Exceptions\UserNotLoggedIn;
+use App\Models\CoreModule\TenantUser;
+use App\Repository\TenantUserRepository;
+use App\Services\BaseTenantService;
+use App\Services\PlatformModule\TenantServices\TenantLookupService;
+use App\Support\TenantContext;
+use Illuminate\Contracts\Cookie\QueueingFactory as CookieFactory;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+
+class AuthService extends BaseTenantService
+{
+    private const GUARD = 'tenantuser';
+    private const TOKEN_COOKIE = 'tenant_auth_token';
+
+    public function __construct(
+        private TenantUserRepository $repository,
+        private TenantLookupService $tenantLookupService,
+        private CookieFactory $cookieFactory,
+    ) {
+    }
+
+    public function loginFromPublicSpa(TenantUserPublicLogin $request): TenantUserAuthSession
+    {
+        $tenant = $this->tenantLookupService->findByTenantCode($request->tenantCode);
+        app(TenantContext::class)->set($tenant);
+
+        $session = $this->authenticateTenantUser(
+            $tenant->id,
+            $tenant->tenant_code,
+            $request->email,
+            $request->password
+        );
+        $this->cookieFactory->queue($this->makeAuthCookie($session));
+
+        return $session;
+    }
+
+    public function loginFromSubdomainSpa(TenantUserSubdomainLogin $request): TenantUserAuthSession
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $tenant = $this->tenantLookupService->findById($tenantId);
+
+        $session = $this->authenticateTenantUser(
+            $tenantId,
+            $tenant->tenant_code,
+            $request->email,
+            $request->password
+        );
+        $this->cookieFactory->queue($this->makeAuthCookie($session));
+
+        return $session;
+    }
+
+    public function loginFromSso(int $tenantId, int $tenantUserId): TenantUserAuthSession
+    {
+        $tenant = $this->tenantLookupService->findById($tenantId);
+        app(TenantContext::class)->set($tenant);
+
+        $user = $this->repository->findById($tenantUserId);
+
+        if (! $user || (int) $user->tenant_id !== $tenantId || $user->status !== 'active') {
+            throw new InvalidCredential(null);
+        }
+
+        $this->logoutOtherGuards();
+        Auth::shouldUse(self::GUARD);
+        Auth::guard(self::GUARD)->login($user);
+
+        $user = $this->repository->update($user, [
+            'last_login_at' => now(),
+        ])->loadMissing(['role', 'permission']);
+
+        $session = TenantUserAuthSession::fromModel(
+            $user,
+            $tenant->tenant_code,
+            self::TOKEN_COOKIE,
+            json_encode([
+                'tenantId' => $tenantId,
+                'username' => $user->username,
+                'email' => $user->email,
+                'roleId' => $user->role_id,
+                'tenantCode' => $tenant->tenant_code,
+            ], JSON_THROW_ON_ERROR)
+        );
+
+        $this->cookieFactory->queue($this->makeAuthCookie($session));
+
+        return $session;
+    }
+
+    public function getCurrentUser(): TenantUserDetail
+    {
+        $user = Auth::guard(self::GUARD)->user();
+
+        if (! $user instanceof TenantUser) {
+            throw new UserNotLoggedIn(null);
+        }
+
+        return TenantUserDetail::fromModel($user->loadMissing(['role', 'permission']));
+    }
+
+    public function logout(): void
+    {
+        Auth::guard(self::GUARD)->logout();
+        $this->cookieFactory->queue($this->forgetAuthCookie());
+    }
+
+    public function makeAuthCookie(TenantUserAuthSession $session): \Symfony\Component\HttpFoundation\Cookie
+    {
+        return cookie(
+            $session->tokenName,
+            $session->tokenValue,
+            (int) config('session.lifetime', 120),
+            '/',
+            config('session.domain'),
+            (bool) config('session.secure'),
+            true,
+            false,
+            config('session.same_site', 'lax')
+        );
+    }
+
+    public function forgetAuthCookie(): \Symfony\Component\HttpFoundation\Cookie
+    {
+        return cookie()->forget(
+            self::TOKEN_COOKIE,
+            '/',
+            config('session.domain')
+        );
+    }
+
+    protected function authenticateTenantUser(
+        int $tenantId,
+        string $tenantCode,
+        string $email,
+        string $password
+    ): TenantUserAuthSession
+    {
+        $user = $this->repository->findByEmail($email);
+
+        if (! $user || ! Hash::check($password, $user->password)) {
+            throw new InvalidCredential(null);
+        }
+
+        $this->logoutOtherGuards();
+        Auth::shouldUse(self::GUARD);
+        Auth::guard(self::GUARD)->login($user);
+
+        $user = $this->repository->update($user, [
+            'last_login_at' => now(),
+        ])->loadMissing(['role', 'permission']);
+
+        return TenantUserAuthSession::fromModel(
+            $user,
+            $tenantCode,
+            self::TOKEN_COOKIE,
+            json_encode([
+                'tenantId' => $tenantId,
+                'username' => $user->username,
+                'email' => $user->email,
+                'roleId' => $user->role_id,
+                'tenantCode' => $tenantCode,
+            ], JSON_THROW_ON_ERROR)
+        );
+    }
+
+    protected function logoutOtherGuards(): void
+    {
+        Auth::guard('web')->logout();
+        Auth::guard('platformuser')->logout();
+        Auth::guard('platformadmin')->logout();
+    }
+}

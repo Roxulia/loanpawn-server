@@ -1,0 +1,278 @@
+LonePawn Server Schema Snapshot
+Source: current files under database/migrations
+
+Conventions
+- Primary tenant table: client_tenants
+- Tenant foreign key rule: every table with a tenant_ or pawn_ prefix uses tenant_id as a foreign key to client_tenants.id
+- In the current migrations, some tenant-prefixed tables already declare tenant_id explicitly
+- Several pawn_/tenant_ tables are still skeletal and do not yet declare tenant_id in code; this file documents the intended tenancy rule for them
+
+Reference
+- PK = primary key
+- FK = foreign key
+- nullable = column allows null
+- default(x) = column default value
+
+Master / Platform Tables
+
+users
+- id : bigint, PK
+- name : string
+- email : string, unique
+- email_verified_at : timestamp, nullable
+- password : string
+- remember_token : string, nullable
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+password_reset_tokens
+- email : string, PK
+- token : string
+- created_at : timestamp, nullable
+
+sessions
+- id : string, PK
+- user_id : foreignId, nullable, indexed
+- ip_address : string(45), nullable
+- user_agent : text, nullable
+- payload : longText
+- last_activity : integer, indexed
+
+cache
+- key : string, PK
+- value : mediumText
+- expiration : integer, indexed
+
+cache_locks
+- key : string, PK
+- owner : string
+- expiration : integer, indexed
+
+jobs
+- id : bigint, PK
+- queue : string, indexed
+- payload : longText
+- attempts : unsignedTinyInteger
+- reserved_at : unsignedInteger, nullable
+- available_at : unsignedInteger
+- created_at : unsignedInteger
+
+job_batches
+- id : string, PK
+- name : string
+- total_jobs : integer
+- pending_jobs : integer
+- failed_jobs : integer
+- failed_job_ids : longText
+- options : mediumText, nullable
+- cancelled_at : integer, nullable
+- created_at : integer
+- finished_at : integer, nullable
+
+failed_jobs
+- id : bigint, PK
+- uuid : string, unique
+- connection : text
+- queue : text
+- payload : longText
+- exception : longText
+- failed_at : timestamp, default(current timestamp)
+
+master_admins
+- id : bigint, PK
+- name : string
+- username : string, unique
+- email : string, unique
+- password : string
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+master_admin_password_reset_tokens
+- email : string, PK
+- token : string
+- created_at : timestamp, nullable
+
+master_admin_sessions
+- id : string, PK
+- admin_id : unsignedBigInteger, nullable, indexed, FK -> master_admins.id
+- ip_address : string(45), nullable
+- user_agent : text, nullable
+- payload : longText
+- last_activity : integer, indexed
+
+master_clients
+- id : bigint, PK
+- name : string
+- username : string, unique
+- email : string, unique
+- password : string
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+master_client_password_reset_tokens
+- email : string, PK
+- token : string
+- created_at : timestamp, nullable
+
+master_client_sessions
+- id : string, PK
+- client_id : unsignedBigInteger, nullable, indexed, FK -> master_clients.id
+- ip_address : string(45), nullable
+- user_agent : text, nullable
+- payload : longText
+- last_activity : integer, indexed
+
+client_tenants
+- id : bigint, PK
+- client_id : unsignedBigInteger, FK -> master_clients.id
+- name : string
+- subdomain : string, unique
+- license_key : string, unique
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+master_features
+- id : bigint, PK
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+master_packages
+- id : bigint, PK
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+package_x_features
+- id : bigint, PK
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+Shared Lookup Tables
+
+expense_types
+- id : bigint, PK
+- name : string, unique
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+material_types
+- id : bigint, PK
+- name : string, unique
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+interest_types
+- id : bigint, PK
+- name : string, unique
+- duration_in_days : integer, default(30)
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+Tenant-Scoped Tables
+
+tenant_user_roles
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_users
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_expense_types
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id
+- expense_type_id : unsignedBigInteger
+- name : string
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_material_types
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id
+- material_type_id : unsignedBigInteger
+- name : string
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_interest_types
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id
+- interest_type_id : unsignedBigInteger
+- name : string
+- duration_in_days : integer, default(30)
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_customers
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_debts
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_expenses
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+tenant_accountings
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+Pawn Domain Tables
+
+pawn_normal_items
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [pawn prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+pawn_jewellery_items
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [pawn prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+pawn_loan_contract_slips
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [pawn prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+pawn_slip_x_items
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [pawn prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+pawn_interest_payments
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [pawn prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+pawn_redemptions
+- id : bigint, PK
+- tenant_id : unsignedBigInteger, FK -> client_tenants.id [pawn prefix rule; not yet declared in migration]
+- created_at : timestamp, nullable
+- updated_at : timestamp, nullable
+
+Relationship Summary
+- master_client_sessions.client_id -> master_clients.id
+- master_admin_sessions.admin_id -> master_admins.id
+- client_tenants.client_id -> master_clients.id
+- tenant_expense_types.tenant_id -> client_tenants.id
+- tenant_material_types.tenant_id -> client_tenants.id
+- tenant_interest_types.tenant_id -> client_tenants.id
+- By tenancy convention, all remaining tenant_* and pawn_* tables should also use tenant_id -> client_tenants.id
