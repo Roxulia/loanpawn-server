@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Models\PlatformModule\TenantLicense;
+use App\Models\PlatformModule\TenantLicensePlanTransition;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,58 @@ class TenantLicenseRepository
               AND expires_at < ?",
             [$currentDate, $currentDate]
         );
+    }
+
+    public function createPlanTransition(array $data): TenantLicensePlanTransition
+    {
+        return TenantLicensePlanTransition::query()->create($data);
+    }
+
+    public function hasScheduledTransition(int $licenseId): bool
+    {
+        return TenantLicensePlanTransition::query()
+            ->where('tenant_license_id', $licenseId)
+            ->where('status', 'scheduled')
+            ->where('is_deleted', false)
+            ->exists();
+    }
+
+    public function activateDuePlanTransitions(?Carbon $currentDate = null): int
+    {
+        $currentDate = $currentDate ?? now();
+        $transitionIds = TenantLicensePlanTransition::query()
+            ->where('status', 'scheduled')
+            ->where('is_deleted', false)
+            ->where('starts_at', '<=', $currentDate)
+            ->pluck('id');
+        $activated = 0;
+
+        foreach ($transitionIds as $transitionId) {
+            DB::transaction(function () use ($transitionId, $currentDate, &$activated): void {
+                $transition = TenantLicensePlanTransition::query()->lockForUpdate()->find($transitionId);
+
+                if (! $transition || $transition->status !== 'scheduled' || $transition->is_deleted) {
+                    return;
+                }
+
+                $license = TenantLicense::query()->lockForUpdate()->findOrFail($transition->tenant_license_id);
+                $license->update([
+                    'plan_type' => $transition->to_plan_type,
+                    'status' => 'active',
+                    'starts_at' => $transition->starts_at,
+                    'expires_at' => $transition->expires_at,
+                    'update_key' => $license->update_key + 1,
+                ]);
+                $transition->update([
+                    'status' => 'activated',
+                    'activated_at' => $currentDate,
+                    'update_key' => $transition->update_key + 1,
+                ]);
+                $activated++;
+            });
+        }
+
+        return $activated;
     }
 
     /**

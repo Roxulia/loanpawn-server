@@ -54,6 +54,13 @@ class TenantRequestService
             $platformUser = $this->authService->getCurrentUser('platformuser');
             $tenant = $this->resolveOwnedTenant($request->tenantId, $platformUser->id);
             $requestType = $this->normalizeRequestType($request->requestType);
+            $replacedRequest = null;
+
+            if ($requestType === self::TYPE_UPGRADE) {
+                $replacedRequest = $this->resolveReplaceablePlanChange($tenant->id);
+            } else {
+                $this->tenantLicenseService->ensureTenantHasNoScheduledPlanTransition($tenant->id);
+            }
 
             [$requestedPlanType, $extensionMonths, $totalCost] = $this->resolveRequestPricing($tenant, $request);
 
@@ -65,7 +72,12 @@ class TenantRequestService
                 $requestedPlanType,
                 $extensionMonths,
                 $totalCost,
+                $replacedRequest,
             ) {
+                if ($replacedRequest !== null) {
+                    $this->repository->softDeleteDraftPlanChange($replacedRequest);
+                }
+
                 $tenantRequest = $this->repository->create([
                     'code' => $this->tableIdGenerationService->generateForPlatform('tenant_requests', CarbonImmutable::now()),
                     'tenant_id' => $tenant->id,
@@ -302,11 +314,25 @@ class TenantRequestService
         $requestType = $this->normalizeRequestType($request->requestType);
 
         if ($requestType === self::TYPE_UPGRADE) {
-            if ($request->requestedPlanType == null || ! in_array($request->requestedPlanType, ['basic', 'premium'], true)) {
+            if ($request->requestedPlanType == null || $request->requestedPlanType === 'trial') {
                 throw new InvalidTenantRequest(MessageCodes::$messages['eb019']);
             }
 
             $package = $this->packageService->findActiveByCode($request->requestedPlanType);
+            $currentPlanType = $this->tenantLicenseService->getTenantLicense($tenant->id)->plan_type;
+
+            if ($request->requestedPlanType === $currentPlanType) {
+                throw new InvalidTenantRequest(MessageCodes::$messages['eb019']);
+            }
+
+            if ($currentPlanType === 'premium' && $request->requestedPlanType === 'basic') {
+                return [
+                    $request->requestedPlanType,
+                    $this->validateExtensionMonths($request->extensionMonths),
+                    $this->discountedPackageCost($package, $this->validateExtensionMonths($request->extensionMonths)),
+                ];
+            }
+
             $billingMonths = $this->monthsUntilLicenseExpiry($tenant);
 
             return [
@@ -322,22 +348,46 @@ class TenantRequestService
             throw new InvalidTenantRequest(MessageCodes::$messages['eb021']);
         }
 
-        $extensionDiscounts = config('pricing.extension_discounts', []);
-
-        if ($request->extensionMonths == null || ! isset($extensionDiscounts[$request->extensionMonths])) {
-            throw new InvalidTenantRequest(MessageCodes::$messages['eb020']);
-        }
-
         $package = $this->packageService->findActiveByCode($currentPlanType);
-        $baseCost = (float) $package->price * $request->extensionMonths;
-        $discountRate = (float) $extensionDiscounts[$request->extensionMonths];
-        $totalCost = round($baseCost * (1 - $discountRate), 2);
+        $extensionMonths = $this->validateExtensionMonths($request->extensionMonths);
+        $totalCost = $this->discountedPackageCost($package, $extensionMonths);
 
         return [
             $currentPlanType,
-            $request->extensionMonths,
+            $extensionMonths,
             $totalCost,
         ];
+    }
+
+    protected function validateExtensionMonths(?int $extensionMonths): int
+    {
+        if ($extensionMonths === null || ! isset(config('pricing.extension_discounts', [])[$extensionMonths])) {
+            throw new InvalidTenantRequest(MessageCodes::$messages['eb020']);
+        }
+
+        return $extensionMonths;
+    }
+
+    protected function discountedPackageCost($package, int $months): float
+    {
+        $discountRate = (float) config('pricing.extension_discounts', [])[$months];
+
+        return round((float) $package->price * $months * (1 - $discountRate), 2);
+    }
+
+    protected function resolveReplaceablePlanChange(int $tenantId): ?\App\Models\PlatformModule\TenantRequest
+    {
+        $existingRequest = $this->repository->findOpenPlanChangeByTenantId($tenantId);
+
+        if ($existingRequest === null) {
+            return null;
+        }
+
+        if ($existingRequest->request_status !== self::STATUS_WAITING_PAYMENT) {
+            throw new InvalidTenantRequest('Resolve the existing plan change request before creating another one.');
+        }
+
+        return $existingRequest;
     }
 
     protected function monthsUntilLicenseExpiry(Tenant $tenant): int

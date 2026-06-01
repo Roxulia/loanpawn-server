@@ -54,6 +54,10 @@ return [
             'name' => 'Tenant branding',
             'description' => 'Customize tenant logo, favicon, colors, and branding text.',
         ],
+        'master_data_management' => [
+            'name' => 'Master data management',
+            'description' => 'Create and remove tenant material, interest, and expense types.',
+        ],
     ],
 
     'packages' => [
@@ -92,6 +96,7 @@ return [
                 'debt_management',
                 'online_sync',
                 'slip_document_preview',
+                'master_data_management',
             ],
         ],
         'premium' => [
@@ -113,6 +118,7 @@ return [
                 'slip_document_preview',
                 'slip_document_layout_management',
                 'tenant_branding',
+                'master_data_management',
             ],
         ],
     ],

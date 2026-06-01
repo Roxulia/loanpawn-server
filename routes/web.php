@@ -6,6 +6,7 @@ use App\Http\Controllers\PlatformModule\Admin\AdminDashboardController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
 use App\Http\Controllers\PlatformModule\Web\BillingManagementController;
 use App\Http\Controllers\PlatformModule\Web\DashboardController;
 use App\Http\Controllers\PlatformModule\Web\TenantManagementController;
@@ -33,6 +34,8 @@ Route::name('admin.')->group(function () {
                 ->parameters(['platform-users' => 'platformUser'])
                 ->except(['show']);
             Route::get('/billing', [AdminBillingManagementController::class, 'index'])->name('billing.index');
+            Route::get('/package-flags', [AdminPackageFlagController::class, 'index'])->name('package-flags.index');
+            Route::put('/package-flags', [AdminPackageFlagController::class, 'update'])->name('package-flags.update');
             Route::get('/payment-requests', [AdminPaymentRequestController::class, 'index'])->name('payment-requests.index');
             Route::get('/payment-requests/{paymentRequest}', [AdminPaymentRequestController::class, 'show'])->name('payment-requests.show');
             Route::post('/payment-requests/{paymentRequest}/accept', [AdminPaymentRequestController::class, 'accept'])->name('payment-requests.accept');

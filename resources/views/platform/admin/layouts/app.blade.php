@@ -230,6 +230,7 @@
             <a href="{{ route('admin.tenants.index') }}" class="{{ request()->routeIs('admin.tenants.*') ? 'active' : '' }}">Tenant Management</a>
             <a href="{{ route('admin.platform-users.index') }}" class="{{ request()->routeIs('admin.platform-users.*') ? 'active' : '' }}">Platform User Management</a>
             <a href="{{ route('admin.billing.index') }}" class="{{ request()->routeIs('admin.billing.*') ? 'active' : '' }}">Billing Management</a>
+            <a href="{{ route('admin.package-flags.index') }}" class="{{ request()->routeIs('admin.package-flags.*') ? 'active' : '' }}">Feature & Plan Flags</a>
             <a href="{{ route('admin.payment-requests.index') }}" class="{{ request()->routeIs('admin.payment-requests.*') ? 'active' : '' }}">Payment Requests</a>
         </nav>
 

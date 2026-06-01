@@ -5,6 +5,7 @@ namespace App\Models\PlatformModule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TenantLicense extends Model
 {
@@ -18,6 +19,7 @@ class TenantLicense extends Model
         'activated_at',
         'approved_by',
         'notes',
+        'update_key',
     ];
 
     protected function casts(): array
@@ -42,5 +44,12 @@ class TenantLicense extends Model
     public function statusLogs(): HasMany
     {
         return $this->hasMany(LicenseStatusLog::class, 'license_id');
+    }
+
+    public function scheduledPlanTransition(): HasOne
+    {
+        return $this->hasOne(TenantLicensePlanTransition::class)
+            ->where('status', 'scheduled')
+            ->where('is_deleted', false);
     }
 }

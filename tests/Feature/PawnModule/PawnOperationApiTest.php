@@ -8,6 +8,8 @@ use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
+use App\Models\PlatformModule\TenantLicense;
+use Database\Seeders\PackageSeeder;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -16,6 +18,13 @@ use Tests\TestCase;
 class PawnOperationApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(PackageSeeder::class);
+    }
 
     protected function tearDown(): void
     {
@@ -319,6 +328,16 @@ class PawnOperationApiTest extends TestCase
             'tenant_code' => 'api-tenant',
             'subdomain' => 'api-subdomain',
             'status' => 'active',
+        ]);
+
+        TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'PAWNAPITEST00001',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'starts_at' => now(),
+            'expires_at' => now()->addMonth(),
+            'activated_at' => now(),
         ]);
 
         $role = TenantRole::query()->create([

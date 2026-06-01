@@ -29,6 +29,33 @@ class TenantRequestRepository
         return TenantRequest::query()->find($id);
     }
 
+    public function findOpenPlanChangeByTenantId(int $tenantId): ?TenantRequest
+    {
+        return TenantRequest::query()
+            ->where('tenant_id', $tenantId)
+            ->where('request_type', 'plan_change')
+            ->where('is_deleted', false)
+            ->where(function ($query) {
+                $query->whereIn('request_status', ['waiting_payment', 'pending_approval'])
+                    ->orWhere(function ($query) {
+                        $query->where('request_status', 'approved')
+                            ->whereHas('planTransition', fn ($query) => $query->where('status', 'scheduled'));
+                    });
+            })
+            ->latest('id')
+            ->first();
+    }
+
+    public function softDeleteDraftPlanChange(TenantRequest $tenantRequest): void
+    {
+        TenantRequest::query()->whereKey($tenantRequest->id)->update(['is_deleted' => true]);
+
+        ManualPaymentRequest::query()
+            ->where('tenant_request_id', $tenantRequest->id)
+            ->where('status', 'draft')
+            ->update(['is_deleted' => true]);
+    }
+
     public function createManualPaymentRequest(array $data): ManualPaymentRequest
     {
         $this->requireValue($data, 'code', 'Manual payment request');

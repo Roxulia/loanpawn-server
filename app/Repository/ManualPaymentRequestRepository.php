@@ -10,6 +10,7 @@ class ManualPaymentRequestRepository
     public function paginateAll(int $perPage = 15): LengthAwarePaginator
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->with(['platformUser', 'tenant', 'tenantRequest', 'attachments', 'reviewer'])
             ->orderByDesc('submitted_at')
             ->orderByDesc('id')
@@ -19,6 +20,7 @@ class ManualPaymentRequestRepository
     public function paginatePendingApproval(int $perPage = 15): LengthAwarePaginator
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->with(['platformUser', 'tenant', 'tenantRequest', 'attachments'])
             ->whereHas('tenantRequest', fn ($query) => $query->where('request_status', 'pending_approval'))
             ->orderByDesc('submitted_at')
@@ -29,6 +31,7 @@ class ManualPaymentRequestRepository
     public function findById(int $id): ?ManualPaymentRequest
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->with(['platformUser', 'tenant.license', 'tenantRequest', 'attachments', 'reviewer'])
             ->find($id);
     }
@@ -36,6 +39,7 @@ class ManualPaymentRequestRepository
     public function paginateByPlatformUser(int $platformUserId, int $perPage = 15): LengthAwarePaginator
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->with(['tenant', 'tenantRequest', 'attachments'])
             ->where('platform_user_id', $platformUserId)
             ->orderByDesc('submitted_at')
@@ -46,6 +50,7 @@ class ManualPaymentRequestRepository
     public function countPendingByPlatformUser(int $platformUserId): int
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->where('platform_user_id', $platformUserId)
             ->whereIn('status', ['submitted', 'under_review'])
             ->count();
@@ -54,6 +59,7 @@ class ManualPaymentRequestRepository
     public function countApprovedByPlatformUser(int $platformUserId): int
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->where('platform_user_id', $platformUserId)
             ->where('status', 'approved')
             ->count();
@@ -62,6 +68,7 @@ class ManualPaymentRequestRepository
     public function totalApprovedAmountByPlatformUser(int $platformUserId): float
     {
         return (float) ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->where('platform_user_id', $platformUserId)
             ->where('status', 'approved')
             ->sum('amount');
@@ -70,6 +77,7 @@ class ManualPaymentRequestRepository
     public function countPendingApproval(): int
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->whereHas('tenantRequest', fn ($query) => $query->where('request_status', 'pending_approval'))
             ->count();
     }
@@ -77,6 +85,7 @@ class ManualPaymentRequestRepository
     public function countApproved(): int
     {
         return ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->where('status', 'approved')
             ->count();
     }
@@ -84,6 +93,7 @@ class ManualPaymentRequestRepository
     public function totalApprovedAmount(): float
     {
         return (float) ManualPaymentRequest::query()
+            ->where('is_deleted', false)
             ->where('status', 'approved')
             ->sum('amount');
     }

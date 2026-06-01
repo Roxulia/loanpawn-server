@@ -7,6 +7,8 @@ use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
+use App\Models\PlatformModule\TenantLicense;
+use Database\Seeders\PackageSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -14,6 +16,13 @@ use Tests\TestCase;
 class CollateralItemApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(PackageSeeder::class);
+    }
 
     public function test_tenant_user_can_manage_normal_items_via_api(): void
     {
@@ -133,6 +142,16 @@ class CollateralItemApiTest extends TestCase
             'tenant_code' => 'demo-tenant',
             'subdomain' => 'demo-subdomain',
             'status' => 'active',
+        ]);
+
+        TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'COLLATERALTEST01',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'starts_at' => now(),
+            'expires_at' => now()->addMonth(),
+            'activated_at' => now(),
         ]);
 
         $role = TenantRole::query()->create([

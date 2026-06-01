@@ -7,6 +7,7 @@ use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\PackageFeature;
 use App\Repository\PackageRepository;
 use App\Utility\MessageCodes;
+use Illuminate\Support\Collection;
 
 class PackageService
 {
@@ -39,5 +40,23 @@ class PackageService
     public function featureValue(string $planType, string $featureCode): ?string
     {
         return $this->findEnabledFeatureByPlan($planType, $featureCode)?->value;
+    }
+
+    public function activePaidPackagesExcept(?string $excludedCode = null): Collection
+    {
+        return $this->repository->activePaidPackagesExcept($excludedCode);
+    }
+
+    public function flagMatrix(): array
+    {
+        return [
+            'features' => $this->repository->allFeatures(),
+            'packages' => $this->repository->allWithFeatures(),
+        ];
+    }
+
+    public function updateFlags(array $featureFlags, array $packageFlags, array $mappingFlags): void
+    {
+        $this->repository->updateFlags($featureFlags, $packageFlags, $mappingFlags);
     }
 }

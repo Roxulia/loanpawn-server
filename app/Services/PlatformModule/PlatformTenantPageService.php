@@ -13,6 +13,7 @@ class PlatformTenantPageService
     public function __construct(
         private AuthService $authService,
         private TenantRepository $tenantRepository,
+        private PackageService $packageService,
     ) {
     }
 
@@ -33,5 +34,10 @@ class PlatformTenantPageService
         }
 
         return $tenant;
+    }
+
+    public function activePaidPlansExcept(?string $excludedCode = null)
+    {
+        return $this->packageService->activePaidPackagesExcept($excludedCode);
     }
 }

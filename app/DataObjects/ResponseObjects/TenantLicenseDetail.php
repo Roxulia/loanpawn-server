@@ -15,6 +15,9 @@ class TenantLicenseDetail extends BaseDataObject
     public string $planType;
     public ?string $expireDate;
     public string $status;
+    public ?string $nextPlanType = null;
+    public ?string $nextPlanStartsAt = null;
+    public ?string $nextPlanExpiresAt = null;
 
     public function __construct()
     {
@@ -29,6 +32,10 @@ class TenantLicenseDetail extends BaseDataObject
         $detail->planType = $license->plan_type;
         $detail->expireDate = $license->expires_at?->toISOString();
         $detail->status = $license->status;
+        $transition = $license->scheduledPlanTransition;
+        $detail->nextPlanType = $transition?->to_plan_type;
+        $detail->nextPlanStartsAt = $transition?->starts_at?->toISOString();
+        $detail->nextPlanExpiresAt = $transition?->expires_at?->toISOString();
 
         return $detail;
     }

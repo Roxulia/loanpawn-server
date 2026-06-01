@@ -10,6 +10,7 @@ use App\Services\PlatformModule\PlatformTenantPageService;
 use App\Services\PlatformModule\TenantRequestService;
 use App\Services\PlatformModule\TenantServices\TenantManagementService;
 use App\Services\TenantModule\TenantSsoService;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,6 +22,7 @@ class TenantManagementController extends Controller
         private TenantManagementService $tenantManagementService,
         private TenantRequestService $tenantRequestService,
         private TenantSsoService $tenantSsoService,
+        private TenantLicenseService $tenantLicenseService,
     ) {
     }
 
@@ -65,14 +67,19 @@ class TenantManagementController extends Controller
 
     public function edit(int $tenant): View
     {
+        $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
+
         return view('platform.tenants.settings', [
-            'tenant' => $this->tenantPageService->findOwnedTenant($tenant),
+            'tenant' => $ownedTenant,
+            'planOptions' => $this->tenantPageService->activePaidPlansExcept($ownedTenant->license?->plan_type),
+            'canManageBranding' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'tenant_branding'),
         ]);
     }
 
     public function update(Request $request, int $tenant): RedirectResponse
     {
         $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
+        $canManageBranding = $this->tenantLicenseService->tenantHasFeature($tenant, 'tenant_branding');
 
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:255'],
@@ -92,15 +99,15 @@ class TenantManagementController extends Controller
             tenantId: $tenant,
             updateKey: $validated['update_key'],
             name: $validated['name'] ?? null,
-            subdomain: $ownedTenant->license?->plan_type === 'premium' ? ($validated['subdomain'] ?? null) : $ownedTenant->subdomain,
+            subdomain: $canManageBranding ? ($validated['subdomain'] ?? null) : $ownedTenant->subdomain,
             code: null,
             address: $validated['address'] ?? null,
             phone: $validated['phone'] ?? null,
             city: $validated['city'] ?? null,
             country: $validated['country'] ?? null,
-            primaryColor: $ownedTenant->license?->plan_type === 'premium' ? ($validated['primary_color'] ?? null) : null,
-            secondaryColor: $ownedTenant->license?->plan_type === 'premium' ? ($validated['secondary_color'] ?? null) : null,
-            accentColor: $ownedTenant->license?->plan_type === 'premium' ? ($validated['accent_color'] ?? null) : null,
+            primaryColor: $canManageBranding ? ($validated['primary_color'] ?? null) : null,
+            secondaryColor: $canManageBranding ? ($validated['secondary_color'] ?? null) : null,
+            accentColor: $canManageBranding ? ($validated['accent_color'] ?? null) : null,
         ));
 
         return redirect()
@@ -113,7 +120,8 @@ class TenantManagementController extends Controller
         $this->tenantPageService->findOwnedTenant($tenant);
 
         $validated = $request->validate([
-            'requested_plan_type' => ['required', 'string', 'in:basic,premium'],
+            'requested_plan_type' => ['required', 'string', 'max:40'],
+            'extension_months' => ['nullable', 'integer', 'in:1,3,6,12'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -121,6 +129,7 @@ class TenantManagementController extends Controller
             tenantId: $tenant,
             requestType: 'plan_change',
             requestedPlanType: $validated['requested_plan_type'],
+            extensionMonths: isset($validated['extension_months']) ? (int) $validated['extension_months'] : null,
             note: $validated['note'] ?? null,
         ));
 

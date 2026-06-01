@@ -11,6 +11,7 @@ use App\Http\Middleware\EnsurePlatformRole;
 use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsureTenantPermission;
+use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\LogHttpOperation;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant-resolve' => ResolveTenant::class,
             'tenant.access' => EnsureTenantUserBelongsToTenant::class,
             'tenant.permission' => EnsureTenantPermission::class,
+            'tenant.feature' => EnsureTenantFeature::class,
             'platform.role' => EnsurePlatformRole::class,
             'admin.password.changed' => EnsureAdminPasswordChanged::class,
             'tenant.plan' => \App\Http\Middleware\resolvePlan::class,

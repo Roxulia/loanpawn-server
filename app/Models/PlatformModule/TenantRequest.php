@@ -5,6 +5,7 @@ namespace App\Models\PlatformModule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TenantRequest extends Model
 {
@@ -53,6 +54,11 @@ class TenantRequest extends Model
     public function manualPaymentRequests(): HasMany
     {
         return $this->hasMany(ManualPaymentRequest::class);
+    }
+
+    public function planTransition(): HasOne
+    {
+        return $this->hasOne(TenantLicensePlanTransition::class);
     }
 
 }

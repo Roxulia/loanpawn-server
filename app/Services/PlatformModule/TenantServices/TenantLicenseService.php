@@ -5,6 +5,7 @@ namespace App\Services\PlatformModule\TenantServices;
 use App\DataObjects\RequestObjects\TenantCreate;
 use App\DataObjects\ResponseObjects\LicenseValidationResult;
 use App\Exceptions\FeatureNotAvailableForPlan;
+use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\PremiumPlanRequired;
 use App\Exceptions\TenantNotFound;
 use App\Mail\TenantLicenseExpiringMail;
@@ -159,7 +160,13 @@ class TenantLicenseService extends BaseTenantService
             $data['expires_at'] = $baseDate->copy()->addMonths((int) $tenantRequest->extension_months);
         }
 
-        if ($tenantRequest->request_type === 'plan_change') {
+        if (
+            $tenantRequest->request_type === 'plan_change'
+            && $license->plan_type === 'premium'
+            && $tenantRequest->requested_plan_type === 'basic'
+        ) {
+            $this->scheduleDowngrade($license, $tenantRequest, $approvedBy);
+        } elseif ($tenantRequest->request_type === 'plan_change') {
             $data['plan_type'] = $tenantRequest->requested_plan_type;
         }
 
@@ -188,7 +195,47 @@ class TenantLicenseService extends BaseTenantService
 
     public function checkExpire(): int
     {
-        return $this->runLoggedOperation(__METHOD__, fn (): int => $this->repository->checkExpire());
+        return $this->runLoggedOperation(__METHOD__, function (): int {
+            $this->repository->activateDuePlanTransitions();
+
+            return $this->repository->checkExpire();
+        });
+    }
+
+    public function ensureTenantHasNoScheduledPlanTransition(int $tenantId): void
+    {
+        $license = $this->getTenantLicense($tenantId);
+
+        if ($this->repository->hasScheduledTransition($license->id)) {
+            throw new InvalidTenantRequest('Resolve the scheduled plan change before extending this license.');
+        }
+    }
+
+    protected function scheduleDowngrade(
+        TenantLicense $license,
+        TenantRequest $tenantRequest,
+        int $approvedBy
+    ): void {
+        if ($this->repository->hasScheduledTransition($license->id)) {
+            throw new InvalidTenantRequest('A scheduled plan change already exists for this license.');
+        }
+
+        $startsAt = $license->expires_at;
+
+        if ($startsAt === null || $tenantRequest->extension_months === null) {
+            throw new InvalidTenantRequest('Scheduled downgrade term is required.');
+        }
+
+        $this->repository->createPlanTransition([
+            'tenant_license_id' => $license->id,
+            'tenant_request_id' => $tenantRequest->id,
+            'from_plan_type' => $license->plan_type,
+            'to_plan_type' => $tenantRequest->requested_plan_type,
+            'starts_at' => $startsAt,
+            'expires_at' => $startsAt->copy()->addMonths((int) $tenantRequest->extension_months),
+            'status' => 'scheduled',
+            'approved_by' => $approvedBy,
+        ]);
     }
 
     public function sendExpiringSoonNotifications(int $thresholdDays = 7): int

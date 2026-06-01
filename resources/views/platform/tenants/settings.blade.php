@@ -16,10 +16,10 @@
             $upgradeBillingMonths = max(1, (int) ceil($daysUntilExpiry / 30));
         }
 
-        $packagePrices = collect(config('package_features.packages'))
-            ->mapWithKeys(fn (array $package, string $code) => [$code => (float) $package['price']])
+        $packagePrices = $planOptions
+            ->mapWithKeys(fn ($package) => [$package->code => (float) $package->price])
             ->toArray();
-        $upgradePlanOptions = $currentPlan === 'trial' ? ['basic', 'premium'] : ['premium'];
+        $scheduledPlanTransition = $tenant->license?->scheduledPlanTransition;
     @endphp
 
     <form method="POST" action="{{ route('platform.tenants.update', $tenant->id) }}" class="grid">
@@ -38,7 +38,7 @@
                     <label>Tenant Code</label>
                     <input value="{{ $tenant->tenant_code }}" disabled>
                 </div>
-                @if ($tenant->license?->plan_type === 'premium')
+                @if ($canManageBranding)
                     <div>
                         <label for="subdomain">Subdomain</label>
                         <input id="subdomain" name="subdomain" value="{{ old('subdomain', $tenant->subdomain) }}">
@@ -53,10 +53,16 @@
                     <label>License Key</label>
                     <input value="{{ $tenant->license?->license_key ?? '-' }}" disabled>
                 </div>
+                @if ($scheduledPlanTransition)
+                    <div style="grid-column: 1 / -1;">
+                        <label>Scheduled Next Plan</label>
+                        <input value="{{ ucfirst($scheduledPlanTransition->to_plan_type) }} from {{ $scheduledPlanTransition->starts_at->format('Y-m-d H:i') }} until {{ $scheduledPlanTransition->expires_at->format('Y-m-d H:i') }}" disabled>
+                    </div>
+                @endif
             </div>
         </section>
 
-        @if ($currentPlan === 'premium')
+        @if ($canManageBranding)
             <section class="panel">
                 <h2 style="margin-top: 0; color: var(--color-heading); font-size: 20px;">Branding Settings</h2>
                 <div class="form-grid">
@@ -125,31 +131,45 @@
         <h2 style="margin-top: 0; color: var(--color-heading); font-size: 20px;">Plan Requests</h2>
         <p class="muted" style="margin-top: 0;">Create an upgrade or license extension request, then submit payment evidence in Billing Management.</p>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button type="button" class="button primary" data-open-dialog="upgrade-request-dialog">Upgrade Plan</button>
-            @if ($canExtendLicense)
+            @if ($planOptions->isNotEmpty())
+                <button type="button" class="button primary" data-open-dialog="upgrade-request-dialog">Change Plan</button>
+            @endif
+            @if ($canExtendLicense && ! $scheduledPlanTransition)
                 <button type="button" class="button secondary" data-open-dialog="extension-request-dialog">License Extension</button>
             @endif
         </div>
     </section>
 
+    @if ($planOptions->isNotEmpty())
     <dialog class="platform-dialog" id="upgrade-request-dialog">
         <form method="POST" action="{{ route('platform.tenants.upgrade-request', $tenant->id) }}">
             @csrf
             <div class="dialog-header">
-                <h2>Upgrade Plan</h2>
+                <h2>Change Plan</h2>
                 <button type="button" class="dialog-close" data-close-dialog="upgrade-request-dialog">Close</button>
             </div>
             <div class="grid">
                 <div>
                     <label for="requested_plan_type">Requested Plan</label>
                     <select id="requested_plan_type" name="requested_plan_type" required>
-                        @foreach ($upgradePlanOptions as $planCode)
-                            <option value="{{ $planCode }}" data-monthly-price="{{ $packagePrices[$planCode] ?? 0 }}">
-                                {{ ucfirst($planCode) }}
+                        @foreach ($planOptions as $plan)
+                            <option value="{{ $plan->code }}" data-monthly-price="{{ (float) $plan->price }}">
+                                {{ $plan->name }}
                             </option>
                         @endforeach
                     </select>
                 </div>
+                @if ($currentPlan === 'premium')
+                    <div>
+                        <label for="downgrade_extension_months">Basic Renewal Months</label>
+                        <select id="downgrade_extension_months" name="extension_months">
+                            <option value="">Select term for a Basic downgrade</option>
+                            @foreach (config('pricing.extension_discounts') as $months => $discount)
+                                <option value="{{ $months }}" data-discount="{{ $discount }}">{{ $months }} month{{ $months === 1 ? '' : 's' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
                 <div>
                     <label>Billing Months</label>
                     <input value="{{ $upgradeBillingMonths }} month{{ $upgradeBillingMonths === 1 ? '' : 's' }} until {{ $licenseExpiresAt?->format('Y-m-d') ?? 'license expiry' }}" disabled>
@@ -172,8 +192,9 @@
             </div>
         </form>
     </dialog>
+    @endif
 
-    @if ($canExtendLicense)
+    @if ($canExtendLicense && ! $scheduledPlanTransition)
         <dialog class="platform-dialog" id="extension-request-dialog">
             <form method="POST" action="{{ route('platform.tenants.extension-request', $tenant->id) }}">
                 @csrf
@@ -205,6 +226,7 @@
 
     <script>
         const upgradeBillingMonths = {{ $upgradeBillingMonths }};
+        const currentPlan = @json($currentPlan);
         const currencyFormatter = new Intl.NumberFormat('en-US', {
             maximumFractionDigits: 0,
         });
@@ -220,10 +242,19 @@
 
             const selectedOption = planSelect.options[planSelect.selectedIndex];
             const monthlyPrice = Number(selectedOption?.dataset.monthlyPrice || 0);
-            const totalPrice = monthlyPrice * upgradeBillingMonths;
+            const downgradeTerm = document.getElementById('downgrade_extension_months');
+            const isDeferredDowngrade = currentPlan === 'premium' && planSelect.value === 'basic';
+            const selectedTerm = downgradeTerm?.options[downgradeTerm.selectedIndex];
+            const months = isDeferredDowngrade ? Number(selectedTerm?.value || 0) : upgradeBillingMonths;
+            const discount = isDeferredDowngrade ? Number(selectedTerm?.dataset.discount || 0) : 0;
+            const totalPrice = monthlyPrice * months * (1 - discount);
 
             monthlyPriceInput.value = currencyFormatter.format(monthlyPrice) + ' MMK';
             totalPriceInput.value = currencyFormatter.format(totalPrice) + ' MMK';
+
+            if (downgradeTerm) {
+                downgradeTerm.required = isDeferredDowngrade;
+            }
         }
 
         document.querySelectorAll('[data-open-dialog]').forEach(function (button) {
@@ -240,6 +271,7 @@
         });
 
         document.getElementById('requested_plan_type')?.addEventListener('change', updateUpgradePricePreview);
+        document.getElementById('downgrade_extension_months')?.addEventListener('change', updateUpgradePricePreview);
         updateUpgradePricePreview();
     </script>
 @endsection

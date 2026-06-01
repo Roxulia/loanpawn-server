@@ -73,7 +73,7 @@ class TenantRepository
     public function findByIdForPlatformUser(int $tenantId, int $platformUserId): ?Tenant
     {
         return Tenant::query()
-            ->with(['license', 'branding', 'contact', 'settings'])
+            ->with(['license.scheduledPlanTransition', 'branding', 'contact', 'settings'])
             ->where('id', $tenantId)
             ->where('platform_user_id', $platformUserId)
             ->first();
