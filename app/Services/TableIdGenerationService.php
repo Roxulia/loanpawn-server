@@ -8,10 +8,11 @@ use App\Models\PlatformTableCode;
 use App\Models\TableId;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TableIdGenerationService extends BaseTenantService
 {
-    private const GENERATED_HEX_MAX_LENGTH = 8;
+    private const GENERATED_HEX_MAX_LENGTH = 3;
     private const TENANT_CODE_HEX_MAX_LENGTH = 4;
 
     public function generate(string $tableName, CarbonImmutable $date): string
@@ -51,12 +52,7 @@ class TableIdGenerationService extends BaseTenantService
         $tableId->current_id = (int) $tableId->current_id + 1;
         $tableId->save();
 
-        return sprintf(
-            '%s%s%s',
-            $this->prefixFor($tableName),
-            $tenant->tenant_code,
-            str_pad($this->hexToken((int) $date->format('Ym'), (int) $tableId->current_id, self::GENERATED_HEX_MAX_LENGTH),self::GENERATED_HEX_MAX_LENGTH,'0',STR_PAD_LEFT)
-        );
+        return $this->generatedCode($tableName, $date, (int) $tableId->current_id);
     }
 
     public function generateForPlatform(string $tableName,CarbonImmutable $date)
@@ -82,11 +78,7 @@ class TableIdGenerationService extends BaseTenantService
         $tableId->current_id = (int) $tableId->current_id + 1;
         $tableId->save();
 
-        return sprintf(
-            '%s%s',
-            $this->prefixFor($tableName),
-            $this->hexToken((int) $date->format('Ym'), (int) $tableId->current_id, self::GENERATED_HEX_MAX_LENGTH)
-        );
+        return $this->generatedCode($tableName,$date, (int) $tableId->current_id);
     }
 
     public function generateTenantCodeSuffix(CarbonImmutable $date): string
@@ -126,10 +118,24 @@ class TableIdGenerationService extends BaseTenantService
         return (string) config("code_generation.prefixes.{$tableName}", '');
     }
 
+    protected function generatedCode(string $tableName, CarbonImmutable $date, int $currentId): string
+    {
+        return sprintf(
+            '%s%s%s',
+            $this->prefixFor($tableName),
+            $date->format('Ym'),
+            str_pad(
+                $this->hexToken(0, $currentId, self::GENERATED_HEX_MAX_LENGTH),
+                self::GENERATED_HEX_MAX_LENGTH,
+                '0',
+                STR_PAD_LEFT
+            )
+        );
+    }
+
     protected function hexToken(int $period, int $currentId, int $maxLength): string
     {
         $hex = strtoupper(dechex($period + $currentId));
-
         return strlen($hex) <= $maxLength
             ? $hex
             : substr($hex, -$maxLength);
