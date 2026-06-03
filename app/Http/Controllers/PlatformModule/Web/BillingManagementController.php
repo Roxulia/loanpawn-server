@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\PlatformModule\Web;
 
 use App\DataObjects\RequestObjects\TenantRequestPaymentSubmit;
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\PlatformBillingService;
 use App\Services\PlatformModule\TenantRequestService;
@@ -34,13 +35,19 @@ class BillingManagementController extends Controller
             'update_key' => ['required', 'integer', 'min:0'],
         ]);
 
-        $this->tenantRequestService->submitPaymentScreenshot(new TenantRequestPaymentSubmit(
-            tenantRequestId: $tenantRequest,
-            paymentScreenshot: $validated['payment_screenshot'],
-            paymentReference: $validated['payment_reference'] ?? null,
-            note: $validated['note'] ?? null,
-            updateKey: $validated['update_key']
-        ));
+        try {
+            $this->tenantRequestService->submitPaymentScreenshot(new TenantRequestPaymentSubmit(
+                tenantRequestId: $tenantRequest,
+                paymentScreenshot: $validated['payment_screenshot'],
+                paymentReference: $validated['payment_reference'] ?? null,
+                note: $validated['note'] ?? null,
+                updateKey: $validated['update_key']
+            ));
+        } catch (ApiException $exception) {
+            return back()
+                ->withInput()
+                ->with('error', $exception->getMessage());
+        }
 
         return redirect()
             ->route('platform.billing.index')

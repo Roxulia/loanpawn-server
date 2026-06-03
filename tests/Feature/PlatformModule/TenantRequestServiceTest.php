@@ -182,6 +182,56 @@ class TenantRequestServiceTest extends TestCase
         ]);
     }
 
+    public function test_billing_route_redirects_with_error_when_payment_submission_throws_api_exception(): void
+    {
+        Storage::fake('public');
+        $this->createDefaultAdminRole();
+        $this->createPackages();
+
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Billing Error User',
+            'email' => 'billing-error@example.com',
+            'phone' => '09222222224',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($platformUser, 'platformuser');
+
+        $tenant = app(TenantManagementService::class)->createTenant(new TenantCreate(
+            name: 'Billing Error Tenant',
+            code: 'billing-error-tenant',
+            subdomain: 'billing-error-subdomain',
+            createdByAdmin: false,
+            planType: null,
+        ));
+
+        $requestDetail = app(TenantRequestService::class)->createRequest(new TenantRequestCreate(
+            tenantId: $tenant->id,
+            requestType: 'plan_change',
+            requestedPlanType: 'premium',
+        ));
+
+        $this->from(route('platform.billing.index'))
+            ->post(route('platform.billing.payment.submit', $requestDetail->id), [
+                'update_key' => $requestDetail->updateKey + 1,
+                'payment_reference' => 'STALE-KEY',
+                'note' => 'This should be preserved.',
+                'payment_screenshot' => UploadedFile::fake()->image('stale-key.png'),
+            ])
+            ->assertRedirect(route('platform.billing.index'))
+            ->assertSessionHas('error', 'This Item is already updated.Please Refresh')
+            ->assertSessionHasInput('payment_reference', 'STALE-KEY')
+            ->assertSessionHasInput('note', 'This should be preserved.');
+
+        $this->assertDatabaseHas('tenant_requests', [
+            'id' => $requestDetail->id,
+            'request_status' => 'waiting_payment',
+            'update_key' => 0,
+        ]);
+    }
+
     public function test_extension_request_uses_current_plan_pricing(): void
     {
         $this->createDefaultAdminRole();

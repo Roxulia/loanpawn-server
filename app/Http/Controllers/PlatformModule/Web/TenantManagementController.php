@@ -11,6 +11,7 @@ use App\Services\PlatformModule\TenantRequestService;
 use App\Services\PlatformModule\TenantServices\TenantManagementService;
 use App\Services\TenantModule\TenantSsoService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
+use App\Exceptions\ApiException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -117,52 +118,66 @@ class TenantManagementController extends Controller
 
     public function requestPlanChange(Request $request, int $tenant): RedirectResponse
     {
-        $this->tenantPageService->findOwnedTenant($tenant);
+        try{
+            $this->tenantPageService->findOwnedTenant($tenant);
 
-        $validated = $request->validate([
-            'requested_plan_type' => ['required', 'string', 'max:40'],
-            'extension_months' => ['nullable', 'integer', 'in:1,3,6,12'],
-            'note' => ['nullable', 'string', 'max:1000'],
-        ]);
+            $validated = $request->validate([
+                'requested_plan_type' => ['required', 'string', 'max:40'],
+                'extension_months' => ['nullable', 'integer', 'in:1,3,6,12'],
+                'note' => ['nullable', 'string', 'max:1000'],
+            ]);
 
-        $this->tenantRequestService->createRequest(new TenantRequestCreate(
-            tenantId: $tenant,
-            requestType: 'plan_change',
-            requestedPlanType: $validated['requested_plan_type'],
-            extensionMonths: isset($validated['extension_months']) ? (int) $validated['extension_months'] : null,
-            note: $validated['note'] ?? null,
-        ));
+            $this->tenantRequestService->createRequest(new TenantRequestCreate(
+                tenantId: $tenant,
+                requestType: 'plan_change',
+                requestedPlanType: $validated['requested_plan_type'],
+                extensionMonths: isset($validated['extension_months']) ? (int) $validated['extension_months'] : null,
+                note: $validated['note'] ?? null,
+            ));
 
-        return redirect()
-            ->route('platform.billing.index')
-            ->with('status', 'Upgrade payment request created. Submit the payment attachment from billing management.');
+            return redirect()
+                ->route('platform.billing.index')
+                ->with('status', 'Upgrade payment request created. Submit the payment attachment from billing management.');
+        }
+        catch (ApiException $exception) {
+            return back()
+                ->withInput()
+                ->with('error', $exception->getMessage());
+        }
     }
 
     public function requestLicenseExtension(Request $request, int $tenant): RedirectResponse
     {
-        $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
+        try {
+            $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
 
-        if ($ownedTenant->license?->plan_type === 'trial') {
+            if ($ownedTenant->license?->plan_type === 'trial') {
+                return redirect()
+                    ->route('platform.tenants.edit', $tenant)
+                    ->with('status', 'Trial tenants must upgrade before requesting license extension.');
+            }
+
+            $validated = $request->validate([
+                'extension_months' => ['required', 'integer', 'in:1,3,6,12'],
+                'note' => ['nullable', 'string', 'max:1000'],
+            ]);
+
+            $this->tenantRequestService->createRequest(new TenantRequestCreate(
+                tenantId: $tenant,
+                requestType: 'extension',
+                extensionMonths: (int) $validated['extension_months'],
+                note: $validated['note'] ?? null,
+            ));
+
             return redirect()
-                ->route('platform.tenants.edit', $tenant)
-                ->with('status', 'Trial tenants must upgrade before requesting license extension.');
+                ->route('platform.billing.index')
+                ->with('status', 'License extension payment request created. Submit the payment attachment from billing management.');
         }
-
-        $validated = $request->validate([
-            'extension_months' => ['required', 'integer', 'in:1,3,6,12'],
-            'note' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $this->tenantRequestService->createRequest(new TenantRequestCreate(
-            tenantId: $tenant,
-            requestType: 'extension',
-            extensionMonths: (int) $validated['extension_months'],
-            note: $validated['note'] ?? null,
-        ));
-
-        return redirect()
-            ->route('platform.billing.index')
-            ->with('status', 'License extension payment request created. Submit the payment attachment from billing management.');
+        catch (ApiException $exception) {
+            return back()
+                ->withInput()
+                ->with('error', $exception->getMessage());
+        }
     }
 
     public function openApp(int $tenant): RedirectResponse
