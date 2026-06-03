@@ -2,6 +2,7 @@
 
 namespace App\Models\PlatformModule;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -28,6 +29,11 @@ class PlatformAdmin extends Authenticatable
         return [
             'password' => 'hashed',
         ];
+    }
+
+    public function resolvedSupportTickets(): HasMany
+    {
+        return $this->hasMany(PlatformSupportTicket::class, 'resolved_by');
     }
 
 }

@@ -43,4 +43,9 @@ class PlatformUser extends Authenticatable
         return $this->hasMany(TenantRequest::class);
     }
 
+    public function supportTickets(): HasMany
+    {
+        return $this->hasMany(PlatformSupportTicket::class);
+    }
+
 }

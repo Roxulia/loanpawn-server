@@ -7,6 +7,8 @@ return [
         'pawn_collateral_items' => 'CI',
         'pawn_loan_contract_slips' => 'LS',
         'platform_users' => 'PU',
+        'platform_support_ticket_attachments' => 'TA',
+        'platform_support_tickets' => 'ST',
         'tenant_customers' => 'TC',
         'tenant_debts' => 'DB',
         'tenant_expenses' => 'EX',

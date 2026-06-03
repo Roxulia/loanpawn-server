@@ -378,6 +378,7 @@
             <a href="{{ route('platform.dashboard') }}" class="{{ request()->routeIs('platform.dashboard') ? 'active' : '' }}">Dashboard</a>
             <a href="{{ route('platform.tenants.index') }}" class="{{ request()->routeIs('platform.tenants.*') ? 'active' : '' }}">Tenant Management</a>
             <a href="{{ route('platform.billing.index') }}" class="{{ request()->routeIs('platform.billing.*') ? 'active' : '' }}">Billing Management</a>
+            <a href="{{ route('platform.customer-service.index') }}" class="{{ request()->routeIs('platform.customer-service.*') ? 'active' : '' }}">Customer Service</a>
         </nav>
 
         <form method="POST" action="{{ route('platform.logout') }}" style="margin-top: auto;">

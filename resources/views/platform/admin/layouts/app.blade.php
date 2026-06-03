@@ -232,6 +232,7 @@
             <a href="{{ route('admin.billing.index') }}" class="{{ request()->routeIs('admin.billing.*') ? 'active' : '' }}">Billing Management</a>
             <a href="{{ route('admin.package-flags.index') }}" class="{{ request()->routeIs('admin.package-flags.*') ? 'active' : '' }}">Feature & Plan Flags</a>
             <a href="{{ route('admin.payment-requests.index') }}" class="{{ request()->routeIs('admin.payment-requests.*') ? 'active' : '' }}">Payment Requests</a>
+            <a href="{{ route('admin.issued-tickets.index') }}" class="{{ request()->routeIs('admin.issued-tickets.*') ? 'active' : '' }}">Issued Tickets</a>
         </nav>
 
         <form method="POST" action="{{ route('admin.logout') }}" style="margin-top: auto;">
