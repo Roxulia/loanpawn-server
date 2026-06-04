@@ -53,8 +53,8 @@ class PlatformSupportTicketStatusChanged implements ShouldBroadcastNow
             'userUnreadRepliesCount' => (int) $ticket->user_unread_replies_count,
             'createdAt' => $ticket->created_at?->format('Y-m-d') ?? '-',
             'updatedAt' => $ticket->updated_at?->format('Y-m-d') ?? '-',
-            'adminDetailUrl' => route('admin.issued-tickets.show', $ticket->id),
-            'userDetailUrl' => route('platform.customer-service.show', $ticket->id),
+            'adminDetailUrl' => route('admin.issued-tickets.show', $ticket->code),
+            'userDetailUrl' => route('platform.customer-service.show', $ticket->code),
         ];
     }
 }

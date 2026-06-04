@@ -45,29 +45,29 @@ class CustomerServiceController extends Controller
         ));
 
         return redirect()
-            ->route('platform.customer-service.show', $ticket->id)
+            ->route('platform.customer-service.show', $ticket->code)
             ->with('status', 'Support ticket created. Please wait for admin response.');
     }
 
-    public function show(int $ticket): View
+    public function show(string $ticketCode): View
     {
         return view('platform.customer-service.show', [
-            'ticket' => $this->ticketService->findOwnedTicket($ticket),
+            'ticket' => $this->ticketService->findOwnedTicket($ticketCode),
         ]);
     }
 
-    public function reply(Request $request, int $ticket): RedirectResponse
+    public function reply(Request $request, string $ticketCode): RedirectResponse
     {
         $validated = $this->validateReply($request);
 
         $this->ticketService->replyAsPlatformUser(new PlatformSupportTicketReply(
-            ticketId: $ticket,
+            ticketCode: $ticketCode,
             message: $validated['message'],
             attachments: $validated['attachments'] ?? [],
         ));
 
         return redirect()
-            ->route('platform.customer-service.show', $ticket)
+            ->route('platform.customer-service.show', $ticketCode)
             ->with('status', 'Message added.');
     }
 

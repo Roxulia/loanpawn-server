@@ -11,7 +11,7 @@ class PlatformSupportTicketReply extends BaseDataObject
      * @param array<int, UploadedFile> $attachments
      */
     public function __construct(
-        public int $ticketId,
+        public string $ticketCode,
         public string $message,
         public array $attachments = [],
     ) {

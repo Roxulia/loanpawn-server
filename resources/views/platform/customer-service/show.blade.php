@@ -65,7 +65,7 @@
     </section>
 
     @if ($ticket->status !== 'resolved')
-        <form class="panel grid" style="margin-top: 16px;" method="POST" action="{{ route('platform.customer-service.messages.store', $ticket->id) }}" enctype="multipart/form-data">
+        <form class="panel grid" style="margin-top: 16px;" method="POST" action="{{ route('platform.customer-service.messages.store', $ticket->code) }}" enctype="multipart/form-data">
             @csrf
             <div>
                 <label for="message">Reply</label>

@@ -40,7 +40,7 @@ class PlatformSupportTicketTest extends TestCase
 
         $ticket = PlatformSupportTicket::query()->first();
 
-        $response->assertRedirect(route('platform.customer-service.show', $ticket->id));
+        $response->assertRedirect(route('platform.customer-service.show', $ticket->code));
         $this->assertDatabaseHas('platform_support_tickets', [
             'platform_user_id' => $user->id,
             'subject' => 'Cannot open dashboard',
@@ -57,7 +57,7 @@ class PlatformSupportTicketTest extends TestCase
         $other = $this->platformUser('other@example.com', 'PU0000002');
         $ticket = $this->ticketFor($owner);
 
-        $response = $this->actingAs($other, 'platformuser')->get(route('platform.customer-service.show', $ticket->id));
+        $response = $this->actingAs($other, 'platformuser')->get(route('platform.customer-service.show', $ticket->code));
 
         $response->assertStatus(403);
     }
@@ -68,11 +68,11 @@ class PlatformSupportTicketTest extends TestCase
         $admin = $this->platformAdmin();
         $ticket = $this->ticketFor($user);
 
-        $response = $this->actingAs($admin, 'platformadmin')->post(route('admin.issued-tickets.messages.store', $ticket->id), [
+        $response = $this->actingAs($admin, 'platformadmin')->post(route('admin.issued-tickets.messages.store', $ticket->code), [
             'message' => 'We are checking this now.',
         ]);
 
-        $response->assertRedirect(route('admin.issued-tickets.show', $ticket->id));
+        $response->assertRedirect(route('admin.issued-tickets.show', $ticket->code));
         $this->assertDatabaseHas('platform_support_tickets', [
             'id' => $ticket->id,
             'status' => 'open',
@@ -93,8 +93,8 @@ class PlatformSupportTicketTest extends TestCase
         $ticket = $this->ticketFor($user);
 
         $this->actingAs($admin, 'platformadmin')
-            ->post(route('admin.issued-tickets.resolve', $ticket->id))
-            ->assertRedirect(route('admin.issued-tickets.show', $ticket->id));
+            ->post(route('admin.issued-tickets.resolve', $ticket->code))
+            ->assertRedirect(route('admin.issued-tickets.show', $ticket->code));
 
         $this->assertDatabaseHas('platform_support_tickets', [
             'id' => $ticket->id,
@@ -103,7 +103,7 @@ class PlatformSupportTicketTest extends TestCase
         ]);
 
         $this->actingAs($user, 'platformuser')
-            ->post(route('platform.customer-service.messages.store', $ticket->id), [
+            ->post(route('platform.customer-service.messages.store', $ticket->code), [
                 'message' => 'I still need help.',
             ])
             ->assertStatus(422);
@@ -115,7 +115,7 @@ class PlatformSupportTicketTest extends TestCase
         $admin = $this->platformAdmin();
         $ticket = $this->ticketFor($user);
 
-        $this->actingAs($admin, 'platformadmin')->post(route('admin.issued-tickets.messages.store', $ticket->id), [
+        $this->actingAs($admin, 'platformadmin')->post(route('admin.issued-tickets.messages.store', $ticket->code), [
             'message' => 'Unread admin reply.',
         ]);
 
@@ -125,7 +125,7 @@ class PlatformSupportTicketTest extends TestCase
         ]);
 
         $this->actingAs($user, 'platformuser')
-            ->get(route('platform.customer-service.show', $ticket->id))
+            ->get(route('platform.customer-service.show', $ticket->code))
             ->assertOk();
 
         $this->assertDatabaseHas('platform_support_tickets', [
@@ -155,7 +155,7 @@ class PlatformSupportTicketTest extends TestCase
         Event::assertDispatched(PlatformSupportTicketCreated::class);
 
         app(PlatformSupportTicketService::class)->replyAsPlatformUser(new PlatformSupportTicketReply(
-            ticketId: $ticket->id,
+            ticketCode: $ticket->code,
             message: 'User reply.',
         ));
 
@@ -166,7 +166,7 @@ class PlatformSupportTicketTest extends TestCase
 
         $this->actingAs($admin, 'platformadmin');
         app(PlatformSupportTicketService::class)->replyAsAdmin(new PlatformSupportTicketReply(
-            ticketId: $ticket->id,
+            ticketCode: $ticket->code,
             message: 'Admin reply.',
         ));
 
@@ -175,6 +175,22 @@ class PlatformSupportTicketTest extends TestCase
             return $event->recipientType === 'platform_user'
                 && $event->message->sender_type === 'platform_admin';
         });
+    }
+
+    public function test_support_ticket_broadcast_detail_urls_use_ticket_code(): void
+    {
+        $user = $this->platformUser('owner@example.com');
+        $ticket = $this->ticketFor($user);
+        $message = $ticket->messages()->firstOrFail();
+
+        $createdPayload = (new PlatformSupportTicketCreated($ticket))->broadcastWith();
+        $messagePayload = (new PlatformSupportTicketMessageCreated($ticket, $message, 'admin'))->broadcastWith();
+        $statusPayload = (new PlatformSupportTicketStatusChanged($ticket))->broadcastWith();
+
+        foreach ([$createdPayload, $messagePayload, $statusPayload] as $payload) {
+            $this->assertSame(route('admin.issued-tickets.show', $ticket->code), $payload['ticket']['adminDetailUrl']);
+            $this->assertSame(route('platform.customer-service.show', $ticket->code), $payload['ticket']['userDetailUrl']);
+        }
     }
 
     public function test_private_broadcast_channels_are_guard_and_owner_scoped(): void

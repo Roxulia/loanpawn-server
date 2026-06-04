@@ -23,14 +23,14 @@ class AdminIssuedTicketController extends Controller
         ]);
     }
 
-    public function show(int $ticket): View
+    public function show(string $ticketCode): View
     {
         return view('platform.admin.issued-tickets.show', [
-            'ticket' => $this->ticketService->findTicketForAdmin($ticket),
+            'ticket' => $this->ticketService->findTicketForAdmin($ticketCode),
         ]);
     }
 
-    public function reply(Request $request, int $ticket): RedirectResponse
+    public function reply(Request $request, string $ticketCode): RedirectResponse
     {
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:5000'],
@@ -39,31 +39,31 @@ class AdminIssuedTicketController extends Controller
         ]);
 
         $this->ticketService->replyAsAdmin(new PlatformSupportTicketReply(
-            ticketId: $ticket,
+            ticketCode: $ticketCode,
             message: $validated['message'],
             attachments: $validated['attachments'] ?? [],
         ));
 
         return redirect()
-            ->route('admin.issued-tickets.show', $ticket)
+            ->route('admin.issued-tickets.show', $ticketCode)
             ->with('status', 'Message added.');
     }
 
-    public function open(int $ticket): RedirectResponse
+    public function open(string $ticketCode): RedirectResponse
     {
-        $this->ticketService->openAsAdmin($ticket);
+        $this->ticketService->openAsAdmin($ticketCode);
 
         return redirect()
-            ->route('admin.issued-tickets.show', $ticket)
+            ->route('admin.issued-tickets.show', $ticketCode)
             ->with('status', 'Ticket opened.');
     }
 
-    public function resolve(int $ticket): RedirectResponse
+    public function resolve(string $ticketCode): RedirectResponse
     {
-        $this->ticketService->resolveAsAdmin($ticket);
+        $this->ticketService->resolveAsAdmin($ticketCode);
 
         return redirect()
-            ->route('admin.issued-tickets.show', $ticket)
+            ->route('admin.issued-tickets.show', $ticketCode)
             ->with('status', 'Ticket resolved.');
     }
 }

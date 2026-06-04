@@ -43,10 +43,10 @@ Route::name('admin.')->group(function () {
             Route::post('/payment-requests/{paymentRequest}/accept', [AdminPaymentRequestController::class, 'accept'])->name('payment-requests.accept');
             Route::post('/payment-requests/{paymentRequest}/reject', [AdminPaymentRequestController::class, 'reject'])->name('payment-requests.reject');
             Route::get('/issued-tickets', [AdminIssuedTicketController::class, 'index'])->name('issued-tickets.index');
-            Route::get('/issued-tickets/{ticket}', [AdminIssuedTicketController::class, 'show'])->name('issued-tickets.show');
-            Route::post('/issued-tickets/{ticket}/messages', [AdminIssuedTicketController::class, 'reply'])->name('issued-tickets.messages.store');
-            Route::post('/issued-tickets/{ticket}/open', [AdminIssuedTicketController::class, 'open'])->name('issued-tickets.open');
-            Route::post('/issued-tickets/{ticket}/resolve', [AdminIssuedTicketController::class, 'resolve'])->name('issued-tickets.resolve');
+            Route::get('/issued-tickets/{ticketCode}', [AdminIssuedTicketController::class, 'show'])->name('issued-tickets.show');
+            Route::post('/issued-tickets/{ticketCode}/messages', [AdminIssuedTicketController::class, 'reply'])->name('issued-tickets.messages.store');
+            Route::post('/issued-tickets/{ticketCode}/open', [AdminIssuedTicketController::class, 'open'])->name('issued-tickets.open');
+            Route::post('/issued-tickets/{ticketCode}/resolve', [AdminIssuedTicketController::class, 'resolve'])->name('issued-tickets.resolve');
     });
 });
 
@@ -94,8 +94,8 @@ Route::name('platform.')->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/create', 'create')->name('create');
             Route::post('/', 'store')->name('store');
-            Route::get('/{ticket}', 'show')->name('show');
-            Route::post('/{ticket}/messages', 'reply')->name('messages.store');
+            Route::get('/{ticketCode}', 'show')->name('show');
+            Route::post('/{ticketCode}/messages', 'reply')->name('messages.store');
         });
     });
 });

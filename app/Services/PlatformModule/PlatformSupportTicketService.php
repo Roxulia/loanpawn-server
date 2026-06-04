@@ -89,10 +89,10 @@ class PlatformSupportTicketService
         });
     }
 
-    public function findOwnedTicket(int $ticketId): PlatformSupportTicket
+    public function findOwnedTicket(string $ticketCode): PlatformSupportTicket
     {
         $platformUser = $this->currentPlatformUser();
-        $ticket = $this->repository->findOwnedByPlatformUser($ticketId, $platformUser->id);
+        $ticket = $this->repository->findOwnedByPlatformUserCode($ticketCode, $platformUser->id);
 
         if (! $ticket) {
             throw new TenantAccessDenied('Support ticket is not available for this platform user.');
@@ -101,10 +101,10 @@ class PlatformSupportTicketService
         return $this->repository->resetUserUnreadReplies($ticket);
     }
 
-    public function findTicketForAdmin(int $ticketId): PlatformSupportTicket
+    public function findTicketForAdmin(string $ticketCode): PlatformSupportTicket
     {
         $this->currentPlatformAdmin();
-        $ticket = $this->repository->findForAdmin($ticketId);
+        $ticket = $this->repository->findByCode($ticketCode);
 
         if (! $ticket) {
             throw new TenantNotFound('Support ticket is not found.');
@@ -117,7 +117,7 @@ class PlatformSupportTicketService
     {
         return $this->runLoggedOperation(__METHOD__, function () use ($request): PlatformSupportTicket {
             $platformUser = $this->currentPlatformUser();
-            $ticket = $this->repository->findOwnedByPlatformUser($request->ticketId, $platformUser->id);
+            $ticket = $this->repository->findOwnedByPlatformUserCode($request->ticketCode, $platformUser->id);
 
             if (! $ticket) {
                 throw new TenantAccessDenied('Support ticket is not available for this platform user.');
@@ -152,7 +152,7 @@ class PlatformSupportTicketService
     {
         return $this->runLoggedOperation(__METHOD__, function () use ($request): PlatformSupportTicket {
             $admin = $this->currentPlatformAdmin();
-            $ticket = $this->repository->findForAdmin($request->ticketId);
+            $ticket = $this->repository->findByCode($request->ticketCode);
 
             if (! $ticket) {
                 throw new TenantNotFound('Support ticket is not found.');
@@ -198,11 +198,11 @@ class PlatformSupportTicketService
         });
     }
 
-    public function openAsAdmin(int $ticketId): PlatformSupportTicket
+    public function openAsAdmin(string $ticketCode): PlatformSupportTicket
     {
-        return $this->runLoggedOperation(__METHOD__, function () use ($ticketId): PlatformSupportTicket {
+        return $this->runLoggedOperation(__METHOD__, function () use ($ticketCode): PlatformSupportTicket {
             $this->currentPlatformAdmin();
-            $ticket = $this->findTicketForAdmin($ticketId);
+            $ticket = $this->findTicketForAdmin($ticketCode);
 
             if ($ticket->status !== self::STATUS_PENDING) {
                 throw new InvalidTenantRequest('Only pending support tickets can be opened.');
@@ -220,11 +220,11 @@ class PlatformSupportTicketService
         });
     }
 
-    public function resolveAsAdmin(int $ticketId): PlatformSupportTicket
+    public function resolveAsAdmin(string $ticketCode): PlatformSupportTicket
     {
-        return $this->runLoggedOperation(__METHOD__, function () use ($ticketId): PlatformSupportTicket {
+        return $this->runLoggedOperation(__METHOD__, function () use ($ticketCode): PlatformSupportTicket {
             $admin = $this->currentPlatformAdmin();
-            $ticket = $this->findTicketForAdmin($ticketId);
+            $ticket = $this->findTicketForAdmin($ticketCode);
 
             if (! in_array($ticket->status, [self::STATUS_PENDING, self::STATUS_OPEN], true)) {
                 throw new InvalidTenantRequest('Only pending or open support tickets can be resolved.');

@@ -63,6 +63,23 @@ class PlatformSupportTicketRepository
             ->find($ticketId);
     }
 
+    public function findOwnedByPlatformUserCode(string $code, int $platformUserId): ?PlatformSupportTicket
+    {
+        return PlatformSupportTicket::query()
+            ->where('is_deleted', false)
+            ->where('platform_user_id', $platformUserId)
+            ->where('code', $code)
+            ->with([
+                'platformUser',
+                'resolver',
+                'messages' => fn ($query) => $query->orderBy('id'),
+                'messages.attachments' => fn ($query) => $query->where('is_deleted', false)->orderBy('id'),
+                'messages.platformUser',
+                'messages.platformAdmin',
+            ])
+            ->first();
+    }
+
     public function findForAdmin(int $ticketId): ?PlatformSupportTicket
     {
         return PlatformSupportTicket::query()
@@ -76,6 +93,22 @@ class PlatformSupportTicketRepository
                 'messages.platformAdmin',
             ])
             ->find($ticketId);
+    }
+
+    public function findByCode(string $code): ?PlatformSupportTicket
+    {
+        return PlatformSupportTicket::query()
+            ->where('is_deleted', false)
+            ->where('code', $code)
+            ->with([
+                'platformUser',
+                'resolver',
+                'messages' => fn ($query) => $query->orderBy('id'),
+                'messages.attachments' => fn ($query) => $query->where('is_deleted', false)->orderBy('id'),
+                'messages.platformUser',
+                'messages.platformAdmin',
+            ])
+            ->first();
     }
 
     public function updateTicket(PlatformSupportTicket $ticket, array $data): PlatformSupportTicket

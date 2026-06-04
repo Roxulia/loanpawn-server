@@ -48,7 +48,7 @@
                         <td><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
                         <td data-field="messages">{{ $ticket->messages_count }}</td>
                         <td>
-                            <a href="{{ route('admin.issued-tickets.show', $ticket->id) }}" class="button secondary" data-field="detail">View</a>
+                            <a href="{{ route('admin.issued-tickets.show', $ticket->code) }}" class="button secondary" data-field="detail">View</a>
                         </td>
                     </tr>
                 @endforeach

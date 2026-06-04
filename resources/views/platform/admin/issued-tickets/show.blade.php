@@ -45,12 +45,12 @@
         <section class="panel" style="margin-top: 16px;">
             <div class="action-row">
                 @if ($ticket->status === 'pending')
-                    <form method="POST" action="{{ route('admin.issued-tickets.open', $ticket->id) }}">
+                    <form method="POST" action="{{ route('admin.issued-tickets.open', $ticket->code) }}">
                         @csrf
                         <button type="submit" class="button secondary">Open</button>
                     </form>
                 @endif
-                <form method="POST" action="{{ route('admin.issued-tickets.resolve', $ticket->id) }}">
+                <form method="POST" action="{{ route('admin.issued-tickets.resolve', $ticket->code) }}">
                     @csrf
                     <button type="submit" class="button primary">Resolve</button>
                 </form>
@@ -100,7 +100,7 @@
     </section>
 
     @if ($ticket->status !== 'resolved')
-        <form class="panel grid" style="margin-top: 16px;" method="POST" action="{{ route('admin.issued-tickets.messages.store', $ticket->id) }}" enctype="multipart/form-data">
+        <form class="panel grid" style="margin-top: 16px;" method="POST" action="{{ route('admin.issued-tickets.messages.store', $ticket->code) }}" enctype="multipart/form-data">
             @csrf
             <div>
                 <label for="message">Admin Reply</label>
