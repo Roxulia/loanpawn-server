@@ -310,6 +310,50 @@
             color: var(--color-danger);
         }
 
+        .ticket-toast-container {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 50;
+            display: grid;
+            gap: 10px;
+            width: min(360px, calc(100vw - 36px));
+        }
+
+        .ticket-toast {
+            border: 1px solid var(--color-border-strong);
+            border-radius: 8px;
+            padding: 12px 14px;
+            background: var(--color-surface);
+            color: var(--color-heading);
+            box-shadow: 0 12px 32px rgba(3, 0, 61, 0.14);
+            font-weight: 700;
+        }
+
+        .ticket-live-highlight {
+            animation: ticket-live-highlight 4s ease;
+        }
+
+        .ticket-unread-badge {
+            display: inline-flex;
+            margin-left: 8px;
+            border-radius: 999px;
+            padding: 3px 7px;
+            background: var(--color-danger);
+            color: var(--color-on-primary);
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        .ticket-unread-badge[hidden] {
+            display: none;
+        }
+
+        @keyframes ticket-live-highlight {
+            0%, 70% { background: var(--color-success-soft); }
+            100% { background: transparent; }
+        }
+
         .pagination {
             margin-top: 16px;
         }
@@ -413,5 +457,6 @@
         @yield('content')
     </main>
 </div>
+@stack('scripts')
 </body>
 </html>

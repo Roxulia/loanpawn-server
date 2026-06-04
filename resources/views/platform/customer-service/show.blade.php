@@ -15,7 +15,7 @@
                 <tbody>
                 <tr><th>Code</th><td>{{ $ticket->code }}</td></tr>
                 <tr><th>Type</th><td>{{ ucfirst($ticket->type) }}</td></tr>
-                <tr><th>Status</th><td><span class="badge">{{ $ticket->status }}</span></td></tr>
+                <tr><th>Status</th><td><span class="badge" data-ticket-status>{{ $ticket->status }}</span></td></tr>
                 <tr><th>Created</th><td>{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
                 <tr><th>Resolved</th><td>{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
                 </tbody>
@@ -23,9 +23,17 @@
         </div>
     </section>
 
-    <section class="grid" style="margin-top: 16px;">
+    <section
+        class="grid"
+        style="margin-top: 16px;"
+        id="ticket-message-thread"
+        data-support-ticket-show
+        data-ticket-id="{{ $ticket->id }}"
+        data-current-sender="platform_user"
+        data-status-selector="[data-ticket-status]"
+    >
         @foreach ($ticket->messages as $threadMessage)
-            <article class="panel">
+            <article class="panel" data-message-id="{{ $threadMessage->id }}">
                 <p class="metric-label">
                     {{ $threadMessage->sender_type === 'platform_admin' ? 'Admin' : 'You' }}
                     <span class="muted">- {{ $threadMessage->created_at?->format('Y-m-d H:i') ?? '-' }}</span>

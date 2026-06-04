@@ -2,11 +2,19 @@
 
 namespace Tests\Feature\PlatformModule;
 
+use App\DataObjects\RequestObjects\PlatformSupportTicketCreate;
+use App\DataObjects\RequestObjects\PlatformSupportTicketReply;
+use App\Events\PlatformSupportTicketCreated;
+use App\Events\PlatformSupportTicketMessageCreated;
+use App\Events\PlatformSupportTicketStatusChanged;
 use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\PlatformSupportTicket;
 use App\Models\PlatformModule\PlatformUser;
+use App\Services\PlatformModule\PlatformSupportTicketService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -68,6 +76,7 @@ class PlatformSupportTicketTest extends TestCase
         $this->assertDatabaseHas('platform_support_tickets', [
             'id' => $ticket->id,
             'status' => 'open',
+            'user_unread_replies_count' => 1,
         ]);
         $this->assertDatabaseHas('platform_support_ticket_messages', [
             'platform_support_ticket_id' => $ticket->id,
@@ -98,6 +107,147 @@ class PlatformSupportTicketTest extends TestCase
                 'message' => 'I still need help.',
             ])
             ->assertStatus(422);
+    }
+
+    public function test_ticket_owner_viewing_detail_resets_unread_reply_count(): void
+    {
+        $user = $this->platformUser('owner@example.com');
+        $admin = $this->platformAdmin();
+        $ticket = $this->ticketFor($user);
+
+        $this->actingAs($admin, 'platformadmin')->post(route('admin.issued-tickets.messages.store', $ticket->id), [
+            'message' => 'Unread admin reply.',
+        ]);
+
+        $this->assertDatabaseHas('platform_support_tickets', [
+            'id' => $ticket->id,
+            'user_unread_replies_count' => 1,
+        ]);
+
+        $this->actingAs($user, 'platformuser')
+            ->get(route('platform.customer-service.show', $ticket->id))
+            ->assertOk();
+
+        $this->assertDatabaseHas('platform_support_tickets', [
+            'id' => $ticket->id,
+            'user_unread_replies_count' => 0,
+        ]);
+    }
+
+    public function test_support_ticket_events_are_dispatched_for_create_reply_and_status_changes(): void
+    {
+        Event::fake([
+            PlatformSupportTicketCreated::class,
+            PlatformSupportTicketMessageCreated::class,
+            PlatformSupportTicketStatusChanged::class,
+        ]);
+
+        $user = $this->platformUser('owner@example.com');
+        $admin = $this->platformAdmin();
+
+        $this->actingAs($user, 'platformuser');
+        $ticket = app(PlatformSupportTicketService::class)->createForCurrentPlatformUser(new PlatformSupportTicketCreate(
+            subject: 'Broadcast test',
+            type: 'support',
+            message: 'Initial message.',
+        ));
+
+        Event::assertDispatched(PlatformSupportTicketCreated::class);
+
+        app(PlatformSupportTicketService::class)->replyAsPlatformUser(new PlatformSupportTicketReply(
+            ticketId: $ticket->id,
+            message: 'User reply.',
+        ));
+
+        Event::assertDispatched(PlatformSupportTicketMessageCreated::class, function (PlatformSupportTicketMessageCreated $event): bool {
+            return $event->recipientType === 'admin'
+                && $event->message->sender_type === 'platform_user';
+        });
+
+        $this->actingAs($admin, 'platformadmin');
+        app(PlatformSupportTicketService::class)->replyAsAdmin(new PlatformSupportTicketReply(
+            ticketId: $ticket->id,
+            message: 'Admin reply.',
+        ));
+
+        Event::assertDispatched(PlatformSupportTicketStatusChanged::class);
+        Event::assertDispatched(PlatformSupportTicketMessageCreated::class, function (PlatformSupportTicketMessageCreated $event): bool {
+            return $event->recipientType === 'platform_user'
+                && $event->message->sender_type === 'platform_admin';
+        });
+    }
+
+    public function test_private_broadcast_channels_are_guard_and_owner_scoped(): void
+    {
+        config([
+            'broadcasting.default' => 'reverb',
+            'broadcasting.connections.reverb.key' => 'test-key',
+            'broadcasting.connections.reverb.secret' => 'test-secret',
+            'broadcasting.connections.reverb.app_id' => 'test-app',
+        ]);
+        app()->forgetInstance('broadcast.manager');
+        require base_path('routes/channels.php');
+
+        $owner = $this->platformUser('owner@example.com');
+        $other = $this->platformUser('other@example.com', 'PU0000002');
+        $admin = $this->platformAdmin();
+        $ticket = $this->ticketFor($owner);
+
+        Auth::guard('platformuser')->logout();
+        $this->actingAs($admin, 'platformadmin')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.admin.issued-tickets',
+            ])
+            ->assertOk();
+
+        Auth::guard('platformadmin')->logout();
+        $this->actingAs($owner, 'platformuser')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.admin.issued-tickets',
+            ])
+            ->assertForbidden();
+
+        Auth::guard('platformadmin')->logout();
+        $this->actingAs($owner, 'platformuser')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.user.'.$owner->id.'.customer-service',
+            ])
+            ->assertOk();
+
+        Auth::guard('platformadmin')->logout();
+        $this->actingAs($other, 'platformuser')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.user.'.$owner->id.'.customer-service',
+            ])
+            ->assertForbidden();
+
+        Auth::guard('platformadmin')->logout();
+        $this->actingAs($owner, 'platformuser')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.support-ticket.'.$ticket->id,
+            ])
+            ->assertOk();
+
+        Auth::guard('platformuser')->logout();
+        $this->actingAs($admin, 'platformadmin')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.support-ticket.'.$ticket->id,
+            ])
+            ->assertOk();
+
+        Auth::guard('platformadmin')->logout();
+        $this->actingAs($other, 'platformuser')
+            ->post('/broadcasting/auth', [
+                'socket_id' => '123.456',
+                'channel_name' => 'private-platform.support-ticket.'.$ticket->id,
+            ])
+            ->assertForbidden();
     }
 
     public function test_custom_500_page_contains_prefilled_customer_service_report_link(): void

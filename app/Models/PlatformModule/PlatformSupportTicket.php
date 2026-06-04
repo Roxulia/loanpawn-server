@@ -14,6 +14,7 @@ class PlatformSupportTicket extends Model
         'subject',
         'type',
         'status',
+        'user_unread_replies_count',
         'opened_at',
         'resolved_at',
         'resolved_by',
@@ -27,6 +28,7 @@ class PlatformSupportTicket extends Model
             'opened_at' => 'datetime',
             'resolved_at' => 'datetime',
             'is_deleted' => 'boolean',
+            'user_unread_replies_count' => 'integer',
         ];
     }
 

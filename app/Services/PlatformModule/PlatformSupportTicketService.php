@@ -4,6 +4,9 @@ namespace App\Services\PlatformModule;
 
 use App\DataObjects\RequestObjects\PlatformSupportTicketCreate;
 use App\DataObjects\RequestObjects\PlatformSupportTicketReply;
+use App\Events\PlatformSupportTicketCreated;
+use App\Events\PlatformSupportTicketMessageCreated;
+use App\Events\PlatformSupportTicketStatusChanged;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Exceptions\TenantNotFound;
@@ -59,7 +62,7 @@ class PlatformSupportTicketService
             $platformUser = $this->currentPlatformUser();
             $type = $this->normalizeType($request->type);
 
-            return DB::transaction(function () use ($platformUser, $request, $type): PlatformSupportTicket {
+            $ticket = DB::transaction(function () use ($platformUser, $request, $type): PlatformSupportTicket {
                 $ticket = $this->repository->createTicket([
                     'code' => $this->tableIdGenerationService->generateForPlatform('platform_support_tickets', CarbonImmutable::now()),
                     'platform_user_id' => $platformUser->id,
@@ -79,6 +82,10 @@ class PlatformSupportTicketService
 
                 return $this->repository->findOwnedByPlatformUser($ticket->id, $platformUser->id) ?? $ticket;
             });
+
+            event(new PlatformSupportTicketCreated($ticket));
+
+            return $ticket;
         });
     }
 
@@ -91,7 +98,7 @@ class PlatformSupportTicketService
             throw new TenantAccessDenied('Support ticket is not available for this platform user.');
         }
 
-        return $ticket;
+        return $this->repository->resetUserUnreadReplies($ticket);
     }
 
     public function findTicketForAdmin(int $ticketId): PlatformSupportTicket
@@ -118,7 +125,7 @@ class PlatformSupportTicketService
 
             $this->ensureCanReply($ticket);
 
-            return DB::transaction(function () use ($ticket, $request, $platformUser): PlatformSupportTicket {
+            $ticket = DB::transaction(function () use ($ticket, $request, $platformUser): PlatformSupportTicket {
                 $message = $this->repository->createMessage([
                     'platform_support_ticket_id' => $ticket->id,
                     'sender_type' => 'platform_user',
@@ -131,6 +138,13 @@ class PlatformSupportTicketService
 
                 return $this->repository->findOwnedByPlatformUser($ticket->id, $platformUser->id) ?? $ticket;
             });
+
+            $message = $ticket->messages->last();
+            if ($message instanceof PlatformSupportTicketMessage) {
+                event(new PlatformSupportTicketMessageCreated($ticket, $message, 'admin'));
+            }
+
+            return $ticket;
         });
     }
 
@@ -146,13 +160,16 @@ class PlatformSupportTicketService
 
             $this->ensureCanReply($ticket);
 
-            return DB::transaction(function () use ($ticket, $request, $admin): PlatformSupportTicket {
+            $statusChanged = false;
+
+            $ticket = DB::transaction(function () use ($ticket, $request, $admin, &$statusChanged): PlatformSupportTicket {
                 if ($ticket->status === self::STATUS_PENDING) {
                     $ticket = $this->repository->updateTicket($ticket, [
                         'status' => self::STATUS_OPEN,
                         'opened_at' => now(),
                         'update_key' => $ticket->update_key + 1,
                     ]);
+                    $statusChanged = true;
                 }
 
                 $message = $this->repository->createMessage([
@@ -163,10 +180,21 @@ class PlatformSupportTicketService
                 ]);
 
                 $this->storeAttachments($ticket, $message, $request->attachments, 'platform_admin', $admin->id);
+                $this->repository->incrementUserUnreadReplies($ticket);
                 $ticket->touch();
 
                 return $this->repository->findForAdmin($ticket->id) ?? $ticket;
             });
+
+            $message = $ticket->messages->last();
+            if ($statusChanged) {
+                event(new PlatformSupportTicketStatusChanged($ticket));
+            }
+            if ($message instanceof PlatformSupportTicketMessage) {
+                event(new PlatformSupportTicketMessageCreated($ticket, $message, 'platform_user'));
+            }
+
+            return $ticket;
         });
     }
 
@@ -180,11 +208,15 @@ class PlatformSupportTicketService
                 throw new InvalidTenantRequest('Only pending support tickets can be opened.');
             }
 
-            return $this->repository->updateTicket($ticket, [
+            $ticket = $this->repository->updateTicket($ticket, [
                 'status' => self::STATUS_OPEN,
                 'opened_at' => now(),
                 'update_key' => $ticket->update_key + 1,
             ]);
+
+            event(new PlatformSupportTicketStatusChanged($ticket));
+
+            return $ticket;
         });
     }
 
@@ -198,12 +230,16 @@ class PlatformSupportTicketService
                 throw new InvalidTenantRequest('Only pending or open support tickets can be resolved.');
             }
 
-            return $this->repository->updateTicket($ticket, [
+            $ticket = $this->repository->updateTicket($ticket, [
                 'status' => self::STATUS_RESOLVED,
                 'resolved_at' => now(),
                 'resolved_by' => $admin->id,
                 'update_key' => $ticket->update_key + 1,
             ]);
+
+            event(new PlatformSupportTicketStatusChanged($ticket));
+
+            return $ticket;
         });
     }
 

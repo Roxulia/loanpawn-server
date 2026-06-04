@@ -84,4 +84,22 @@ class PlatformSupportTicketRepository
 
         return $ticket->refresh();
     }
+
+    public function incrementUserUnreadReplies(PlatformSupportTicket $ticket): void
+    {
+        PlatformSupportTicket::query()
+            ->where('id', $ticket->id)
+            ->increment('user_unread_replies_count');
+    }
+
+    public function resetUserUnreadReplies(PlatformSupportTicket $ticket): PlatformSupportTicket
+    {
+        if ((int) $ticket->user_unread_replies_count === 0) {
+            return $ticket;
+        }
+
+        $ticket->update(['user_unread_replies_count' => 0]);
+
+        return $ticket->refresh();
+    }
 }
