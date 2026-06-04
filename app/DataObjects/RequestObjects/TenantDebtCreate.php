@@ -16,6 +16,7 @@ class TenantDebtCreate extends BaseDataObject
         public ?int $tenantId = null,
         public ?int $createdBy = null,
         public ?string $idempotencyKey = null,
+        public ?bool $internalOperation = false,
     ) {
     }
 }

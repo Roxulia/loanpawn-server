@@ -533,7 +533,8 @@ class InterestFlowService extends BaseTenantService
             description: 'Remaining interest from payment ID: '.$payment->id,
             slipId: $slip->id,
             tag: 'InterestPayment',
-            createdBy: $this->resolveCurrentTenantUserId()
+            createdBy: $this->resolveCurrentTenantUserId(),
+            internalOperation: true,
         ));
 
         return $remainingInterest;

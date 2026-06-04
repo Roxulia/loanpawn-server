@@ -77,13 +77,23 @@ class TenantDebtService extends BaseTenantService
                     'accepted_by' => $request->acceptedBy,
                     'created_by' => $request->createdBy,
                 ]);
+                if ($request->internalOperation) {
+                    $this->tenantAccountingService->createInternalTransfer(
+                        $debt,
+                        $debt->description,
+                        (float) $debt->amount,
+                        $debt->created_by
+                    );
+                }
+                else{
+                    $this->tenantAccountingService->createOutgoingForReference(
+                        $debt,
+                        $debt->description,
+                        (float) $debt->amount,
+                        $debt->created_by
+                    );
+                }
 
-                $this->tenantAccountingService->createOutgoingForReference(
-                    $debt,
-                    $debt->description,
-                    (float) $debt->amount,
-                    $debt->created_by
-                );
 
                 $this->tenantAuditLogService->log(
                     'tenant_debt.created',

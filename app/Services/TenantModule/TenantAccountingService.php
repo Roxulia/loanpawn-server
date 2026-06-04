@@ -179,6 +179,23 @@ class TenantAccountingService extends BaseTenantService
         return $accounting;
     }
 
+    public function createInternalTransfer(Model $reference, string $description, float $amount, ?int $createdBy = null): TenantAccounting
+    {
+        $accounting = $this->repository->create([
+            'tenant_id' => $this->resolveCurrentTenantId(),
+            'description' => $description,
+            'transaction_type' => 'internal',
+            'amount' => $amount,
+            'created_by' => $createdBy,
+            'reference_id' => $reference->getKey(),
+            'reference_type' => $reference::class,
+        ]);
+
+        $this->flushTenantAccountingListCache();
+
+        return $accounting;
+    }
+
     public function syncOutgoingForReference(Model $reference, string $description, float $amount): void
     {
         DB::transaction(function () use ($reference, $description, $amount): void {
