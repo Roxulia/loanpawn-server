@@ -11,11 +11,15 @@ use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\PlatformSupportTicket;
 use App\Models\PlatformModule\PlatformUser;
 use App\Services\PlatformModule\PlatformSupportTicketService;
+use Illuminate\Broadcasting\BroadcastEvent;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -174,6 +178,64 @@ class PlatformSupportTicketTest extends TestCase
         Event::assertDispatched(PlatformSupportTicketMessageCreated::class, function (PlatformSupportTicketMessageCreated $event): bool {
             return $event->recipientType === 'platform_user'
                 && $event->message->sender_type === 'platform_admin';
+        });
+    }
+
+    public function test_support_ticket_broadcast_events_are_queued(): void
+    {
+        $user = $this->platformUser('owner@example.com');
+        $ticket = $this->ticketFor($user);
+        $message = $ticket->messages()->firstOrFail();
+
+        $events = [
+            new PlatformSupportTicketCreated($ticket),
+            new PlatformSupportTicketMessageCreated($ticket, $message, 'admin'),
+            new PlatformSupportTicketStatusChanged($ticket),
+        ];
+
+        foreach ($events as $event) {
+            $this->assertInstanceOf(ShouldBroadcast::class, $event);
+            $this->assertNotInstanceOf(ShouldBroadcastNow::class, $event);
+        }
+    }
+
+    public function test_support_ticket_operations_queue_broadcast_jobs(): void
+    {
+        Queue::fake();
+
+        $user = $this->platformUser('owner@example.com');
+        $admin = $this->platformAdmin();
+
+        $this->actingAs($user, 'platformuser');
+        $ticket = app(PlatformSupportTicketService::class)->createForCurrentPlatformUser(new PlatformSupportTicketCreate(
+            subject: 'Queued broadcast test',
+            type: 'support',
+            message: 'Initial message.',
+        ));
+
+        app(PlatformSupportTicketService::class)->replyAsPlatformUser(new PlatformSupportTicketReply(
+            ticketCode: $ticket->code,
+            message: 'User reply.',
+        ));
+
+        $this->actingAs($admin, 'platformadmin');
+        app(PlatformSupportTicketService::class)->replyAsAdmin(new PlatformSupportTicketReply(
+            ticketCode: $ticket->code,
+            message: 'Admin reply.',
+        ));
+
+        app(PlatformSupportTicketService::class)->resolveAsAdmin($ticket->code);
+
+        Queue::assertPushed(BroadcastEvent::class, 5);
+        Queue::assertPushed(BroadcastEvent::class, fn (BroadcastEvent $job): bool => $job->event instanceof PlatformSupportTicketCreated);
+        Queue::assertPushed(BroadcastEvent::class, fn (BroadcastEvent $job): bool => $job->event instanceof PlatformSupportTicketStatusChanged);
+        Queue::assertPushed(BroadcastEvent::class, function (BroadcastEvent $job): bool {
+            return $job->event instanceof PlatformSupportTicketMessageCreated
+                && $job->event->recipientType === 'admin';
+        });
+        Queue::assertPushed(BroadcastEvent::class, function (BroadcastEvent $job): bool {
+            return $job->event instanceof PlatformSupportTicketMessageCreated
+                && $job->event->recipientType === 'platform_user';
         });
     }
 

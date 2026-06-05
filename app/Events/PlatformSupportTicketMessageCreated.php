@@ -5,12 +5,12 @@ namespace App\Events;
 use App\Models\PlatformModule\PlatformSupportTicket;
 use App\Models\PlatformModule\PlatformSupportTicketMessage;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class PlatformSupportTicketMessageCreated implements ShouldBroadcastNow
+class PlatformSupportTicketMessageCreated implements ShouldBroadcast
 {
     use Dispatchable, SerializesModels;
 

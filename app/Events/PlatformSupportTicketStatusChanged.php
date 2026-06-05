@@ -4,11 +4,11 @@ namespace App\Events;
 
 use App\Models\PlatformModule\PlatformSupportTicket;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class PlatformSupportTicketStatusChanged implements ShouldBroadcastNow
+class PlatformSupportTicketStatusChanged implements ShouldBroadcast
 {
     use Dispatchable, SerializesModels;
 
