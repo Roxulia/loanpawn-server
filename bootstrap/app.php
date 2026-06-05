@@ -1,7 +1,6 @@
 <?php
 
-use App\Exceptions\TenantCodeNotGiven;
-use App\Exceptions\TenantNotFound;
+use App\Exceptions\ApiException;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +14,9 @@ use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\LogHttpOperation;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
+use Mpdf\Tag\A;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Throwable;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -48,5 +50,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new CheckExpireTenantLicenseJob())->daily();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (Throwable $e, $request) {
 
+            if ($e instanceof ApiException) {
+                return null; // Let Laravel handle web requests
+            }
+
+            // Only handle unhandled 500 errors
+            if ($request->expectsJson() && $e instanceof HttpExceptionInterface && $e->getStatusCode() === 500) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Internal server error.',
+                    'code' => 'INTERNAL_SERVER_ERROR',
+                ], 500);
+            }
+
+            return null; // Let Laravel handle other exceptions
+        });
     })->create();
