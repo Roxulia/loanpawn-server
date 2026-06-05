@@ -16,7 +16,6 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Mpdf\Tag\A;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
-use Throwable;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
