@@ -2,7 +2,8 @@
 
 namespace App\Exceptions;
 
-use Exception;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class UserNotLoggedIn extends ApiException
 {
@@ -11,6 +12,6 @@ class UserNotLoggedIn extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? 'No Logged In Account or User Found');
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionUserNotLoggedIn));
     }
 }

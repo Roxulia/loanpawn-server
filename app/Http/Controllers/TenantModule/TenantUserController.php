@@ -7,6 +7,7 @@ use App\DataObjects\RequestObjects\TenantUserUpdate;
 use App\Http\Controllers\Controller;
 use App\Rules\PasswordRules;
 use App\Services\TenantModule\TenantUserService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -63,7 +64,7 @@ class TenantUserController extends Controller
             status: $validated['status'] ?? 'active',
         ));
 
-        return $this->successResponse($user->toArray(), 'Tenant user created successfully.', 201);
+        return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserCreated), 201);
     }
 
     public function update(Request $request, string $tenantUserCode): JsonResponse
@@ -97,7 +98,7 @@ class TenantUserController extends Controller
             status: $validated['status'] ?? null,
         ));
 
-        return $this->successResponse($user->toArray(), 'Tenant user updated successfully.');
+        return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserUpdated));
     }
 
     public function changePassword(Request $request): JsonResponse
@@ -117,7 +118,7 @@ class TenantUserController extends Controller
             newPassword: $validated['password'],
         );
 
-        return $this->successResponse(message: 'Password changed successfully. Please login again.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantUserPasswordChanged));
     }
 
     public function resetPasswordToDefault(Request $request, string $tenantUserCode): JsonResponse
@@ -136,7 +137,7 @@ class TenantUserController extends Controller
             logoutFromAll: (bool) ($validated['logoutFromAll'] ?? false),
         );
 
-        return $this->successResponse(message: 'Tenant user password reset to default successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantUserPasswordReset));
     }
 
     public function show(string $tenantUserCode): JsonResponse
@@ -162,13 +163,13 @@ class TenantUserController extends Controller
 
         $user = $this->tenantUserService->updatePermissions($this->tenantUserService->resolveIdByCode($tenantUserCode), $validator->validated());
 
-        return $this->successResponse($user->toArray(), 'Tenant user permissions updated successfully.');
+        return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserPermissionsUpdated));
     }
 
     public function destroy(string $tenantUserCode): JsonResponse
     {
         $this->tenantUserService->delete($this->tenantUserService->resolveIdByCode($tenantUserCode));
 
-        return $this->successResponse(message: 'Tenant user deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantUserDeleted));
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\CoreModule\TenantUser;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +20,7 @@ class EnsureTenantUserBelongsToTenant
 
         if ($user instanceof TenantUser && $tenant && $user->tenant_id !== $tenant->id) {
             return new JsonResponse([
-                'message' => 'Unauthorized access.',
+                'message' => app(Messages::class)->responseMessage(MessageCode::MiddlewareUnauthorizedAccess),
             ], Response::HTTP_UNAUTHORIZED);
         }
 

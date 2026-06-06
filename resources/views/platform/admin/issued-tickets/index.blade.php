@@ -1,16 +1,16 @@
 @extends('platform.admin.layouts.app')
 
-@section('title', 'Issued Tickets')
-@section('pageTitle', 'Issued Tickets')
-@section('pageDescription', 'Review customer service tickets submitted by platform users.')
+@section('title', __('app.support.view.issued_tickets'))
+@section('pageTitle', __('app.support.view.issued_tickets'))
+@section('pageDescription', __('app.support.view.review_tickets'))
 
 @section('content')
     <section class="panel">
         @if ($tickets->total() === 0)
             <div class="empty-state" id="issued-ticket-empty-state">
                 <div>
-                    <h2>No issued tickets</h2>
-                    <p class="muted">Customer service tickets from platform users will appear here.</p>
+                    <h2>{{ __('app.support.view.no_issued_tickets') }}</h2>
+                    <p class="muted">{{ __('app.support.view.no_issued_tickets_description') }}</p>
                 </div>
             </div>
         @endif
@@ -27,13 +27,13 @@
             <table>
                 <thead>
                 <tr>
-                    <th>Updated</th>
-                    <th>Code</th>
-                    <th>User</th>
-                    <th>Subject</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Messages</th>
+                    <th>{{ __('app.common.view.labels.updated') }}</th>
+                    <th>{{ __('app.common.view.labels.code') }}</th>
+                    <th>{{ __('app.common.view.labels.user') }}</th>
+                    <th>{{ __('app.common.view.labels.subject') }}</th>
+                    <th>{{ __('app.common.view.labels.type') }}</th>
+                    <th>{{ __('app.common.view.labels.status') }}</th>
+                    <th>{{ __('app.support.view.messages') }}</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -44,11 +44,11 @@
                         <td data-field="code">{{ $ticket->code }}</td>
                         <td data-field="user">{{ $ticket->platformUser?->name ?? '-' }}</td>
                         <td data-field="subject">{{ $ticket->subject }}</td>
-                        <td data-field="type">{{ ucfirst($ticket->type) }}</td>
+                        <td data-field="type">{{ __('app.support.view.types.'.$ticket->type) }}</td>
                         <td><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
                         <td data-field="messages">{{ $ticket->messages_count }}</td>
                         <td>
-                            <a href="{{ route('admin.issued-tickets.show', $ticket->code) }}" class="button secondary" data-field="detail">View</a>
+                            <a href="{{ route('admin.issued-tickets.show', $ticket->code) }}" class="button secondary" data-field="detail">{{ __('app.common.view.actions.view') }}</a>
                         </td>
                     </tr>
                 @endforeach

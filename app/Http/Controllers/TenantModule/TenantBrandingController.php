@@ -5,6 +5,7 @@ namespace App\Http\Controllers\TenantModule;
 use App\DataObjects\RequestObjects\TenantBrandingSlipLayoutUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantBrandingSlipLayoutService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -42,6 +43,6 @@ class TenantBrandingController extends Controller
             )
         );
 
-        return $this->successResponse($branding->toArray(), 'Slip layout updated successfully.');
+        return $this->successResponse($branding->toArray(), $this->responseMessage(MessageCode::TenantSlipLayoutUpdated));
     }
 }

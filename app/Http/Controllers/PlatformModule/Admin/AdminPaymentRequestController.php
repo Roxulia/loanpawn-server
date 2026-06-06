@@ -5,6 +5,7 @@ namespace App\Http\Controllers\PlatformModule\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\AdminBillingService;
 use App\Services\PlatformModule\TenantRequestService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -36,7 +37,7 @@ class AdminPaymentRequestController extends Controller
         $payment = $this->billingService->findPaymentRequest($paymentRequest);
         $validated = $request->validate([
             'admin_review_note' => ['nullable', 'string', 'max:1000'],
-        ]);
+        ], [], __('validation.attributes'));
 
         $this->tenantRequestService->acceptRequest(
             (int) $payment->tenant_request_id,
@@ -45,7 +46,7 @@ class AdminPaymentRequestController extends Controller
 
         return redirect()
             ->route('admin.payment-requests.index')
-            ->with('status', 'Payment request accepted and tenant license updated.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformPaymentRequestAccepted));
     }
 
     public function reject(Request $request, int $paymentRequest): RedirectResponse
@@ -53,7 +54,7 @@ class AdminPaymentRequestController extends Controller
         $payment = $this->billingService->findPaymentRequest($paymentRequest);
         $validated = $request->validate([
             'admin_review_note' => ['nullable', 'string', 'max:1000'],
-        ]);
+        ], [], __('validation.attributes'));
 
         $this->tenantRequestService->declineRequest(
             (int) $payment->tenant_request_id,
@@ -62,6 +63,6 @@ class AdminPaymentRequestController extends Controller
 
         return redirect()
             ->route('admin.payment-requests.index')
-            ->with('status', 'Payment request rejected.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformPaymentRequestRejected));
     }
 }

@@ -2,8 +2,8 @@
 
 namespace App\Exceptions;
 
-use Exception;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class AlreadyUpdatedException extends ApiException
 {
@@ -12,7 +12,7 @@ class AlreadyUpdatedException extends ApiException
 
     public function __construct(?string $message)
     {
-        $message = $message ?? MessageCodes::$messages['eb004'];
+        $message = $message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionAlreadyUpdated);
         parent::__construct($message);
     }
 }

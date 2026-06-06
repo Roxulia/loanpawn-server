@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\DataObjects\RequestObjects\TenantCustomerUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantCustomerService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -64,7 +65,9 @@ class TenantCustomerController extends Controller
 
         return $this->successResponse(
             $result->toArray(),
-            $result->created ? 'Tenant customer created successfully.' : 'Existing tenant customer returned.',
+            $result->created
+                ? $this->responseMessage(MessageCode::TenantCustomerCreated)
+                : $this->responseMessage(MessageCode::ApiResponseSuccess),
             $result->created ? 201 : 200,
         );
     }
@@ -105,13 +108,13 @@ class TenantCustomerController extends Controller
             note: $validated['note'] ?? null,
         ));
 
-        return $this->successResponse($customer->toArray(), 'Tenant customer updated successfully.');
+        return $this->successResponse($customer->toArray(), $this->responseMessage(MessageCode::TenantCustomerUpdated));
     }
 
     public function destroy(string $tenantCustomerCode): JsonResponse
     {
         $this->tenantCustomerService->delete($this->tenantCustomerService->resolveIdByCode($tenantCustomerCode));
 
-        return $this->successResponse(message: 'Tenant customer deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantCustomerDeleted));
     }
 }

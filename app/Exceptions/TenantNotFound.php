@@ -2,9 +2,9 @@
 
 namespace App\Exceptions;
 
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Exception;
-use Throwable;
 
 class TenantNotFound extends Exception
 {
@@ -13,7 +13,7 @@ class TenantNotFound extends Exception
 
     public function __construct(?string $message)
     {
-        $message = $message ?? MessageCodes::$messages['eb001'];
+        $message = $message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionTenantNotFound);
         parent::__construct($message);
     }
 

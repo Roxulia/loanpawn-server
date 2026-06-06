@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\PlatformSupportTicketCreate;
 use App\DataObjects\RequestObjects\PlatformSupportTicketReply;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\PlatformSupportTicketService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -46,7 +47,7 @@ class CustomerServiceController extends Controller
 
         return redirect()
             ->route('platform.customer-service.show', $ticket->code)
-            ->with('status', 'Support ticket created. Please wait for admin response.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformSupportTicketCreated));
     }
 
     public function show(string $ticketCode): View
@@ -68,7 +69,7 @@ class CustomerServiceController extends Controller
 
         return redirect()
             ->route('platform.customer-service.show', $ticketCode)
-            ->with('status', 'Message added.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformSupportMessageAdded));
     }
 
     private function validateTicket(Request $request): array
@@ -79,7 +80,7 @@ class CustomerServiceController extends Controller
             'message' => ['required', 'string', 'max:5000'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv,log'],
-        ]);
+        ], [], __('validation.attributes'));
     }
 
     private function validateReply(Request $request): array
@@ -88,6 +89,6 @@ class CustomerServiceController extends Controller
             'message' => ['required', 'string', 'max:5000'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv,log'],
-        ]);
+        ], [], __('validation.attributes'));
     }
 }

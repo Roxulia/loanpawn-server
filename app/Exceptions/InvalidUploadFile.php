@@ -2,7 +2,8 @@
 
 namespace App\Exceptions;
 
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class InvalidUploadFile extends ApiException
 {
@@ -11,6 +12,6 @@ class InvalidUploadFile extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? MessageCodes::$messages['eb013']);
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionInvalidUploadFile));
     }
 }

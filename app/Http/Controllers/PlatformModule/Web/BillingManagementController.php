@@ -7,6 +7,7 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\PlatformBillingService;
 use App\Services\PlatformModule\TenantRequestService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -33,7 +34,7 @@ class BillingManagementController extends Controller
             'payment_reference' => ['nullable', 'string', 'max:120'],
             'note' => ['nullable', 'string', 'max:1000'],
             'update_key' => ['required', 'integer', 'min:0'],
-        ]);
+        ], [], __('validation.attributes'));
 
         try {
             $this->tenantRequestService->submitPaymentScreenshot(new TenantRequestPaymentSubmit(
@@ -51,6 +52,6 @@ class BillingManagementController extends Controller
 
         return redirect()
             ->route('platform.billing.index')
-            ->with('status', 'Payment attachment submitted. Please wait for admin response.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformPlanChangeRequestPaymentSubmitted));
     }
 }

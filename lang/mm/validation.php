@@ -179,6 +179,12 @@ return [
     */
 
     'custom' => [
+        'email' => [
+            'required' => 'အီးမေးလ် လိုအပ်ပါသည်။',
+        ],
+        'password' => [
+            'required' => 'စကားဝှက် လိုအပ်ပါသည်။',
+        ],
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
@@ -195,6 +201,32 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'admin_review_note' => 'အက်ဒမင် မှတ်ချက်',
+        'attachments' => 'တွဲဖိုင်များ',
+        'city' => 'မြို့',
+        'country' => 'နိုင်ငံ',
+        'email' => 'အီးမေးလ်',
+        'extension_months' => 'သက်တမ်းတိုးမည့် လများ',
+        'message' => 'စာ',
+        'name' => 'အမည်',
+        'note' => 'မှတ်ချက်',
+        'password' => 'စကားဝှက်',
+        'payment_reference' => 'ငွေပေးချေမှု ရည်ညွှန်းချက်',
+        'payment_screenshot' => 'ငွေပေးချေမှု Screenshot',
+        'phone' => 'ဖုန်း',
+        'requested_plan_type' => 'တောင်းဆိုထားသော Plan အမျိုးအစား',
+        'status' => 'အခြေအနေ',
+        'subdomain' => 'subdomain',
+        'subject' => 'ခေါင်းစဉ်',
+        'type' => 'အမျိုးအစား',
+        'update_key' => 'update key',
+        'primary_color' => 'primary color',
+        'secondary_color' => 'secondary color',
+        'accent_color' => 'accent color',
+        'features' => 'features',
+        'packages' => 'packages',
+        'mappings' => 'mappings',
+    ],
 
 ];

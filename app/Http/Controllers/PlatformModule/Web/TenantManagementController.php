@@ -12,6 +12,7 @@ use App\Services\PlatformModule\TenantServices\TenantManagementService;
 use App\Services\TenantModule\TenantSsoService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Exceptions\ApiException;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -47,7 +48,7 @@ class TenantManagementController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
-        ]);
+        ], [], __('validation.attributes'));
 
         $this->tenantManagementService->createTenant(new TenantCreate(
             name: $validated['name'],
@@ -63,7 +64,7 @@ class TenantManagementController extends Controller
 
         return redirect()
             ->route('platform.tenants.index')
-            ->with('status', 'Tenant created successfully.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformTenantCreated, ['name' => $validated['name']]));
     }
 
     public function edit(int $tenant): View
@@ -89,12 +90,10 @@ class TenantManagementController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
-            'primary_color' => ['nullable', 'string', 'max:20'],
-            'secondary_color' => ['nullable', 'string', 'max:20'],
-            'accent_color' => ['nullable', 'string', 'max:20'],
-            'slip_header_text' => ['nullable', 'string'],
-            'slip_footer_text' => ['nullable', 'string'],
-        ]);
+            'primary_color' => ['nullable', 'string', 'max:7'],
+            'secondary_color' => ['nullable', 'string', 'max:7'],
+            'accent_color' => ['nullable', 'string', 'max:7'],
+        ], [], __('validation.attributes'));
 
         $this->tenantManagementService->updateTenant(new TenantUpdate(
             tenantId: $tenant,
@@ -113,7 +112,7 @@ class TenantManagementController extends Controller
 
         return redirect()
             ->route('platform.tenants.edit', $tenant)
-            ->with('status', 'Tenant settings updated.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformTenantUpdated));
     }
 
     public function requestPlanChange(Request $request, int $tenant): RedirectResponse
@@ -125,7 +124,7 @@ class TenantManagementController extends Controller
                 'requested_plan_type' => ['required', 'string', 'max:40'],
                 'extension_months' => ['nullable', 'integer', 'in:1,3,6,12'],
                 'note' => ['nullable', 'string', 'max:1000'],
-            ]);
+            ], [], __('validation.attributes'));
 
             $this->tenantRequestService->createRequest(new TenantRequestCreate(
                 tenantId: $tenant,
@@ -137,7 +136,7 @@ class TenantManagementController extends Controller
 
             return redirect()
                 ->route('platform.billing.index')
-                ->with('status', 'Upgrade payment request created. Submit the payment attachment from billing management.');
+                ->with('status', $this->responseMessage(MessageCode::PlatformPlanChangeRequestCreated));
         }
         catch (ApiException $exception) {
             return back()
@@ -154,13 +153,13 @@ class TenantManagementController extends Controller
             if ($ownedTenant->license?->plan_type === 'trial') {
                 return redirect()
                     ->route('platform.tenants.edit', $tenant)
-                    ->with('status', 'Trial tenants must upgrade before requesting license extension.');
+                    ->with('status', $this->responseMessage(MessageCode::PlatformTrialUpgradeRequired));
             }
 
             $validated = $request->validate([
                 'extension_months' => ['required', 'integer', 'in:1,3,6,12'],
                 'note' => ['nullable', 'string', 'max:1000'],
-            ]);
+            ], [], __('validation.attributes'));
 
             $this->tenantRequestService->createRequest(new TenantRequestCreate(
                 tenantId: $tenant,
@@ -171,7 +170,7 @@ class TenantManagementController extends Controller
 
             return redirect()
                 ->route('platform.billing.index')
-                ->with('status', 'License extension payment request created. Submit the payment attachment from billing management.');
+                ->with('status', $this->responseMessage(MessageCode::PlatformExtensionRequestCreated));
         }
         catch (ApiException $exception) {
             return back()

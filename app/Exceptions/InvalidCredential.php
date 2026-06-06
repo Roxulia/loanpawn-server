@@ -2,8 +2,8 @@
 
 namespace App\Exceptions;
 
-use Exception;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class InvalidCredential extends ApiException
 {
@@ -11,7 +11,7 @@ class InvalidCredential extends ApiException
     protected string $errorCode = 'INVALID_CREDENTIAL';
     public function __construct(?string $message)
     {
-        $message = $message ?? MessageCodes::$messages['eb003'];
+        $message = $message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionInvalidCredential);
         parent::__construct($message);
     }
 }

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Server Error</title>
+    <title>{{ __('app.common.view.server_error') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         * { box-sizing: border-box; }
@@ -66,15 +66,15 @@
 </head>
 <body>
 <main>
-    <h1>Server error</h1>
-    <p>The request could not be completed. You can report this issue to the platform admin team from Customer Service.</p>
+    <h1>{{ __('app.common.view.server_error') }}</h1>
+    <p>{{ __('app.common.view.server_error_description') }}</p>
     <div class="actions">
         <a class="button primary" href="{{ route('platform.customer-service.create', [
             'type' => 'bugs',
-            'subject' => 'Server error report',
-            'message' => 'A server error occurred while using LonePawn Platform. Page: '.request()->fullUrl(),
-        ]) }}">Report to Admin</a>
-        <a class="button secondary" href="{{ route('platform.dashboard') }}">Back to Dashboard</a>
+            'subject' => __('app.common.view.server_error_report_subject'),
+            'message' => __('app.common.view.server_error_report_message', ['url' => request()->fullUrl()]),
+        ]) }}">{{ __('app.common.view.actions.report_to_admin') }}</a>
+        <a class="button secondary" href="{{ route('platform.dashboard') }}">{{ __('app.common.view.actions.back_to_dashboard') }}</a>
     </div>
 </main>
 </body>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\PlatformModule\Admin;
 use App\DataObjects\RequestObjects\PlatformSupportTicketReply;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\PlatformSupportTicketService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -36,7 +37,7 @@ class AdminIssuedTicketController extends Controller
             'message' => ['required', 'string', 'max:5000'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'max:4096', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv,log'],
-        ]);
+        ], [], __('validation.attributes'));
 
         $this->ticketService->replyAsAdmin(new PlatformSupportTicketReply(
             ticketCode: $ticketCode,
@@ -46,7 +47,7 @@ class AdminIssuedTicketController extends Controller
 
         return redirect()
             ->route('admin.issued-tickets.show', $ticketCode)
-            ->with('status', 'Message added.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformSupportMessageAdded));
     }
 
     public function open(string $ticketCode): RedirectResponse
@@ -55,7 +56,7 @@ class AdminIssuedTicketController extends Controller
 
         return redirect()
             ->route('admin.issued-tickets.show', $ticketCode)
-            ->with('status', 'Ticket opened.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformSupportTicketOpened));
     }
 
     public function resolve(string $ticketCode): RedirectResponse
@@ -64,6 +65,6 @@ class AdminIssuedTicketController extends Controller
 
         return redirect()
             ->route('admin.issued-tickets.show', $ticketCode)
-            ->with('status', 'Ticket resolved.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformSupportTicketResolved));
     }
 }

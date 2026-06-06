@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\OnlineSyncLogEntry;
 use App\DataObjects\RequestObjects\OnlineSyncPushRequest;
 use App\Http\Controllers\Controller;
 use App\Services\OnlineSyncService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -43,7 +44,7 @@ class OnlineSyncController extends Controller
         ));
 
         if ($result->failed > 0) {
-            return $this->errorResponse('Online sync completed with failures.', $result->toArray(), 207);
+            return $this->errorResponse($this->responseMessage(MessageCode::TenantOnlineSyncCompletedWithFailures), $result->toArray(), 207);
         }
 
         return $this->successResponse($result->toArray());

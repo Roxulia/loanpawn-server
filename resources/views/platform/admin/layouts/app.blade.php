@@ -236,6 +236,33 @@
         .ticket-live-highlight {
             animation: ticket-live-highlight 4s ease;
         }
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .locale-toggle {
+            display: inline-flex;
+            border: 1px solid var(--color-border-strong);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--color-surface);
+        }
+        .locale-toggle a {
+            min-width: 44px;
+            padding: 9px 12px;
+            color: var(--color-text-muted);
+            font-size: 13px;
+            font-weight: 800;
+            text-align: center;
+            text-decoration: none;
+        }
+        .locale-toggle a.active {
+            background: var(--color-primary);
+            color: var(--color-on-primary);
+        }
         @keyframes ticket-live-highlight {
             0%, 70% { background: var(--color-success-soft); }
             100% { background: transparent; }
@@ -244,6 +271,7 @@
             .platform-shell { grid-template-columns: 1fr; }
             .grid.kpi, .grid.two, .form-grid { grid-template-columns: 1fr; }
             .topbar { display: grid; }
+            .topbar-actions { justify-content: flex-start; }
         }
     </style>
 </head>
@@ -252,32 +280,41 @@
     <aside class="platform-sidebar">
         <div class="platform-brand">
             <strong>LonePawn</strong>
-            <span>Admin Workspace</span>
+            <span>{{ __('app.platform.view.admin_workspace') }}</span>
         </div>
 
-        <nav class="platform-nav" aria-label="Admin navigation">
-            <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">Dashboard</a>
-            <a href="{{ route('admin.tenants.index') }}" class="{{ request()->routeIs('admin.tenants.*') ? 'active' : '' }}">Tenant Management</a>
-            <a href="{{ route('admin.platform-users.index') }}" class="{{ request()->routeIs('admin.platform-users.*') ? 'active' : '' }}">Platform User Management</a>
-            <a href="{{ route('admin.billing.index') }}" class="{{ request()->routeIs('admin.billing.*') ? 'active' : '' }}">Billing Management</a>
-            <a href="{{ route('admin.package-flags.index') }}" class="{{ request()->routeIs('admin.package-flags.*') ? 'active' : '' }}">Feature & Plan Flags</a>
-            <a href="{{ route('admin.payment-requests.index') }}" class="{{ request()->routeIs('admin.payment-requests.*') ? 'active' : '' }}">Payment Requests</a>
-            <a href="{{ route('admin.issued-tickets.index') }}" class="{{ request()->routeIs('admin.issued-tickets.*') ? 'active' : '' }}">Issued Tickets</a>
+        <nav class="platform-nav" aria-label="{{ __('app.platform.view.admin_workspace') }}">
+            <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">{{ __('app.platform.view.dashboard') }}</a>
+            <a href="{{ route('admin.tenants.index') }}" class="{{ request()->routeIs('admin.tenants.*') ? 'active' : '' }}">{{ __('app.platform.view.tenant_management') }}</a>
+            <a href="{{ route('admin.platform-users.index') }}" class="{{ request()->routeIs('admin.platform-users.*') ? 'active' : '' }}">{{ __('app.platform.view.platform_user_management') }}</a>
+            <a href="{{ route('admin.billing.index') }}" class="{{ request()->routeIs('admin.billing.*') ? 'active' : '' }}">{{ __('app.platform.view.billing_management') }}</a>
+            <a href="{{ route('admin.package-flags.index') }}" class="{{ request()->routeIs('admin.package-flags.*') ? 'active' : '' }}">{{ __('app.platform.view.feature_plan_flags') }}</a>
+            <a href="{{ route('admin.payment-requests.index') }}" class="{{ request()->routeIs('admin.payment-requests.*') ? 'active' : '' }}">{{ __('app.billing.view.payment_requests') }}</a>
+            <a href="{{ route('admin.issued-tickets.index') }}" class="{{ request()->routeIs('admin.issued-tickets.*') ? 'active' : '' }}">{{ __('app.support.view.issued_tickets') }}</a>
         </nav>
 
         <form method="POST" action="{{ route('admin.logout') }}" style="margin-top: auto;">
             @csrf
-            <button type="submit" class="logout-button">Logout</button>
+            <button type="submit" class="logout-button">{{ __('app.common.view.actions.logout') }}</button>
         </form>
     </aside>
 
     <main class="platform-main">
         <header class="topbar">
             <div>
-                <h1>@yield('pageTitle', 'Dashboard')</h1>
+                <h1>@yield('pageTitle', __('app.platform.view.dashboard'))</h1>
                 <p>@yield('pageDescription')</p>
             </div>
-            @yield('pageAction')
+            <div class="topbar-actions">
+                @yield('pageAction')
+                <div class="locale-toggle" aria-label="{{ __('app.common.view.locale.language') }}">
+                    @foreach (config('app.supported_locales', ['en', 'mm']) as $locale)
+                        <a href="{{ route('locale.set', $locale) }}" class="{{ app()->getLocale() === $locale ? 'active' : '' }}">
+                            {{ strtoupper($locale) }}
+                        </a>
+                    @endforeach
+                </div>
+            </div>
         </header>
 
         @if (session('status'))

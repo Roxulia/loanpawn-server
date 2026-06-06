@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\PawnRedemptionCreate;
 use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\PawnRedemptionService;
+use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -97,7 +98,7 @@ class PawnRedemptionController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return $this->successResponse($redemption->toArray(), 'Pawn redemption created successfully.', 201);
+        return $this->successResponse($redemption->toArray(), $this->responseMessage(MessageCode::PawnRedemptionCreated), 201);
     }
 
     public function show(string $slipNumber): JsonResponse

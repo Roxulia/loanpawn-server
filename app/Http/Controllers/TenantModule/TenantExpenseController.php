@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantExpenseService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -52,7 +53,7 @@ class TenantExpenseController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return $this->successResponse($expense->toArray(), 'Expense created successfully.', 201);
+        return $this->successResponse($expense->toArray(), $this->responseMessage(MessageCode::TenantExpenseCreated), 201);
     }
 
     public function update(Request $request, string $expenseCode): JsonResponse
@@ -73,14 +74,14 @@ class TenantExpenseController extends Controller
             expenseTypeId: $validated['expense_type_id'] ?? null,
         ));
 
-        return $this->successResponse($expense->toArray(), 'Expense updated successfully.');
+        return $this->successResponse($expense->toArray(), $this->responseMessage(MessageCode::TenantExpenseUpdated));
     }
 
     public function destroy(string $expenseCode): JsonResponse
     {
         $this->expenseService->delete($this->expenseService->resolveIdByCode($expenseCode));
 
-        return $this->successResponse(message: 'Expense deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantExpenseDeleted));
     }
 
     protected function rules(bool $isCreate = true): array

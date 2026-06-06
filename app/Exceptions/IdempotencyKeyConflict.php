@@ -2,6 +2,9 @@
 
 namespace App\Exceptions;
 
+use App\Utility\MessageCode;
+use App\Utility\Messages;
+
 class IdempotencyKeyConflict extends ApiException
 {
     protected int $status = 409;
@@ -9,6 +12,6 @@ class IdempotencyKeyConflict extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? 'Idempotency key was already used with a different request payload.');
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionIdempotencyKeyConflict));
     }
 }

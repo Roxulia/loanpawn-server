@@ -1,25 +1,25 @@
 @extends('platform.layouts.app')
 
-@section('title', 'Billing Management')
-@section('pageTitle', 'Billing Management')
-@section('pageDescription', 'Review bill payment history, pending manual payment requests, and approved payment totals.')
+@section('title', __('app.platform.view.billing_management'))
+@section('pageTitle', __('app.platform.view.billing_management'))
+@section('pageDescription', __('app.billing.view.billing_management_description'))
 
 @section('content')
     <section class="grid kpi">
         <div class="panel">
-            <p class="metric-label">Pending Requests</p>
+            <p class="metric-label">{{ __('app.billing.view.pending_requests') }}</p>
             <p class="metric-value">{{ $billing['pending_count'] }}</p>
         </div>
         <div class="panel">
-            <p class="metric-label">Approved Payments</p>
+            <p class="metric-label">{{ __('app.billing.view.approved_payments') }}</p>
             <p class="metric-value">{{ $billing['approved_count'] }}</p>
         </div>
         <div class="panel">
-            <p class="metric-label">Approved Total</p>
+            <p class="metric-label">{{ __('app.billing.view.approved_total') }}</p>
             <p class="metric-value">{{ number_format($billing['approved_total'], 0) }}</p>
         </div>
         <div class="panel">
-            <p class="metric-label">Currency</p>
+            <p class="metric-label">{{ __('app.common.view.labels.currency') }}</p>
             <p class="metric-value">MMK</p>
         </div>
     </section>
@@ -28,8 +28,8 @@
         @if ($billing['payments']->total() === 0)
             <div class="empty-state">
                 <div>
-                    <h2>No billing records</h2>
-                    <p>Payment history and pending requests will appear here after tenant upgrade or extension requests are submitted.</p>
+                    <h2>{{ __('app.billing.view.no_billing_records') }}</h2>
+                    <p>{{ __('app.billing.view.no_billing_records_user_description') }}</p>
                 </div>
             </div>
         @else
@@ -37,15 +37,15 @@
                 <table>
                     <thead>
                     <tr>
-                        <th>Submitted</th>
-                        <th>Tenant</th>
-                        <th>Request</th>
-                        <th>Reference</th>
-                        <th>Amount</th>
-                        <th>Payment Status</th>
-                        <th>Request Status</th>
-                        <th>Reviewed</th>
-                        <th>Attachment</th>
+                        <th>{{ __('app.common.view.labels.submitted') }}</th>
+                        <th>{{ __('app.common.view.labels.tenant') }}</th>
+                        <th>{{ __('app.common.view.labels.request') }}</th>
+                        <th>{{ __('app.billing.view.reference') }}</th>
+                        <th>{{ __('app.common.view.labels.amount') }}</th>
+                        <th>{{ __('app.billing.view.payment_status') }}</th>
+                        <th>{{ __('app.billing.view.request_status') }}</th>
+                        <th>{{ __('app.common.view.labels.reviewed') }}</th>
+                        <th>{{ __('app.billing.view.attachment') }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -66,9 +66,9 @@
                             <td>{{ $payment->reviewed_at?->format('Y-m-d') ?? '-' }}</td>
                             <td>
                                 @if ($payment->status === 'draft' && $payment->tenant_request_id)
-                                    <button type="button" class="button secondary" data-open-dialog="payment-dialog-{{ $payment->id }}">Submit Attachment</button>
+                                    <button type="button" class="button secondary" data-open-dialog="payment-dialog-{{ $payment->id }}">{{ __('app.billing.view.submit_attachment') }}</button>
                                 @else
-                                    {{ $payment->attachments->count() }} file{{ $payment->attachments->count() === 1 ? '' : 's' }}
+                                    {{ trans_choice('app.billing.view.files_count', $payment->attachments->count(), ['count' => $payment->attachments->count()]) }}
                                 @endif
                             </td>
                         </tr>
@@ -90,34 +90,34 @@
                     @csrf
                     <input type="hidden" name="update_key" value="{{ $payment->tenantRequest->update_key }}">
                     <div class="dialog-header">
-                        <h2>Submit Payment Attachment</h2>
-                        <button type="button" class="dialog-close" data-close-dialog="payment-dialog-{{ $payment->id }}">Close</button>
+                        <h2>{{ __('app.billing.view.submit_payment_attachment') }}</h2>
+                        <button type="button" class="dialog-close" data-close-dialog="payment-dialog-{{ $payment->id }}">{{ __('app.common.view.actions.close') }}</button>
                     </div>
                     <div class="grid">
                         <div>
-                            <label>Tenant</label>
+                            <label>{{ __('app.common.view.labels.tenant') }}</label>
                             <input value="{{ $payment->tenant?->name ?? '-' }}" disabled>
                         </div>
                         <div>
-                            <label>Amount</label>
+                            <label>{{ __('app.common.view.labels.amount') }}</label>
                             <input value="{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}" disabled>
                         </div>
                         <div>
-                            <label for="payment_reference_{{ $payment->id }}">Payment Reference</label>
+                            <label for="payment_reference_{{ $payment->id }}">{{ __('app.common.view.labels.payment_reference') }}</label>
                             <input id="payment_reference_{{ $payment->id }}" name="payment_reference" value="{{ old('payment_reference') }}">
                         </div>
                         <div>
-                            <label for="payment_screenshot_{{ $payment->id }}">Payment Attachment</label>
+                            <label for="payment_screenshot_{{ $payment->id }}">{{ __('app.billing.view.payment_attachment') }}</label>
                             <input id="payment_screenshot_{{ $payment->id }}" type="file" name="payment_screenshot" accept="image/*" required>
                             @error('payment_screenshot') <div class="field-error">{{ $message }}</div> @enderror
                         </div>
                         <div>
-                            <label for="payment_note_{{ $payment->id }}">Note</label>
+                            <label for="payment_note_{{ $payment->id }}">{{ __('app.common.view.labels.note') }}</label>
                             <textarea id="payment_note_{{ $payment->id }}" name="note">{{ old('note') }}</textarea>
                         </div>
                     </div>
                     <div style="margin-top: 16px;">
-                        <button type="submit" class="button primary">Submit Payment</button>
+                        <button type="submit" class="button primary">{{ __('app.common.view.actions.submit_payment') }}</button>
                     </div>
                 </form>
             </dialog>

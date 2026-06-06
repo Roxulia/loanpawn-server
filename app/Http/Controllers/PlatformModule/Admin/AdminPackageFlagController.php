@@ -5,6 +5,7 @@ namespace App\Http\Controllers\PlatformModule\Admin;
 use App\DataObjects\RequestObjects\PackageFlagMatrixUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\PackageService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -30,7 +31,7 @@ class AdminPackageFlagController extends Controller
             'packages.*' => ['required', 'boolean'],
             'mappings' => ['required', 'array'],
             'mappings.*' => ['required', 'boolean'],
-        ]);
+        ], [], __('validation.attributes'));
 
         $payload = new PackageFlagMatrixUpdate(
             featureFlags: $validated['features'],
@@ -46,6 +47,6 @@ class AdminPackageFlagController extends Controller
 
         return redirect()
             ->route('admin.package-flags.index')
-            ->with('status', 'Feature and plan flags updated.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformPackageFlagsUpdated));
     }
 }

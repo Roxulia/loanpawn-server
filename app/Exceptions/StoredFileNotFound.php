@@ -2,7 +2,8 @@
 
 namespace App\Exceptions;
 
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class StoredFileNotFound extends ApiException
 {
@@ -11,6 +12,6 @@ class StoredFileNotFound extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? MessageCodes::$messages['eb015']);
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionStoredFileNotFound));
     }
 }

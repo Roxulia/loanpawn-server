@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +24,7 @@ class EnsurePlatformRole
         }
 
         return response()->json([
-            'message' => 'Forbidden.',
+            'message' => app(Messages::class)->responseMessage(MessageCode::MiddlewareForbidden),
         ], Response::HTTP_FORBIDDEN);
     }
 }

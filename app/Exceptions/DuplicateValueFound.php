@@ -2,7 +2,8 @@
 
 namespace App\Exceptions;
 
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class DuplicateValueFound extends ApiException
 {
@@ -11,7 +12,7 @@ class DuplicateValueFound extends ApiException
 
     public function __construct(?string $message)
     {
-        $message = $message ?? MessageCodes::$messages['eb005'];
+        $message = $message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionDuplicateValueFound);
         parent::__construct($message);
     }
 }

@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantDebtService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -55,7 +56,7 @@ class TenantDebtController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return $this->successResponse($debt->toArray(), 'Debt created successfully.', 201);
+        return $this->successResponse($debt->toArray(), $this->responseMessage(MessageCode::TenantDebtCreated), 201);
     }
 
     public function update(Request $request, string $debtCode): JsonResponse
@@ -79,14 +80,14 @@ class TenantDebtController extends Controller
             acceptedBy: $validated['accepted_by'] ?? null,
         ));
 
-        return $this->successResponse($debt->toArray(), 'Debt updated successfully.');
+        return $this->successResponse($debt->toArray(), $this->responseMessage(MessageCode::TenantDebtUpdated));
     }
 
     public function destroy(string $debtCode): JsonResponse
     {
         $this->debtService->delete($this->debtService->resolveIdByCode($debtCode));
 
-        return $this->successResponse(message: 'Debt deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantDebtDeleted));
     }
 
     public function markAsPaid(Request $request, string $debtCode): JsonResponse
@@ -105,7 +106,7 @@ class TenantDebtController extends Controller
             (float) $validated['amount_paid'],
         );
 
-        return $this->successResponse($debt, 'Debt paid successfully.');
+        return $this->successResponse($debt, $this->responseMessage(MessageCode::TenantDebtPaid));
     }
 
     protected function rules(bool $isCreate = true): array

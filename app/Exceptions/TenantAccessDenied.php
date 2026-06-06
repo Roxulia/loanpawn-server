@@ -2,6 +2,9 @@
 
 namespace App\Exceptions;
 
+use App\Utility\MessageCode;
+use App\Utility\Messages;
+
 class TenantAccessDenied extends ApiException
 {
     protected int $status = 403;
@@ -9,6 +12,6 @@ class TenantAccessDenied extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? 'You do not have access to this tenant.');
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionTenantAccessDenied));
     }
 }

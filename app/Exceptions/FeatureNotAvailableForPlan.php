@@ -2,6 +2,9 @@
 
 namespace App\Exceptions;
 
+use App\Utility\MessageCode;
+use App\Utility\Messages;
+
 class FeatureNotAvailableForPlan extends ApiException
 {
     protected int $status = 403;
@@ -9,6 +12,6 @@ class FeatureNotAvailableForPlan extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? 'Current tenant plan does not allow this feature.');
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionFeatureNotAvailableForPlan));
     }
 }

@@ -8,6 +8,7 @@ use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -104,7 +105,7 @@ class LoanContractSlipController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return $this->successResponse($slip->toArray(), 'Loan contract slip created successfully.', 201);
+        return $this->successResponse($slip->toArray(), $this->responseMessage(MessageCode::PawnLoanContractSlipCreated), 201);
     }
 
     public function show(string $slipNo): JsonResponse
@@ -116,7 +117,7 @@ class LoanContractSlipController extends Controller
     {
         $this->managementService->deleteBySlipNo($slipNo);
 
-        return $this->successResponse(message: 'Loan contract slip deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::PawnLoanContractSlipDeleted));
     }
 
     protected function makeCollateralItemCreate(array $item): PawnCollateralItemCreate

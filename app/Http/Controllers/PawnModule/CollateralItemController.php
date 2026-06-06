@@ -4,6 +4,7 @@ namespace App\Http\Controllers\PawnModule;
 
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\CollateralItemService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -46,7 +47,7 @@ class CollateralItemController extends Controller
     {
         $this->collateralItemService->delete($this->collateralItemService->resolveIdByCode($itemCode));
 
-        return $this->successResponse(message: 'Collateral item deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::PawnCollateralItemDeleted));
     }
 
 }

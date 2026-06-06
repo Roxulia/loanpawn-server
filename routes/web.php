@@ -12,11 +12,14 @@ use App\Http\Controllers\PlatformModule\Web\BillingManagementController;
 use App\Http\Controllers\PlatformModule\Web\CustomerServiceController;
 use App\Http\Controllers\PlatformModule\Web\DashboardController;
 use App\Http\Controllers\PlatformModule\Web\TenantManagementController;
+use App\Http\Controllers\LocaleSetterController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/locale/{locale}', [LocaleSetterController::class, 'setLocale'])->name('locale.set');
 
 Route::name('admin.')->group(function () {
     Route::controller(AuthController::class)->group(function () {

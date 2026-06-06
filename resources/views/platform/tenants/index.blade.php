@@ -1,11 +1,11 @@
 @extends('platform.layouts.app')
 
-@section('title', 'Tenant Management')
-@section('pageTitle', 'Tenant Management')
-@section('pageDescription', 'Manage tenant records, tenant branding, and business contact settings.')
+@section('title', __('app.platform.view.tenant_management'))
+@section('pageTitle', __('app.platform.view.tenant_management'))
+@section('pageDescription', __('app.platform.view.tenant_management_description'))
 
 @section('pageAction')
-    <a href="{{ route('platform.tenants.create') }}" class="button primary">Create Tenant</a>
+    <a href="{{ route('platform.tenants.create') }}" class="button primary">{{ __('app.common.view.actions.create_tenant') }}</a>
 @endsection
 
 @section('content')
@@ -13,9 +13,9 @@
         @if ($tenants->total() === 0)
             <div class="empty-state">
                 <div>
-                    <h2>No tenants created</h2>
-                    <p>Start with a tenant profile, then add branding colors and contact settings.</p>
-                    <a href="{{ route('platform.tenants.create') }}" class="button primary">Create New Tenant</a>
+                    <h2>{{ __('app.platform.view.no_tenants_created') }}</h2>
+                    <p>{{ __('app.platform.view.no_tenants_created_description') }}</p>
+                    <a href="{{ route('platform.tenants.create') }}" class="button primary">{{ __('app.common.view.actions.create_tenant') }}</a>
                 </div>
             </div>
         @else
@@ -23,13 +23,13 @@
                 <table>
                     <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Code</th>
-                        <th>Subdomain</th>
-                        <th>Plan</th>
-                        <th>Status</th>
-                        <th>Branding</th>
-                        <th>Contact</th>
+                        <th>{{ __('app.common.view.labels.name') }}</th>
+                        <th>{{ __('app.common.view.labels.code') }}</th>
+                        <th>{{ __('app.platform.view.subdomain') }}</th>
+                        <th>{{ __('app.common.view.labels.plan') }}</th>
+                        <th>{{ __('app.common.view.labels.status') }}</th>
+                        <th>{{ __('app.platform.view.branding') }}</th>
+                        <th>{{ __('app.platform.view.contact') }}</th>
                         <th></th>
                     </tr>
                     </thead>
@@ -41,13 +41,13 @@
                             <td>{{ $tenant->subdomain ?? '-' }}</td>
                             <td>{{ $tenant->license?->plan_type ?? 'trial' }}</td>
                             <td><span class="badge">{{ $tenant->status }}</span></td>
-                            <td>{{ $tenant->branding ? 'Configured' : 'Missing' }}</td>
-                            <td>{{ $tenant->contact ? 'Configured' : 'Missing' }}</td>
+                            <td>{{ $tenant->branding ? __('app.platform.view.configured') : __('app.platform.view.missing') }}</td>
+                            <td>{{ $tenant->contact ? __('app.platform.view.configured') : __('app.platform.view.missing') }}</td>
                             <td>
-                                <a href="{{ route('platform.tenants.edit', $tenant->id) }}" class="button secondary">Settings</a>
+                                <a href="{{ route('platform.tenants.edit', $tenant->id) }}" class="button secondary">{{ __('app.platform.view.settings') }}</a>
                                 <form method="POST" action="{{ route('platform.tenants.open-app', $tenant->id) }}" style="display:inline;">
                                     @csrf
-                                    <button type="submit" class="button secondary">Open App</button>
+                                    <button type="submit" class="button secondary">{{ __('app.platform.view.open_app') }}</button>
                                 </form>
                             </td>
                         </tr>

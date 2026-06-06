@@ -179,6 +179,12 @@ return [
     */
 
     'custom' => [
+        'email' => [
+            'required' => 'Email is required.',
+        ],
+        'password' => [
+            'required' => 'Password is required.',
+        ],
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
@@ -195,6 +201,32 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'admin_review_note' => 'admin review note',
+        'attachments' => 'attachments',
+        'city' => 'city',
+        'country' => 'country',
+        'email' => 'email',
+        'extension_months' => 'extension months',
+        'message' => 'message',
+        'name' => 'name',
+        'note' => 'note',
+        'password' => 'password',
+        'payment_reference' => 'payment reference',
+        'payment_screenshot' => 'payment screenshot',
+        'phone' => 'phone',
+        'requested_plan_type' => 'requested plan type',
+        'status' => 'status',
+        'subdomain' => 'subdomain',
+        'subject' => 'subject',
+        'type' => 'type',
+        'update_key' => 'update key',
+        'primary_color' => 'primary color',
+        'secondary_color' => 'secondary color',
+        'accent_color' => 'accent color',
+        'features' => 'features',
+        'packages' => 'packages',
+        'mappings' => 'mappings',
+    ],
 
 ];

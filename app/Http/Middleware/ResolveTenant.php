@@ -6,6 +6,8 @@ use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\Tenant;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
 use App\Support\TenantContext;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +27,7 @@ class ResolveTenant
 
         if (! $tenant) {
             return new JsonResponse([
-                'message' => 'Unauthorized access.',
+                'message' => app(Messages::class)->responseMessage(MessageCode::MiddlewareUnauthorizedAccess),
             ], Response::HTTP_UNAUTHORIZED);
         }
 

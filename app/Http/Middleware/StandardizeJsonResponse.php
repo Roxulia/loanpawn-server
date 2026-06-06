@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Http\Responses\ApiResponse;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,7 +51,9 @@ class StandardizeJsonResponse
             return $payload['message'];
         }
 
-        return $success ? ApiResponse::DEFAULT_SUCCESS_MESSAGE : ApiResponse::DEFAULT_ERROR_MESSAGE;
+        return app(Messages::class)->responseMessage(
+            $success ? MessageCode::ApiResponseSuccess : MessageCode::ApiResponseFailed
+        );
     }
 
     private function resolveData(mixed $payload, bool $success): mixed

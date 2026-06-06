@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantUserPublicLogin;
 use App\DataObjects\RequestObjects\TenantUserSubdomainLogin;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\AuthService;
+use App\Utility\MessageCode;
 use App\Services\TenantModule\TenantSsoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class AuthController extends Controller
             password: $validated['password'],
         ));
 
-        return $this->successResponse($session->toArray(), 'Tenant user login success.');
+        return $this->successResponse($session->toArray(), $this->responseMessage(MessageCode::TenantUserLoginSuccess));
     }
 
     public function loginSubdomainSpa(Request $request): JsonResponse
@@ -58,7 +59,7 @@ class AuthController extends Controller
             password: $validated['password'],
         ));
 
-        return $this->successResponse($session->toArray(), 'Tenant user login success.');
+        return $this->successResponse($session->toArray(), $this->responseMessage(MessageCode::TenantUserLoginSuccess));
     }
 
     public function consumeSso(Request $request): JsonResponse
@@ -75,7 +76,7 @@ class AuthController extends Controller
         $validated = $validator->validated();
         $session = $this->tenantSsoService->consume($validated['tenant_code'], $validated['token']);
 
-        return $this->successResponse($session->toArray(), 'Tenant SSO login success.');
+        return $this->successResponse($session->toArray(), $this->responseMessage(MessageCode::TenantUserSsoLoginSuccess));
     }
 
     public function me(): JsonResponse
@@ -89,6 +90,6 @@ class AuthController extends Controller
     {
         $this->authService->logout();
 
-        return $this->successResponse(message: 'Tenant user logout success.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantUserLogoutSuccess));
     }
 }

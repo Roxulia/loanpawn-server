@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Services\TenantModule\DefaultDataService;
 use App\DataObjects\RequestObjects\DefaultDataCreate;
 use App\Support\TenantContext;
+use App\Utility\MessageCode;
 
 class DefaultDataController extends Controller
 {
@@ -48,7 +49,7 @@ class DefaultDataController extends Controller
             code: $data['code'],
         ));
 
-        return $this->successResponse($materialType, 'Material type created successfully.', 201);
+        return $this->successResponse($materialType, $this->responseMessage(MessageCode::TenantMaterialTypeCreated), 201);
     }
 
     public function createCurrentTenantInterestType(Request $request)
@@ -65,7 +66,7 @@ class DefaultDataController extends Controller
             durationInDays: $data['durationInDays'] ?? null,
         ));
 
-        return $this->successResponse($interestType, 'Interest type created successfully.', 201);
+        return $this->successResponse($interestType, $this->responseMessage(MessageCode::TenantInterestTypeCreated), 201);
     }
 
     public function createCurrentTenantExpenseType(Request $request)
@@ -80,24 +81,24 @@ class DefaultDataController extends Controller
             code: $data['code'],
         ));
 
-        return $this->successResponse($expenseType, 'Expense type created successfully.', 201);
+        return $this->successResponse($expenseType, $this->responseMessage(MessageCode::TenantExpenseTypeCreated), 201);
     }
 
     public function deleteCurrentTenantMaterialType(Request $request, string $code)
     {
         $this->defaultDataService->deleteCurrentTenantMaterialType($code);
-        return $this->successResponse(message: 'Material type deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantMaterialTypeDeleted));
     }
 
     public function deleteCurrentTenantInterestType(Request $request, string $code)
     {
         $this->defaultDataService->deleteCurrentTenantInterestType($code);
-        return $this->successResponse(message: 'Interest type deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantInterestTypeDeleted));
     }
 
     public function deleteCurrentTenantExpenseType(Request $request, string $code)
     {
         $this->defaultDataService->deleteCurrentTenantExpenseType($code);
-        return $this->successResponse(message: 'Expense type deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantExpenseTypeDeleted));
     }
 }

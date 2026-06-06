@@ -4,6 +4,7 @@ namespace App\Http\Controllers\TenantModule;
 
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantAccountingService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -51,7 +52,7 @@ class TenantAccountingController extends Controller
             $ledger = $this->accountingService->buildAccountingLedger($startDate, $endDate, (int) ($validated['per_page'] ?? 15));
             return $this->successResponse($ledger->toArray());
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to build accounting ledger.', ['error' => $e->getMessage()], 500);
+            return $this->errorResponse($this->responseMessage(MessageCode::TenantAccountingLedgerBuildFailed), ['error' => $e->getMessage()], 500);
         }
     }
 
@@ -74,7 +75,7 @@ class TenantAccountingController extends Controller
                 new \Carbon\Carbon($validated['end_date']),
             );
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to download accounting ledger.', ['error' => $e->getMessage()], 500);
+            return $this->errorResponse($this->responseMessage(MessageCode::TenantAccountingLedgerDownloadFailed), ['error' => $e->getMessage()], 500);
         }
     }
 

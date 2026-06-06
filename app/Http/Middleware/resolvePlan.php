@@ -5,6 +5,8 @@ namespace App\Http\Middleware;
 use App\Models\PlatformModule\TenantLicense;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Support\TenantContext;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,7 +23,7 @@ class resolvePlan
 
         $currentLicense = app(TenantLicenseService::class)->getCurrentTenantLicense();
         if (!$currentLicense || $currentLicense->plan_type !== $plan) {
-            return response()->json(['message' => 'Your current plan does not have access to this feature.'], 403);
+            return response()->json(['message' => app(Messages::class)->responseMessage(MessageCode::MiddlewarePlanFeatureDenied)], 403);
         }
         return $next($request);
     }

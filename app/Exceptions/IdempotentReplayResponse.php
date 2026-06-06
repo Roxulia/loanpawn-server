@@ -3,6 +3,8 @@
 namespace App\Exceptions;
 
 use App\Http\Responses\ApiResponse;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Exception;
 
 class IdempotentReplayResponse extends Exception
@@ -11,7 +13,7 @@ class IdempotentReplayResponse extends Exception
         private array $responseBody,
         private int $responseCode,
     ) {
-        parent::__construct('Idempotent request replay.');
+        parent::__construct(app(Messages::class)->responseMessage(MessageCode::ExceptionIdempotentReplay));
     }
 
     public function render($request)
@@ -29,7 +31,7 @@ class IdempotentReplayResponse extends Exception
 
         $success = $this->responseCode >= 200 && $this->responseCode < 400;
         $message = $this->responseBody['message'] ?? (
-            $success ? ApiResponse::DEFAULT_SUCCESS_MESSAGE : ApiResponse::DEFAULT_ERROR_MESSAGE
+            app(Messages::class)->responseMessage($success ? MessageCode::ApiResponseSuccess : MessageCode::ApiResponseFailed)
         );
         $data = $this->responseBody['data'] ?? $this->responseBody;
 

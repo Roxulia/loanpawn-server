@@ -1,11 +1,11 @@
 @extends('platform.layouts.app')
 
-@section('title', 'Customer Service')
-@section('pageTitle', 'Customer Service')
-@section('pageDescription', 'Create and follow support tickets for bugs, feature requests, and other support needs.')
+@section('title', __('app.platform.view.customer_service'))
+@section('pageTitle', __('app.platform.view.customer_service'))
+@section('pageDescription', __('app.support.view.customer_service_description'))
 
 @section('pageAction')
-    <a href="{{ route('platform.customer-service.create') }}" class="button primary">Create Ticket</a>
+    <a href="{{ route('platform.customer-service.create') }}" class="button primary">{{ __('app.support.view.create_ticket') }}</a>
 @endsection
 
 @section('content')
@@ -13,9 +13,9 @@
         @if ($tickets->total() === 0)
             <div class="empty-state" id="customer-service-empty-state">
                 <div>
-                    <h2>No tickets</h2>
-                    <p class="muted">Support tickets you create will appear here.</p>
-                    <a href="{{ route('platform.customer-service.create') }}" class="button primary">Create Ticket</a>
+                    <h2>{{ __('app.support.view.no_tickets') }}</h2>
+                    <p class="muted">{{ __('app.support.view.no_tickets_description') }}</p>
+                    <a href="{{ route('platform.customer-service.create') }}" class="button primary">{{ __('app.support.view.create_ticket') }}</a>
                 </div>
             </div>
         @endif
@@ -33,12 +33,12 @@
             <table>
                 <thead>
                 <tr>
-                    <th>Created</th>
-                    <th>Code</th>
-                    <th>Subject</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Messages</th>
+                    <th>{{ __('app.common.view.labels.created') }}</th>
+                    <th>{{ __('app.common.view.labels.code') }}</th>
+                    <th>{{ __('app.common.view.labels.subject') }}</th>
+                    <th>{{ __('app.common.view.labels.type') }}</th>
+                    <th>{{ __('app.common.view.labels.status') }}</th>
+                    <th>{{ __('app.support.view.messages') }}</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -53,11 +53,11 @@
                                 {{ $ticket->user_unread_replies_count }}
                             </span>
                         </td>
-                        <td data-field="type">{{ ucfirst($ticket->type) }}</td>
+                        <td data-field="type">{{ __('app.support.view.types.'.$ticket->type) }}</td>
                         <td><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
                         <td data-field="messages">{{ $ticket->messages_count }}</td>
                         <td>
-                            <a href="{{ route('platform.customer-service.show', $ticket->code) }}" class="button secondary" data-field="detail">View</a>
+                            <a href="{{ route('platform.customer-service.show', $ticket->code) }}" class="button secondary" data-field="detail">{{ __('app.common.view.actions.view') }}</a>
                         </td>
                     </tr>
                 @endforeach

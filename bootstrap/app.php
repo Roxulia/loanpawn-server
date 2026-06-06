@@ -13,8 +13,11 @@ use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\LogHttpOperation;
+use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\StandardizeJsonResponse;
 use App\Http\Responses\ApiResponse;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
@@ -31,6 +34,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogHttpOperation::class);
         $middleware->append(StandardizeJsonResponse::class);
+        $middleware->web(append: [
+            ApplyLocale::class,
+        ]);
+        $middleware->api(append: [
+            ApplyLocale::class,
+        ]);
         $middleware->statefulApi();
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->is('admin') || $request->is('admin/*')) {
@@ -59,7 +68,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return ApiResponse::errorResponse(
-                message: ApiResponse::VALIDATION_ERROR_MESSAGE,
+                message: app(Messages::class)->responseMessage(MessageCode::ApiValidationFailed),
                 data: ['errors' => $exception->errors()],
                 statusCode: $exception->status,
             );
@@ -71,7 +80,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return ApiResponse::errorResponse(
-                message: $exception->getMessage() ?: 'Unauthenticated.',
+                message: $exception->getMessage() ?: app(Messages::class)->responseMessage(MessageCode::ApiUnauthenticated),
                 statusCode: 401,
             );
         });

@@ -2,6 +2,9 @@
 
 namespace App\Exceptions;
 
+use App\Utility\MessageCode;
+use App\Utility\Messages;
+
 class IdempotencyRequestProcessing extends ApiException
 {
     protected int $status = 409;
@@ -9,6 +12,6 @@ class IdempotencyRequestProcessing extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? 'Idempotent request is still processing. Please retry shortly.');
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionIdempotencyRequestProcessing));
     }
 }

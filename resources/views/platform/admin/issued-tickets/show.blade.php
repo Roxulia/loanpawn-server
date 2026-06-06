@@ -1,40 +1,40 @@
 @extends('platform.admin.layouts.app')
 
-@section('title', 'Issued Ticket Detail')
+@section('title', __('app.support.view.issued_ticket_detail'))
 @section('pageTitle', $ticket->subject)
-@section('pageDescription', $ticket->code.' - '.ucfirst($ticket->type).' - '.$ticket->status)
+@section('pageDescription', $ticket->code.' - '.__('app.support.view.types.'.$ticket->type).' - '.$ticket->status)
 
 @section('pageAction')
-    <a href="{{ route('admin.issued-tickets.index') }}" class="button secondary">Back</a>
+    <a href="{{ route('admin.issued-tickets.index') }}" class="button secondary">{{ __('app.common.view.actions.back') }}</a>
 @endsection
 
 @section('content')
     <section class="grid two">
         <div class="panel">
-            <p class="metric-label">Ticket</p>
+            <p class="metric-label">{{ __('app.support.view.ticket') }}</p>
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
-                    <tr><th>Code</th><td>{{ $ticket->code }}</td></tr>
-                    <tr><th>Type</th><td>{{ ucfirst($ticket->type) }}</td></tr>
-                    <tr><th>Status</th><td><span class="badge" data-ticket-status>{{ $ticket->status }}</span></td></tr>
-                    <tr><th>Created</th><td>{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>Opened</th><td>{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>Resolved</th><td>{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.code') }}</th><td>{{ $ticket->code }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.type') }}</th><td>{{ __('app.support.view.types.'.$ticket->type) }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.status') }}</th><td><span class="badge" data-ticket-status>{{ $ticket->status }}</span></td></tr>
+                    <tr><th>{{ __('app.common.view.labels.created') }}</th><td>{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.support.view.opened') }}</th><td>{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.support.view.resolved') }}</th><td>{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
         <div class="panel">
-            <p class="metric-label">Platform User</p>
+            <p class="metric-label">{{ __('app.support.view.platform_user') }}</p>
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
-                    <tr><th>Name</th><td>{{ $ticket->platformUser?->name ?? '-' }}</td></tr>
-                    <tr><th>Email</th><td>{{ $ticket->platformUser?->email ?? '-' }}</td></tr>
-                    <tr><th>Phone</th><td>{{ $ticket->platformUser?->phone ?? '-' }}</td></tr>
-                    <tr><th>User Code</th><td>{{ $ticket->platformUser?->code ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.name') }}</th><td>{{ $ticket->platformUser?->name ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.email') }}</th><td>{{ $ticket->platformUser?->email ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.phone') }}</th><td>{{ $ticket->platformUser?->phone ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.support.view.user_code') }}</th><td>{{ $ticket->platformUser?->code ?? '-' }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -47,12 +47,12 @@
                 @if ($ticket->status === 'pending')
                     <form method="POST" action="{{ route('admin.issued-tickets.open', $ticket->code) }}">
                         @csrf
-                        <button type="submit" class="button secondary">Open</button>
+                        <button type="submit" class="button secondary">{{ __('app.common.view.actions.open') }}</button>
                     </form>
                 @endif
                 <form method="POST" action="{{ route('admin.issued-tickets.resolve', $ticket->code) }}">
                     @csrf
-                    <button type="submit" class="button primary">Resolve</button>
+                    <button type="submit" class="button primary">{{ __('app.common.view.actions.resolve') }}</button>
                 </form>
             </div>
         </section>
@@ -70,7 +70,7 @@
         @foreach ($ticket->messages as $threadMessage)
             <article class="panel" data-message-id="{{ $threadMessage->id }}">
                 <p class="metric-label">
-                    {{ $threadMessage->sender_type === 'platform_admin' ? 'Admin' : 'Platform User' }}
+                    {{ $threadMessage->sender_type === 'platform_admin' ? __('app.support.view.sender.admin') : __('app.support.view.sender.platform_user') }}
                     <span class="muted">- {{ $threadMessage->created_at?->format('Y-m-d H:i') ?? '-' }}</span>
                 </p>
                 <p style="white-space: pre-wrap;">{{ $threadMessage->message }}</p>
@@ -80,8 +80,8 @@
                         <table>
                             <thead>
                             <tr>
-                                <th>Attachment</th>
-                                <th>Type</th>
+                                <th>{{ __('app.billing.view.attachment') }}</th>
+                                <th>{{ __('app.common.view.labels.type') }}</th>
                             </tr>
                             </thead>
                             <tbody>
@@ -103,18 +103,18 @@
         <form class="panel grid" style="margin-top: 16px;" method="POST" action="{{ route('admin.issued-tickets.messages.store', $ticket->code) }}" enctype="multipart/form-data">
             @csrf
             <div>
-                <label for="message">Admin Reply</label>
+                <label for="message">{{ __('app.support.view.admin_reply') }}</label>
                 <textarea id="message" name="message" required maxlength="5000">{{ old('message') }}</textarea>
                 @error('message') <div class="field-error">{{ $message }}</div> @enderror
             </div>
             <div>
-                <label for="attachments">Attachments</label>
+                <label for="attachments">{{ __('app.common.view.labels.attachments') }}</label>
                 <input id="attachments" name="attachments[]" type="file" multiple>
                 @error('attachments') <div class="field-error">{{ $message }}</div> @enderror
                 @error('attachments.*') <div class="field-error">{{ $message }}</div> @enderror
             </div>
             <div>
-                <button type="submit" class="button primary">Send Reply</button>
+                <button type="submit" class="button primary">{{ __('app.support.view.send_reply') }}</button>
             </div>
         </form>
     @endif

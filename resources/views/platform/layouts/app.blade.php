@@ -395,6 +395,37 @@
             cursor: pointer;
         }
 
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .locale-toggle {
+            display: inline-flex;
+            border: 1px solid var(--color-border-strong);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--color-surface);
+        }
+
+        .locale-toggle a {
+            min-width: 44px;
+            padding: 9px 12px;
+            color: var(--color-text-muted);
+            font-size: 13px;
+            font-weight: 800;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .locale-toggle a.active {
+            background: var(--color-primary);
+            color: var(--color-on-primary);
+        }
+
         @media (max-width: 940px) {
             .platform-shell {
                 grid-template-columns: 1fr;
@@ -413,6 +444,10 @@
             .topbar {
                 display: grid;
             }
+
+            .topbar-actions {
+                justify-content: flex-start;
+            }
         }
     </style>
 </head>
@@ -421,29 +456,38 @@
     <aside class="platform-sidebar">
         <div class="platform-brand">
             <strong>LonePawn</strong>
-            <span>Platform Workspace</span>
+            <span>{{ __('app.platform.view.workspace') }}</span>
         </div>
 
-        <nav class="platform-nav" aria-label="Platform navigation">
-            <a href="{{ route('platform.dashboard') }}" class="{{ request()->routeIs('platform.dashboard') ? 'active' : '' }}">Dashboard</a>
-            <a href="{{ route('platform.tenants.index') }}" class="{{ request()->routeIs('platform.tenants.*') ? 'active' : '' }}">Tenant Management</a>
-            <a href="{{ route('platform.billing.index') }}" class="{{ request()->routeIs('platform.billing.*') ? 'active' : '' }}">Billing Management</a>
-            <a href="{{ route('platform.customer-service.index') }}" class="{{ request()->routeIs('platform.customer-service.*') ? 'active' : '' }}">Customer Service</a>
+        <nav class="platform-nav" aria-label="{{ __('app.platform.view.workspace') }}">
+            <a href="{{ route('platform.dashboard') }}" class="{{ request()->routeIs('platform.dashboard') ? 'active' : '' }}">{{ __('app.platform.view.dashboard') }}</a>
+            <a href="{{ route('platform.tenants.index') }}" class="{{ request()->routeIs('platform.tenants.*') ? 'active' : '' }}">{{ __('app.platform.view.tenant_management') }}</a>
+            <a href="{{ route('platform.billing.index') }}" class="{{ request()->routeIs('platform.billing.*') ? 'active' : '' }}">{{ __('app.platform.view.billing_management') }}</a>
+            <a href="{{ route('platform.customer-service.index') }}" class="{{ request()->routeIs('platform.customer-service.*') ? 'active' : '' }}">{{ __('app.platform.view.customer_service') }}</a>
         </nav>
 
         <form method="POST" action="{{ route('platform.logout') }}" style="margin-top: auto;">
             @csrf
-            <button type="submit" class="logout-button">Logout</button>
+            <button type="submit" class="logout-button">{{ __('app.common.view.actions.logout') }}</button>
         </form>
     </aside>
 
     <main class="platform-main">
         <header class="topbar">
             <div>
-                <h1>@yield('pageTitle', 'Dashboard')</h1>
+                <h1>@yield('pageTitle', __('app.platform.view.dashboard'))</h1>
                 <p>@yield('pageDescription')</p>
             </div>
-            @yield('pageAction')
+            <div class="topbar-actions">
+                @yield('pageAction')
+                <div class="locale-toggle" aria-label="{{ __('app.common.view.locale.language') }}">
+                    @foreach (config('app.supported_locales', ['en', 'mm']) as $locale)
+                        <a href="{{ route('locale.set', $locale) }}" class="{{ app()->getLocale() === $locale ? 'active' : '' }}">
+                            {{ strtoupper($locale) }}
+                        </a>
+                    @endforeach
+                </div>
+            </div>
         </header>
 
         @if (session('status'))

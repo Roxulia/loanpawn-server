@@ -2,7 +2,8 @@
 
 namespace App\Exceptions;
 
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class RequiredValueMissing extends ApiException
 {
@@ -11,7 +12,7 @@ class RequiredValueMissing extends ApiException
 
     public function __construct(?string $message)
     {
-        $message = $message ?? MessageCodes::$messages['eb006'];
+        $message = $message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionRequiredValueMissing);
         parent::__construct($message);
     }
 }

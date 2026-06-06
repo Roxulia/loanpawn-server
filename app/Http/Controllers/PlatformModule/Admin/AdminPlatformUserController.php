@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\PlatformUserUpsert;
 use App\Http\Controllers\Controller;
 use App\Rules\PasswordRules;
 use App\Services\PlatformModule\PlatformUserService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,13 +33,13 @@ class AdminPlatformUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate($this->rules());
+        $validated = $request->validate($this->rules(), [], __('validation.attributes'));
 
         $this->platformUserService->create($this->payload($validated));
 
         return redirect()
             ->route('admin.platform-users.index')
-            ->with('status', 'Platform user created.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformUserCreated));
     }
 
     public function edit(int $platformUser): View
@@ -50,13 +51,13 @@ class AdminPlatformUserController extends Controller
 
     public function update(Request $request, int $platformUser): RedirectResponse
     {
-        $validated = $request->validate($this->rules($platformUser, false));
+        $validated = $request->validate($this->rules($platformUser, false), [], __('validation.attributes'));
 
         $this->platformUserService->update($platformUser, $this->payload($validated));
 
         return redirect()
             ->route('admin.platform-users.edit', $platformUser)
-            ->with('status', 'Platform user updated.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformUserUpdated));
     }
 
     public function destroy(int $platformUser): RedirectResponse
@@ -65,7 +66,7 @@ class AdminPlatformUserController extends Controller
 
         return redirect()
             ->route('admin.platform-users.index')
-            ->with('status', 'Platform user deleted.');
+            ->with('status', $this->responseMessage(MessageCode::PlatformUserDeleted));
     }
 
     private function rules(?int $platformUserId = null, bool $requirePassword = true): array

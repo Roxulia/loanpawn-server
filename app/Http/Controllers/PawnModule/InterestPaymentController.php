@@ -6,6 +6,7 @@ use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\DataObjects\RequestObjects\InterestPaymentAccept;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\InterestFlowService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -85,7 +86,7 @@ class InterestPaymentController extends Controller
                     idempotencyKey: $validated['idempotency_key'] ?? null,
                 ),
             ),
-            'Interest payment processed successfully.',
+            $this->responseMessage(MessageCode::PawnInterestPaymentCreated),
         );
     }
 }

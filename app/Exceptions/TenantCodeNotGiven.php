@@ -2,8 +2,8 @@
 
 namespace App\Exceptions;
 
-use Exception;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class TenantCodeNotGiven extends ApiException
 {
@@ -11,7 +11,7 @@ class TenantCodeNotGiven extends ApiException
     protected string $errorCode = 'TENANT_CODE_NOT_GIVEN';
     public function __construct(?string $message)
     {
-        $message = $message ?? MessageCodes::$messages['eb002'];
+        $message = $message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionTenantCodeNotGiven);
         parent::__construct($message);
     }
 }

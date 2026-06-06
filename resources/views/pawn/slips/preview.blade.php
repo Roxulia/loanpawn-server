@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slip Preview - {{ $document['slip']['slipNo'] }}</title>
+    <title>{{ __('app.pawn.view.slip_preview') }} - {{ $document['slip']['slipNo'] }}</title>
     <style>
         @page {
             size: {{ $paper['widthMm'] }}mm {{ $paper['heightMm'] }}mm;
@@ -159,32 +159,32 @@
 
         <section class="section meta-grid">
             <div class="meta-card">
-                <h3>Slip Detail</h3>
-                <div class="meta-line"><strong>Slip No:</strong> {{ $document['slip']['slipNo'] }}</div>
-                <div class="meta-line"><strong>Created Date:</strong> {{ $document['slip']['createdDate'] }}</div>
-                <div class="meta-line"><strong>Expire Date:</strong> {{ $document['slip']['expireDate'] }}</div>
-                <div class="meta-line"><strong>Status:</strong> {{ $document['slip']['status'] }}</div>
-                <div class="meta-line"><strong>Interest Type:</strong> {{ $document['slip']['interestType'] }}</div>
+                <h3>{{ __('app.pawn.view.slip_detail') }}</h3>
+                <div class="meta-line"><strong>{{ __('app.pawn.view.slip_no') }}:</strong> {{ $document['slip']['slipNo'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.pawn.view.created_date') }}:</strong> {{ $document['slip']['createdDate'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.pawn.view.expire_date') }}:</strong> {{ $document['slip']['expireDate'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.common.view.labels.status') }}:</strong> {{ $document['slip']['status'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.pawn.view.interest_type') }}:</strong> {{ $document['slip']['interestType'] }}</div>
             </div>
             <div class="meta-card">
-                <h3>Customer Detail</h3>
-                <div class="meta-line"><strong>Name:</strong> {{ $document['customer']['name'] }}</div>
-                <div class="meta-line"><strong>Phone:</strong> {{ $document['customer']['phone'] }}</div>
-                <div class="meta-line"><strong>Email:</strong> {{ $document['customer']['email'] }}</div>
-                <div class="meta-line"><strong>Address:</strong> {{ $document['customer']['address'] }}</div>
+                <h3>{{ __('app.pawn.view.customer_detail') }}</h3>
+                <div class="meta-line"><strong>{{ __('app.common.view.labels.name') }}:</strong> {{ $document['customer']['name'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.common.view.labels.phone') }}:</strong> {{ $document['customer']['phone'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.common.view.labels.email') }}:</strong> {{ $document['customer']['email'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.common.view.labels.address') }}:</strong> {{ $document['customer']['address'] }}</div>
             </div>
         </section>
 
         <section class="section">
-            <h3 style="margin: 0 0 2mm;">Collateral Items</h3>
+            <h3 style="margin: 0 0 2mm;">{{ __('app.pawn.view.collateral_items') }}</h3>
             <table class="items-table">
                 <thead>
                     <tr>
                         <th style="width: 8%;">#</th>
-                        <th style="width: 24%;">Name</th>
-                        <th style="width: 12%;">Type</th>
-                        <th style="width: 10%;">Qty</th>
-                        <th style="width: 18%;">Description</th>
+                        <th style="width: 24%;">{{ __('app.common.view.labels.name') }}</th>
+                        <th style="width: 12%;">{{ __('app.common.view.labels.type') }}</th>
+                        <th style="width: 10%;">{{ __('app.pawn.view.quantity') }}</th>
+                        <th style="width: 18%;">{{ __('app.common.view.labels.description') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -203,17 +203,17 @@
 
         <section class="summary">
             <div class="summary-row">
-                <span>Loan Amount</span>
+                <span>{{ __('app.pawn.view.loan_amount') }}</span>
                 <strong>{{ $document['slip']['loanAmount'] }}</strong>
             </div>
             <div class="summary-row">
-                <span>Interest Rate</span>
+                <span>{{ __('app.pawn.view.interest_rate') }}</span>
                 <strong>{{ $document['slip']['interestRate'] }}%</strong>
             </div>
         </section>
 
         <section class="notes">
-            <strong>Notes</strong><br>
+            <strong>{{ __('app.pawn.view.notes') }}</strong><br>
             {{ $document['slip']['notes'] }}
         </section>
 

@@ -7,6 +7,7 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Rules\PasswordRules;
 use App\Services\PlatformModule\AuthService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,8 +61,8 @@ class AuthController extends Controller
                 'password' => 'required|string|max:255',
             ],
             [
-                'email.required' => 'Email is required',
-                'password.required' => 'Password is required',
+                'email.required' => __('validation.custom.email.required'),
+                'password.required' => __('validation.custom.password.required'),
             ]
         );
 
@@ -80,10 +81,10 @@ class AuthController extends Controller
             ]);
 
             return $this->errorResponse(
-                'Verify your email before logging in.',
+                $this->responseMessage(MessageCode::PlatformEmailVerificationRequired),
                 [
                     'errors' => [
-                        'email' => ['Verify your email before logging in.'],
+                        'email' => [$this->responseMessage(MessageCode::PlatformEmailVerificationRequired)],
                     ],
                     'redirect' => route('platform.register.verify', ['email' => $pendingVerificationUser->email]),
                 ],
@@ -98,7 +99,7 @@ class AuthController extends Controller
                 ...$user->toArray(),
                 'redirect' => route('platform.dashboard'),
             ],
-            'Login success',
+            $this->responseMessage(MessageCode::PlatformLoginSuccess),
         );
     }
 
@@ -111,8 +112,8 @@ class AuthController extends Controller
                 'password' => 'required|string|max:255',
             ],
             [
-                'email.required' => 'Email is required',
-                'password.required' => 'Password is required',
+                'email.required' => __('validation.custom.email.required'),
+                'password.required' => __('validation.custom.password.required'),
             ]
         );
 
@@ -131,7 +132,7 @@ class AuthController extends Controller
                 ...$user->toArray(),
                 'redirect' => $redirect,
             ],
-            'Login success',
+            $this->responseMessage(MessageCode::PlatformLoginSuccess),
         );
     }
 
@@ -178,7 +179,7 @@ class AuthController extends Controller
 
         return $this->successResponse(
             ['redirect' => route('admin.dashboard')],
-            'Password changed successfully.',
+            $this->responseMessage(MessageCode::PlatformPasswordChanged),
         );
     }
 
@@ -224,7 +225,7 @@ class AuthController extends Controller
 
         return $this->successResponse(
             ['redirect' => route('platform.register.verify', ['email' => $user->email])],
-            'User registered successfully. Check your email for the verification code.',
+            $this->responseMessage(MessageCode::PlatformUserRegistered),
         );
     }
 
@@ -243,11 +244,13 @@ class AuthController extends Controller
         if ($resendAvailableAt > now()->timestamp) {
             $remaining = $resendAvailableAt - now()->timestamp;
 
+            $message = $this->responseMessage(MessageCode::PlatformResendWait, ['seconds' => $remaining]);
+
             return $this->errorResponse(
-                'You can request a new code in '.$remaining.' seconds.',
+                $message,
                 [
                     'errors' => [
-                        'email' => ['You can request a new code in '.$remaining.' seconds.'],
+                        'email' => [$message],
                     ],
                     'retry_after' => $remaining,
                 ],
@@ -267,7 +270,7 @@ class AuthController extends Controller
                 'email' => $validated['email'],
                 'resendAvailableAt' => (int) session(self::REGISTER_RESEND_KEY),
             ],
-            'Verification code sent to '.$validated['email'].'.',
+            $this->responseMessage(MessageCode::PlatformVerificationCodeSent, ['email' => $validated['email']]),
         );
     }
 
@@ -288,7 +291,7 @@ class AuthController extends Controller
 
         return $this->successResponse(
             ['redirect' => route('platform.login.show')],
-            'Email verified. Please login with your new account.',
+            $this->responseMessage(MessageCode::PlatformEmailVerified),
         );
     }
 
@@ -316,11 +319,13 @@ class AuthController extends Controller
         if ($resendAvailableAt > now()->timestamp) {
             $remaining = $resendAvailableAt - now()->timestamp;
 
+            $message = $this->responseMessage(MessageCode::PlatformResendWait, ['seconds' => $remaining]);
+
             return $this->errorResponse(
-                'You can request a new code in '.$remaining.' seconds.',
+                $message,
                 [
                     'errors' => [
-                        'email' => ['You can request a new code in '.$remaining.' seconds.'],
+                        'email' => [$message],
                     ],
                     'retry_after' => $remaining,
                 ],
@@ -342,7 +347,7 @@ class AuthController extends Controller
                 'isOtpVerified' => false,
                 'resendAvailableAt' => (int) session(self::RESET_RESEND_KEY),
             ],
-            'Verification code sent to '.$request['email'].'.',
+            $this->responseMessage(MessageCode::PlatformVerificationCodeSent, ['email' => $request['email']]),
         );
     }
 
@@ -372,7 +377,7 @@ class AuthController extends Controller
                 'isOtpVerified' => true,
                 'otpVerifiedNow' => true,
             ],
-            'OTP verified.',
+            $this->responseMessage(MessageCode::PlatformOtpVerified),
         );
     }
 
@@ -391,10 +396,10 @@ class AuthController extends Controller
 
         if (! $isVerified || $verifiedEmail !== $request['email']) {
             return $this->errorResponse(
-                'Verify OTP before resetting the password.',
+                $this->responseMessage(MessageCode::PlatformOtpResetRequired),
                 [
                     'errors' => [
-                        'password' => ['Verify OTP before resetting the password.'],
+                        'password' => [$this->responseMessage(MessageCode::PlatformOtpResetRequired)],
                     ],
                 ],
                 400,
@@ -405,7 +410,7 @@ class AuthController extends Controller
 
         return $this->successResponse(
             ['redirect' => route('platform.login.show')],
-            'Password reset completed. Please login with your new password.',
+            $this->responseMessage(MessageCode::PlatformPasswordResetCompleted),
         );
     }
 
@@ -415,7 +420,7 @@ class AuthController extends Controller
 
         return $this->successResponse(
             ['redirect' => route('platform.login.show')],
-            'Password reset flow canceled.',
+            $this->responseMessage(MessageCode::PlatformPasswordResetCanceled),
         );
     }
 
