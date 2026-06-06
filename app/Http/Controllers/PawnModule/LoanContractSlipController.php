@@ -27,14 +27,12 @@ class LoanContractSlipController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->lookUpService->list((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
+        return $this->successResponse($this->lookUpService->list((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -78,7 +76,7 @@ class LoanContractSlipController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -106,26 +104,19 @@ class LoanContractSlipController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Loan contract slip created successfully.',
-            'data' => $slip->toArray(),
-        ], 201);
+        return $this->successResponse($slip->toArray(), 'Loan contract slip created successfully.', 201);
     }
 
     public function show(string $slipNo): JsonResponse
     {
-        return response()->json([
-            'data' => $this->lookUpService->findBySlipNo($slipNo)->toArray(),
-        ]);
+        return $this->successResponse($this->lookUpService->findBySlipNo($slipNo)->toArray());
     }
 
     public function destroy(string $slipNo): JsonResponse
     {
         $this->managementService->deleteBySlipNo($slipNo);
 
-        return response()->json([
-            'message' => 'Loan contract slip deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Loan contract slip deleted successfully.');
     }
 
     protected function makeCollateralItemCreate(array $item): PawnCollateralItemCreate
@@ -149,11 +140,4 @@ class LoanContractSlipController extends Controller
         );
     }
 
-    protected function validationFailed($validator): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422);
-    }
 }

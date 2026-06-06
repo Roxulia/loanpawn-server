@@ -25,18 +25,13 @@ class TenantUserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
         $users = $this->tenantUserService->list((int) ($validated['per_page'] ?? 15));
 
-        return response()->json([
-            'data' => $users->toArray(),
-        ]);
+        return $this->successResponse($users->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -52,10 +47,7 @@ class TenantUserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -71,10 +63,7 @@ class TenantUserController extends Controller
             status: $validated['status'] ?? 'active',
         ));
 
-        return response()->json([
-            'message' => 'Tenant user created successfully.',
-            'data' => $user->toArray(),
-        ], 201);
+        return $this->successResponse($user->toArray(), 'Tenant user created successfully.', 201);
     }
 
     public function update(Request $request, string $tenantUserCode): JsonResponse
@@ -91,10 +80,7 @@ class TenantUserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -111,10 +97,7 @@ class TenantUserController extends Controller
             status: $validated['status'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Tenant user updated successfully.',
-            'data' => $user->toArray(),
-        ]);
+        return $this->successResponse($user->toArray(), 'Tenant user updated successfully.');
     }
 
     public function changePassword(Request $request): JsonResponse
@@ -125,10 +108,7 @@ class TenantUserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -137,9 +117,7 @@ class TenantUserController extends Controller
             newPassword: $validated['password'],
         );
 
-        return response()->json([
-            'message' => 'Password changed successfully. Please login again.',
-        ]);
+        return $this->successResponse(message: 'Password changed successfully. Please login again.');
     }
 
     public function resetPasswordToDefault(Request $request, string $tenantUserCode): JsonResponse
@@ -149,10 +127,7 @@ class TenantUserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -161,18 +136,14 @@ class TenantUserController extends Controller
             logoutFromAll: (bool) ($validated['logoutFromAll'] ?? false),
         );
 
-        return response()->json([
-            'message' => 'Tenant user password reset to default successfully.',
-        ]);
+        return $this->successResponse(message: 'Tenant user password reset to default successfully.');
     }
 
     public function show(string $tenantUserCode): JsonResponse
     {
         $user = $this->tenantUserService->showByCode($tenantUserCode);
 
-        return response()->json([
-            'data' => $user->toArray(),
-        ]);
+        return $this->successResponse($user->toArray());
     }
 
     public function updatePermissions(Request $request, string $tenantUserCode): JsonResponse
@@ -186,26 +157,18 @@ class TenantUserController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $user = $this->tenantUserService->updatePermissions($this->tenantUserService->resolveIdByCode($tenantUserCode), $validator->validated());
 
-        return response()->json([
-            'message' => 'Tenant user permissions updated successfully.',
-            'data' => $user->toArray(),
-        ]);
+        return $this->successResponse($user->toArray(), 'Tenant user permissions updated successfully.');
     }
 
     public function destroy(string $tenantUserCode): JsonResponse
     {
         $this->tenantUserService->delete($this->tenantUserService->resolveIdByCode($tenantUserCode));
 
-        return response()->json([
-            'message' => 'Tenant user deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Tenant user deleted successfully.');
     }
 }

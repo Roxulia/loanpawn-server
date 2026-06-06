@@ -24,14 +24,12 @@ class TenantDebtController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->debtService->list((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
+        return $this->successResponse($this->debtService->list((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -43,7 +41,7 @@ class TenantDebtController extends Controller
         $validator = Validator::make($input, $this->rules());
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -57,10 +55,7 @@ class TenantDebtController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Debt created successfully.',
-            'data' => $debt->toArray(),
-        ], 201);
+        return $this->successResponse($debt->toArray(), 'Debt created successfully.', 201);
     }
 
     public function update(Request $request, string $debtCode): JsonResponse
@@ -68,7 +63,7 @@ class TenantDebtController extends Controller
         $validator = Validator::make($request->all(), $this->rules(false));
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -84,19 +79,14 @@ class TenantDebtController extends Controller
             acceptedBy: $validated['accepted_by'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Debt updated successfully.',
-            'data' => $debt->toArray(),
-        ]);
+        return $this->successResponse($debt->toArray(), 'Debt updated successfully.');
     }
 
     public function destroy(string $debtCode): JsonResponse
     {
         $this->debtService->delete($this->debtService->resolveIdByCode($debtCode));
 
-        return response()->json([
-            'message' => 'Debt deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Debt deleted successfully.');
     }
 
     public function markAsPaid(Request $request, string $debtCode): JsonResponse
@@ -106,7 +96,7 @@ class TenantDebtController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -115,10 +105,7 @@ class TenantDebtController extends Controller
             (float) $validated['amount_paid'],
         );
 
-        return response()->json([
-            'message' => 'Debt paid successfully.',
-            'data' => $debt,
-        ]);
+        return $this->successResponse($debt, 'Debt paid successfully.');
     }
 
     protected function rules(bool $isCreate = true): array
@@ -135,11 +122,4 @@ class TenantDebtController extends Controller
         ];
     }
 
-    protected function validationFailed($validator): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422);
-    }
 }

@@ -120,19 +120,20 @@
                         });
 
                         const payload = await response.json();
+                        const responseData = payload.data || {};
 
                         if (!response.ok) {
                             const message = payload.message || 'Registration failed.';
-                            renderErrors(payload.errors || null, message);
+                            renderErrors(responseData.errors || null, message);
                             showStatus('error', message);
                             return;
                         }
 
                         showStatus('success', payload.message || 'User registered successfully.');
 
-                        if (payload.redirect) {
+                        if (responseData.redirect) {
                             window.setTimeout(function () {
-                                window.location.href = payload.redirect;
+                                window.location.href = responseData.redirect;
                             }, 900);
                         }
                     } catch (error) {

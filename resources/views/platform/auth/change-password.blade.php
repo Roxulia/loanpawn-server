@@ -98,10 +98,11 @@
                             body: new FormData(form),
                         });
                         const payload = await response.json();
+                        const responseData = payload.data || {};
 
                         if (!response.ok) {
                             const message = payload.message || 'Password change failed.';
-                            renderErrors(payload.errors || null, message);
+                            renderErrors(responseData.errors || null, message);
                             statusBox.textContent = message;
                             statusBox.className = 'form-status error';
                             return;
@@ -110,8 +111,8 @@
                         statusBox.textContent = payload.message || 'Password changed.';
                         statusBox.className = 'form-status success';
 
-                        if (payload.redirect) {
-                            window.location.href = payload.redirect;
+                        if (responseData.redirect) {
+                            window.location.href = responseData.redirect;
                         }
                     } catch (error) {
                         renderErrors(null, 'Unable to change password right now.');

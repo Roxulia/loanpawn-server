@@ -203,6 +203,11 @@
             color: var(--color-success);
             font-weight: 700;
         }
+        .flash.error {
+            background: var(--color-danger-soft);
+            border-color: var(--color-danger);
+            color: var(--color-danger);
+        }
         .pagination { margin-top: 16px; }
         .action-row {
             display: flex;
@@ -277,6 +282,10 @@
 
         @if (session('status'))
             <div class="flash">{{ session('status') }}</div>
+        @endif
+
+        @if (session('error'))
+            <div class="flash error">{{ session('error') }}</div>
         @endif
 
         @yield('content')

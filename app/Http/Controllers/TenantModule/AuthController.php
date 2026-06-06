@@ -28,10 +28,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -41,10 +38,7 @@ class AuthController extends Controller
             password: $validated['password'],
         ));
 
-        return response()->json([
-            'message' => 'Tenant user login success.',
-            'data' => $session->toArray(),
-        ]);
+        return $this->successResponse($session->toArray(), 'Tenant user login success.');
     }
 
     public function loginSubdomainSpa(Request $request): JsonResponse
@@ -55,10 +49,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -67,10 +58,7 @@ class AuthController extends Controller
             password: $validated['password'],
         ));
 
-        return response()->json([
-            'message' => 'Tenant user login success.',
-            'data' => $session->toArray(),
-        ]);
+        return $this->successResponse($session->toArray(), 'Tenant user login success.');
     }
 
     public function consumeSso(Request $request): JsonResponse
@@ -81,36 +69,26 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
         $session = $this->tenantSsoService->consume($validated['tenant_code'], $validated['token']);
 
-        return response()->json([
-            'message' => 'Tenant SSO login success.',
-            'data' => $session->toArray(),
-        ]);
+        return $this->successResponse($session->toArray(), 'Tenant SSO login success.');
     }
 
     public function me(): JsonResponse
     {
         $user = $this->authService->getCurrentUser();
 
-        return response()->json([
-            'data' => $user->toArray(),
-        ]);
+        return $this->successResponse($user->toArray());
     }
 
     public function logout(): JsonResponse
     {
         $this->authService->logout();
 
-        return response()->json([
-            'message' => 'Tenant user logout success.',
-        ]);
+        return $this->successResponse(message: 'Tenant user logout success.');
     }
 }

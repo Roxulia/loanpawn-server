@@ -25,21 +25,17 @@ class PawnRedemptionController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->redemptionService->list((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
+        return $this->successResponse($this->redemptionService->list((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
     public function calculate(string $slipNo): JsonResponse
     {
-        return response()->json([
-            'data' => $this->redemptionService->getRedemptionResultBySlipNo($slipNo)->toArray(),
-        ]);
+        return $this->successResponse($this->redemptionService->getRedemptionResultBySlipNo($slipNo)->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -69,7 +65,7 @@ class PawnRedemptionController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -101,24 +97,11 @@ class PawnRedemptionController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Pawn redemption created successfully.',
-            'data' => $redemption->toArray(),
-        ], 201);
+        return $this->successResponse($redemption->toArray(), 'Pawn redemption created successfully.', 201);
     }
 
     public function show(string $slipNumber): JsonResponse
     {
-        return response()->json([
-            'data' => $this->redemptionService->findBySlipNumber($slipNumber)->toArray(),
-        ]);
-    }
-
-    protected function validationFailed($validator): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422);
+        return $this->successResponse($this->redemptionService->findBySlipNumber($slipNumber)->toArray());
     }
 }

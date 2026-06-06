@@ -23,14 +23,12 @@ class TenantAccountingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->accountingService->list((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
+        return $this->successResponse($this->accountingService->list((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
     public function getAccountingLedger(Request $request): JsonResponse
@@ -42,7 +40,7 @@ class TenantAccountingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -51,14 +49,9 @@ class TenantAccountingController extends Controller
 
         try {
             $ledger = $this->accountingService->buildAccountingLedger($startDate, $endDate, (int) ($validated['per_page'] ?? 15));
-            return response()->json([
-                'data' => $ledger->toArray(),
-            ]);
+            return $this->successResponse($ledger->toArray());
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to build accounting ledger.',
-                'error' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('Failed to build accounting ledger.', ['error' => $e->getMessage()], 500);
         }
     }
 
@@ -70,7 +63,7 @@ class TenantAccountingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -81,10 +74,7 @@ class TenantAccountingController extends Controller
                 new \Carbon\Carbon($validated['end_date']),
             );
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to download accounting ledger.',
-                'error' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('Failed to download accounting ledger.', ['error' => $e->getMessage()], 500);
         }
     }
 
@@ -95,14 +85,12 @@ class TenantAccountingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->accountingService->listIncomingTransactions((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
+        return $this->successResponse($this->accountingService->listIncomingTransactions((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
     public function listOutgoingTransactions(Request $request): JsonResponse
@@ -112,21 +100,11 @@ class TenantAccountingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->accountingService->listOutgoingTransactions((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
-    }
-
-    protected function validationFailed($validator): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422);
+        return $this->successResponse($this->accountingService->listOutgoingTransactions((int) ($validated['per_page'] ?? 15))->toArray());
     }
 }

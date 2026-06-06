@@ -22,16 +22,15 @@ class LicenseController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $result = $this->tenantLicenseService->validateLicenseKey($validator->validated()['license_key']);
 
-        return response()->json([
-            'data' => $result->toArray(),
-        ], $result->valid ? 200 : 422);
+        if (! $result->valid) {
+            return $this->errorResponse('License validation failed.', $result->toArray(), 422);
+        }
+
+        return $this->successResponse($result->toArray());
     }
 }

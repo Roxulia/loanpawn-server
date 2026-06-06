@@ -31,13 +31,11 @@ class TenantSettingsController extends Controller
 
     public function show(): JsonResponse
     {
-        return response()->json([
-            'data' => [
-                'branding' => $this->tenantBrandingService->getCurrentTenantBranding()->toArray(),
-                'contact' => $this->tenantContactService->getCurrentTenantContact()->toArray(),
-                'tenant_setting' => [
-                    'default_tenant_user_password' => $this->tenantSettingService->getCurrentTenantDefaultUserPassword(),
-                ],
+        return $this->successResponse([
+            'branding' => $this->tenantBrandingService->getCurrentTenantBranding()->toArray(),
+            'contact' => $this->tenantContactService->getCurrentTenantContact()->toArray(),
+            'tenant_setting' => [
+                'default_tenant_user_password' => $this->tenantSettingService->getCurrentTenantDefaultUserPassword(),
             ],
         ]);
     }
@@ -60,10 +58,7 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -93,7 +88,7 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -101,7 +96,7 @@ class TenantSettingsController extends Controller
             $this->makeTenantBrandingUpdate($validated),
         );
 
-        return response()->json(['data' => $branding->toArray()]);
+        return $this->successResponse($branding->toArray());
     }
 
     public function updateContact(Request $request): JsonResponse
@@ -115,7 +110,7 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -123,7 +118,7 @@ class TenantSettingsController extends Controller
             $this->makeTenantContactUpdate($validated),
         );
 
-        return response()->json(['data' => $contact->toArray()]);
+        return $this->successResponse($contact->toArray());
     }
 
     public function updateTenantDefaultUserPassword(Request $request): JsonResponse
@@ -134,7 +129,7 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -142,7 +137,7 @@ class TenantSettingsController extends Controller
             $this->makeTenantDefaultUserPasswordUpdate($validated),
         );
 
-        return response()->json(['data' => $setting->toArray()]);
+        return $this->successResponse($setting->toArray());
     }
 
     public function createInterestType(Request $request): JsonResponse
@@ -154,14 +149,14 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $data = $this->defaultDataService->createCurrentTenantInterestType(
             $this->makeDefaultDataCreate($validator->validated()),
         );
 
-        return response()->json(['data' => $data], 201);
+        return $this->successResponse($data, statusCode: 201);
     }
 
     public function createExpenseType(Request $request): JsonResponse
@@ -172,14 +167,14 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $data = $this->defaultDataService->createCurrentTenantExpenseType(
             $this->makeDefaultDataCreate($validator->validated()),
         );
 
-        return response()->json(['data' => $data], 201);
+        return $this->successResponse($data, statusCode: 201);
     }
 
     public function createMaterialType(Request $request): JsonResponse
@@ -190,14 +185,14 @@ class TenantSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $data = $this->defaultDataService->createCurrentTenantMaterialType(
             $this->makeDefaultDataCreate($validator->validated()),
         );
 
-        return response()->json(['data' => $data], 201);
+        return $this->successResponse($data, statusCode: 201);
     }
 
     protected function makeDefaultDataCreate(array $data): DefaultDataCreate
@@ -238,11 +233,4 @@ class TenantSettingsController extends Controller
         );
     }
 
-    protected function validationFailed($validator): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422);
-    }
 }

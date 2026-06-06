@@ -24,14 +24,12 @@ class TenantExpenseController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'data' => $this->expenseService->list((int) ($validated['per_page'] ?? 15))->toArray(),
-        ]);
+        return $this->successResponse($this->expenseService->list((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -43,7 +41,7 @@ class TenantExpenseController extends Controller
         $validator = Validator::make($input, $this->rules());
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -54,10 +52,7 @@ class TenantExpenseController extends Controller
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Expense created successfully.',
-            'data' => $expense->toArray(),
-        ], 201);
+        return $this->successResponse($expense->toArray(), 'Expense created successfully.', 201);
     }
 
     public function update(Request $request, string $expenseCode): JsonResponse
@@ -65,7 +60,7 @@ class TenantExpenseController extends Controller
         $validator = Validator::make($request->all(), $this->rules(false));
 
         if ($validator->fails()) {
-            return $this->validationFailed($validator);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -78,19 +73,14 @@ class TenantExpenseController extends Controller
             expenseTypeId: $validated['expense_type_id'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Expense updated successfully.',
-            'data' => $expense->toArray(),
-        ]);
+        return $this->successResponse($expense->toArray(), 'Expense updated successfully.');
     }
 
     public function destroy(string $expenseCode): JsonResponse
     {
         $this->expenseService->delete($this->expenseService->resolveIdByCode($expenseCode));
 
-        return response()->json([
-            'message' => 'Expense deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Expense deleted successfully.');
     }
 
     protected function rules(bool $isCreate = true): array
@@ -104,11 +94,4 @@ class TenantExpenseController extends Controller
         ];
     }
 
-    protected function validationFailed($validator): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Validation failed.',
-            'errors' => $validator->errors(),
-        ], 422);
-    }
 }

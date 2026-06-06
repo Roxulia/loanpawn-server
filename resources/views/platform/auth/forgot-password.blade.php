@@ -195,7 +195,8 @@
                 }
 
                 function renderErrors(payload, source) {
-                    const errors = payload && payload.errors ? payload.errors : {};
+                    const responseData = payload && payload.data ? payload.data : {};
+                    const errors = responseData.errors || {};
                     const message = payload && payload.message ? payload.message : 'Request failed.';
 
                     setFieldError(errorNodes.sendEmail, errors.email ? errors.email[0] : '');
@@ -292,10 +293,11 @@
                 resetPasswordForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
                     const payload = await submitJson(resetPasswordForm, resetPasswordButton, 'reset');
+                    const responseData = payload && payload.data ? payload.data : {};
 
-                    if (payload && payload.redirect) {
+                    if (responseData.redirect) {
                         window.setTimeout(function () {
-                            window.location.href = payload.redirect;
+                            window.location.href = responseData.redirect;
                         }, 900);
                     }
                 });
@@ -303,9 +305,10 @@
                 cancelResetForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
                     const payload = await submitJson(cancelResetForm, cancelResetButton, 'cancel');
+                    const responseData = payload && payload.data ? payload.data : {};
 
-                    if (payload && payload.redirect) {
-                        window.location.href = payload.redirect;
+                    if (responseData.redirect) {
+                        window.location.href = responseData.redirect;
                     }
                 });
 

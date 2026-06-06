@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\PawnModule;
 
-use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
-use App\DataObjects\RequestObjects\PawnCollateralItemUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\CollateralItemService;
 use Illuminate\Http\JsonResponse;
@@ -25,10 +23,7 @@ class CollateralItemController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -37,27 +32,21 @@ class CollateralItemController extends Controller
             $validated['search'] ?? null,
         );
 
-        return response()->json([
-            'data' => $items->toArray(),
-        ]);
+        return $this->successResponse($items->toArray());
     }
 
     public function show(string $itemCode): JsonResponse
     {
         $item = $this->collateralItemService->showByCode($itemCode);
 
-        return response()->json([
-            'data' => $item->toArray(),
-        ]);
+        return $this->successResponse($item->toArray());
     }
 
     public function destroy(string $itemCode): JsonResponse
     {
         $this->collateralItemService->delete($this->collateralItemService->resolveIdByCode($itemCode));
 
-        return response()->json([
-            'message' => 'Collateral item deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Collateral item deleted successfully.');
     }
 
 }

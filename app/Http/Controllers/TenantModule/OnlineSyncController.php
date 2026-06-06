@@ -42,9 +42,10 @@ class OnlineSyncController extends Controller
             )
         ));
 
-        return response()->json([
-            'success' => $result->failed === 0,
-            'data' => $result->toArray(),
-        ], $result->failed === 0 ? 200 : 207);
+        if ($result->failed > 0) {
+            return $this->errorResponse('Online sync completed with failures.', $result->toArray(), 207);
+        }
+
+        return $this->successResponse($result->toArray());
     }
 }

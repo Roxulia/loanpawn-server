@@ -108,21 +108,22 @@
                         });
 
                         const payload = await response.json();
+                        const responseData = payload.data || {};
 
                         if (!response.ok) {
                             const message = payload.message || 'Login failed.';
-                            renderErrors(payload.errors || null, message);
+                            renderErrors(responseData.errors || null, message);
                             showStatus('error', message);
-                            if (payload.redirect) {
-                                window.location.href = payload.redirect;
+                            if (responseData.redirect) {
+                                window.location.href = responseData.redirect;
                             }
                             return;
                         }
 
                         showStatus('success', payload.message || 'Login success.');
 
-                        if (payload.redirect) {
-                            window.location.href = payload.redirect;
+                        if (responseData.redirect) {
+                            window.location.href = responseData.redirect;
                         }
                     } catch (error) {
                         renderErrors(null, 'Unable to process login right now.');

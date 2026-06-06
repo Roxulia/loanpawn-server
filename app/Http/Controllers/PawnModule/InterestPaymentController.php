@@ -24,10 +24,7 @@ class InterestPaymentController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -35,16 +32,12 @@ class InterestPaymentController extends Controller
             (int) ($validated['per_page'] ?? 15)
         );
 
-        return response()->json([
-            'data' => $history->toArray(),
-        ]);
+        return $this->successResponse($history->toArray());
     }
 
     public function calculate(string $slipNo): JsonResponse
     {
-        return response()->json([
-            'data' => $this->interestFlowService->calculateInterestBySlipNo($slipNo)->toArray(),
-        ]);
+        return $this->successResponse($this->interestFlowService->calculateInterestBySlipNo($slipNo)->toArray());
     }
 
     public function pay(Request $request, string $slipNo): JsonResponse
@@ -67,17 +60,13 @@ class InterestPaymentController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
 
-        return response()->json([
-            'message' => 'Interest payment processed successfully.',
-            'data' => $this->interestFlowService->payInterestBySlipNo(
+        return $this->successResponse(
+            $this->interestFlowService->payInterestBySlipNo(
                 $slipNo,
                 new InterestPaymentAccept(
                     slipUpdateKey: (int) $validated['slip_update_key'],
@@ -96,6 +85,7 @@ class InterestPaymentController extends Controller
                     idempotencyKey: $validated['idempotency_key'] ?? null,
                 ),
             ),
-        ]);
+            'Interest payment processed successfully.',
+        );
     }
 }

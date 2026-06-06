@@ -306,7 +306,7 @@ class PawnOperationApiTest extends TestCase
             'Idempotency-Key' => 'loan-slip-conflict-test-key',
         ])->postJson('/api/tenant/loan-contract-slips', $payload)
             ->assertConflict()
-            ->assertJsonPath('code', 'IDEMPOTENCY_KEY_CONFLICT');
+            ->assertJsonPath('data.code', 'IDEMPOTENCY_KEY_CONFLICT');
 
         $this->assertDatabaseCount('pawn_loan_contract_slips', 1);
     }

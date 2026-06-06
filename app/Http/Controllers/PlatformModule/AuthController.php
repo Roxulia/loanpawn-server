@@ -66,10 +66,7 @@ class AuthController extends Controller
         );
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -82,22 +79,27 @@ class AuthController extends Controller
                 self::REGISTER_RESEND_KEY => now()->addSeconds(self::RESET_RESEND_SECONDS)->timestamp,
             ]);
 
-            return response()->json([
-                'message' => 'Verify your email before logging in.',
-                'errors' => [
-                    'email' => ['Verify your email before logging in.'],
+            return $this->errorResponse(
+                'Verify your email before logging in.',
+                [
+                    'errors' => [
+                        'email' => ['Verify your email before logging in.'],
+                    ],
+                    'redirect' => route('platform.register.verify', ['email' => $pendingVerificationUser->email]),
                 ],
-                'redirect' => route('platform.register.verify', ['email' => $pendingVerificationUser->email]),
-            ], 403);
+                403,
+            );
         }
 
         $user = $this->authService->loginUser($validated['email'], $validated['password']);
 
-        return response()->json([
-            'data' => $user->toArray(),
-            'message' => 'Login success',
-            'redirect' => route('platform.dashboard'),
-        ], 200);
+        return $this->successResponse(
+            [
+                ...$user->toArray(),
+                'redirect' => route('platform.dashboard'),
+            ],
+            'Login success',
+        );
     }
 
     public function loginAdmin(Request $request)
@@ -115,10 +117,7 @@ class AuthController extends Controller
         );
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -127,11 +126,13 @@ class AuthController extends Controller
             ? route('admin.password.change')
             : route('admin.dashboard');
 
-        return response()->json([
-            'data' => $user->toArray(),
-            'message' => 'Login success',
-            'redirect' => $redirect,
-        ], 200);
+        return $this->successResponse(
+            [
+                ...$user->toArray(),
+                'redirect' => $redirect,
+            ],
+            'Login success',
+        );
     }
 
     public function logoutUser(Request $request): RedirectResponse
@@ -169,19 +170,16 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
         $this->authService->changePassword($validated['current_password'], $validated['password'], true);
 
-        return response()->json([
-            'message' => 'Password changed successfully.',
-            'redirect' => route('admin.dashboard'),
-        ]);
+        return $this->successResponse(
+            ['redirect' => route('admin.dashboard')],
+            'Password changed successfully.',
+        );
     }
 
     public function showRegister(): View
@@ -206,10 +204,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -227,10 +222,10 @@ class AuthController extends Controller
             self::REGISTER_RESEND_KEY => now()->addSeconds(self::RESET_RESEND_SECONDS)->timestamp,
         ]);
 
-        return response()->json([
-            'message' => 'User registered successfully. Check your email for the verification code.',
-            'redirect' => route('platform.register.verify', ['email' => $user->email]),
-        ], 200);
+        return $this->successResponse(
+            ['redirect' => route('platform.register.verify', ['email' => $user->email])],
+            'User registered successfully. Check your email for the verification code.',
+        );
     }
 
     public function sendRegisterVerificationCode(Request $request): JsonResponse
@@ -240,10 +235,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $resendAvailableAt = (int) session(self::REGISTER_RESEND_KEY, 0);
@@ -251,13 +243,16 @@ class AuthController extends Controller
         if ($resendAvailableAt > now()->timestamp) {
             $remaining = $resendAvailableAt - now()->timestamp;
 
-            return response()->json([
-                'message' => 'You can request a new code in '.$remaining.' seconds.',
-                'errors' => [
-                    'email' => ['You can request a new code in '.$remaining.' seconds.'],
+            return $this->errorResponse(
+                'You can request a new code in '.$remaining.' seconds.',
+                [
+                    'errors' => [
+                        'email' => ['You can request a new code in '.$remaining.' seconds.'],
+                    ],
+                    'retry_after' => $remaining,
                 ],
-                'retry_after' => $remaining,
-            ], 429);
+                429,
+            );
         }
 
         $validated = $validator->validated();
@@ -267,13 +262,13 @@ class AuthController extends Controller
             self::REGISTER_RESEND_KEY => now()->addSeconds(self::RESET_RESEND_SECONDS)->timestamp,
         ]);
 
-        return response()->json([
-            'message' => 'Verification code sent to '.$validated['email'].'.',
-            'data' => [
+        return $this->successResponse(
+            [
                 'email' => $validated['email'],
                 'resendAvailableAt' => (int) session(self::REGISTER_RESEND_KEY),
             ],
-        ]);
+            'Verification code sent to '.$validated['email'].'.',
+        );
     }
 
     public function verifyRegisterCode(Request $request): JsonResponse
@@ -284,20 +279,17 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
         $this->authService->verifyRegistrationOTP($validated['email'], $validated['otp']);
         session()->forget([self::REGISTER_EMAIL_KEY, self::REGISTER_RESEND_KEY]);
 
-        return response()->json([
-            'message' => 'Email verified. Please login with your new account.',
-            'redirect' => route('platform.login.show'),
-        ]);
+        return $this->successResponse(
+            ['redirect' => route('platform.login.show')],
+            'Email verified. Please login with your new account.',
+        );
     }
 
     public function showForgotPassword(Request $request): View
@@ -317,23 +309,23 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
         $resendAvailableAt = (int) session(self::RESET_RESEND_KEY, 0);
 
         if ($resendAvailableAt > now()->timestamp) {
             $remaining = $resendAvailableAt - now()->timestamp;
 
-            return response()->json([
-                'message' => 'You can request a new code in '.$remaining.' seconds.',
-                'errors' => [
-                    'email' => ['You can request a new code in '.$remaining.' seconds.'],
+            return $this->errorResponse(
+                'You can request a new code in '.$remaining.' seconds.',
+                [
+                    'errors' => [
+                        'email' => ['You can request a new code in '.$remaining.' seconds.'],
+                    ],
+                    'retry_after' => $remaining,
                 ],
-                'retry_after' => $remaining,
-            ], 429);
+                429,
+            );
         }
         $this->authService->requestOTP($request['email'], false);
         session([
@@ -343,15 +335,15 @@ class AuthController extends Controller
             self::RESET_RESEND_KEY => now()->addSeconds(self::RESET_RESEND_SECONDS)->timestamp,
         ]);
 
-        return response()->json([
-            'message' => 'Verification code sent to '.$request['email'].'.',
-            'data' => [
+        return $this->successResponse(
+            [
                 'email' => $request['email'],
                 'isCodeSent' => true,
                 'isOtpVerified' => false,
                 'resendAvailableAt' => (int) session(self::RESET_RESEND_KEY),
             ],
-        ]);
+            'Verification code sent to '.$request['email'].'.',
+        );
     }
 
     public function verifyResetCode(Request $request): JsonResponse
@@ -362,10 +354,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $this->authService->verifyOTP($request['email'], $request['otp'], false);
@@ -376,15 +365,15 @@ class AuthController extends Controller
             self::RESET_CODE_SENT_KEY => true,
         ]);
 
-        return response()->json([
-            'message' => 'OTP verified.',
-            'data' => [
+        return $this->successResponse(
+            [
                 'email' => $request['email'],
                 'isCodeSent' => true,
                 'isOtpVerified' => true,
                 'otpVerifiedNow' => true,
             ],
-        ],200);
+            'OTP verified.',
+        );
     }
 
     public function resetPassword(Request $request): JsonResponse
@@ -395,39 +384,39 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
         $verifiedEmail = session(self::RESET_EMAIL_KEY);
         $isVerified = (bool) session(self::RESET_VERIFIED_KEY, false);
 
         if (! $isVerified || $verifiedEmail !== $request['email']) {
-            return response()->json([
-                'message' => 'Verify OTP before resetting the password.',
-                'errors' => [
-                    'password' => ['Verify OTP before resetting the password.'],
+            return $this->errorResponse(
+                'Verify OTP before resetting the password.',
+                [
+                    'errors' => [
+                        'password' => ['Verify OTP before resetting the password.'],
+                    ],
                 ],
-            ], 400);
+                400,
+            );
         }
         $this->authService->resetPassword($request['email'], $request['password'], false);
         $this->clearResetSession();
 
-        return response()->json([
-            'message' => 'Password reset completed. Please login with your new password.',
-            'redirect' => route('platform.login.show'),
-        ]);
+        return $this->successResponse(
+            ['redirect' => route('platform.login.show')],
+            'Password reset completed. Please login with your new password.',
+        );
     }
 
     public function cancelReset(): JsonResponse
     {
         $this->clearResetSession();
 
-        return response()->json([
-            'message' => 'Password reset flow canceled.',
-            'redirect' => route('platform.login.show'),
-        ]);
+        return $this->successResponse(
+            ['redirect' => route('platform.login.show')],
+            'Password reset flow canceled.',
+        );
     }
 
     private function clearResetSession(): void

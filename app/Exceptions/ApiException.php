@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Http\Responses\ApiResponse;
 use Exception;
 
 abstract class ApiException extends Exception
@@ -11,10 +12,10 @@ abstract class ApiException extends Exception
 
     public function render($request)
     {
-        return response()->json([
-            'success' => false,
-            'message' => $this->getMessage(),
-            'code' => $this->errorCode,
-        ], $this->status);
+        return ApiResponse::errorResponse(
+            message: $this->getMessage(),
+            data: ['code' => $this->errorCode],
+            statusCode: $this->status,
+        );
     }
 }

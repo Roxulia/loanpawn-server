@@ -25,10 +25,7 @@ class TenantCustomerController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -37,9 +34,7 @@ class TenantCustomerController extends Controller
             $validated['search'] ?? null,
         );
 
-        return response()->json([
-            'data' => $customers->toArray(),
-        ]);
+        return $this->successResponse($customers->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -54,10 +49,7 @@ class TenantCustomerController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -70,21 +62,18 @@ class TenantCustomerController extends Controller
             note: $validated['note'] ?? null,
         ));
 
-        return response()->json([
-            'message' => $result->created
-                ? 'Tenant customer created successfully.'
-                : 'Existing tenant customer returned.',
-            'data' => $result->toArray(),
-        ], $result->created ? 201 : 200);
+        return $this->successResponse(
+            $result->toArray(),
+            $result->created ? 'Tenant customer created successfully.' : 'Existing tenant customer returned.',
+            $result->created ? 201 : 200,
+        );
     }
 
     public function show(string $tenantCustomerCode): JsonResponse
     {
         $customer = $this->tenantCustomerService->showByCode($tenantCustomerCode);
 
-        return response()->json([
-            'data' => $customer->toArray(),
-        ]);
+        return $this->successResponse($customer->toArray());
     }
 
     public function update(Request $request, string $tenantCustomerCode): JsonResponse
@@ -100,10 +89,7 @@ class TenantCustomerController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -119,18 +105,13 @@ class TenantCustomerController extends Controller
             note: $validated['note'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Tenant customer updated successfully.',
-            'data' => $customer->toArray(),
-        ]);
+        return $this->successResponse($customer->toArray(), 'Tenant customer updated successfully.');
     }
 
     public function destroy(string $tenantCustomerCode): JsonResponse
     {
         $this->tenantCustomerService->delete($this->tenantCustomerService->resolveIdByCode($tenantCustomerCode));
 
-        return response()->json([
-            'message' => 'Tenant customer deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Tenant customer deleted successfully.');
     }
 }

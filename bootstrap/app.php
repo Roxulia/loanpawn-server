@@ -13,8 +13,12 @@ use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\LogHttpOperation;
+use App\Http\Middleware\StandardizeJsonResponse;
+use App\Http\Responses\ApiResponse;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogHttpOperation::class);
+        $middleware->append(StandardizeJsonResponse::class);
         $middleware->statefulApi();
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->is('admin') || $request->is('admin/*')) {
@@ -48,5 +53,26 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new CheckExpireTenantLicenseJob())->daily();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (ValidationException $exception, Request $request) {
+            if (! $request->expectsJson() && ! $request->is('api/*')) {
+                return null;
+            }
 
+            return ApiResponse::errorResponse(
+                message: ApiResponse::VALIDATION_ERROR_MESSAGE,
+                data: ['errors' => $exception->errors()],
+                statusCode: $exception->status,
+            );
+        });
+
+        $exceptions->render(function (AuthenticationException $exception, Request $request) {
+            if (! $request->expectsJson() && ! $request->is('api/*')) {
+                return null;
+            }
+
+            return ApiResponse::errorResponse(
+                message: $exception->getMessage() ?: 'Unauthenticated.',
+                statusCode: 401,
+            );
+        });
     })->create();

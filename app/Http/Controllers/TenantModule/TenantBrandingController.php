@@ -18,9 +18,7 @@ class TenantBrandingController extends Controller
 
     public function showSlipLayouts(): JsonResponse
     {
-        return response()->json([
-            'data' => $this->tenantBrandingSlipLayoutService->getCurrentTenantLayouts()->toArray(),
-        ]);
+        return $this->successResponse($this->tenantBrandingSlipLayoutService->getCurrentTenantLayouts()->toArray());
     }
 
     public function updateSlipLayouts(Request $request): JsonResponse
@@ -32,10 +30,7 @@ class TenantBrandingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationErrorResponse($validator->errors());
         }
 
         $validated = $validator->validated();
@@ -47,9 +42,6 @@ class TenantBrandingController extends Controller
             )
         );
 
-        return response()->json([
-            'message' => 'Slip layout updated successfully.',
-            'data' => $branding->toArray(),
-        ]);
+        return $this->successResponse($branding->toArray(), 'Slip layout updated successfully.');
     }
 }

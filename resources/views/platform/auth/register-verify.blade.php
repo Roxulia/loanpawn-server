@@ -92,15 +92,16 @@
                             body,
                         });
                         const payload = await response.json();
+                        const responseData = payload.data || {};
                         if (!response.ok) {
-                            renderErrors(payload.errors || null, payload.message || 'Request failed.');
+                            renderErrors(responseData.errors || null, payload.message || 'Request failed.');
                             showStatus('error', payload.message || 'Request failed.');
                             return;
                         }
                         showStatus('success', payload.message || 'Success.');
-                        if (payload.redirect) {
+                        if (responseData.redirect) {
                             window.setTimeout(function () {
-                                window.location.href = payload.redirect;
+                                window.location.href = responseData.redirect;
                             }, 900);
                         }
                     } catch (error) {

@@ -18,30 +18,22 @@ class DefaultDataController extends Controller
 
     public function getMaterialTypes(Request $request)
     {
-        return response()->json([
-            'data' => $this->defaultDataService->getMaterialTypes(),
-        ]);
+        return $this->successResponse($this->defaultDataService->getMaterialTypes());
     }
 
     public function getInterestTypes(Request $request)
     {
-        return response()->json([
-            'data' => $this->defaultDataService->getInterestTypes(),
-        ]);
+        return $this->successResponse($this->defaultDataService->getInterestTypes());
     }
 
     public function getExpenseTypes(Request $request)
     {
-        return response()->json([
-            'data' => $this->defaultDataService->getExpenseTypes(),
-        ]);
+        return $this->successResponse($this->defaultDataService->getExpenseTypes());
     }
 
     public function getExpenseTypeByCode(Request $request, string $code)
     {
-        return response()->json([
-            'data' => $this->defaultDataService->getExpenseTypeByCode($code),
-        ]);
+        return $this->successResponse($this->defaultDataService->getExpenseTypeByCode($code));
     }
 
     public function createCurrentTenantMaterialType(Request $request)
@@ -56,10 +48,7 @@ class DefaultDataController extends Controller
             code: $data['code'],
         ));
 
-        return response()->json([
-            'message' => 'Material type created successfully.',
-            'data' => $materialType,
-        ], 201);
+        return $this->successResponse($materialType, 'Material type created successfully.', 201);
     }
 
     public function createCurrentTenantInterestType(Request $request)
@@ -76,10 +65,7 @@ class DefaultDataController extends Controller
             durationInDays: $data['durationInDays'] ?? null,
         ));
 
-        return response()->json([
-            'message' => 'Interest type created successfully.',
-            'data' => $interestType,
-        ], 201);
+        return $this->successResponse($interestType, 'Interest type created successfully.', 201);
     }
 
     public function createCurrentTenantExpenseType(Request $request)
@@ -94,33 +80,24 @@ class DefaultDataController extends Controller
             code: $data['code'],
         ));
 
-        return response()->json([
-            'message' => 'Expense type created successfully.',
-            'data' => $expenseType,
-        ], 201);
+        return $this->successResponse($expenseType, 'Expense type created successfully.', 201);
     }
 
     public function deleteCurrentTenantMaterialType(Request $request, string $code)
     {
         $this->defaultDataService->deleteCurrentTenantMaterialType($code);
-        return response()->json([
-            'message' => 'Material type deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Material type deleted successfully.');
     }
 
     public function deleteCurrentTenantInterestType(Request $request, string $code)
     {
         $this->defaultDataService->deleteCurrentTenantInterestType($code);
-        return response()->json([
-            'message' => 'Interest type deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Interest type deleted successfully.');
     }
 
     public function deleteCurrentTenantExpenseType(Request $request, string $code)
     {
         $this->defaultDataService->deleteCurrentTenantExpenseType($code);
-        return response()->json([
-            'message' => 'Expense type deleted successfully.',
-        ]);
+        return $this->successResponse(message: 'Expense type deleted successfully.');
     }
 }

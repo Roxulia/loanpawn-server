@@ -18,9 +18,7 @@ class SlipDocumentController extends Controller
 
     public function config(): Response
     {
-        return response()->json([
-            'data' => $this->loanContractSlipDocumentService->getLayoutConfig()->toArray(),
-        ]);
+        return $this->successResponse($this->loanContractSlipDocumentService->getLayoutConfig()->toArray());
     }
 
     public function preview(Request $request, string $slipNo): Response
@@ -54,10 +52,7 @@ class SlipDocumentController extends Controller
         ]);
 
         if ($validator->fails()) {
-            abort(response()->json([
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422));
+            abort($this->validationErrorResponse($validator->errors()));
         }
 
         $validated = $validator->validated();

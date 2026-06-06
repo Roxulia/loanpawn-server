@@ -42,10 +42,7 @@ class TenantController extends Controller
     public function resolveTenant() : JsonResponse
     {
         $res = $this->tenantDetailService->getCurrentTenant();
-        return response()->json([
-            'data' => $res->toArray(),
-            ],200
-        );
+        return $this->successResponse($res->toArray());
     }
 
     public function showTenantLogo(string $tenantCode): StreamedResponse
