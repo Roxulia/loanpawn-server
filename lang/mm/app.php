@@ -190,6 +190,8 @@ return [
             'tenant_management' => 'Tenant စီမံခန့်ခွဲမှု',
             'billing_management' => 'Billing စီမံခန့်ခွဲမှု',
             'customer_service' => 'Customer Service',
+            'user_setting' => 'User Setting',
+            'user_setting_description' => 'Manage your platform account preferences.',
             'admin_dashboard' => 'အက်ဒမင် Dashboard',
             'admin_dashboard_description' => 'Platform တစ်ခုလုံး၏ tenant၊ အသုံးပြုသူ၊ billing နှင့် ငွေပေးချေမှု အတည်ပြုချက် အကျဉ်းချုပ်။',
             'platform_user_management' => 'Platform အသုံးပြုသူ စီမံခန့်ခွဲမှု',
@@ -230,6 +232,10 @@ return [
             'payment_attachment' => 'ငွေပေးချေမှု တွဲဖိုင်',
             'files_count' => ':count ဖိုင်',
             'payment_request_decision' => 'ငွေပေးချေမှု တောင်းဆိုချက် :decision',
+            'payment_request_status' => [
+                'approved' => 'approved',
+                'rejected' => 'rejected',
+            ],
             'payment_request_reviewed_body' => 'သင်၏ ငွေပေးချေမှု တောင်းဆိုချက်ကို :decision ပြုလုပ်ပြီးပါပြီ။',
             'tenant_request' => 'Tenant request',
             'tenant_license_updated' => 'သင်၏ tenant license ကို ပြင်ဆင်ပြီးပါပြီ။',
@@ -312,6 +318,7 @@ return [
                 'password_changed' => 'စကားဝှက် ပြောင်းပြီးပါပြီ။ ထပ်မံဝင်ရောက်ပါ။',
                 'password_reset' => 'Tenant အသုံးပြုသူ စကားဝှက်ကို မူလအတိုင်း ပြန်သတ်မှတ်ပြီးပါပြီ။',
                 'permissions_updated' => 'Tenant အသုံးပြုသူ ခွင့်ပြုချက်များ ပြင်ဆင်ပြီးပါပြီ။',
+                'language_change_success' => 'Language preference updated successfully.',
             ],
             'default_data' => [
                 'material_type_created' => 'Material type ဖန်တီးပြီးပါပြီ။',
@@ -378,6 +385,7 @@ return [
 
     'exception' => [
         'exception' => [
+            'language_code_invalid' => 'The provided language code is invalid.',
             'tenant_not_found' => 'Tenant မတွေ့ပါ။',
             'tenant_code_not_given' => 'Header တွင် tenant code မပါပါ။',
             'invalid_credential' => 'အီးမေးလ် သို့မဟုတ် စကားဝှက် မမှန်ပါ။',

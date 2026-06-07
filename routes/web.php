@@ -13,6 +13,7 @@ use App\Http\Controllers\PlatformModule\Web\CustomerServiceController;
 use App\Http\Controllers\PlatformModule\Web\DashboardController;
 use App\Http\Controllers\PlatformModule\Web\TenantManagementController;
 use App\Http\Controllers\LocaleSetterController;
+use App\Http\Controllers\PlatformModule\LanguageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -78,7 +79,9 @@ Route::name('platform.')->group(function () {
     Route::middleware('auth:platformuser')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/logout', [AuthController::class, 'logoutUser'])->name('logout');
-
+        Route::get('/settings', [LanguageController::class, 'edit'])->name('settings');
+        Route::put('/change-password', [AuthController::class, 'changePassword'])->name('password.change');
+        Route::put('/change-language', [LanguageController::class, 'change'])->name('language.change');
         Route::prefix('tenants')->name('tenants.')->controller(TenantManagementController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/create', 'create')->name('create');

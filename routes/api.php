@@ -17,6 +17,7 @@ use App\Http\Controllers\TenantModule\TenantExpenseController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
 use App\Http\Controllers\TenantModule\TenantUserController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
+use App\Http\Controllers\TenantModule\LanguageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -44,6 +45,7 @@ Route::prefix('tenant')->group(function () {
         Route::middleware(['auth:sanctum', 'tenant.access', 'throttle:tenant-api'])->group(function () {
             Route::get('me', [TenantAuthController::class, 'me']);
             Route::put('me/change-password', [TenantUserController::class, 'changePassword']);
+            Route::put('me/change-language', [LanguageController::class, 'change']);
             Route::post('logout', [TenantAuthController::class, 'logout']);
             Route::post('online-sync', [OnlineSyncController::class, 'push'])
                 ->middleware('tenant.feature:online_sync')

@@ -3,7 +3,6 @@
 namespace App\DataObjects\ResponseObjects;
 
 use App\DataObjects\BaseDataObject;
-use Symfony\Component\Mime\Email;
 
 class PlatformUserDetail extends BaseDataObject
 {
@@ -12,12 +11,15 @@ class PlatformUserDetail extends BaseDataObject
      */
     public string $email;
     public string $name;
+    public string $preferLang;
+
     public function __construct(
         string $email,
-        string $name
-    )
-    {
+        string $name,
+        string $preferLang = 'en',
+    ) {
         $this->name = $name;
         $this->email = $email;
+        $this->preferLang = $preferLang;
     }
 }

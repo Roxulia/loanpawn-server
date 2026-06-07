@@ -67,8 +67,9 @@ class AuthService
         }
         Auth::guard('platformadmin')->logout();
         Auth::guard('platformuser')->login($user);
+        $this->applyUserLocale($user->prefer_lang ?? config('app.locale'));
 
-        return new PlatformUserDetail($user->email, $user->name);
+        return new PlatformUserDetail($user->email, $user->name, $user->prefer_lang ?? config('app.locale'));
     }
 
     public function pendingVerificationLoginCandidate(string $email, string $password): ?PlatformUser
@@ -116,11 +117,11 @@ class AuthService
                 ],
             );
 
-            Mail::to($account->email)->send(new PlatformPasswordResetOtpMail(
+            Mail::to($account->email)->send((new PlatformPasswordResetOtpMail(
                 otp: $otp,
                 expiresInMinutes: $passwordConfig['expire'],
                 recipientName: $account->name,
-            ));
+            ))->locale($this->mailLocaleFor($account)));
         });
     }
 
@@ -140,11 +141,11 @@ class AuthService
                 ],
             );
 
-            Mail::to($account->email)->send(new PlatformRegistrationVerificationMail(
+            Mail::to($account->email)->send((new PlatformRegistrationVerificationMail(
                 otp: $otp,
                 expiresInMinutes: $passwordConfig['expire'],
                 recipientName: $account->name,
-            ));
+            ))->locale($this->mailLocaleFor($account)));
         });
     }
 
@@ -260,5 +261,29 @@ class AuthService
         }
 
         return $account;
+    }
+
+    protected function applyUserLocale(string $locale): void
+    {
+        if (! in_array($locale, config('app.supported_locales', []), true)) {
+            $locale = config('app.locale');
+        }
+
+        app()->setLocale($locale);
+
+        if (request()->hasSession()) {
+            session()->put('locale', $locale);
+        }
+    }
+
+    protected function mailLocaleFor(PlatformAdmin|PlatformUser $account): string
+    {
+        $locale = $account instanceof PlatformUser
+            ? ($account->prefer_lang ?? config('app.locale'))
+            : config('app.locale');
+
+        return in_array($locale, config('app.supported_locales', []), true)
+            ? $locale
+            : config('app.locale');
     }
 }

@@ -24,7 +24,7 @@ class PlatformPasswordResetOtpMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your password reset OTP',
+            subject: __('app.auth.view.password_reset_otp'),
         );
     }
 

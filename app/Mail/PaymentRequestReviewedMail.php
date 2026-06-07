@@ -24,9 +24,9 @@ class PaymentRequestReviewedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->decision === 'approved'
-                ? 'Your LonePawn payment request was accepted'
-                : 'Your LonePawn payment request was rejected',
+            subject: __('app.billing.view.payment_request_decision', [
+                'decision' => $this->decisionLabel(),
+            ]),
         );
     }
 
@@ -34,7 +34,15 @@ class PaymentRequestReviewedMail extends Mailable implements ShouldQueue
     {
         return new Content(
             view: 'emails.platform.payment-request-reviewed',
+            with: [
+                'decisionLabel' => $this->decisionLabel(),
+            ],
         );
+    }
+
+    protected function decisionLabel(): string
+    {
+        return __('app.billing.view.payment_request_status.'.$this->decision);
     }
 
     /**

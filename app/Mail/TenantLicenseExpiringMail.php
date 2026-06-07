@@ -24,7 +24,7 @@ class TenantLicenseExpiringMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your LonePawn tenant license expires soon',
+            subject: __('app.platform.view.license_expiring_soon'),
         );
     }
 

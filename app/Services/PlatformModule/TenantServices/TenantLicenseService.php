@@ -255,7 +255,10 @@ class TenantLicenseService extends BaseTenantService
                     continue;
                 }
 
-                Mail::to($ownerEmail)->send(new TenantLicenseExpiringMail($license, $billingUrl));
+                Mail::to($ownerEmail)->send(
+                    (new TenantLicenseExpiringMail($license, $billingUrl))
+                        ->locale($this->mailLocaleFor($license->tenant?->owner?->prefer_lang))
+                );
                 $this->repository->createNotificationLog($license->id, self::NOTIFICATION_LICENSE_EXPIRING, $thresholdDays);
                 $sent++;
             }
@@ -271,5 +274,12 @@ class TenantLicenseService extends BaseTenantService
         } while ($this->repository->isLicenseExisted($licenseKey));
 
         return $licenseKey;
+    }
+
+    protected function mailLocaleFor(?string $locale): string
+    {
+        return in_array($locale, config('app.supported_locales', []), true)
+            ? $locale
+            : config('app.locale');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services\PlatformModule;
 use App\DataObjects\RequestObjects\PlatformUserUpsert;
 use App\Exceptions\AccountNotFound;
 use App\Exceptions\AlreadyUpdatedException;
+use App\Exceptions\LanguageCodeInvalid;
 use App\Models\PlatformModule\PlatformUser;
 use App\Repository\PlatformUserRepository;
 use App\Services\TableIdGenerationService;
@@ -75,6 +76,25 @@ class PlatformUserService
         }
 
         return $this->repository->update($platformUser, $data);
+    }
+
+    public function changePreferLanguageForCurrentUser(PlatformUser $user, string $preferLang): PlatformUser
+    {
+        if (! in_array($preferLang, config('app.supported_locales', []), true)) {
+            throw new LanguageCodeInvalid();
+        }
+
+        $updatedUser = $this->repository->update($user, [
+            'prefer_lang' => $preferLang,
+        ]);
+
+        app()->setLocale($preferLang);
+
+        if (request()->hasSession()) {
+            session()->put('locale', $preferLang);
+        }
+
+        return $updatedUser;
     }
 
     public function delete(int $id): void

@@ -464,6 +464,7 @@
             <a href="{{ route('platform.tenants.index') }}" class="{{ request()->routeIs('platform.tenants.*') ? 'active' : '' }}">{{ __('app.platform.view.tenant_management') }}</a>
             <a href="{{ route('platform.billing.index') }}" class="{{ request()->routeIs('platform.billing.*') ? 'active' : '' }}">{{ __('app.platform.view.billing_management') }}</a>
             <a href="{{ route('platform.customer-service.index') }}" class="{{ request()->routeIs('platform.customer-service.*') ? 'active' : '' }}">{{ __('app.platform.view.customer_service') }}</a>
+            <a href="{{ route('platform.settings') }}" class="{{ request()->routeIs('platform.settings') ? 'active' : '' }}">{{ __('app.platform.view.user_setting') }}</a>
         </nav>
 
         <form method="POST" action="{{ route('platform.logout') }}" style="margin-top: auto;">
@@ -480,13 +481,13 @@
             </div>
             <div class="topbar-actions">
                 @yield('pageAction')
-                <div class="locale-toggle" aria-label="{{ __('app.common.view.locale.language') }}">
+                {{-- <div class="locale-toggle" aria-label="{{ __('app.common.view.locale.language') }}">
                     @foreach (config('app.supported_locales', ['en', 'mm']) as $locale)
                         <a href="{{ route('locale.set', $locale) }}" class="{{ app()->getLocale() === $locale ? 'active' : '' }}">
                             {{ strtoupper($locale) }}
                         </a>
                     @endforeach
-                </div>
+                </div> --}}
             </div>
         </header>
 

@@ -30,6 +30,7 @@ class TenantUser extends Authenticatable
         'is_deleted',
         'last_login_at',
         'created_by',
+        'prefer_lang',
     ];
 
     protected $hidden = [

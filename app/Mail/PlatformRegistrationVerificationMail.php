@@ -24,7 +24,7 @@ class PlatformRegistrationVerificationMail extends Mailable implements ShouldQue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Verify your LonePawn platform account',
+            subject: __('app.auth.view.verify_platform_account'),
         );
     }
 

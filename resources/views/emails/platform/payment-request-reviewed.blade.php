@@ -2,9 +2,9 @@
 <html lang="{{ app()->getLocale() }}">
 <body style="font-family:Arial,sans-serif;background:#f6f7fb;padding:24px;">
 <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;padding:24px;">
-    <h2 style="margin-top:0;">{{ __('app.billing.view.payment_request_decision', ['decision' => $decision]) }}</h2>
+    <h2 style="margin-top:0;">{{ __('app.billing.view.payment_request_decision', ['decision' => $decisionLabel]) }}</h2>
     <p>{{ __('app.common.view.greeting', ['name' => $paymentRequest->platformUser?->name ?? __('app.common.view.there')]) }}</p>
-    <p>{{ __('app.billing.view.payment_request_reviewed_body', ['decision' => $decision]) }}</p>
+    <p>{{ __('app.billing.view.payment_request_reviewed_body', ['decision' => $decisionLabel]) }}</p>
     <ul>
         <li><strong>{{ __('app.common.view.labels.payment') }}:</strong> {{ $paymentRequest->code }}</li>
         <li><strong>{{ __('app.billing.view.tenant_request') }}:</strong> {{ $paymentRequest->tenantRequest?->code ?? '-' }}</li>

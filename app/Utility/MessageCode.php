@@ -4,6 +4,8 @@ namespace App\Utility;
 
 enum MessageCode: string
 {
+    case LanguageCodeInvalid = 'exception.exception.language_code_invalid';
+    case LanguageChangeSuccess = 'tenant.response.user.language_change_success';
     case ApiResponseSuccess = 'common.response.success';
     case ApiResponseFailed = 'common.response.failed';
     case ApiValidationFailed = 'common.response.validation_failed';

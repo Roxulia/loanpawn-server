@@ -190,6 +190,8 @@ return [
             'tenant_management' => 'Tenant Management',
             'billing_management' => 'Billing Management',
             'customer_service' => 'Customer Service',
+            'user_setting' => 'User Setting',
+            'user_setting_description' => 'Manage your platform account preferences.',
             'admin_dashboard' => 'Admin Dashboard',
             'admin_dashboard_description' => 'Platform-wide tenant, user, billing, and payment approval summary.',
             'platform_user_management' => 'Platform User Management',
@@ -230,6 +232,10 @@ return [
             'payment_attachment' => 'Payment Attachment',
             'files_count' => '{0} :count files|{1} :count file|[2,*] :count files',
             'payment_request_decision' => 'Payment request :decision',
+            'payment_request_status' => [
+                'approved' => 'approved',
+                'rejected' => 'rejected',
+            ],
             'payment_request_reviewed_body' => 'Your payment request has been :decision.',
             'tenant_request' => 'Tenant request',
             'tenant_license_updated' => 'Your tenant license has been updated.',
@@ -312,6 +318,7 @@ return [
                 'password_changed' => 'Password changed successfully. Please login again.',
                 'password_reset' => 'Tenant user password reset to default successfully.',
                 'permissions_updated' => 'Tenant user permissions updated successfully.',
+                'language_change_success' => 'Language preference updated successfully.',
             ],
             'default_data' => [
                 'material_type_created' => 'Material type created successfully.',
@@ -378,6 +385,7 @@ return [
 
     'exception' => [
         'exception' => [
+            'language_code_invalid' => 'The provided language code is invalid.',
             'tenant_not_found' => 'Tenant not found.',
             'tenant_code_not_given' => 'No tenant code found in header.',
             'invalid_credential' => 'Invalid email or password.',

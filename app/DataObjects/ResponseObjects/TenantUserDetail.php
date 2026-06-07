@@ -28,6 +28,7 @@ class TenantUserDetail extends BaseDataObject
     public ?int $createdBy;
     public ?string $roleName;
     public array $permissions;
+    public string $preferLang;
 
     public function __construct()
     {
@@ -56,7 +57,7 @@ class TenantUserDetail extends BaseDataObject
         $detail->permissions = TenantPermissionColumns::effectivePermissions(
             TenantPermissionColumns::enabledFromModel($user->permission ?? $user->role)
         );
-
+        $detail->preferLang = $user->prefer_lang ?? 'en';
         return $detail;
     }
 }

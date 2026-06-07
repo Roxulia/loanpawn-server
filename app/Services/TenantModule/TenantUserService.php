@@ -9,6 +9,7 @@ use App\DataObjects\ResponseObjects\TenantUserListPage;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\DuplicateValueFound;
 use App\Exceptions\InvalidCredential;
+use App\Exceptions\LanguageCodeInvalid;
 use App\Exceptions\TenantUserNotFound;
 use App\Exceptions\UserNotLoggedIn;
 use App\Models\CoreModule\TenantUser;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class TenantUserService extends BaseTenantService
 {
@@ -168,6 +170,42 @@ class TenantUserService extends BaseTenantService
         $this->flushTenantUserListCache($tenantId);
 
         return TenantUserDetail::fromModel($user);
+    }
+
+    public function changePreferLanguageForCurrentUser(TenantUserDetail $user, string $lang, int $updateKey): TenantUserDetail
+    {
+        if (! in_array($lang, config('app.supported_locales', []), true)) {
+            //Log::error("Invalid language code provided for changing preferred language", ['lang' => $lang, 'user_id' => $user->id]);
+            throw new LanguageCodeInvalid();
+        }
+
+        $updatedUser = DB::transaction(function () use ($user, $lang, $updateKey): TenantUser {
+            $currentUser = $this->repository->findByIdWithLock($user->id);
+
+            if (! $currentUser) {
+                //Log::error("Current user not found during preferred language change", ['user_id' => $user->id]);
+                throw new TenantUserNotFound();
+            }
+
+            if ((int) $currentUser->update_key !== $updateKey) {
+                //Log::warning("Attempt to change preferred language with stale update key", ['user_id' => $user->id, 'provided_update_key' => $updateKey, 'current_update_key' => $currentUser->update_key]);
+                throw new AlreadyUpdatedException('This User is already updated.Please refresh');
+            }
+
+            return $this->repository->update($currentUser, [
+                'prefer_lang' => $lang,
+                'update_key' => $currentUser->update_key + 1,
+            ]);
+        });
+
+        $this->flushTenantUserListCache($updatedUser->tenant_id);
+        app()->setLocale($lang);
+
+        if (request()->hasSession()) {
+            session()->put('locale', $lang);
+        }
+
+        return TenantUserDetail::fromModel($updatedUser);
     }
 
     public function update(TenantUserUpdate $request): TenantUserDetail

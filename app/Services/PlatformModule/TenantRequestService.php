@@ -269,7 +269,17 @@ class TenantRequestService
             return;
         }
 
-        Mail::to($email)->send(new PaymentRequestReviewedMail($paymentRequest, $decision));
+        Mail::to($email)->send(
+            (new PaymentRequestReviewedMail($paymentRequest, $decision))
+                ->locale($this->mailLocaleFor($paymentRequest->platformUser?->prefer_lang))
+        );
+    }
+
+    protected function mailLocaleFor(?string $locale): string
+    {
+        return in_array($locale, config('app.supported_locales', []), true)
+            ? $locale
+            : config('app.locale');
     }
 
     protected function findOwnedTenantRequest(int $tenantRequestId, int $platformUserId)

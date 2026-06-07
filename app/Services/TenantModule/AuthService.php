@@ -41,6 +41,7 @@ class AuthService extends BaseTenantService
             $request->password
         );
         $this->cookieFactory->queue($this->makeAuthCookie($session));
+        $this->applyUserLocale($session->user->preferLang ?? config('app.locale'));
 
         return $session;
     }
@@ -57,6 +58,7 @@ class AuthService extends BaseTenantService
             $request->password
         );
         $this->cookieFactory->queue($this->makeAuthCookie($session));
+        $this->applyUserLocale($session->user->preferLang ?? config('app.locale'));
 
         return $session;
     }
@@ -94,6 +96,7 @@ class AuthService extends BaseTenantService
         );
 
         $this->cookieFactory->queue($this->makeAuthCookie($session));
+        $this->applyUserLocale($user->prefer_lang ?? config('app.locale'));
 
         return $session;
     }
@@ -179,5 +182,18 @@ class AuthService extends BaseTenantService
         Auth::guard('web')->logout();
         Auth::guard('platformuser')->logout();
         Auth::guard('platformadmin')->logout();
+    }
+
+    protected function applyUserLocale(string $locale): void
+    {
+        if (! in_array($locale, config('app.supported_locales', []), true)) {
+            $locale = config('app.locale');
+        }
+
+        app()->setLocale($locale);
+
+        if (request()->hasSession()) {
+            session()->put('locale', $locale);
+        }
     }
 }

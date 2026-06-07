@@ -24,6 +24,14 @@ class EnsureTenantUserBelongsToTenant
             ], Response::HTTP_UNAUTHORIZED);
         }
 
+        if (
+            $user instanceof TenantUser
+            && is_string($user->prefer_lang)
+            && in_array($user->prefer_lang, config('app.supported_locales', []), true)
+        ) {
+            app()->setLocale($user->prefer_lang);
+        }
+
         return $next($request);
     }
 }

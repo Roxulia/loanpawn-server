@@ -18,6 +18,7 @@ class PlatformUser extends Authenticatable
         'password',
         'status',
         'email_verified_at',
+        'prefer_lang',
     ];
 
     protected $hidden = [

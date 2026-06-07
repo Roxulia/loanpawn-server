@@ -5,30 +5,34 @@ namespace App\Http\Controllers\TenantModule;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\AuthService;
 use App\Services\TenantModule\TenantUserService;
+use App\Utility\MessageCode;
 use Illuminate\Http\Request;
-use Mpdf\Tag\A;
+use Illuminate\Validation\Rule;
 
 class LanguageController extends Controller
 {
     public function __construct(
         private TenantUserService $tenantUserService,
         private AuthService $authService
-    )
-    {
-
+    ) {
     }
+
     public function change(Request $request)
     {
         $request->validate([
-            'lang' => 'required|string|in:en,mm',
-            'update_key' => 'nullable|integer'
+            'preferLang' => ['required', 'string', Rule::in(config('app.supported_locales', ['en', 'mm']))],
+            'updateKey' => ['nullable', 'integer', 'min:0'],
         ]);
-        $lang = $request->input('lang');
-        $updateKey = $request->input('update_key');
+
+        $lang = $request->input('preferLang');
+        $updateKey = (int) $request->input('updateKey');
         $user = $this->authService->getCurrentUser();
 
-        $this->tenantUserService->changePreferLanguageForCurrentUser($user, $lang, $updateKey);
+        $updatedUser = $this->tenantUserService->changePreferLanguageForCurrentUser($user, $lang, $updateKey);
 
-        return $this->successResponse(null, 'Language preference updated successfully.',201);
+        return $this->successResponse(
+            $updatedUser->toArray(),
+            $this->responseMessage(MessageCode::LanguageChangeSuccess),
+        );
     }
 }
