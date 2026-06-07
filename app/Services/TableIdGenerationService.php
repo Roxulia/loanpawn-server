@@ -52,7 +52,7 @@ class TableIdGenerationService extends BaseTenantService
         $tableId->current_id = (int) $tableId->current_id + 1;
         $tableId->save();
 
-        return $this->generatedCode($tableName, $date, (int) $tableId->current_id);
+        return $this->generatedCode($tableName, $date, (int) $tableId->current_id, $tenant->tenant_code);
     }
 
     public function generateForPlatform(string $tableName,CarbonImmutable $date)
@@ -78,7 +78,7 @@ class TableIdGenerationService extends BaseTenantService
         $tableId->current_id = (int) $tableId->current_id + 1;
         $tableId->save();
 
-        return $this->generatedCode($tableName,$date, (int) $tableId->current_id);
+        return $this->generatedCode($tableName,$date, (int) $tableId->current_id,"");
     }
 
     public function generateTenantCodeSuffix(CarbonImmutable $date): string
@@ -118,12 +118,13 @@ class TableIdGenerationService extends BaseTenantService
         return (string) config("code_generation.prefixes.{$tableName}", '');
     }
 
-    protected function generatedCode(string $tableName, CarbonImmutable $date, int $currentId): string
+    protected function generatedCode(string $tableName, CarbonImmutable $date, int $currentId,string $tenantCode): string
     {
         return sprintf(
-            '%s%s%s',
+            '%s%s%s%s',
             $this->prefixFor($tableName),
             $date->format('Ym'),
+            $tenantCode,
             str_pad(
                 $this->hexToken(0, $currentId, self::GENERATED_HEX_MAX_LENGTH),
                 self::GENERATED_HEX_MAX_LENGTH,
