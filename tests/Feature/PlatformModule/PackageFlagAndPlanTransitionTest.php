@@ -86,14 +86,7 @@ class PackageFlagAndPlanTransitionTest extends TestCase
 
     public function test_admin_can_update_feature_plan_and_mapping_flags(): void
     {
-        $admin = PlatformAdmin::query()->create([
-            'code' => 'PA00000002',
-            'name' => 'Flag Admin',
-            'username' => 'flagadmin',
-            'email' => 'flag-admin@example.com',
-            'password' => 'strong-secret',
-            'status' => 'active',
-        ]);
+        $admin = $this->flagAdmin();
         $feature = Feature::query()->where('code', 'customer_management')->firstOrFail();
         $package = Package::query()->where('code', 'basic')->firstOrFail();
         $mapping = PackageFeature::query()
@@ -112,6 +105,116 @@ class PackageFlagAndPlanTransitionTest extends TestCase
         $this->assertDatabaseHas('features', ['id' => $feature->id, 'is_active' => false]);
         $this->assertDatabaseHas('packages', ['id' => $package->id, 'is_active' => false]);
         $this->assertDatabaseHas('package_features', ['id' => $mapping->id, 'is_enabled' => false]);
+    }
+
+    public function test_admin_can_update_plan_flags_separately(): void
+    {
+        $admin = $this->flagAdmin();
+        $package = Package::query()->where('code', 'basic')->firstOrFail();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->post(route('admin.package-flags.plans.update'), [
+                'packages' => [$package->id => 0],
+            ])
+            ->assertRedirect(route('admin.package-flags.index'));
+
+        $this->assertDatabaseHas('packages', ['id' => $package->id, 'is_active' => false]);
+    }
+
+    public function test_admin_can_create_feature_with_disabled_plan_assignments(): void
+    {
+        $admin = $this->flagAdmin();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->post(route('admin.package-flags.features.store'), [
+                'name' => 'Inventory reports',
+                'code' => 'inventory_reports',
+                'description' => 'View inventory reporting screens.',
+            ])
+            ->assertRedirect(route('admin.package-flags.index'));
+
+        $feature = Feature::query()->where('code', 'inventory_reports')->firstOrFail();
+
+        $this->assertTrue($feature->is_active);
+        Package::query()->each(function (Package $package) use ($feature): void {
+            $this->assertDatabaseHas('package_features', [
+                'package_id' => $package->id,
+                'feature_id' => $feature->id,
+                'is_enabled' => false,
+            ]);
+        });
+    }
+
+    public function test_admin_can_update_feature_flags_separately(): void
+    {
+        $admin = $this->flagAdmin();
+        $feature = Feature::query()->where('code', 'customer_management')->firstOrFail();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->put(route('admin.package-flags.features.update'), [
+                'features' => [$feature->id => 0],
+            ])
+            ->assertRedirect(route('admin.package-flags.index'));
+
+        $this->assertDatabaseHas('features', ['id' => $feature->id, 'is_active' => false]);
+    }
+
+    public function test_admin_can_update_feature_assignments_by_plan_and_feature(): void
+    {
+        $admin = $this->flagAdmin();
+        $feature = Feature::query()->where('code', 'customer_management')->firstOrFail();
+        $trial = Package::query()->where('code', 'trial')->firstOrFail();
+        $basic = Package::query()->where('code', 'basic')->firstOrFail();
+
+        PackageFeature::query()
+            ->where('package_id', $trial->id)
+            ->where('feature_id', $feature->id)
+            ->delete();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->post(route('admin.package-flags.feature-assignment.update'), [
+                'assignments' => [
+                    $trial->id => [$feature->id => 1],
+                    $basic->id => [$feature->id => 0],
+                ],
+            ])
+            ->assertRedirect(route('admin.package-flags.index'));
+
+        $this->assertDatabaseHas('package_features', [
+            'package_id' => $trial->id,
+            'feature_id' => $feature->id,
+            'is_enabled' => true,
+        ]);
+        $this->assertDatabaseHas('package_features', [
+            'package_id' => $basic->id,
+            'feature_id' => $feature->id,
+            'is_enabled' => false,
+        ]);
+    }
+
+    public function test_admin_feature_creation_rejects_duplicate_codes(): void
+    {
+        $admin = $this->flagAdmin();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->post(route('admin.package-flags.features.store'), [
+                'name' => 'Customer management copy',
+                'code' => 'customer_management',
+                'description' => 'Duplicate feature.',
+            ])
+            ->assertSessionHasErrors('code');
+    }
+
+    public function test_admin_feature_flag_update_rejects_invalid_boolean_values(): void
+    {
+        $admin = $this->flagAdmin();
+        $feature = Feature::query()->where('code', 'customer_management')->firstOrFail();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->put(route('admin.package-flags.features.update'), [
+                'features' => [$feature->id => 'invalid'],
+            ])
+            ->assertSessionHasErrors('features.'.$feature->id);
     }
 
     public function test_new_draft_plan_change_replaces_previous_unpaid_draft(): void
@@ -203,5 +306,17 @@ class PackageFlagAndPlanTransitionTest extends TestCase
         ]);
 
         return [$license, $tenantRequest, $admin];
+    }
+
+    protected function flagAdmin(): PlatformAdmin
+    {
+        return PlatformAdmin::query()->create([
+            'code' => 'PA00000002',
+            'name' => 'Flag Admin',
+            'username' => 'flagadmin',
+            'email' => 'flag-admin@example.com',
+            'password' => 'strong-secret',
+            'status' => 'active',
+        ]);
     }
 }

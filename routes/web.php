@@ -1,19 +1,19 @@
 <?php
 
-use App\Http\Controllers\PlatformModule\AuthController;
+use App\Http\Controllers\LocaleSetterController;
 use App\Http\Controllers\PlatformModule\Admin\AdminBillingManagementController;
 use App\Http\Controllers\PlatformModule\Admin\AdminDashboardController;
 use App\Http\Controllers\PlatformModule\Admin\AdminIssuedTicketController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
-use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
+use App\Http\Controllers\PlatformModule\AuthController;
+use App\Http\Controllers\PlatformModule\LanguageController;
 use App\Http\Controllers\PlatformModule\Web\BillingManagementController;
 use App\Http\Controllers\PlatformModule\Web\CustomerServiceController;
 use App\Http\Controllers\PlatformModule\Web\DashboardController;
 use App\Http\Controllers\PlatformModule\Web\TenantManagementController;
-use App\Http\Controllers\LocaleSetterController;
-use App\Http\Controllers\PlatformModule\LanguageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -42,6 +42,10 @@ Route::name('admin.')->group(function () {
             Route::get('/billing', [AdminBillingManagementController::class, 'index'])->name('billing.index');
             Route::get('/package-flags', [AdminPackageFlagController::class, 'index'])->name('package-flags.index');
             Route::put('/package-flags', [AdminPackageFlagController::class, 'update'])->name('package-flags.update');
+            Route::post('/package-flags/plans', [AdminPackageFlagController::class, 'updatePlans'])->name('package-flags.plans.update');
+            Route::post('/package-flags/features', [AdminPackageFlagController::class, 'storeFeature'])->name('package-flags.features.store');
+            Route::put('/package-flags/features', [AdminPackageFlagController::class, 'updateFeatures'])->name('package-flags.features.update');
+            Route::post('/package-flags/feature-assignment', [AdminPackageFlagController::class, 'updateFeatureAssignment'])->name('package-flags.feature-assignment.update');
             Route::get('/payment-requests', [AdminPaymentRequestController::class, 'index'])->name('payment-requests.index');
             Route::get('/payment-requests/{paymentRequest}', [AdminPaymentRequestController::class, 'show'])->name('payment-requests.show');
             Route::post('/payment-requests/{paymentRequest}/accept', [AdminPaymentRequestController::class, 'accept'])->name('payment-requests.accept');
@@ -51,7 +55,7 @@ Route::name('admin.')->group(function () {
             Route::post('/issued-tickets/{ticketCode}/messages', [AdminIssuedTicketController::class, 'reply'])->name('issued-tickets.messages.store');
             Route::post('/issued-tickets/{ticketCode}/open', [AdminIssuedTicketController::class, 'open'])->name('issued-tickets.open');
             Route::post('/issued-tickets/{ticketCode}/resolve', [AdminIssuedTicketController::class, 'resolve'])->name('issued-tickets.resolve');
-    });
+        });
 });
 
 Route::redirect('/admin', '/admin/dashboard');

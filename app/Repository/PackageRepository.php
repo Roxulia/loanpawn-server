@@ -2,9 +2,9 @@
 
 namespace App\Repository;
 
+use App\Models\PlatformModule\Feature;
 use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\PackageFeature;
-use App\Models\PlatformModule\Feature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -67,6 +67,65 @@ class PackageRepository
 
             foreach ($mappingFlags as $packageFeatureId => $isEnabled) {
                 PackageFeature::query()->whereKey($packageFeatureId)->update(['is_enabled' => $isEnabled]);
+            }
+        });
+    }
+
+    public function updatePlanFlags(array $packageFlags): void
+    {
+        DB::transaction(function () use ($packageFlags): void {
+            foreach ($packageFlags as $packageId => $isActive) {
+                Package::query()->whereKey($packageId)->update(['is_active' => $isActive]);
+            }
+        });
+    }
+
+    public function createFeature(array $data): Feature
+    {
+        return DB::transaction(function () use ($data): Feature {
+            $feature = Feature::query()->create([
+                'code' => $data['code'],
+                'name' => $data['name'],
+                'description' => $data['description'] ?? null,
+                'is_active' => true,
+            ]);
+
+            Package::query()->select('id')->each(function (Package $package) use ($feature): void {
+                PackageFeature::query()->updateOrCreate(
+                    [
+                        'package_id' => $package->id,
+                        'feature_id' => $feature->id,
+                    ],
+                    ['is_enabled' => false]
+                );
+            });
+
+            return $feature;
+        });
+    }
+
+    public function updateFeatureFlags(array $featureFlags): void
+    {
+        DB::transaction(function () use ($featureFlags): void {
+            foreach ($featureFlags as $featureId => $isActive) {
+                Feature::query()->whereKey($featureId)->update(['is_active' => $isActive]);
+            }
+        });
+    }
+
+    public function updateFeatureAssignments(array $assignmentFlags): void
+    {
+        DB::transaction(function () use ($assignmentFlags): void {
+            foreach ($assignmentFlags as $packageId => $featureFlags) {
+                foreach ($featureFlags as $featureId => $isEnabled) {
+                    PackageFeature::query()->updateOrCreate(
+                        [
+                            'package_id' => $packageId,
+                            'feature_id' => $featureId,
+                        ],
+                        ['is_enabled' => $isEnabled]
+                    );
+                }
             }
         });
     }

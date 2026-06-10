@@ -13,8 +13,7 @@ class PackageService
 {
     public function __construct(
         private PackageRepository $repository
-    ) {
-    }
+    ) {}
 
     public function findActiveByCode(string $code): Package
     {
@@ -58,5 +57,25 @@ class PackageService
     public function updateFlags(array $featureFlags, array $packageFlags, array $mappingFlags): void
     {
         $this->repository->updateFlags($featureFlags, $packageFlags, $mappingFlags);
+    }
+
+    public function updatePlanFlags(array $packageFlags): void
+    {
+        $this->repository->updatePlanFlags($packageFlags);
+    }
+
+    public function createFeature(array $data): void
+    {
+        $this->repository->createFeature($data);
+    }
+
+    public function updateFeatureFlags(array $featureFlags): void
+    {
+        $this->repository->updateFeatureFlags($featureFlags);
+    }
+
+    public function updateFeatureAssignments(array $assignmentFlags): void
+    {
+        $this->repository->updateFeatureAssignments($assignmentFlags);
     }
 }

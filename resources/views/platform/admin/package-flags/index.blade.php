@@ -5,67 +5,357 @@
 @section('pageDescription', 'Control plan sales availability, global feature availability, and plan feature mappings.')
 
 @section('content')
-    <form method="POST" action="{{ route('admin.package-flags.update') }}" class="grid">
-        @csrf
-        @method('PUT')
+    @php
+        $assignmentPackages = collect(['trial', 'basic', 'premium'])
+            ->map(fn ($code) => $packages->firstWhere('code', $code))
+            ->filter();
+    @endphp
 
-        <section class="panel">
-            <h2 style="margin-top: 0;">Plan Availability</h2>
-            <div class="form-grid">
+    <style>
+        .flag-stack {
+            display: grid;
+            gap: 16px;
+        }
+        .section-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .section-heading h2 {
+            margin: 0;
+            color: var(--color-heading);
+            font-size: 20px;
+        }
+        .flag-list {
+            display: grid;
+            gap: 10px;
+        }
+        .flag-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 13px 14px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-background);
+        }
+        .flag-title {
+            margin: 0;
+            color: var(--color-heading);
+            font-weight: 800;
+        }
+        .flag-description {
+            margin: 4px 0 0;
+            color: var(--color-text-muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .switch {
+            position: relative;
+            display: inline-flex;
+            width: 48px;
+            height: 28px;
+            flex: 0 0 auto;
+            margin: 0;
+        }
+        .switch input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .switch-track {
+            width: 100%;
+            border-radius: 999px;
+            background: var(--color-border-strong);
+            transition: background 160ms ease;
+        }
+        .switch-track::after {
+            content: "";
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            background: var(--color-surface);
+            box-shadow: 0 2px 5px rgba(3, 0, 61, 0.2);
+            transition: transform 160ms ease;
+        }
+        .switch input:checked + .switch-track {
+            background: var(--color-primary);
+        }
+        .switch input:checked + .switch-track::after {
+            transform: translateX(20px);
+        }
+        .flag-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .tabs {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .tab-button {
+            border: 1px solid var(--color-border-strong);
+            border-radius: 8px;
+            padding: 9px 12px;
+            background: var(--color-surface);
+            color: var(--color-heading);
+            cursor: pointer;
+            font: inherit;
+            font-weight: 800;
+        }
+        .tab-button.active {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: var(--color-on-primary);
+        }
+        .tab-panel[hidden] {
+            display: none;
+        }
+        .platform-dialog {
+            width: min(640px, calc(100vw - 32px));
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 20px;
+            background: var(--color-surface);
+            color: var(--color-text);
+        }
+        .platform-dialog::backdrop {
+            background: rgba(3, 0, 61, 0.38);
+        }
+        .dialog-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .dialog-header h2 {
+            margin: 0;
+            color: var(--color-heading);
+            font-size: 20px;
+        }
+        .dialog-close {
+            border: 0;
+            background: transparent;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            font: inherit;
+            font-weight: 800;
+        }
+        @media (max-width: 640px) {
+            .section-heading,
+            .flag-row {
+                display: grid;
+            }
+            .switch {
+                justify-self: start;
+            }
+        }
+    </style>
+
+    <div class="flag-stack">
+        <form method="POST" action="{{ route('admin.package-flags.plans.update') }}" class="panel" data-resettable-form>
+            @csrf
+            <div class="section-heading">
+                <h2>Plan</h2>
+            </div>
+            <div class="flag-list">
                 @foreach ($packages as $package)
-                    <label>
-                        <input type="hidden" name="packages[{{ $package->id }}]" value="0">
-                        <input type="checkbox" name="packages[{{ $package->id }}]" value="1" @checked($package->is_active)>
-                        {{ $package->name }} sales enabled
-                    </label>
+                    <div class="flag-row">
+                        <div>
+                            <p class="flag-title">{{ $package->name }}</p>
+                            <p class="flag-description">{{ $package->description ?? 'Plan sales availability' }}</p>
+                        </div>
+                        <label class="switch" aria-label="{{ $package->name }} status">
+                            <input type="hidden" name="packages[{{ $package->id }}]" value="0">
+                            <input type="checkbox" name="packages[{{ $package->id }}]" value="1" @checked($package->is_active)>
+                            <span class="switch-track"></span>
+                        </label>
+                    </div>
                 @endforeach
             </div>
-        </section>
-
-        <section class="panel">
-            <h2 style="margin-top: 0;">Global Features</h2>
-            <div class="form-grid">
-                @foreach ($features as $feature)
-                    <label>
-                        <input type="hidden" name="features[{{ $feature->id }}]" value="0">
-                        <input type="checkbox" name="features[{{ $feature->id }}]" value="1" @checked($feature->is_active)>
-                        {{ $feature->name }}
-                    </label>
-                @endforeach
+            <div class="flag-actions">
+                <button type="submit" class="button primary">Save</button>
+                <button type="reset" class="button secondary">Cancel</button>
             </div>
-        </section>
+        </form>
 
         <section class="panel">
-            <h2 style="margin-top: 0;">Plan Feature Mappings</h2>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Plan</th>
-                        <th>Feature</th>
-                        <th>Enabled</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach ($packages as $package)
-                        @foreach ($package->packageFeatures as $mapping)
-                            <tr>
-                                <td>{{ $package->name }}</td>
-                                <td>{{ $mapping->feature->name }}</td>
-                                <td>
-                                    <input type="hidden" name="mappings[{{ $mapping->id }}]" value="0">
-                                    <input type="checkbox" name="mappings[{{ $mapping->id }}]" value="1" @checked($mapping->is_enabled)>
-                                </td>
-                            </tr>
-                        @endforeach
+            <div class="section-heading">
+                <h2>Feature Management</h2>
+                <button type="button" class="button primary" data-open-dialog="add-feature-dialog">Add Feature</button>
+            </div>
+
+            <form method="POST" action="{{ route('admin.package-flags.features.update') }}" data-resettable-form>
+                @csrf
+                @method('PUT')
+                <div class="flag-list">
+                    @foreach ($features as $feature)
+                        <div class="flag-row">
+                            <div>
+                                <p class="flag-title">{{ $feature->name }}</p>
+                                <p class="flag-description">{{ $feature->code }}{{ $feature->description ? ' - '.$feature->description : '' }}</p>
+                            </div>
+                            <label class="switch" aria-label="{{ $feature->name }} status">
+                                <input type="hidden" name="features[{{ $feature->id }}]" value="0">
+                                <input type="checkbox" name="features[{{ $feature->id }}]" value="1" @checked($feature->is_active)>
+                                <span class="switch-track"></span>
+                            </label>
+                        </div>
                     @endforeach
-                    </tbody>
-                </table>
-            </div>
+                </div>
+                <div class="flag-actions">
+                    <button type="submit" class="button primary">Save</button>
+                    <button type="reset" class="button secondary">Cancel</button>
+                </div>
+            </form>
         </section>
 
-        <div>
-            <button type="submit" class="button primary">Save Flags</button>
-        </div>
-    </form>
+        <form method="POST" action="{{ route('admin.package-flags.feature-assignment.update') }}" class="panel" data-resettable-form>
+            @csrf
+            <div class="section-heading">
+                <h2>Feature Assignment</h2>
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="Plan feature assignments">
+                @foreach ($assignmentPackages as $package)
+                    <button
+                        type="button"
+                        class="tab-button @if ($loop->first) active @endif"
+                        id="tab-{{ $package->code }}"
+                        role="tab"
+                        aria-selected="{{ $loop->first ? 'true' : 'false' }}"
+                        aria-controls="panel-{{ $package->code }}"
+                        data-tab-target="panel-{{ $package->code }}"
+                    >
+                        {{ $package->name }}
+                    </button>
+                @endforeach
+            </div>
+
+            @foreach ($assignmentPackages as $package)
+                @php
+                    $assignmentFlags = $package->packageFeatures->mapWithKeys(fn ($mapping) => [$mapping->feature_id => $mapping->is_enabled]);
+                @endphp
+                <div
+                    id="panel-{{ $package->code }}"
+                    class="tab-panel"
+                    role="tabpanel"
+                    aria-labelledby="tab-{{ $package->code }}"
+                    @if (! $loop->first) hidden @endif
+                >
+                    <div class="flag-list">
+                        @foreach ($features as $feature)
+                            <div class="flag-row">
+                                <div>
+                                    <p class="flag-title">{{ $feature->name }}</p>
+                                    <p class="flag-description">{{ $feature->description ?? $feature->code }}</p>
+                                </div>
+                                <label class="switch" aria-label="{{ $package->name }} {{ $feature->name }} assignment">
+                                    <input type="hidden" name="assignments[{{ $package->id }}][{{ $feature->id }}]" value="0">
+                                    <input
+                                        type="checkbox"
+                                        name="assignments[{{ $package->id }}][{{ $feature->id }}]"
+                                        value="1"
+                                        @checked((bool) ($assignmentFlags[$feature->id] ?? false))
+                                    >
+                                    <span class="switch-track"></span>
+                                </label>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+
+            <div class="flag-actions">
+                <button type="submit" class="button primary">Save</button>
+                <button type="reset" class="button secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <dialog class="platform-dialog" id="add-feature-dialog">
+        <form method="POST" action="{{ route('admin.package-flags.features.store') }}">
+            @csrf
+            <div class="dialog-header">
+                <h2>Add Feature</h2>
+                <button type="button" class="dialog-close" data-close-dialog="add-feature-dialog">Close</button>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label for="feature_name">Feature Name</label>
+                    <input id="feature_name" name="name" value="{{ old('name') }}" required maxlength="120">
+                    @error('name') <div class="field-error">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label for="feature_code">Feature Code</label>
+                    <input id="feature_code" name="code" value="{{ old('code') }}" required maxlength="80">
+                    @error('code') <div class="field-error">{{ $message }}</div> @enderror
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label for="feature_description">Description</label>
+                    <textarea id="feature_description" name="description">{{ old('description') }}</textarea>
+                    @error('description') <div class="field-error">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <div class="flag-actions">
+                <button type="submit" class="button primary">Submit</button>
+                <button type="button" class="button secondary" data-close-dialog="add-feature-dialog">Cancel</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script>
+        document.querySelectorAll('[data-open-dialog]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                document.getElementById(button.dataset.openDialog)?.showModal();
+            });
+        });
+
+        document.querySelectorAll('[data-close-dialog]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                document.getElementById(button.dataset.closeDialog)?.close();
+            });
+        });
+
+        document.querySelectorAll('[data-tab-target]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const targetId = button.dataset.tabTarget;
+
+                document.querySelectorAll('[data-tab-target]').forEach(function (tab) {
+                    const isActive = tab === button;
+                    tab.classList.toggle('active', isActive);
+                    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+
+                document.querySelectorAll('.tab-panel').forEach(function (panel) {
+                    panel.hidden = panel.id !== targetId;
+                });
+            });
+        });
+
+        document.querySelectorAll('[data-resettable-form]').forEach(function (form) {
+            form.addEventListener('reset', function () {
+                window.setTimeout(function () {
+                    form.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+                        checkbox.checked = checkbox.defaultChecked;
+                    });
+                });
+            });
+        });
+
+        @if ($errors->has('name') || $errors->has('code') || $errors->has('description'))
+            document.getElementById('add-feature-dialog')?.showModal();
+        @endif
+    </script>
 @endsection
