@@ -7,9 +7,32 @@
 @section('heroText', 'The reset flow is handled in three steps: send code, verify OTP, then submit a new password.')
 
 @section('content')
+    <style>
+        .otp-code-row {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 48px));
+            gap: 10px;
+        }
+
+        .otp-digit {
+            aspect-ratio: 1;
+            padding: 0;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        @media (max-width: 480px) {
+            .otp-code-row {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 8px;
+            }
+        }
+    </style>
+
     <div id="forgot-password-status" class="form-status hidden"></div>
 
-    <div class="section-card">
+    <div class="section-card" id="send-code-section">
         <h3>Step 1. Send verification code</h3>
         <p>Enter your email and request the OTP. The send button is disabled for 90 seconds after each request.</p>
 
@@ -32,30 +55,31 @@
         </form>
     </div>
 
-    <div class="section-card">
+    <div class="section-card hidden" id="verify-code-section">
         <h3>Step 2. Verify OTP</h3>
-        <p>Enter the six-digit OTP sent to your email address.</p>
+        <p id="verify-code-message">A 6 digit code is sent to your email. Enter it below to continue.</p>
 
         <form method="POST" action="{{ route('platform.password.verify-code') }}" class="grid" id="verify-code-form">
             @csrf
             <input type="hidden" name="email" value="{{ $email }}" id="verify-email">
+            <input type="hidden" name="otp" value="" id="otp">
 
-            <div class="otp-row">
-                <div>
-                    <label for="otp">OTP Code</label>
-                    <input id="otp" type="text" name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required>
-                    <div class="field-error hidden" data-error-for="otp"></div>
+            <div>
+                <label for="otp_digit_1">OTP Code</label>
+                <div class="otp-code-row" id="otp-code-row">
+                    <input id="otp_digit_1" class="otp-digit" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="one-time-code" aria-label="OTP digit 1" required>
+                    <input id="otp_digit_2" class="otp-digit" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="OTP digit 2" required>
+                    <input id="otp_digit_3" class="otp-digit" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="OTP digit 3" required>
+                    <input id="otp_digit_4" class="otp-digit" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="OTP digit 4" required>
+                    <input id="otp_digit_5" class="otp-digit" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="OTP digit 5" required>
+                    <input id="otp_digit_6" class="otp-digit" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="OTP digit 6" required>
                 </div>
-
-                <div class="actions">
-                    <button type="submit" class="primary" id="verify-code-button">Submit Code</button>
-                </div>
+                <div class="field-error hidden" data-error-for="otp"></div>
             </div>
-        </form>
 
-        <form method="POST" action="{{ route('platform.password.cancel') }}" class="actions" id="cancel-reset-form">
-            @csrf
-            <button type="submit" class="secondary" id="cancel-reset-button">Cancel</button>
+            <div class="actions">
+                <button type="submit" class="primary" id="verify-code-button">Submit Code</button>
+            </div>
         </form>
     </div>
 
@@ -102,22 +126,35 @@
                 };
 
                 const statusBox = document.getElementById('forgot-password-status');
+                const sendCodeSection = document.getElementById('send-code-section');
+                const verifyCodeSection = document.getElementById('verify-code-section');
+                const resetPasswordSection = document.getElementById('reset-password-section');
                 const sendCodeForm = document.getElementById('send-code-form');
                 const verifyCodeForm = document.getElementById('verify-code-form');
                 const resetPasswordForm = document.getElementById('reset-password-form');
-                const cancelResetForm = document.getElementById('cancel-reset-form');
                 const sendCodeButton = document.getElementById('send-code-button');
                 const verifyCodeButton = document.getElementById('verify-code-button');
                 const resetPasswordButton = document.getElementById('reset-password-button');
-                const cancelResetButton = document.getElementById('cancel-reset-button');
                 const resendTimer = document.getElementById('resend-timer');
-                const resetPasswordSection = document.getElementById('reset-password-section');
                 const emailInput = document.getElementById('email');
                 const verifyEmailInput = document.getElementById('verify-email');
                 const verifiedEmailInput = document.getElementById('verified_email');
+                const verifyCodeMessage = document.getElementById('verify-code-message');
+                const otpInput = document.getElementById('otp');
+                const otpDigits = Array.from(document.querySelectorAll('.otp-digit'));
                 let intervalId = null;
 
-                if (!statusBox || !sendCodeForm || !verifyCodeForm || !resetPasswordForm || !cancelResetForm) {
+                if (
+                    !statusBox ||
+                    !sendCodeSection ||
+                    !verifyCodeSection ||
+                    !resetPasswordSection ||
+                    !sendCodeForm ||
+                    !verifyCodeForm ||
+                    !resetPasswordForm ||
+                    !otpInput ||
+                    otpDigits.length !== 6
+                ) {
                     return;
                 }
 
@@ -158,6 +195,27 @@
                     emailInput.value = state.email || '';
                     verifyEmailInput.value = state.email || '';
                     verifiedEmailInput.value = state.email || '';
+                    verifyCodeMessage.textContent = state.email
+                        ? 'A 6 digit code is sent to ' + state.email + '. Enter it below to continue.'
+                        : 'A 6 digit code is sent to your email. Enter it below to continue.';
+                }
+
+                function getOtpValue() {
+                    return otpDigits.map(function (input) {
+                        return input.value;
+                    }).join('');
+                }
+
+                function syncOtpInput() {
+                    otpInput.value = getOtpValue();
+                    return otpInput.value;
+                }
+
+                function clearOtpInputs() {
+                    otpDigits.forEach(function (input) {
+                        input.value = '';
+                    });
+                    syncOtpInput();
                 }
 
                 function renderTimer() {
@@ -180,9 +238,19 @@
 
                 function updateUI() {
                     syncEmailFields();
-                    verifyCodeButton.disabled = !state.isCodeSent;
+                    sendCodeSection.classList.toggle('hidden', state.isCodeSent || state.isOtpVerified);
+                    verifyCodeSection.classList.toggle('hidden', !state.isCodeSent || state.isOtpVerified);
                     resetPasswordSection.classList.toggle('hidden', !state.isOtpVerified);
+                    verifyCodeButton.disabled = !state.isCodeSent;
                     renderTimer();
+                }
+
+                function focusFirstEmptyOtpDigit() {
+                    const nextInput = otpDigits.find(function (input) {
+                        return !input.value;
+                    });
+
+                    (nextInput || otpDigits[otpDigits.length - 1]).focus();
                 }
 
                 function startTimer() {
@@ -219,6 +287,40 @@
 
                     showStatus('error', message);
                 }
+
+                otpDigits.forEach(function (input, index) {
+                    input.addEventListener('input', function () {
+                        input.value = input.value.replace(/\D/g, '').slice(0, 1);
+                        syncOtpInput();
+
+                        if (input.value && otpDigits[index + 1]) {
+                            otpDigits[index + 1].focus();
+                        }
+                    });
+
+                    input.addEventListener('keydown', function (event) {
+                        if (event.key === 'Backspace' && !input.value && otpDigits[index - 1]) {
+                            otpDigits[index - 1].focus();
+                        }
+                    });
+
+                    input.addEventListener('paste', function (event) {
+                        const pastedCode = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+
+                        if (!pastedCode) {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        otpDigits.forEach(function (digitInput, digitIndex) {
+                            digitInput.value = pastedCode[digitIndex] || '';
+                        });
+
+                        syncOtpInput();
+                        focusFirstEmptyOtpDigit();
+                    });
+                });
 
                 async function submitJson(form, button, source) {
                     button.disabled = true;
@@ -268,14 +370,17 @@
                     state.isCodeSent = Boolean(payload.data.isCodeSent);
                     state.isOtpVerified = Boolean(payload.data.isOtpVerified);
                     state.resendAvailableAt = Number(payload.data.resendAvailableAt || 0);
+                    clearOtpInputs();
                     updateUI();
+                    focusFirstEmptyOtpDigit();
                     startTimer();
                 });
 
                 verifyCodeForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
-                    state.email = emailInput.value.trim();
+                    state.email = verifyEmailInput.value.trim();
                     syncEmailFields();
+                    syncOtpInput();
 
                     const payload = await submitJson(verifyCodeForm, verifyCodeButton, 'verify');
 
@@ -299,16 +404,6 @@
                         window.setTimeout(function () {
                             window.location.href = responseData.redirect;
                         }, 900);
-                    }
-                });
-
-                cancelResetForm.addEventListener('submit', async function (event) {
-                    event.preventDefault();
-                    const payload = await submitJson(cancelResetForm, cancelResetButton, 'cancel');
-                    const responseData = payload && payload.data ? payload.data : {};
-
-                    if (responseData.redirect) {
-                        window.location.href = responseData.redirect;
                     }
                 });
 
