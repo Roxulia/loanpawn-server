@@ -91,15 +91,18 @@ class TenantCustomerRepository
             ->first();
     }
 
-    public function findDuplicateForCreate(int $tenantId, ?string $email, ?string $phone): ?TenantCustomer
+    public function findDuplicateForCreate(int $tenantId, ?string $email, ?string $phone,?string $nrc): ?TenantCustomer
     {
-        if ($email === null && $phone === null) {
+        if ($email === null && $phone === null && $nrc === null) {
             return null;
         }
 
         return TenantCustomer::withTrashed()
             ->where('tenant_id', $tenantId)
-            ->where(function ($query) use ($email, $phone) {
+            ->where(function ($query) use ($email, $phone,$nrc) {
+                if ($nrc !== null){
+                    $query->orWhere('nrc', $nrc);
+                }
                 if ($phone !== null) {
                     $query->orWhere('phone', $phone);
                 }

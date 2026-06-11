@@ -6,9 +6,11 @@ use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\Http\Controllers\Controller;
+use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
 use App\Utility\MessageCode;
+use App\Utility\NrcHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -40,11 +42,24 @@ class LoanContractSlipController extends Controller
     {
         $input = array_merge($request->all(), [
             'idempotency_key' => $request->header('Idempotency-Key'),
+            '_nrc' => true
         ]);
 
         $validator = Validator::make($input, [
             'customer' => ['required', 'array'],
             'customer.name' => ['required', 'string', 'max:120'],
+            'customer.nrc_state' => ['nullable'],
+            'customer.nrc_township' => ['nullable'],
+            'customer.nrc_citizen' => ['nullable'],
+            'customer.nrc_number' => ['nullable','min:6','max:6'],
+            'customer._nrc' => [
+                new NrcRules(
+                    data_get($input, 'customer.nrc_state'),
+                    data_get($input, 'customer.nrc_township'),
+                    data_get($input, 'customer.nrc_citizen'),
+                    data_get($input, 'customer.nrc_number'),
+                ),
+            ],
             'customer.email' => ['nullable', 'email', 'max:120'],
             'customer.phone' => ['nullable', 'string', 'max:40'],
             'customer.address' => ['nullable', 'string'],
@@ -82,9 +97,11 @@ class LoanContractSlipController extends Controller
 
         $validated = $validator->validated();
         $customer = $validated['customer'];
+        $nrc = NrcHelper::buildCustomerNrc($customer);
         $slip = $this->managementService->create(new LoanContractSlipCreate(
             customer: new TenantCustomerCreate(
                 name: $customer['name'],
+                nrc: $nrc,
                 email: $customer['email'] ?? null,
                 phone: $customer['phone'] ?? null,
                 address: $customer['address'] ?? null,

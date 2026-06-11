@@ -8,6 +8,7 @@ class TenantCustomerCreate extends BaseDataObject
 {
     public function __construct(
         public string $name,
+        public ?string $nrc = null,
         public ?string $email = null,
         public ?string $phone = null,
         public ?string $address = null,

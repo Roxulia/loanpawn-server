@@ -13,6 +13,7 @@ use App\Repository\TenantUserRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
 use App\Support\TenantContext;
+use App\Support\TenantScopedCacheKeys;
 use Illuminate\Contracts\Cookie\QueueingFactory as CookieFactory;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -26,6 +27,7 @@ class AuthService extends BaseTenantService
         private TenantUserRepository $repository,
         private TenantLookupService $tenantLookupService,
         private CookieFactory $cookieFactory,
+        private TenantScopedCacheKeys $cache,
     ) {
     }
 
@@ -114,6 +116,11 @@ class AuthService extends BaseTenantService
 
     public function logout(): void
     {
+        $user = Auth::guard(self::GUARD)->user();
+        $user = $this->repository->update($user, [
+            'status' => 'inactive'
+        ])->loadMissing(['role', 'permission']);
+        $this->flushTenantUserListCache((int) $user->tenant_id);
         Auth::guard(self::GUARD)->logout();
         $this->cookieFactory->queue($this->forgetAuthCookie());
     }
@@ -162,6 +169,7 @@ class AuthService extends BaseTenantService
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
         ])->loadMissing(['role', 'permission']);
+        $this->flushTenantUserListCache($tenantId);
 
         return TenantUserAuthSession::fromModel(
             $user,
@@ -182,6 +190,11 @@ class AuthService extends BaseTenantService
         Auth::guard('web')->logout();
         Auth::guard('platformuser')->logout();
         Auth::guard('platformadmin')->logout();
+    }
+
+    protected function flushTenantUserListCache(int $tenantId): void
+    {
+        $this->cache->bumpVersion('tenant-user-list', tenantId: $tenantId);
     }
 
     protected function applyUserLocale(string $locale): void

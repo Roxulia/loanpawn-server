@@ -58,7 +58,8 @@ class TenantCustomerService extends BaseTenantService
         $duplicate = $this->repository->findDuplicateForCreate(
             app(\App\Support\TenantContext::class)->id(),
             $request->email,
-            $request->phone
+            $request->phone,
+            $request->nrc
         );
 
         if ($duplicate !== null) {
@@ -70,6 +71,7 @@ class TenantCustomerService extends BaseTenantService
                 'code' => $this->tableIdGenerationService->generate('tenant_customers', CarbonImmutable::now()),
                 'name' => $request->name,
                 'email' => $request->email,
+                'nrc' => $request->nrc,
                 'phone' => $request->phone,
                 'address' => $request->address,
                 'trust_score' => $request->trustScore,
@@ -85,6 +87,7 @@ class TenantCustomerService extends BaseTenantService
                 [
                     'customer' => $customer->only([
                         'name',
+                        'nrc',
                         'email',
                         'phone',
                         'address',
@@ -142,6 +145,14 @@ class TenantCustomerService extends BaseTenantService
             }
 
             $data['email'] = $request->email;
+        }
+
+        if ($request->nrc !== null && $request->nrc !== $customer->nrc) {
+            if ($this->repository->existsByField('nrc', $request->nrc, $customer->id)) {
+                throw new DuplicateValueFound('Tenant customer NRC already exists.');
+            }
+
+            $data['nrc'] = $request->nrc;
         }
 
         if ($request->phone !== null && $request->phone !== $customer->phone) {

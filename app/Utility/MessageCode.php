@@ -9,6 +9,11 @@ enum MessageCode: string
     case ApiResponseSuccess = 'common.response.success';
     case ApiResponseFailed = 'common.response.failed';
     case ApiValidationFailed = 'common.response.validation_failed';
+    case ValidationNrcAllFieldsRequired = 'common.validation.nrc.all_fields_required';
+    case ValidationNrcInvalidState = 'common.validation.nrc.invalid_state';
+    case ValidationNrcInvalidTownship = 'common.validation.nrc.invalid_township';
+    case ValidationNrcInvalidCitizen = 'common.validation.nrc.invalid_citizen';
+    case ValidationNrcInvalidNumber = 'common.validation.nrc.invalid_number';
     case ApiUnauthenticated = 'auth.response.unauthenticated';
     case LocaleSetFailed = 'common.response.locale.set_failed';
     case LocaleSetSuccess = 'common.response.locale.set_success';

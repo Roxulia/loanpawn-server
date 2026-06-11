@@ -11,6 +11,7 @@ class TenantCustomerUpdate extends BaseDataObject
         public string $code,
         public int $updateKey,
         public ?string $name = null,
+        public ?string $nrc = null,
         public ?string $email = null,
         public ?string $phone = null,
         public ?string $address = null,

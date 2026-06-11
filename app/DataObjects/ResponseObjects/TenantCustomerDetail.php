@@ -12,6 +12,7 @@ class TenantCustomerDetail extends BaseDataObject
     public string $code;
     public int $updateKey;
     public string $name;
+    public ?string $nrc;
     public ?string $email;
     public ?string $phone;
     public ?string $address;
@@ -29,6 +30,7 @@ class TenantCustomerDetail extends BaseDataObject
         $detail->code = $customer->code;
         $detail->updateKey = (int) $customer->update_key;
         $detail->name = $customer->name;
+        $detail->nrc = $customer->nrc;
         $detail->email = $customer->email;
         $detail->phone = $customer->phone;
         $detail->address = $customer->address;

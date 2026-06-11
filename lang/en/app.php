@@ -11,6 +11,15 @@ return [
                 'set_success' => 'Locale set successfully.',
             ],
         ],
+        'validation' => [
+            'nrc' => [
+                'all_fields_required' => 'NRC fields must be all filled or all empty.',
+                'invalid_state' => 'Invalid NRC state.',
+                'invalid_township' => 'Invalid NRC township for the selected state.',
+                'invalid_citizen' => 'Invalid NRC citizen type.',
+                'invalid_number' => 'Invalid NRC number.',
+            ],
+        ],
         'view' => [
             'actions' => [
                 'accept' => 'Accept',

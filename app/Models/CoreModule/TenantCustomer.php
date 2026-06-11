@@ -16,6 +16,7 @@ class TenantCustomer extends Model
         'tenant_id',
         'code',
         'name',
+        'nrc',
         'email',
         'phone',
         'address',

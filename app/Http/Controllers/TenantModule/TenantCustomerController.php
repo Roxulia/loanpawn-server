@@ -5,8 +5,10 @@ namespace App\Http\Controllers\TenantModule;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\DataObjects\RequestObjects\TenantCustomerUpdate;
 use App\Http\Controllers\Controller;
+use App\Rules\NrcRules;
 use App\Services\TenantModule\TenantCustomerService;
 use App\Utility\MessageCode;
+use App\Utility\NrcHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -40,8 +42,21 @@ class TenantCustomerController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $validator = Validator::make(array_merge($request->all(), ['_nrc' => true]), [
             'name' => ['required', 'string', 'max:120'],
+            'nrc_state' => ['nullable'],
+            'nrc_township' => ['nullable'],
+            'nrc_citizen' => ['nullable'],
+            'nrc_number' => ['nullable', 'string'],
+
+            '_nrc' => [
+                new NrcRules(
+                    $request->input('nrc_state'),
+                    $request->input('nrc_township'),
+                    $request->input('nrc_citizen'),
+                    $request->input('nrc_number'),
+                ),
+            ],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string'],
@@ -54,8 +69,12 @@ class TenantCustomerController extends Controller
         }
 
         $validated = $validator->validated();
+
+        $nrc = NrcHelper::buildNrcFromRequest($request);
+
         $result = $this->tenantCustomerService->createForCurrentTenant(new TenantCustomerCreate(
             name: $validated['name'],
+            nrc: $nrc,
             email: $validated['email'] ?? null,
             phone: $validated['phone'] ?? null,
             address: $validated['address'] ?? null,
@@ -81,8 +100,21 @@ class TenantCustomerController extends Controller
 
     public function update(Request $request, string $tenantCustomerCode): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $validator = Validator::make(array_merge($request->all(), ['_nrc' => true]), [
             'name' => ['nullable', 'string', 'max:120'],
+            'nrc_state' => ['nullable'],
+            'nrc_township' => ['nullable'],
+            'nrc_citizen' => ['nullable'],
+            'nrc_number' => ['nullable', 'string'],
+
+            '_nrc' => [
+                new NrcRules(
+                    $request->input('nrc_state'),
+                    $request->input('nrc_township'),
+                    $request->input('nrc_citizen'),
+                    $request->input('nrc_number'),
+                ),
+            ],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string'],
@@ -96,11 +128,15 @@ class TenantCustomerController extends Controller
         }
 
         $validated = $validator->validated();
+
+        $nrc = NrcHelper::buildNrcFromRequest($request);
+
         $customer = $this->tenantCustomerService->update(new TenantCustomerUpdate(
             customerId: $this->tenantCustomerService->resolveIdByCode($tenantCustomerCode),
             code: $tenantCustomerCode,
             updateKey: $validated['update_key']??0,
             name: $validated['name'] ?? null,
+            nrc: $nrc,
             email: $validated['email'] ?? null,
             phone: $validated['phone'] ?? null,
             address: $validated['address'] ?? null,
