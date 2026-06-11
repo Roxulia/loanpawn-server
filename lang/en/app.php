@@ -394,6 +394,8 @@ return [
 
     'exception' => [
         'exception' => [
+            'delete_owner' => 'Cannot Delete Tenant\'s owner',
+            'self_delete' => 'Cannot delete yourself',
             'language_code_invalid' => 'The provided language code is invalid.',
             'tenant_not_found' => 'Tenant not found.',
             'tenant_code_not_given' => 'No tenant code found in header.',

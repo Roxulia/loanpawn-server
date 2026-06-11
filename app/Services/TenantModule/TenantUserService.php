@@ -6,9 +6,11 @@ use App\DataObjects\RequestObjects\TenantUserCreate;
 use App\DataObjects\RequestObjects\TenantUserUpdate;
 use App\DataObjects\ResponseObjects\TenantUserDetail;
 use App\DataObjects\ResponseObjects\TenantUserListPage;
+use App\DataObjects\ResponseObjects\TenantUserCreateResponse;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\DuplicateValueFound;
 use App\Exceptions\InvalidCredential;
+use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\LanguageCodeInvalid;
 use App\Exceptions\TenantUserNotFound;
 use App\Exceptions\UserNotLoggedIn;
@@ -19,6 +21,7 @@ use App\Services\PlatformModule\TenantServices\TenantSettingService;
 use App\Services\TableIdGenerationService;
 use App\Support\TenantContext;
 use App\Support\TenantScopedCacheKeys;
+use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +29,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-
+use App\Utility\Messages;
 class TenantUserService extends BaseTenantService
 {
     protected const TENANT_USER_LIST_CACHE_TTL_SECONDS = 600;
@@ -38,6 +41,7 @@ class TenantUserService extends BaseTenantService
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TenantSettingService $tenantSettingService,
         private TableIdGenerationService $tableIdGenerationService,
+        private Messages $messages
     ) {
     }
 
@@ -56,7 +60,7 @@ class TenantUserService extends BaseTenantService
         );
     }
 
-    public function createForCurrentTenant(TenantUserCreate $request): TenantUserDetail
+    public function createForCurrentTenant(TenantUserCreate $request): TenantUserCreateResponse
     {
         $this->permissionService->authorizeUserCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
@@ -78,14 +82,15 @@ class TenantUserService extends BaseTenantService
         return TenantUserDetail::fromModel($this->findUserForCurrentTenantByCode($code)->loadMissing(['role', 'permission']));
     }
 
-    public function create(TenantUserCreate $request): TenantUserDetail
+    public function create(TenantUserCreate $request): TenantUserCreateResponse
     {
         $tenantId = $request->tenantId ?? $this->resolveCurrentTenantId();
         $username = $this->generateUsername($tenantId, $request->name, $request->phone);
         $request->roleId = $request->roleId ?? $this->tenantRoleService->resolveDefaultRoleIdByName('User');
         $this->tenantRoleService->ensureRoleExists($request->roleId, $tenantId);
         $this->ensureUniqueFields($tenantId, $request, $username);
-        $user = DB::transaction(function () use ($request, $tenantId, $username) {
+        $defaultPassword = $this->resolveTenantDefaultPassword($tenantId);
+        $user = DB::transaction(function () use ($request, $tenantId, $username,$defaultPassword) {
             $data = [
                 'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'tenant_users', CarbonImmutable::now()),
                 'role_id' => $request->roleId,
@@ -95,7 +100,7 @@ class TenantUserService extends BaseTenantService
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'address' => $request->address,
-                'password' => Hash::make($this->resolveTenantDefaultPassword($tenantId)),
+                'password' => Hash::make($defaultPassword),
                 'status' => $request->status,
                 'is_deleted' => false,
                 'created_by' => $request->createdBy,
@@ -113,10 +118,10 @@ class TenantUserService extends BaseTenantService
 
         $this->flushTenantUserListCache($tenantId);
 
-        return TenantUserDetail::fromModel($user);
+        return TenantUserCreateResponse::fromModel($user,$defaultPassword);
     }
 
-    public function createAdmin(TenantUserCreate $request): TenantUserDetail
+    public function createAdmin(TenantUserCreate $request): TenantUserCreateResponse
     {
         $adminRole = $this->tenantRoleService->resolveDefaultRoleIdByName('Admin');
 
@@ -310,7 +315,11 @@ class TenantUserService extends BaseTenantService
     {
         $this->permissionService->authorizeUserDelete();
         $targetUser = $this->findUserForCurrentTenant($userId);
-
+        $ownerRole = $this->tenantRoleService->resolveDefaultRoleIdByName('Owner');
+        if($targetUser->role_id === $ownerRole)
+        {
+            throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::DeleteOwner));
+        }
         DB::transaction(function () use ($targetUser): void {
             $lockedUser = $this->repository->findByIdWithLock($targetUser->id);
 

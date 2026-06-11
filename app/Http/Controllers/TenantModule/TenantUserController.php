@@ -7,6 +7,7 @@ use App\DataObjects\RequestObjects\TenantUserUpdate;
 use App\Http\Controllers\Controller;
 use App\Rules\NrcRules;
 use App\Rules\PasswordRules;
+use App\Services\TenantModule\AuthService;
 use App\Services\TenantModule\TenantUserService;
 use App\Utility\MessageCode;
 use App\Utility\NrcHelper;
@@ -18,6 +19,7 @@ class TenantUserController extends Controller
 {
     public function __construct(
         private TenantUserService $tenantUserService,
+        private AuthService $authService
     ) {
     }
 
@@ -58,7 +60,6 @@ class TenantUserController extends Controller
             'phone' => ['required', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:100'],
             'role_id' => ['nullable', 'integer'],
-            'status' => ['nullable', 'string', 'max:20'],
         ]);
 
         if ($validator->fails()) {
@@ -75,7 +76,7 @@ class TenantUserController extends Controller
             address: $validated['address'] ?? null,
             tenantId: null,
             roleId: $validated['role_id'] ?? null,
-            status: $validated['status'] ?? 'active',
+            status: 'inactive',
         ));
 
         return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserCreated), 201);
@@ -196,6 +197,11 @@ class TenantUserController extends Controller
 
     public function destroy(string $tenantUserCode): JsonResponse
     {
+        $currentUser = $this->authService->getCurrentUser();
+        if($currentUser->code === $tenantUserCode)
+        {
+            return $this->errorResponse(message : $this->responseMessage(MessageCode::SelfDelete),statusCode : 400);
+        }
         $this->tenantUserService->delete($this->tenantUserService->resolveIdByCode($tenantUserCode));
 
         return $this->successResponse(message: $this->responseMessage(MessageCode::TenantUserDeleted));

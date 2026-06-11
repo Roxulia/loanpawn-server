@@ -82,6 +82,7 @@ class AuthService extends BaseTenantService
 
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
+            'status' => 'active'
         ])->loadMissing(['role', 'permission']);
 
         $session = TenantUserAuthSession::fromModel(
@@ -168,6 +169,7 @@ class AuthService extends BaseTenantService
 
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
+            'status' => 'active'
         ])->loadMissing(['role', 'permission']);
         $this->flushTenantUserListCache($tenantId);
 
