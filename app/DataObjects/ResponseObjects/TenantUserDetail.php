@@ -5,6 +5,7 @@ namespace App\DataObjects\ResponseObjects;
 use App\DataObjects\BaseDataObject;
 use App\Models\CoreModule\TenantUser;
 use App\Support\TenantPermissionColumns;
+use App\Utility\NrcHelper;
 
 class TenantUserDetail extends BaseDataObject
 {
@@ -19,6 +20,10 @@ class TenantUserDetail extends BaseDataObject
     public string $username;
     public string $name;
     public string $nrc;
+    public string $nrc_state;
+    public string $nrc_township;
+    public string $nrc_citizen;
+    public string $nrc_number;
     public ?string $email;
     public string $phone;
     public ?string $address;
@@ -58,6 +63,11 @@ class TenantUserDetail extends BaseDataObject
             TenantPermissionColumns::enabledFromModel($user->permission ?? $user->role)
         );
         $detail->preferLang = $user->prefer_lang ?? 'en';
+        $nrc_decomposed = NrcHelper::decomposeNRC($user->nrc);
+        $detail->nrc_state = $nrc_decomposed!==null ? $nrc_decomposed['state'] : "";
+        $detail->nrc_township = $nrc_decomposed!==null ? $nrc_decomposed['township'] : "";
+        $detail->nrc_citizen= $nrc_decomposed!==null ? $nrc_decomposed['citizen'] : "";
+        $detail->nrc_number = $nrc_decomposed!==null ? $nrc_decomposed['number'] : "";
         return $detail;
     }
 }

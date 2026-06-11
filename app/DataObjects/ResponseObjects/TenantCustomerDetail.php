@@ -4,6 +4,7 @@ namespace App\DataObjects\ResponseObjects;
 
 use App\DataObjects\BaseDataObject;
 use App\Models\CoreModule\TenantCustomer;
+use App\Utility\NrcHelper;
 
 class TenantCustomerDetail extends BaseDataObject
 {
@@ -13,6 +14,11 @@ class TenantCustomerDetail extends BaseDataObject
     public int $updateKey;
     public string $name;
     public ?string $nrc;
+
+    public ?string $nrc_state;
+    public ?string $nrc_township;
+    public ?string $nrc_citizen;
+    public ?string $nrc_number;
     public ?string $email;
     public ?string $phone;
     public ?string $address;
@@ -39,7 +45,11 @@ class TenantCustomerDetail extends BaseDataObject
         $detail->createdBy = $customer->created_by;
         $detail->isDeleted = (bool) $customer->is_deleted;
         $detail->deletedAt = $customer->deleted_at?->toISOString();
-
+        $nrc_decomposed = NrcHelper::decomposeNRC($customer->nrc);
+        $detail->nrc_state = $nrc_decomposed!==null ? $nrc_decomposed['state'] : null;
+        $detail->nrc_township = $nrc_decomposed!==null ? $nrc_decomposed['township'] : null;
+        $detail->nrc_citizen= $nrc_decomposed!==null ? $nrc_decomposed['citizen'] : null;
+        $detail->nrc_number = $nrc_decomposed!==null ? $nrc_decomposed['number'] : null;
         return $detail;
     }
 }

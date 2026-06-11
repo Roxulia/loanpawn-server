@@ -26,6 +26,30 @@ class NrcHelper
         'T' => 'သီ',
     ];
 
+    public static function decomposeNRC(?string $nrc)
+    {
+        if (empty($nrc) || $nrc===null) {
+            return null;
+        }
+
+        preg_match(
+            '/^([^\/]+)\/([^\(]+)\(([^\)]+)\)(.+)$/',
+            $nrc,
+            $matches
+        );
+
+        if (count($matches) !== 5) {
+            return null;
+        }
+
+        return [
+            'state' => $matches[1],
+            'township' => $matches[2],
+            'citizen' => $matches[3],
+            'number' => $matches[4],
+        ];
+    }
+
     public static function buildNRC(string $state,string $township,string $citizen,string $number) : string
     {
         $stateCode = self::normalizeStateToEnglish($state) ?? $state;
