@@ -80,6 +80,7 @@ class AuthService extends BaseTenantService
 
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
+            'status' => 'active'
         ])->loadMissing(['role', 'permission']);
 
         $session = TenantUserAuthSession::fromModel(
@@ -114,6 +115,10 @@ class AuthService extends BaseTenantService
 
     public function logout(): void
     {
+        $user = Auth::guard(self::GUARD)->user();
+        $user = $this->repository->update($user, [
+            'status' => 'inactive'
+        ])->loadMissing(['role', 'permission']);
         Auth::guard(self::GUARD)->logout();
         $this->cookieFactory->queue($this->forgetAuthCookie());
     }
@@ -161,6 +166,7 @@ class AuthService extends BaseTenantService
 
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
+            'status' => 'active'
         ])->loadMissing(['role', 'permission']);
 
         return TenantUserAuthSession::fromModel(

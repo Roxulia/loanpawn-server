@@ -4,6 +4,8 @@ namespace App\Utility;
 
 enum MessageCode: string
 {
+    case SelfDelete = 'exception.exception.self_delete';
+    case DeleteOwner = 'exception.exception.delete_owner';
     case LanguageCodeInvalid = 'exception.exception.language_code_invalid';
     case LanguageChangeSuccess = 'tenant.response.user.language_change_success';
     case ApiResponseSuccess = 'common.response.success';

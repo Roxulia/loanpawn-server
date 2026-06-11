@@ -385,6 +385,8 @@ return [
 
     'exception' => [
         'exception' => [
+            'delete_owner' => 'ပိုင်ရှင်ကို ဖျက်၍မရပါ',
+            'self_delete' => 'သင့်ကိုယ်သင် ဖျက်၍မရပါ',
             'language_code_invalid' => 'The provided language code is invalid.',
             'tenant_not_found' => 'Tenant မတွေ့ပါ။',
             'tenant_code_not_given' => 'Header တွင် tenant code မပါပါ။',
