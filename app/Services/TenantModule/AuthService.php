@@ -6,10 +6,13 @@ use App\DataObjects\RequestObjects\TenantUserPublicLogin;
 use App\DataObjects\RequestObjects\TenantUserSubdomainLogin;
 use App\DataObjects\ResponseObjects\TenantUserAuthSession;
 use App\DataObjects\ResponseObjects\TenantUserDetail;
+use App\Exceptions\EmailNotRegistered;
 use App\Exceptions\InvalidCredential;
+use App\Exceptions\LoginNotAllowed;
 use App\Exceptions\UserNotLoggedIn;
 use App\Models\CoreModule\TenantUser;
 use App\Repository\TenantUserRepository;
+use App\Services\AuthLoginAttemptService;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
 use App\Support\TenantContext;
@@ -21,6 +24,7 @@ use Illuminate\Support\Facades\Hash;
 class AuthService extends BaseTenantService
 {
     private const GUARD = 'tenantuser';
+
     private const TOKEN_COOKIE = 'tenant_auth_token';
 
     public function __construct(
@@ -28,8 +32,8 @@ class AuthService extends BaseTenantService
         private TenantLookupService $tenantLookupService,
         private CookieFactory $cookieFactory,
         private TenantScopedCacheKeys $cache,
-    ) {
-    }
+        private AuthLoginAttemptService $loginAttemptService,
+    ) {}
 
     public function loginFromPublicSpa(TenantUserPublicLogin $request): TenantUserAuthSession
     {
@@ -82,7 +86,7 @@ class AuthService extends BaseTenantService
 
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
-            'status' => 'active'
+            'status' => 'active',
         ])->loadMissing(['role', 'permission']);
 
         $session = TenantUserAuthSession::fromModel(
@@ -119,7 +123,7 @@ class AuthService extends BaseTenantService
     {
         $user = Auth::guard(self::GUARD)->user();
         $user = $this->repository->update($user, [
-            'status' => 'inactive'
+            'status' => 'inactive',
         ])->loadMissing(['role', 'permission']);
         $this->flushTenantUserListCache((int) $user->tenant_id);
         Auth::guard(self::GUARD)->logout();
@@ -155,21 +159,34 @@ class AuthService extends BaseTenantService
         string $tenantCode,
         string $email,
         string $password
-    ): TenantUserAuthSession
-    {
-        $user = $this->repository->findByEmail($email);
+    ): TenantUserAuthSession {
+        $scope = 'tenant:'.$tenantId;
+        $user = $this->repository->findByTenantIdAndEmail($tenantId, $email);
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        if (! $user) {
+            throw new EmailNotRegistered;
+        }
+
+        $this->loginAttemptService->ensureIsNotLocked(self::GUARD, $email, $scope);
+
+        if (! Hash::check($password, $user->password)) {
+            $this->loginAttemptService->recordFailedPassword(self::GUARD, $email, $scope);
+
             throw new InvalidCredential(null);
         }
 
+        if (! in_array($user->status, ['active', 'inactive'], true)) {
+            throw new LoginNotAllowed;
+        }
+
+        $this->loginAttemptService->clear(self::GUARD, $email, $scope);
         $this->logoutOtherGuards();
         Auth::shouldUse(self::GUARD);
         Auth::guard(self::GUARD)->login($user);
 
         $user = $this->repository->update($user, [
             'last_login_at' => now(),
-            'status' => 'active'
+            'status' => 'active',
         ])->loadMissing(['role', 'permission']);
         $this->flushTenantUserListCache($tenantId);
 

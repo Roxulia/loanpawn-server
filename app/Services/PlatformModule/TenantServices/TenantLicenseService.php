@@ -77,6 +77,17 @@ class TenantLicenseService extends BaseTenantService
         return $this->packageService->planHasFeature($license->plan_type, $featureCode);
     }
 
+    public function ensureTenantCanOpenApp(int $tenantId): TenantLicense
+    {
+        $license = $this->getTenantLicense($tenantId);
+
+        if ($license->status === 'expired' || ($license->expires_at !== null && $license->expires_at->lte(now()))) {
+            throw new InvalidTenantRequest('Tenant is expired');
+        }
+
+        return $license;
+    }
+
     public function ensureCurrentTenantHasFeature(string $featureCode): TenantLicense
     {
         return $this->ensureTenantHasFeature($this->resolveCurrentTenantId(), $featureCode);

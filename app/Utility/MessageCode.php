@@ -4,6 +4,12 @@ namespace App\Utility;
 
 enum MessageCode: string
 {
+    case NotTenantUser = 'exception.exception.not_tenant_user';
+    case NotTenantOwner = 'exception.exception.not_owner';
+    case NotEnoughPermission = 'exception.exception.not_enough_permission';
+    case FileTypeError = 'exception.exception.file_type_error';
+    case FileTypeMustBeImage = 'exception.exception.file_must_image';
+    case PackageNotFound = 'exception.exception.package_not_found';
     case SelfDelete = 'exception.exception.self_delete';
     case DeleteOwner = 'exception.exception.delete_owner';
     case LanguageCodeInvalid = 'exception.exception.language_code_invalid';
@@ -97,6 +103,9 @@ enum MessageCode: string
     case ExceptionTenantNotFound = 'exception.exception.tenant_not_found';
     case ExceptionTenantCodeNotGiven = 'exception.exception.tenant_code_not_given';
     case ExceptionInvalidCredential = 'exception.exception.invalid_credential';
+    case ExceptionEmailNotRegistered = 'exception.exception.email_not_registered';
+    case ExceptionLoginNotAllowed = 'exception.exception.login_not_allowed';
+    case ExceptionLoginRetryLocked = 'exception.exception.login_retry_locked';
     case ExceptionAccountNotFound = 'exception.exception.account_not_found';
     case ExceptionAlreadyUpdated = 'exception.exception.already_updated';
     case ExceptionDuplicateValueFound = 'exception.exception.duplicate_value_found';
@@ -114,4 +123,17 @@ enum MessageCode: string
     case ExceptionIdempotencyKeyConflict = 'exception.exception.idempotency_key_conflict';
     case ExceptionIdempotencyRequestProcessing = 'exception.exception.idempotency_request_processing';
     case ExceptionIdempotentReplay = 'exception.exception.idempotent_replay';
+    case InvalidStateForPaymentSubmission = 'exception.exception.invalid_state_for_payment_submission';
+    case InvalidStateForRequestAccept = 'exception.exception.invalid_state_for_request_accept';
+    case InvalidPackageUpgrade = 'exception.exception.invalid_package_upgrade';
+    case SamePackageUpgrade = 'exception.exception.same_package_upgrade';
+    case UnsupportedPackageType = 'exception.exception.unsupported_package_type';
+    case ExtensionMonthRequired = 'exception.exception.extension_month_required';
+    case TenantOwnerRequired = 'exception.exception.tenant_owner_required';
+    case PlanTypeRequired = 'exception.exception.plan_type_required';
+    case TenantStatusRequired = 'exception.exception.tenant_status_required';
+    case TenantCodeRequired = 'exception.exception.tenant_code_required';
+    case TenantCodeDuplicate = 'exception.exception.tenant_code_duplicate';
+    case SubdomainDuplicate = 'exception.exception.subdomain_duplicate';
+    case RoleNotFound = 'exception.exception.role_not_found';
 }

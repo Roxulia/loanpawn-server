@@ -4,10 +4,11 @@ namespace App\Services\TenantModule;
 
 use App\Exceptions\RequiredValueMissing;
 use App\Repository\TenantRoleRepository;
+use App\Services\BaseTenantService;
 use App\Support\TenantContext;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
 
-class TenantRoleService
+class TenantRoleService extends BaseTenantService
 {
     public function __construct(
         private TenantRoleRepository $repository,
@@ -19,7 +20,7 @@ class TenantRoleService
         $role = $this->repository->findDefaultByName($roleName);
 
         if ($role === null) {
-            throw new RequiredValueMissing(MessageCodes::$messages['eb027']);
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::RoleNotFound));
         }
 
         return $role->id;
@@ -32,7 +33,7 @@ class TenantRoleService
         $role = $this->repository->findAccessibleByName($tenantId, $roleName);
 
         if ($role === null) {
-            throw new RequiredValueMissing(MessageCodes::$messages['eb027']);
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::RoleNotFound));
         }
 
         return $role->id;
@@ -43,7 +44,7 @@ class TenantRoleService
         $tenantId = $tenantId ?? $this->resolveOptionalCurrentTenantId();
 
         if (! $this->repository->existsAccessible($roleId, $tenantId)) {
-            throw new RequiredValueMissing(MessageCodes::$messages['eb027']);
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::RoleNotFound));
         }
     }
 

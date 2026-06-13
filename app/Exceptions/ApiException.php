@@ -10,6 +10,16 @@ abstract class ApiException extends Exception
     protected int $status = 400;
     protected string $errorCode = 'UNKNOWN_ERROR';
 
+    public function statusCode(): int
+    {
+        return $this->status;
+    }
+
+    public function errorCode(): string
+    {
+        return $this->errorCode;
+    }
+
     public function render($request)
     {
         return ApiResponse::errorResponse(

@@ -140,4 +140,10 @@ return [
 
     'seeded_platform_admin_password' => env('SEEDED_PLATFORM_ADMIN_PASSWORD', 'password'),
 
+    'login_attempts' => [
+        'max_attempts' => (int) env('AUTH_LOGIN_MAX_ATTEMPTS', 3),
+        'attempt_window_seconds' => (int) env('AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS', 60),
+        'lockout_seconds' => (int) env('AUTH_LOGIN_LOCKOUT_SECONDS', 300),
+    ],
+
 ];

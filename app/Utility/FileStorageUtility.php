@@ -7,11 +7,14 @@ use App\Exceptions\StoredFileNotFound;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Http\UploadedFile;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 class FileStorageUtility
 {
     public function __construct(
-        private FilesystemFactory $filesystemFactory
+        private FilesystemFactory $filesystemFactory,
+        private Messages $message
     ) {
     }
 
@@ -21,7 +24,7 @@ class FileStorageUtility
         string $disk = 'public',
         ?string $fileNamePrefix = null
     ): string {
-        $this->ensureValidUpload($file, MessageCodes::$messages['eb013']);
+        $this->ensureValidUpload($file, $this->message->responseMessage(MessageCode::FileTypeError));
 
         return $this->storeFile($file, $directory, $disk, $fileNamePrefix);
     }
@@ -32,10 +35,10 @@ class FileStorageUtility
         string $disk = 'public',
         ?string $fileNamePrefix = null
     ): string {
-        $this->ensureValidUpload($file, MessageCodes::$messages['eb014']);
+        $this->ensureValidUpload($file, $this->message->responseMessage(MessageCode::FileTypeMustBeImage));
 
         if (! str_starts_with((string) $file->getMimeType(), 'image/')) {
-            throw new InvalidUploadFile(MessageCodes::$messages['eb014']);
+            throw new InvalidUploadFile(null);
         }
 
         return $this->storeFile($file, $directory, $disk, $fileNamePrefix);
@@ -78,7 +81,7 @@ class FileStorageUtility
         $storedPath = $storage->putFileAs(trim($directory, '/'), $file, $fileName);
 
         if ($storedPath === false) {
-            throw new InvalidUploadFile(MessageCodes::$messages['eb013']);
+            throw new InvalidUploadFile(null);
         }
 
         return $storedPath;

@@ -5,12 +5,12 @@ namespace App\Services\TenantModule;
 use App\DataObjects\ResponseObjects\TenantUserAuthSession;
 use App\Exceptions\InvalidCredential;
 use App\Exceptions\TenantAccessDenied;
+use App\Exceptions\TenantNotFound;
 use App\Exceptions\TenantUserNotFound;
 use App\Repository\TenantRepository;
 use App\Repository\TenantUserRepository;
 use App\Services\PlatformModule\AuthService as PlatformAuthService;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
-use App\Utility\MessageCodes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -34,7 +34,7 @@ class TenantSsoService
         $tenant = $this->tenantRepository->findByIdForPlatformUser($tenantId, $platformUser->id);
 
         if (! $tenant) {
-            throw new TenantAccessDenied(MessageCodes::$messages['eb018']);
+            throw new TenantNotFound(null);
         }
 
         $tenantUser = $this->tenantUserRepository->findByTenantIdAndEmail($tenant->id, $platformUser->email);

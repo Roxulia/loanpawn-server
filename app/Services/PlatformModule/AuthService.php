@@ -5,7 +5,9 @@ namespace App\Services\PlatformModule;
 use App\DataObjects\RequestObjects\PlatformUserRegister;
 use App\DataObjects\ResponseObjects\PlatformUserDetail;
 use App\Exceptions\AccountNotFound;
+use App\Exceptions\EmailNotRegistered;
 use App\Exceptions\InvalidCredential;
+use App\Exceptions\LoginNotAllowed;
 use App\Exceptions\UserNotLoggedIn;
 use App\Mail\PlatformPasswordResetOtpMail;
 use App\Mail\PlatformRegistrationVerificationMail;
@@ -13,6 +15,7 @@ use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\PlatformUser;
 use App\Repository\PlatformAdminRepository;
 use App\Repository\PlatformUserRepository;
+use App\Services\AuthLoginAttemptService;
 use App\Services\TableIdGenerationService;
 use App\Support\LogsServiceOperations;
 use Carbon\CarbonImmutable;
@@ -33,8 +36,12 @@ class AuthService
 
     private PlatformUserRepository $userRepository;
 
-    public function __construct(PlatformAdminRepository $adminRepository, PlatformUserRepository $userRepository, private TableIdGenerationService $tableIdGenerationService)
-    {
+    public function __construct(
+        PlatformAdminRepository $adminRepository,
+        PlatformUserRepository $userRepository,
+        private TableIdGenerationService $tableIdGenerationService,
+        private AuthLoginAttemptService $loginAttemptService,
+    ) {
         $this->adminRepository = $adminRepository;
         $this->userRepository = $userRepository;
     }
@@ -52,9 +59,18 @@ class AuthService
 
     public function loginUser(string $email, string $password): PlatformUserDetail
     {
+        $guard = 'platformuser';
         $user = $this->userRepository->findByEmail($email);
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        if (! $user) {
+            throw new EmailNotRegistered;
+        }
+
+        $this->loginAttemptService->ensureIsNotLocked($guard, $email);
+
+        if (! Hash::check($password, $user->password)) {
+            $this->loginAttemptService->recordFailedPassword($guard, $email);
+
             throw new InvalidCredential(null);
         }
 
@@ -63,10 +79,12 @@ class AuthService
         }
 
         if ($user->status !== 'active') {
-            throw new InvalidCredential(null);
+            throw new LoginNotAllowed;
         }
+
+        $this->loginAttemptService->clear($guard, $email);
         Auth::guard('platformadmin')->logout();
-        Auth::guard('platformuser')->login($user);
+        Auth::guard($guard)->login($user);
         $this->applyUserLocale($user->prefer_lang ?? config('app.locale'));
 
         return new PlatformUserDetail($user->email, $user->name, $user->prefer_lang ?? config('app.locale'));
@@ -74,25 +92,48 @@ class AuthService
 
     public function pendingVerificationLoginCandidate(string $email, string $password): ?PlatformUser
     {
+        $guard = 'platformuser';
         $user = $this->userRepository->findByEmail($email);
 
-        if (! $user || $user->status !== 'pending_verification' || ! Hash::check($password, $user->password)) {
+        if (! $user || $user->status !== 'pending_verification') {
             return null;
         }
+
+        $this->loginAttemptService->ensureIsNotLocked($guard, $email);
+
+        if (! Hash::check($password, $user->password)) {
+            return null;
+        }
+
+        $this->loginAttemptService->clear($guard, $email);
 
         return $user;
     }
 
     public function loginAdmin(string $email, string $password): PlatformAdmin
     {
+        $guard = 'platformadmin';
         $admin = $this->adminRepository->findByEmail($email);
 
-        if (! $admin || $admin->status !== 'active' || ! Hash::check($password, $admin->password)) {
+        if (! $admin) {
+            throw new EmailNotRegistered;
+        }
+
+        $this->loginAttemptService->ensureIsNotLocked($guard, $email);
+
+        if (! Hash::check($password, $admin->password)) {
+            $this->loginAttemptService->recordFailedPassword($guard, $email);
+
             throw new InvalidCredential(null);
         }
 
+        if ($admin->status !== 'active') {
+            throw new LoginNotAllowed;
+        }
+
+        $this->loginAttemptService->clear($guard, $email);
         Auth::guard('platformuser')->logout();
-        Auth::guard('platformadmin')->login($admin);
+        Auth::guard($guard)->login($admin);
 
         return $admin;
     }

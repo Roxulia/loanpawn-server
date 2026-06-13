@@ -12,17 +12,18 @@ use App\Exceptions\TenantNotFound;
 use App\Mail\PaymentRequestReviewedMail;
 use App\Models\PlatformModule\Tenant;
 use App\Repository\TenantRequestRepository;
+use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
 use App\Services\TableIdGenerationService;
 use App\Support\LogsServiceOperations;
 use App\Utility\FileStorageUtility;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
-class TenantRequestService
+class TenantRequestService extends BaseTenantService
 {
     use LogsServiceOperations;
 
@@ -120,7 +121,7 @@ class TenantRequestService
             $tenantRequest = $this->findOwnedTenantRequest($request->tenantRequestId, $platformUser->id);
 
             if ($tenantRequest->request_status !== self::STATUS_WAITING_PAYMENT) {
-                throw new InvalidTenantRequest(MessageCodes::$messages['eb022']);
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::InvalidStateForPaymentSubmission));
             }
             if ($tenantRequest->update_key !== $request->updateKey) {
                 throw new AlreadyUpdatedException('This Item is already updated.Please Refresh');
@@ -178,7 +179,7 @@ class TenantRequestService
             }
 
             if ($tenantRequest->request_status !== self::STATUS_PENDING_APPROVAL) {
-                throw new InvalidTenantRequest(MessageCodes::$messages['eb023']);
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::InvalidStateForRequestAccept));
             }
 
             $newKey = $tenantRequest->update_key + 1;
@@ -223,7 +224,7 @@ class TenantRequestService
             }
 
             if ($tenantRequest->request_status !== self::STATUS_PENDING_APPROVAL) {
-                throw new InvalidTenantRequest(MessageCodes::$messages['eb023']);
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::InvalidStateForRequestAccept));
             }
             $newKey = $tenantRequest->update_key + 1;
 
@@ -291,7 +292,7 @@ class TenantRequestService
         }
 
         if ($tenantRequest->platform_user_id !== $platformUserId) {
-            throw new TenantAccessDenied(MessageCodes::$messages['eb018']);
+            throw new TenantAccessDenied($this->responseMessage(MessageCode::NotTenantOwner));
         }
 
         return $tenantRequest;
@@ -302,7 +303,7 @@ class TenantRequestService
         $tenant = $this->tenantLookupService->findById($tenantId);
 
         if ($tenant->platform_user_id !== $platformUserId) {
-            throw new TenantAccessDenied(MessageCodes::$messages['eb018']);
+            throw new TenantAccessDenied($this->responseMessage(MessageCode::NotTenantOwner));
         }
 
         return $tenant;
@@ -325,14 +326,14 @@ class TenantRequestService
 
         if ($requestType === self::TYPE_UPGRADE) {
             if ($request->requestedPlanType == null || $request->requestedPlanType === 'trial') {
-                throw new InvalidTenantRequest(MessageCodes::$messages['eb019']);
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::InvalidPackageUpgrade));
             }
 
             $package = $this->packageService->findActiveByCode($request->requestedPlanType);
             $currentPlanType = $this->tenantLicenseService->getTenantLicense($tenant->id)->plan_type;
 
             if ($request->requestedPlanType === $currentPlanType) {
-                throw new InvalidTenantRequest(MessageCodes::$messages['eb019']);
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::SamePackageUpgrade));
             }
 
             if ($currentPlanType === 'premium' && $request->requestedPlanType === 'basic') {
@@ -355,7 +356,7 @@ class TenantRequestService
         $currentPlanType = $this->tenantLicenseService->getTenantLicense($tenant->id)->plan_type;
 
         if ($currentPlanType === 'trial') {
-            throw new InvalidTenantRequest(MessageCodes::$messages['eb021']);
+            throw new InvalidTenantRequest($this->responseMessage(MessageCode::UnsupportedPackageType));
         }
 
         $package = $this->packageService->findActiveByCode($currentPlanType);
@@ -372,7 +373,7 @@ class TenantRequestService
     protected function validateExtensionMonths(?int $extensionMonths): int
     {
         if ($extensionMonths === null || ! isset(config('pricing.extension_discounts', [])[$extensionMonths])) {
-            throw new InvalidTenantRequest(MessageCodes::$messages['eb020']);
+            throw new InvalidTenantRequest($this->responseMessage(MessageCode::ExtensionMonthRequired));
         }
 
         return $extensionMonths;

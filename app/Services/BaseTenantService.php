@@ -6,10 +6,24 @@ use App\Exceptions\TenantNotFound;
 use App\Models\PlatformModule\Tenant;
 use App\Support\LogsServiceOperations;
 use App\Support\TenantContext;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 
 abstract class BaseTenantService
 {
     use LogsServiceOperations;
+
+    protected ?Messages $message = null;
+
+    protected function messages(): Messages
+    {
+        return $this->message ??= app(Messages::class);
+    }
+
+    protected function responseMessage(MessageCode $code, array $params = []): string
+    {
+        return $this->messages()->responseMessage($code, $params);
+    }
 
     protected function resolveCurrentTenantId(): int
     {

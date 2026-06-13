@@ -13,6 +13,7 @@ use App\Services\TenantModule\TenantSsoService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Exceptions\ApiException;
 use App\Utility\MessageCode;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -179,8 +180,27 @@ class TenantManagementController extends Controller
         }
     }
 
-    public function openApp(int $tenant): RedirectResponse
+    public function openApp(Request $request, int $tenant): JsonResponse|RedirectResponse
     {
-        return redirect()->away($this->tenantSsoService->createRedirectUrl($tenant));
+        try {
+            $this->tenantLicenseService->ensureTenantCanOpenApp($tenant);
+            $redirectUrl = $this->tenantSsoService->createRedirectUrl($tenant);
+
+            if ($request->expectsJson()) {
+                return $this->successResponse(['redirect_url' => $redirectUrl]);
+            }
+
+            return redirect()->away($redirectUrl);
+        } catch (ApiException $exception) {
+            if ($request->expectsJson()) {
+                return $this->errorResponse(
+                    message: $exception->getMessage(),
+                    data: ['code' => $exception->errorCode()],
+                    statusCode: $exception->statusCode(),
+                );
+            }
+
+            return back()->with('error', $exception->getMessage());
+        }
     }
 }

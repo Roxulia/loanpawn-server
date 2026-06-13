@@ -2,10 +2,9 @@
 
 namespace App\Services\PlatformModule;
 
-use App\Exceptions\TenantAccessDenied;
+use App\Exceptions\TenantNotFound;
 use App\Models\PlatformModule\Tenant;
 use App\Repository\TenantRepository;
-use App\Utility\MessageCodes;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class PlatformTenantPageService
@@ -30,7 +29,7 @@ class PlatformTenantPageService
         $tenant = $this->tenantRepository->findByIdForPlatformUser($tenantId, $platformUser->id);
 
         if ($tenant === null) {
-            throw new TenantAccessDenied(MessageCodes::$messages['eb018']);
+            throw new TenantNotFound(null);
         }
 
         return $tenant;

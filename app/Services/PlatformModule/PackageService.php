@@ -3,16 +3,19 @@
 namespace App\Services\PlatformModule;
 
 use App\Exceptions\InvalidTenantRequest;
+use App\Exceptions\TenantNotFound;
 use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\PackageFeature;
 use App\Repository\PackageRepository;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Illuminate\Support\Collection;
 
 class PackageService
 {
     public function __construct(
-        private PackageRepository $repository
+        private PackageRepository $repository,
+        private Messages $messages
     ) {}
 
     public function findActiveByCode(string $code): Package
@@ -20,7 +23,7 @@ class PackageService
         $package = $this->repository->findActiveByCode($code);
 
         if (! $package) {
-            throw new InvalidTenantRequest(MessageCodes::$messages['eb019']);
+            throw new TenantNotFound($this->messages->responseMessage(MessageCode::PackageNotFound));
         }
 
         return $package;

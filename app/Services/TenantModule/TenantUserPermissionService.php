@@ -12,7 +12,7 @@ use App\Repository\TenantUserPermissionRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
 use App\Support\TenantPermissionColumns;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
 use Illuminate\Support\Facades\Auth;
 
 class TenantUserPermissionService extends BaseTenantService
@@ -73,7 +73,7 @@ class TenantUserPermissionService extends BaseTenantService
         $currentTenantUser = Auth::guard('tenantuser')->user();
 
         if (! $currentTenantUser instanceof TenantUser || $currentTenantUser->tenant_id !== $tenantId) {
-            throw new TenantUserAccessDenied(MessageCodes::$messages['eb026']);
+            throw new TenantUserAccessDenied($this->responseMessage(MessageCode::NotTenantUser));
         }
 
         $isSelfUpdate = $currentTenantUser->id === $targetUser->id;
@@ -89,11 +89,11 @@ class TenantUserPermissionService extends BaseTenantService
             || $request->password !== null;
 
         if ($updatesAdminFields && ! $hasAdminUpdate) {
-            throw new TenantUserAccessDenied(MessageCodes::$messages['eb026']);
+            throw new TenantUserAccessDenied(null);
         }
 
         if ($updatesProfileFields && ! $hasAllUpdate && ! $hasAdminUpdate && (! $isSelfUpdate || ! $hasOwnUpdate)) {
-            throw new TenantUserAccessDenied(MessageCodes::$messages['eb026']);
+            throw new TenantUserAccessDenied(null);
         }
 
         return $hasAdminUpdate;
@@ -349,7 +349,7 @@ class TenantUserPermissionService extends BaseTenantService
 
         foreach (TenantPermissionColumns::enabledFromModel($targetUser->role) as $rolePermission) {
             if (! $this->hasPermission($updater, $rolePermission)) {
-                throw new TenantUserAccessDenied(MessageCodes::$messages['eb026']);
+                throw new TenantUserAccessDenied(null);
             }
         }
     }

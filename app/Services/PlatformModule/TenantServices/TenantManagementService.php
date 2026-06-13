@@ -13,16 +13,17 @@ use App\Exceptions\TenantAccessDenied;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Repository\TenantRepository;
+use App\Services\BaseTenantService;
 use App\Services\PlatformModule\AuthService;
 use App\Services\PlatformModule\PlatformUserService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\TenantUserService;
-use App\Utility\MessageCodes;
+use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
-class TenantManagementService
+class TenantManagementService extends BaseTenantService
 {
     protected const TENANT_LIST_CACHE_TTL_SECONDS = 600;
 
@@ -174,7 +175,7 @@ class TenantManagementService
         $tenant = $this->tenantLookupService->findById($request->tenantId);
 
         if ($tenant->platform_user_id !== $platformUser->id) {
-            throw new TenantAccessDenied(MessageCodes::$messages['eb018']);
+            throw new TenantAccessDenied($this->responseMessage(MessageCode::NotTenantOwner));
         }
         if($tenant->update_key !== $request->updateKey)
         {
@@ -208,7 +209,7 @@ class TenantManagementService
         }
 
         if ($request->platformUserId == null) {
-            throw new RequiredValueMissing(MessageCodes::$messages['eb008']);
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::TenantOwnerRequired));
         }
 
         $platformUser = $this->platformUserService->findById($request->platformUserId);
@@ -222,7 +223,7 @@ class TenantManagementService
         }
 
         if ($request->planType == null) {
-            throw new RequiredValueMissing(MessageCodes::$messages['eb009']);
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::PlanTypeRequired));
         }
 
         return $request->planType;
@@ -235,7 +236,7 @@ class TenantManagementService
         }
 
         if ($request->status == null) {
-            throw new RequiredValueMissing(MessageCodes::$messages['eb010']);
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::TenantStatusRequired));
         }
 
         return $request->status;
@@ -251,7 +252,7 @@ class TenantManagementService
     {
         if ($request->createdByAdmin) {
             if ($request->code === null || trim($request->code) === '') {
-                throw new RequiredValueMissing(MessageCodes::$messages['eb008']);
+                throw new RequiredValueMissing($this->responseMessage(MessageCode::TenantCodeRequired));
             }
 
             $this->ensureTenantCodeIsAvailable($request->code);
@@ -300,7 +301,7 @@ class TenantManagementService
     protected function ensureTenantCodeIsAvailable(string $code): void
     {
         if ($this->repository->findByTenantCode($code) != null) {
-            throw new DuplicateValueFound(MessageCodes::$messages['eb011']);
+            throw new DuplicateValueFound($this->responseMessage(MessageCode::TenantCodeDuplicate));
         }
     }
 
@@ -311,7 +312,7 @@ class TenantManagementService
         }
 
         if ($this->repository->findBySubDomain($subdomain) != null) {
-            throw new DuplicateValueFound(MessageCodes::$messages['eb012']);
+            throw new DuplicateValueFound($this->responseMessage(MessageCode::SubdomainDuplicate));
         }
     }
 

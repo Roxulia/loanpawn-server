@@ -12,6 +12,6 @@ class TenantUserAccessDenied extends ApiException
 
     public function __construct(?string $message = null)
     {
-        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::ExceptionTenantUserAccessDenied));
+        parent::__construct($message ?? app(Messages::class)->responseMessage(MessageCode::NotEnoughPermission));
     }
 }

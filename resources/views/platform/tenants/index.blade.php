@@ -45,7 +45,7 @@
                             <td>{{ $tenant->contact ? __('app.platform.view.configured') : __('app.platform.view.missing') }}</td>
                             <td>
                                 <a href="{{ route('platform.tenants.edit', $tenant->id) }}" class="button secondary">{{ __('app.platform.view.settings') }}</a>
-                                <form method="POST" action="{{ route('platform.tenants.open-app', $tenant->id) }}" style="display:inline;">
+                                <form method="POST" action="{{ route('platform.tenants.open-app', $tenant->id) }}" style="display:inline;" data-open-app-form>
                                     @csrf
                                     <button type="submit" class="button secondary">{{ __('app.platform.view.open_app') }}</button>
                                 </form>
@@ -62,3 +62,46 @@
         @endif
     </section>
 @endsection
+
+@push('scripts')
+    <script>
+        document.querySelectorAll('[data-open-app-form]').forEach((form) => {
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const button = form.querySelector('button[type="submit"]');
+
+                if (button) {
+                    button.disabled = true;
+                }
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: form.method || 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                        body: new FormData(form),
+                    });
+                    const contentType = response.headers.get('content-type') || '';
+                    const payload = contentType.includes('application/json')
+                        ? await response.json()
+                        : null;
+
+                    if (response.ok && payload?.success && payload?.data?.redirect_url) {
+                        window.location.href = payload.data.redirect_url;
+                        return;
+                    }
+
+                    alert(payload?.message || 'Request failed.');
+                } catch (error) {
+                    alert('Request failed.');
+                } finally {
+                    if (button) {
+                        button.disabled = false;
+                    }
+                }
+            });
+        });
+    </script>
+@endpush
