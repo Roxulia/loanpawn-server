@@ -40,14 +40,14 @@
                 <tbody id="issued-ticket-table-body">
                 @foreach ($tickets as $ticket)
                     <tr data-ticket-id="{{ $ticket->id }}">
-                        <td data-field="updated">{{ $ticket->updated_at?->format('Y-m-d') ?? '-' }}</td>
-                        <td data-field="code">{{ $ticket->code }}</td>
-                        <td data-field="user">{{ $ticket->platformUser?->name ?? '-' }}</td>
-                        <td data-field="subject">{{ $ticket->subject }}</td>
-                        <td data-field="type">{{ __('app.support.view.types.'.$ticket->type) }}</td>
-                        <td><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
-                        <td data-field="messages">{{ $ticket->messages_count }}</td>
-                        <td>
+                        <td data-label="{{ __('app.common.view.labels.updated') }}" data-field="updated">{{ $ticket->updated_at?->format('Y-m-d') ?? '-' }}</td>
+                        <td data-label="{{ __('app.common.view.labels.code') }}" data-field="code">{{ $ticket->code }}</td>
+                        <td data-label="{{ __('app.common.view.labels.user') }}" data-field="user">{{ $ticket->platformUser?->name ?? '-' }}</td>
+                        <td data-label="{{ __('app.common.view.labels.subject') }}" data-field="subject">{{ $ticket->subject }}</td>
+                        <td data-label="{{ __('app.common.view.labels.type') }}" data-field="type">{{ __('app.support.view.types.'.$ticket->type) }}</td>
+                        <td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
+                        <td data-label="{{ __('app.support.view.messages') }}" data-field="messages">{{ $ticket->messages_count }}</td>
+                        <td data-label="">
                             <a href="{{ route('admin.issued-tickets.show', $ticket->code) }}" class="button secondary" data-field="detail">{{ __('app.common.view.actions.view') }}</a>
                         </td>
                     </tr>

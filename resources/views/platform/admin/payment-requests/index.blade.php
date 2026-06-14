@@ -31,19 +31,19 @@
                     <tbody>
                     @foreach ($payments as $payment)
                         <tr>
-                            <td>{{ $payment->submitted_at?->format('Y-m-d') ?? '-' }}</td>
-                            <td>{{ $payment->platformUser?->name ?? '-' }}</td>
-                            <td>{{ $payment->tenant?->name ?? '-' }}</td>
-                            <td>
+                            <td data-label="Submitted">{{ $payment->submitted_at?->format('Y-m-d') ?? '-' }}</td>
+                            <td data-label="User">{{ $payment->platformUser?->name ?? '-' }}</td>
+                            <td data-label="Tenant">{{ $payment->tenant?->name ?? '-' }}</td>
+                            <td data-label="Request">
                                 {{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}
                                 @if ($payment->tenantRequest?->extension_months)
                                     <span class="muted">({{ $payment->tenantRequest->extension_months }} mo)</span>
                                 @endif
                             </td>
-                            <td>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
-                            <td>{{ $payment->payment_reference ?? '-' }}</td>
-                            <td>{{ $payment->attachments->count() }}</td>
-                            <td>
+                            <td data-label="Amount">{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
+                            <td data-label="Reference">{{ $payment->payment_reference ?? '-' }}</td>
+                            <td data-label="Attachments">{{ $payment->attachments->count() }}</td>
+                            <td data-label="">
                                 <a href="{{ route('admin.payment-requests.show', $payment->id) }}" class="button secondary">View</a>
                             </td>
                         </tr>

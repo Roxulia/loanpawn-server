@@ -5,6 +5,23 @@
 @section('pageDescription', __('app.billing.view.billing_management_description'))
 
 @section('content')
+    <style>
+        .platform-dialog {
+            position: fixed;
+            inset: 50% auto auto 50%;
+            transform: translate(-50%, -50%);
+            margin: 0;
+        }
+
+        .dialog-close.icon-only {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            font-size: 24px;
+            line-height: 1;
+        }
+    </style>
+
     <section class="grid kpi">
         <div class="panel">
             <p class="metric-label">{{ __('app.billing.view.pending_requests') }}</p>
@@ -34,6 +51,7 @@
             </div>
         @else
             <div class="table-wrap">
+                <h2 style="margin: 0 0 12px; color: var(--color-heading); font-size: 20px;">{{ __('app.platform.view.billing_management') }}</h2>
                 <table>
                     <thead>
                     <tr>
@@ -51,20 +69,20 @@
                     <tbody>
                     @foreach ($billing['payments'] as $payment)
                         <tr>
-                            <td>{{ $payment->submitted_at?->format('Y-m-d') ?? '-' }}</td>
-                            <td>{{ $payment->tenant?->name ?? '-' }}</td>
-                            <td>
+                            <td data-label="{{ __('app.common.view.labels.submitted') }}">{{ $payment->submitted_at?->format('Y-m-d') ?? '-' }}</td>
+                            <td data-label="{{ __('app.common.view.labels.tenant') }}">{{ $payment->tenant?->name ?? '-' }}</td>
+                            <td data-label="{{ __('app.common.view.labels.request') }}">
                                 {{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}
                                 @if ($payment->tenantRequest?->extension_months)
                                     <span class="muted">({{ $payment->tenantRequest->extension_months }} mo)</span>
                                 @endif
                             </td>
-                            <td>{{ $payment->payment_reference ?? '-' }}</td>
-                            <td>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
-                            <td><span class="badge">{{ $payment->status }}</span></td>
-                            <td><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td>
-                            <td>{{ $payment->reviewed_at?->format('Y-m-d') ?? '-' }}</td>
-                            <td>
+                            <td data-label="{{ __('app.billing.view.reference') }}">{{ $payment->payment_reference ?? '-' }}</td>
+                            <td data-label="{{ __('app.common.view.labels.amount') }}">{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
+                            <td data-label="{{ __('app.billing.view.payment_status') }}"><span class="badge">{{ $payment->status }}</span></td>
+                            <td data-label="{{ __('app.billing.view.request_status') }}"><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td>
+                            <td data-label="{{ __('app.common.view.labels.reviewed') }}">{{ $payment->reviewed_at?->format('Y-m-d') ?? '-' }}</td>
+                            <td data-label="{{ __('app.billing.view.attachment') }}">
                                 @if ($payment->status === 'draft' && $payment->tenant_request_id)
                                     <button type="button" class="button secondary" data-open-dialog="payment-dialog-{{ $payment->id }}">{{ __('app.billing.view.submit_attachment') }}</button>
                                 @else
@@ -91,7 +109,7 @@
                     <input type="hidden" name="update_key" value="{{ $payment->tenantRequest->update_key }}">
                     <div class="dialog-header">
                         <h2>{{ __('app.billing.view.submit_payment_attachment') }}</h2>
-                        <button type="button" class="dialog-close" data-close-dialog="payment-dialog-{{ $payment->id }}">{{ __('app.common.view.actions.close') }}</button>
+                        <button type="button" class="dialog-close icon-only" data-close-dialog="payment-dialog-{{ $payment->id }}" aria-label="{{ __('app.common.view.actions.close') }}">&times;</button>
                     </div>
                     <div class="grid">
                         <div>

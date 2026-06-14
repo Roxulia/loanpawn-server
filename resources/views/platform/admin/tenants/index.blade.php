@@ -31,14 +31,14 @@
                     <tbody>
                     @foreach ($tenants as $tenant)
                         <tr>
-                            <td>{{ $tenant->name }}</td>
-                            <td>{{ $tenant->owner?->name ?? '-' }}</td>
-                            <td>{{ $tenant->tenant_code }}</td>
-                            <td>{{ $tenant->subdomain ?? '-' }}</td>
-                            <td>{{ $tenant->license?->plan_type ?? '-' }}</td>
-                            <td><span class="badge">{{ $tenant->license?->status ?? '-' }}</span></td>
-                            <td>{{ $tenant->license?->expires_at?->format('Y-m-d') ?? '-' }}</td>
-                            <td><span class="badge">{{ $tenant->status }}</span></td>
+                            <td data-label="Name">{{ $tenant->name }}</td>
+                            <td data-label="Owner">{{ $tenant->owner?->name ?? '-' }}</td>
+                            <td data-label="Code">{{ $tenant->tenant_code }}</td>
+                            <td data-label="Subdomain">{{ $tenant->subdomain ?? '-' }}</td>
+                            <td data-label="Plan">{{ $tenant->license?->plan_type ?? '-' }}</td>
+                            <td data-label="License"><span class="badge">{{ $tenant->license?->status ?? '-' }}</span></td>
+                            <td data-label="Expires">{{ $tenant->license?->expires_at?->format('Y-m-d') ?? '-' }}</td>
+                            <td data-label="Status"><span class="badge">{{ $tenant->status }}</span></td>
                         </tr>
                     @endforeach
                     </tbody>

@@ -15,13 +15,13 @@
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
-                    <tr><th>Submitted</th><td>{{ $payment->submitted_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>User</th><td>{{ $payment->platformUser?->name ?? '-' }} ({{ $payment->platformUser?->email ?? '-' }})</td></tr>
-                    <tr><th>Tenant</th><td>{{ $payment->tenant?->name ?? '-' }}</td></tr>
-                    <tr><th>Amount</th><td>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td></tr>
-                    <tr><th>Reference</th><td>{{ $payment->payment_reference ?? '-' }}</td></tr>
-                    <tr><th>Payment Status</th><td><span class="badge">{{ $payment->status }}</span></td></tr>
-                    <tr><th>Note</th><td>{{ $payment->note ?? '-' }}</td></tr>
+                    <tr><th>Submitted</th><td data-label="Submitted">{{ $payment->submitted_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>User</th><td data-label="User">{{ $payment->platformUser?->name ?? '-' }} ({{ $payment->platformUser?->email ?? '-' }})</td></tr>
+                    <tr><th>Tenant</th><td data-label="Tenant">{{ $payment->tenant?->name ?? '-' }}</td></tr>
+                    <tr><th>Amount</th><td data-label="Amount">{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td></tr>
+                    <tr><th>Reference</th><td data-label="Reference">{{ $payment->payment_reference ?? '-' }}</td></tr>
+                    <tr><th>Payment Status</th><td data-label="Payment Status"><span class="badge">{{ $payment->status }}</span></td></tr>
+                    <tr><th>Note</th><td data-label="Note">{{ $payment->note ?? '-' }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -32,12 +32,12 @@
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
-                    <tr><th>Type</th><td>{{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}</td></tr>
-                    <tr><th>Requested Plan</th><td>{{ $payment->tenantRequest?->requested_plan_type ?? '-' }}</td></tr>
-                    <tr><th>Extension</th><td>{{ $payment->tenantRequest?->extension_months ? $payment->tenantRequest->extension_months.' months' : '-' }}</td></tr>
-                    <tr><th>Request Status</th><td><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td></tr>
-                    <tr><th>Current Plan</th><td>{{ $payment->tenant?->license?->plan_type ?? '-' }}</td></tr>
-                    <tr><th>Current Expiry</th><td>{{ $payment->tenant?->license?->expires_at?->format('Y-m-d') ?? '-' }}</td></tr>
+                    <tr><th>Type</th><td data-label="Type">{{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}</td></tr>
+                    <tr><th>Requested Plan</th><td data-label="Requested Plan">{{ $payment->tenantRequest?->requested_plan_type ?? '-' }}</td></tr>
+                    <tr><th>Extension</th><td data-label="Extension">{{ $payment->tenantRequest?->extension_months ? $payment->tenantRequest->extension_months.' months' : '-' }}</td></tr>
+                    <tr><th>Request Status</th><td data-label="Request Status"><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td></tr>
+                    <tr><th>Current Plan</th><td data-label="Current Plan">{{ $payment->tenant?->license?->plan_type ?? '-' }}</td></tr>
+                    <tr><th>Current Expiry</th><td data-label="Current Expiry">{{ $payment->tenant?->license?->expires_at?->format('Y-m-d') ?? '-' }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -61,13 +61,13 @@
                     <tbody>
                     @foreach ($payment->attachments as $attachment)
                         <tr>
-                            <td>
+                            <td data-label="File">
                                 <a href="{{ asset('storage/'.$attachment->file_path) }}" target="_blank" rel="noopener">
                                     {{ $attachment->file_path }}
                                 </a>
                             </td>
-                            <td>{{ $attachment->file_type }}</td>
-                            <td>{{ $attachment->created_at?->format('Y-m-d H:i') ?? '-' }}</td>
+                            <td data-label="Type">{{ $attachment->file_type }}</td>
+                            <td data-label="Uploaded">{{ $attachment->created_at?->format('Y-m-d H:i') ?? '-' }}</td>
                         </tr>
                     @endforeach
                     </tbody>

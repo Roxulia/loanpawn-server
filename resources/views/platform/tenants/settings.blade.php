@@ -5,6 +5,23 @@
 @section('pageDescription', 'Update tenant profile, branding colors, slip text, and business contact settings.')
 
 @section('content')
+    <style>
+        .platform-dialog {
+            position: fixed;
+            inset: 50% auto auto 50%;
+            transform: translate(-50%, -50%);
+            margin: 0;
+        }
+
+        .dialog-close.icon-only {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            font-size: 24px;
+            line-height: 1;
+        }
+    </style>
+
     @php
         $currentPlan = $tenant->license?->plan_type ?? 'trial';
         $canExtendLicense = $currentPlan !== 'trial';
@@ -48,6 +65,17 @@
                 <div>
                     <label>License</label>
                     <input value="{{ $tenant->license?->plan_type ?? 'trial' }} / {{ $tenant->license?->status ?? $tenant->status }}" disabled>
+                </div>
+                <div>
+                    <label>Plan Request</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        @if ($planOptions->isNotEmpty())
+                            <button type="button" class="button primary" data-open-dialog="upgrade-request-dialog">Change Plan</button>
+                        @endif
+                        @if ($canExtendLicense && ! $scheduledPlanTransition)
+                            <button type="button" class="button secondary" data-open-dialog="extension-request-dialog">License Extension</button>
+                        @endif
+                    </div>
                 </div>
                 <div style="grid-column: 1 / -1;">
                     <label>License Key</label>
@@ -127,26 +155,13 @@
         </div>
     </form>
 
-    <section class="panel" style="margin-top: 16px;">
-        <h2 style="margin-top: 0; color: var(--color-heading); font-size: 20px;">Plan Requests</h2>
-        <p class="muted" style="margin-top: 0;">Create an upgrade or license extension request, then submit payment evidence in Billing Management.</p>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            @if ($planOptions->isNotEmpty())
-                <button type="button" class="button primary" data-open-dialog="upgrade-request-dialog">Change Plan</button>
-            @endif
-            @if ($canExtendLicense && ! $scheduledPlanTransition)
-                <button type="button" class="button secondary" data-open-dialog="extension-request-dialog">License Extension</button>
-            @endif
-        </div>
-    </section>
-
     @if ($planOptions->isNotEmpty())
     <dialog class="platform-dialog" id="upgrade-request-dialog">
         <form method="POST" action="{{ route('platform.tenants.upgrade-request', $tenant->id) }}">
             @csrf
             <div class="dialog-header">
                 <h2>Change Plan</h2>
-                <button type="button" class="dialog-close" data-close-dialog="upgrade-request-dialog">Close</button>
+                <button type="button" class="dialog-close icon-only" data-close-dialog="upgrade-request-dialog" aria-label="{{ __('app.common.view.actions.close') }}">&times;</button>
             </div>
             <div class="grid">
                 <div>
@@ -200,7 +215,7 @@
                 @csrf
                 <div class="dialog-header">
                     <h2>License Extension</h2>
-                    <button type="button" class="dialog-close" data-close-dialog="extension-request-dialog">Close</button>
+                    <button type="button" class="dialog-close icon-only" data-close-dialog="extension-request-dialog" aria-label="{{ __('app.common.view.actions.close') }}">&times;</button>
                 </div>
                 <div class="grid">
                     <div>

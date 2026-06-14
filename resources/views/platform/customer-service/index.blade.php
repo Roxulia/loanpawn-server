@@ -30,6 +30,7 @@
             data-table-wrap-id="customer-service-table-wrap"
             data-empty-state-id="customer-service-empty-state"
         >
+            <h2 style="margin: 0 0 12px; color: var(--color-heading); font-size: 20px;">{{ __('app.platform.view.customer_service') }}</h2>
             <table>
                 <thead>
                 <tr>
@@ -45,18 +46,18 @@
                 <tbody id="customer-service-table-body">
                 @foreach ($tickets as $ticket)
                     <tr data-ticket-id="{{ $ticket->id }}">
-                        <td data-field="created">{{ $ticket->created_at?->format('Y-m-d') ?? '-' }}</td>
-                        <td data-field="code">{{ $ticket->code }}</td>
-                        <td data-field="subject">
+                        <td data-label="{{ __('app.common.view.labels.created') }}" data-field="created">{{ $ticket->created_at?->format('Y-m-d') ?? '-' }}</td>
+                        <td data-label="{{ __('app.common.view.labels.code') }}" data-field="code">{{ $ticket->code }}</td>
+                        <td data-label="{{ __('app.common.view.labels.subject') }}" data-field="subject">
                             {{ $ticket->subject }}
                             <span class="ticket-unread-badge" data-field="unread" @if ((int) $ticket->user_unread_replies_count === 0) hidden @endif>
                                 {{ $ticket->user_unread_replies_count }}
                             </span>
                         </td>
-                        <td data-field="type">{{ __('app.support.view.types.'.$ticket->type) }}</td>
-                        <td><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
-                        <td data-field="messages">{{ $ticket->messages_count }}</td>
-                        <td>
+                        <td data-label="{{ __('app.common.view.labels.type') }}" data-field="type">{{ __('app.support.view.types.'.$ticket->type) }}</td>
+                        <td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge" data-field="status">{{ $ticket->status }}</span></td>
+                        <td data-label="{{ __('app.support.view.messages') }}" data-field="messages">{{ $ticket->messages_count }}</td>
+                        <td data-label="">
                             <a href="{{ route('platform.customer-service.show', $ticket->code) }}" class="button secondary" data-field="detail">{{ __('app.common.view.actions.view') }}</a>
                         </td>
                     </tr>

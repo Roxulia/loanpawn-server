@@ -50,14 +50,14 @@
                     <tbody>
                     @foreach ($billing['payments'] as $payment)
                         <tr>
-                            <td>{{ $payment->submitted_at?->format('Y-m-d') ?? '-' }}</td>
-                            <td>{{ $payment->platformUser?->name ?? '-' }}</td>
-                            <td>{{ $payment->tenant?->name ?? '-' }}</td>
-                            <td>{{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}</td>
-                            <td>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
-                            <td><span class="badge">{{ $payment->status }}</span></td>
-                            <td><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td>
-                            <td>{{ $payment->reviewed_at?->format('Y-m-d') ?? '-' }}</td>
+                            <td data-label="Submitted">{{ $payment->submitted_at?->format('Y-m-d') ?? '-' }}</td>
+                            <td data-label="User">{{ $payment->platformUser?->name ?? '-' }}</td>
+                            <td data-label="Tenant">{{ $payment->tenant?->name ?? '-' }}</td>
+                            <td data-label="Request">{{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}</td>
+                            <td data-label="Amount">{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
+                            <td data-label="Payment"><span class="badge">{{ $payment->status }}</span></td>
+                            <td data-label="Request"><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td>
+                            <td data-label="Reviewed">{{ $payment->reviewed_at?->format('Y-m-d') ?? '-' }}</td>
                         </tr>
                     @endforeach
                     </tbody>

@@ -58,10 +58,10 @@
                         <tbody>
                         @foreach ($summary['top_tenants'] as $tenant)
                             <tr>
-                                <td>{{ $tenant->name }}</td>
-                                <td>{{ $tenant->license?->plan_type ?? 'trial' }}</td>
-                                <td>{{ $tenant->settings_count }}</td>
-                                <td><span class="badge">{{ $tenant->status }}</span></td>
+                                <td data-label="{{ __('app.common.view.labels.tenant') }}">{{ $tenant->name }}</td>
+                                <td data-label="{{ __('app.common.view.labels.plan') }}">{{ $tenant->license?->plan_type ?? 'trial' }}</td>
+                                <td data-label="{{ __('app.platform.view.settings') }}">{{ $tenant->settings_count }}</td>
+                                <td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge">{{ $tenant->status }}</span></td>
                             </tr>
                         @endforeach
                         </tbody>

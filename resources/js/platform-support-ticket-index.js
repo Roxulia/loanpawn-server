@@ -33,26 +33,26 @@ function unreadBadge(ticket) {
 
 function customerRowHtml(ticket) {
     return `
-        <td data-field="created">${escapeHtml(ticket.createdAt)}</td>
-        <td data-field="code">${escapeHtml(ticket.code)}</td>
-        <td data-field="subject">${escapeHtml(ticket.subject)} ${unreadBadge(ticket)}</td>
-        <td data-field="type">${escapeHtml(ticket.typeLabel)}</td>
-        <td><span class="badge" data-field="status">${escapeHtml(ticket.status)}</span></td>
-        <td data-field="messages">${escapeHtml(ticket.messagesCount)}</td>
-        <td><a href="${escapeHtml(ticket.userDetailUrl)}" class="button secondary" data-field="detail">View</a></td>
+        <td data-label="Created" data-field="created">${escapeHtml(ticket.createdAt)}</td>
+        <td data-label="Code" data-field="code">${escapeHtml(ticket.code)}</td>
+        <td data-label="Subject" data-field="subject">${escapeHtml(ticket.subject)} ${unreadBadge(ticket)}</td>
+        <td data-label="Type" data-field="type">${escapeHtml(ticket.typeLabel)}</td>
+        <td data-label="Status"><span class="badge" data-field="status">${escapeHtml(ticket.status)}</span></td>
+        <td data-label="Messages" data-field="messages">${escapeHtml(ticket.messagesCount)}</td>
+        <td data-label=""><a href="${escapeHtml(ticket.userDetailUrl)}" class="button secondary" data-field="detail">View</a></td>
     `;
 }
 
 function adminRowHtml(ticket) {
     return `
-        <td data-field="updated">${escapeHtml(ticket.updatedAt)}</td>
-        <td data-field="code">${escapeHtml(ticket.code)}</td>
-        <td data-field="user">${escapeHtml(ticket.userName)}</td>
-        <td data-field="subject">${escapeHtml(ticket.subject)}</td>
-        <td data-field="type">${escapeHtml(ticket.typeLabel)}</td>
-        <td><span class="badge" data-field="status">${escapeHtml(ticket.status)}</span></td>
-        <td data-field="messages">${escapeHtml(ticket.messagesCount)}</td>
-        <td><a href="${escapeHtml(ticket.adminDetailUrl)}" class="button secondary" data-field="detail">View</a></td>
+        <td data-label="Updated" data-field="updated">${escapeHtml(ticket.updatedAt)}</td>
+        <td data-label="Code" data-field="code">${escapeHtml(ticket.code)}</td>
+        <td data-label="User" data-field="user">${escapeHtml(ticket.userName)}</td>
+        <td data-label="Subject" data-field="subject">${escapeHtml(ticket.subject)}</td>
+        <td data-label="Type" data-field="type">${escapeHtml(ticket.typeLabel)}</td>
+        <td data-label="Status"><span class="badge" data-field="status">${escapeHtml(ticket.status)}</span></td>
+        <td data-label="Messages" data-field="messages">${escapeHtml(ticket.messagesCount)}</td>
+        <td data-label=""><a href="${escapeHtml(ticket.adminDetailUrl)}" class="button secondary" data-field="detail">View</a></td>
     `;
 }
 

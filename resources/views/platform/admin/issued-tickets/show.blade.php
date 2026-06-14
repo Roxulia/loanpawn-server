@@ -15,12 +15,12 @@
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
-                    <tr><th>{{ __('app.common.view.labels.code') }}</th><td>{{ $ticket->code }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.type') }}</th><td>{{ __('app.support.view.types.'.$ticket->type) }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.status') }}</th><td><span class="badge" data-ticket-status>{{ $ticket->status }}</span></td></tr>
-                    <tr><th>{{ __('app.common.view.labels.created') }}</th><td>{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.support.view.opened') }}</th><td>{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.support.view.resolved') }}</th><td>{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.code') }}</th><td data-label="{{ __('app.common.view.labels.code') }}">{{ $ticket->code }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.type') }}</th><td data-label="{{ __('app.common.view.labels.type') }}">{{ __('app.support.view.types.'.$ticket->type) }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.status') }}</th><td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge" data-ticket-status>{{ $ticket->status }}</span></td></tr>
+                    <tr><th>{{ __('app.common.view.labels.created') }}</th><td data-label="{{ __('app.common.view.labels.created') }}">{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.support.view.opened') }}</th><td data-label="{{ __('app.support.view.opened') }}">{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.support.view.resolved') }}</th><td data-label="{{ __('app.support.view.resolved') }}">{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -31,10 +31,10 @@
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
-                    <tr><th>{{ __('app.common.view.labels.name') }}</th><td>{{ $ticket->platformUser?->name ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.email') }}</th><td>{{ $ticket->platformUser?->email ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.phone') }}</th><td>{{ $ticket->platformUser?->phone ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.support.view.user_code') }}</th><td>{{ $ticket->platformUser?->code ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.name') }}</th><td data-label="{{ __('app.common.view.labels.name') }}">{{ $ticket->platformUser?->name ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.email') }}</th><td data-label="{{ __('app.common.view.labels.email') }}">{{ $ticket->platformUser?->email ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.common.view.labels.phone') }}</th><td data-label="{{ __('app.common.view.labels.phone') }}">{{ $ticket->platformUser?->phone ?? '-' }}</td></tr>
+                    <tr><th>{{ __('app.support.view.user_code') }}</th><td data-label="{{ __('app.support.view.user_code') }}">{{ $ticket->platformUser?->code ?? '-' }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -87,8 +87,8 @@
                             <tbody>
                             @foreach ($threadMessage->attachments as $attachment)
                                 <tr>
-                                    <td><a href="{{ asset('storage/'.$attachment->file_path) }}" target="_blank" rel="noopener">{{ $attachment->original_name ?? $attachment->file_path }}</a></td>
-                                    <td>{{ $attachment->file_type ?? '-' }}</td>
+                                    <td data-label="{{ __('app.billing.view.attachment') }}"><a href="{{ asset('storage/'.$attachment->file_path) }}" target="_blank" rel="noopener">{{ $attachment->original_name ?? $attachment->file_path }}</a></td>
+                                    <td data-label="{{ __('app.common.view.labels.type') }}">{{ $attachment->file_type ?? '-' }}</td>
                                 </tr>
                             @endforeach
                             </tbody>

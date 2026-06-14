@@ -18,8 +18,8 @@ function attachmentsHtml(attachments) {
     const rows = attachments.map(function (attachment) {
         return `
             <tr>
-                <td><a href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">${escapeHtml(attachment.name)}</a></td>
-                <td>${escapeHtml(attachment.type)}</td>
+                <td data-label="Attachment"><a href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">${escapeHtml(attachment.name)}</a></td>
+                <td data-label="Type">${escapeHtml(attachment.type)}</td>
             </tr>
         `;
     }).join('');

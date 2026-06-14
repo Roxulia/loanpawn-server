@@ -123,6 +123,12 @@
         }
         .platform-dialog {
             width: min(640px, calc(100vw - 32px));
+            max-height: calc(100vh - 24px);
+            overflow-y: auto;
+            position: fixed;
+            inset: 50% auto auto 50%;
+            transform: translate(-50%, -50%);
+            margin: 0;
             border: 1px solid var(--color-border);
             border-radius: 8px;
             padding: 20px;
@@ -145,17 +151,25 @@
             font-size: 20px;
         }
         .dialog-close {
-            border: 0;
-            background: transparent;
-            color: var(--color-text-muted);
+            width: 38px;
+            height: 38px;
+            border: 1px solid var(--color-border-strong);
+            border-radius: 8px;
+            padding: 0;
+            background: var(--color-surface);
+            color: var(--color-heading);
             cursor: pointer;
-            font: inherit;
-            font-weight: 800;
+            font-size: 24px;
+            line-height: 1;
         }
         @media (max-width: 640px) {
             .section-heading,
             .flag-row {
                 display: grid;
+            }
+            .flag-actions,
+            .flag-actions .button {
+                width: 100%;
             }
             .switch {
                 justify-self: start;
@@ -289,7 +303,7 @@
             @csrf
             <div class="dialog-header">
                 <h2>Add Feature</h2>
-                <button type="button" class="dialog-close" data-close-dialog="add-feature-dialog">Close</button>
+                <button type="button" class="dialog-close" data-close-dialog="add-feature-dialog" aria-label="Close">&times;</button>
             </div>
             <div class="form-grid">
                 <div>

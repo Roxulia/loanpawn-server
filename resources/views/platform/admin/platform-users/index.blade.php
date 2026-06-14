@@ -35,14 +35,14 @@
                     <tbody>
                     @foreach ($platformUsers as $platformUser)
                         <tr>
-                            <td>{{ $platformUser->name }}</td>
-                            <td>{{ $platformUser->code ?? '-' }}</td>
-                            <td>{{ $platformUser->email }}</td>
-                            <td>{{ $platformUser->phone ?? '-' }}</td>
-                            <td><span class="badge">{{ $platformUser->status }}</span></td>
-                            <td>{{ $platformUser->tenants_count }}</td>
-                            <td>{{ $platformUser->tenant_requests_count }}</td>
-                            <td>
+                            <td data-label="Name">{{ $platformUser->name }}</td>
+                            <td data-label="Code">{{ $platformUser->code ?? '-' }}</td>
+                            <td data-label="Email">{{ $platformUser->email }}</td>
+                            <td data-label="Phone">{{ $platformUser->phone ?? '-' }}</td>
+                            <td data-label="Status"><span class="badge">{{ $platformUser->status }}</span></td>
+                            <td data-label="Tenants">{{ $platformUser->tenants_count }}</td>
+                            <td data-label="Requests">{{ $platformUser->tenant_requests_count }}</td>
+                            <td data-label="">
                                 <div class="action-row">
                                     <a href="{{ route('admin.platform-users.edit', $platformUser->id) }}" class="button secondary">Edit</a>
                                     <form method="POST" action="{{ route('admin.platform-users.destroy', $platformUser->id) }}">
