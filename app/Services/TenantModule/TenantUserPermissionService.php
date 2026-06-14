@@ -195,6 +195,11 @@ class TenantUserPermissionService extends BaseTenantService
         $this->authorizeTenantPermission('list_accounting');
     }
 
+    public function authorizeDashboardRead(): void
+    {
+        $this->authorizeTenantPermission('dashboard');
+    }
+
     public function authorizeExpenseList(): void
     {
         $this->authorizeTenantPermission('list_expense');

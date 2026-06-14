@@ -58,6 +58,10 @@ return [
             'name' => 'Master data management',
             'description' => 'Create and remove tenant material, interest, and expense types.',
         ],
+        'dashboard' => [
+            'name' => 'Summary Dashboard',
+            'description' => 'View Detailed Summary in Dashboard'
+        ]
     ],
 
     'packages' => [

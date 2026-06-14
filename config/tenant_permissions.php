@@ -2,6 +2,7 @@
 
 return [
     'codes' => [
+        'dashboard' => 'Allows viewing the tenant dashboard summary.',
         'access_all' => 'Full tenant access.',
         'list_user' => 'Allows viewing the tenant user list.',
         'create_user' => 'Allows creating tenant users.',
@@ -35,7 +36,7 @@ return [
         'Owner' => [
             'description' => 'Tenant owner role with full access to tenant user management.',
             'is_default' => true,
-            'permissions' => ['access_all'],
+            'permissions' => ['dashboard', 'access_all'],
         ],
         'Admin' => [
             'description' => 'Tenant administrator role with full access to tenant user management.',

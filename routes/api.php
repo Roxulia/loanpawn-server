@@ -12,6 +12,7 @@ use App\Http\Controllers\TenantModule\OnlineSyncController;
 use App\Http\Controllers\TenantModule\TenantAccountingController;
 use App\Http\Controllers\TenantModule\TenantBrandingController;
 use App\Http\Controllers\TenantModule\TenantCustomerController;
+use App\Http\Controllers\TenantModule\TenantDashboardController;
 use App\Http\Controllers\TenantModule\TenantDebtController;
 use App\Http\Controllers\TenantModule\TenantExpenseController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
@@ -50,161 +51,190 @@ Route::prefix('tenant')->group(function () {
             Route::post('online-sync', [OnlineSyncController::class, 'push'])
                 ->middleware('tenant.feature:online_sync')
                 ->middleware('throttle:online-sync');
-            Route::get('users', [TenantUserController::class, 'index'])
+            Route::prefix('dashboard')
+                ->middleware('tenant.feature:dashboard')
+                ->group(function () {
+                    Route::get('summary', [TenantDashboardController::class, 'summary'])
+                        ->middleware('tenant.permission:dashboard');
+                });
+
+            Route::prefix('users')
                 ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:list_user');
-            Route::post('users', [TenantUserController::class, 'store'])
-                ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:create_user');
-            Route::get('users/{tenantUserCode}', [TenantUserController::class, 'show'])
-                ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:list_user');
-            Route::put('users/{tenantUserCode}', [TenantUserController::class, 'update'])
-                ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:update_user_admin,update_user_all,update_user_own');
-            Route::put('users/{tenantUserCode}/permissions', [TenantUserController::class, 'updatePermissions'])
-                ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:update_user_admin');
-            Route::put('users/{tenantUserCode}/reset-to-defaultpassword', [TenantUserController::class, 'resetPasswordToDefault'])
-                ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:update_user_admin,update_user_all');
-            Route::delete('users/{tenantUserCode}', [TenantUserController::class, 'destroy'])
-                ->middleware('tenant.feature:tenant_user_management')
-                ->middleware('tenant.permission:delete_user');
-            Route::get('customers', [TenantCustomerController::class, 'index'])
+                ->group(function () {
+                    Route::get('/', [TenantUserController::class, 'index'])
+                        ->middleware('tenant.permission:list_user');
+                    Route::post('/', [TenantUserController::class, 'store'])
+                        ->middleware('tenant.permission:create_user');
+                    Route::get('{tenantUserCode}', [TenantUserController::class, 'show'])
+                        ->middleware('tenant.permission:list_user');
+                    Route::put('{tenantUserCode}', [TenantUserController::class, 'update'])
+                        ->middleware('tenant.permission:update_user_admin,update_user_all,update_user_own');
+                    Route::put('{tenantUserCode}/permissions', [TenantUserController::class, 'updatePermissions'])
+                        ->middleware('tenant.permission:update_user_admin');
+                    Route::put('{tenantUserCode}/reset-to-defaultpassword', [TenantUserController::class, 'resetPasswordToDefault'])
+                        ->middleware('tenant.permission:update_user_admin,update_user_all');
+                    Route::delete('{tenantUserCode}', [TenantUserController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_user');
+                });
+
+            Route::prefix('customers')
                 ->middleware('tenant.feature:customer_management')
-                ->middleware('tenant.permission:list_customer');
-            Route::post('customers', [TenantCustomerController::class, 'store'])
-                ->middleware('tenant.feature:customer_management')
-                ->middleware('tenant.permission:create_customer');
-            Route::get('customers/{tenantCustomerCode}', [TenantCustomerController::class, 'show'])
-                ->middleware('tenant.feature:customer_management')
-                ->middleware('tenant.permission:list_customer');
-            Route::put('customers/{tenantCustomerCode}', [TenantCustomerController::class, 'update'])
-                ->middleware('tenant.feature:customer_management')
-                ->middleware('tenant.permission:update_customer');
-            Route::delete('customers/{tenantCustomerCode}', [TenantCustomerController::class, 'destroy'])
-                ->middleware('tenant.feature:customer_management')
-                ->middleware('tenant.permission:delete_customer');
-            Route::get('collateral-items', [CollateralItemController::class, 'index'])
+                ->group(function () {
+                    Route::get('/', [TenantCustomerController::class, 'index'])
+                        ->middleware('tenant.permission:list_customer');
+                    Route::post('/', [TenantCustomerController::class, 'store'])
+                        ->middleware('tenant.permission:create_customer');
+                    Route::get('{tenantCustomerCode}', [TenantCustomerController::class, 'show'])
+                        ->middleware('tenant.permission:list_customer');
+                    Route::put('{tenantCustomerCode}', [TenantCustomerController::class, 'update'])
+                        ->middleware('tenant.permission:update_customer');
+                    Route::delete('{tenantCustomerCode}', [TenantCustomerController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_customer');
+                });
+
+            Route::prefix('collateral-items')
                 ->middleware('tenant.feature:collateral_management')
-                ->middleware('tenant.permission:list_collateral');
-            Route::get('collateral-items/{itemCode}', [CollateralItemController::class, 'show'])
-                ->middleware('tenant.feature:collateral_management')
-                ->middleware('tenant.permission:list_collateral');
-            Route::delete('collateral-items/{itemCode}', [CollateralItemController::class, 'destroy'])
-                ->middleware('tenant.feature:collateral_management')
-                ->middleware('tenant.permission:delete_collateral');
-            Route::get('loan-contract-slips', [LoanContractSlipController::class, 'index'])
+                ->group(function () {
+                    Route::get('/', [CollateralItemController::class, 'index'])
+                        ->middleware('tenant.permission:list_collateral');
+                    Route::get('{itemCode}', [CollateralItemController::class, 'show'])
+                        ->middleware('tenant.permission:list_collateral');
+                    Route::delete('{itemCode}', [CollateralItemController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_collateral');
+                });
+
+            Route::prefix('loan-contract-slips')
                 ->middleware('tenant.feature:loan_contract_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::post('loan-contract-slips', [LoanContractSlipController::class, 'store'])
-                ->middleware('tenant.feature:loan_contract_management')
-                ->middleware('tenant.permission:create_loan_contract');
-            Route::get('loan-contract-slips/{slipNo}', [LoanContractSlipController::class, 'show'])
-                ->middleware('tenant.feature:loan_contract_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::delete('loan-contract-slips/{slipNo}', [LoanContractSlipController::class, 'destroy'])
-                ->middleware('tenant.feature:loan_contract_management')
-                ->middleware('tenant.permission:delete_loan_contract');
-            Route::get('interest-payments', [InterestPaymentController::class, 'history'])
-                ->middleware('tenant.feature:interest_payment_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::get('interest-payments/{slipNo}/calculate', [InterestPaymentController::class, 'calculate'])
-                ->middleware('tenant.feature:interest_payment_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::post('interest-payments/{slipNo}/pay', [InterestPaymentController::class, 'pay'])
-                ->middleware('tenant.feature:interest_payment_management')
-                ->middleware('tenant.permission:create_loan_contract');
-            Route::get('redemptions', [PawnRedemptionController::class, 'index'])
-                ->middleware('tenant.feature:redemption_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::get('redemptions/{slipNo}/calculate', [PawnRedemptionController::class, 'calculate'])
-                ->middleware('tenant.feature:redemption_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::post('redemptions', [PawnRedemptionController::class, 'store'])
-                ->middleware('tenant.feature:redemption_management')
-                ->middleware('tenant.permission:create_loan_contract');
-            Route::get('redemption-records/{slipNumber}', [PawnRedemptionController::class, 'show'])
-                ->middleware('tenant.feature:redemption_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::get('accounting', [TenantAccountingController::class, 'index'])
-                ->middleware('tenant.feature:accounting_management')
-                ->middleware('tenant.permission:list_accounting');
-            Route::get('accounting/incoming', [TenantAccountingController::class, 'listIncomingTransactions'])
-                ->middleware('tenant.feature:accounting_management')
-                ->middleware('tenant.permission:list_accounting');
-            Route::get('accounting/outgoing', [TenantAccountingController::class, 'listOutgoingTransactions'])
-                ->middleware('tenant.feature:accounting_management')
-                ->middleware('tenant.permission:list_accounting');
-            Route::get('accounting/ledger', [TenantAccountingController::class, 'getAccountingLedger'])
-                ->middleware('tenant.feature:accounting_management')
-                ->middleware('tenant.permission:list_accounting');
-            Route::get('accounting/ledger/download', [TenantAccountingController::class, 'downloadAccountingLedger'])
-                ->middleware('tenant.feature:accounting_management')
-                ->middleware('tenant.permission:list_accounting');
-            Route::get('expenses', [TenantExpenseController::class, 'index'])
-                ->middleware('tenant.feature:expense_management')
-                ->middleware('tenant.permission:list_expense');
-            Route::post('expenses', [TenantExpenseController::class, 'store'])
-                ->middleware('tenant.feature:expense_management')
-                ->middleware('tenant.permission:create_expense');
-            Route::put('expenses/{expenseCode}', [TenantExpenseController::class, 'update'])
-                ->middleware('tenant.feature:expense_management')
-                ->middleware('tenant.permission:update_expense');
-            Route::delete('expenses/{expenseCode}', [TenantExpenseController::class, 'destroy'])
-                ->middleware('tenant.feature:expense_management')
-                ->middleware('tenant.permission:delete_expense');
-            Route::get('debts', [TenantDebtController::class, 'index'])
-                ->middleware('tenant.feature:debt_management')
-                ->middleware('tenant.permission:list_debt');
-            Route::post('debts', [TenantDebtController::class, 'store'])
-                ->middleware('tenant.feature:debt_management')
-                ->middleware('tenant.permission:create_debt');
-            Route::post('debts/{debtCode}/paid', [TenantDebtController::class, 'markAsPaid'])
-                ->middleware('tenant.feature:debt_management')
-                ->middleware('tenant.permission:update_debt');
-            Route::put('debts/{debtCode}', [TenantDebtController::class, 'update'])
-                ->middleware('tenant.feature:debt_management')
-                ->middleware('tenant.permission:update_debt');
-            Route::delete('debts/{debtCode}', [TenantDebtController::class, 'destroy'])
-                ->middleware('tenant.feature:debt_management')
-                ->middleware('tenant.permission:delete_debt');
-            Route::get('branding/slip-layouts', [TenantBrandingController::class, 'showSlipLayouts'])
-                ->middleware('tenant.feature:slip_document_layout_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::put('branding/slip-layouts', [TenantBrandingController::class, 'updateSlipLayouts'])
-                ->middleware('tenant.feature:slip_document_layout_management')
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::get('settings', [TenantSettingsController::class, 'show'])
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::put('settings', [TenantSettingsController::class, 'update'])
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::put('settings/branding', [TenantSettingsController::class, 'updateBranding'])
-                ->middleware('tenant.feature:tenant_branding')
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::put('settings/contact', [TenantSettingsController::class, 'updateContact'])
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::put('settings/default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::post('settings/interest-types', [TenantSettingsController::class, 'createInterestType'])
-                ->middleware('tenant.feature:master_data_management')
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::post('settings/expense-types', [TenantSettingsController::class, 'createExpenseType'])
-                ->middleware('tenant.feature:master_data_management')
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::post('settings/material-types', [TenantSettingsController::class, 'createMaterialType'])
-                ->middleware('tenant.feature:master_data_management')
-                ->middleware('tenant.permission:manage_slip_document');
-            Route::get('slip-documents/config', [SlipDocumentController::class, 'config'])
-                ->middleware('tenant.feature:slip_document_layout_management')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::get('loan-contract-slips/{slipNo}/document/preview', [SlipDocumentController::class, 'preview'])
+                ->group(function () {
+                    Route::get('/', [LoanContractSlipController::class, 'index'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::post('/', [LoanContractSlipController::class, 'store'])
+                        ->middleware('tenant.permission:create_loan_contract');
+                    Route::get('{slipNo}', [LoanContractSlipController::class, 'show'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::delete('{slipNo}', [LoanContractSlipController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_loan_contract');
+                });
+
+            Route::prefix('loan-contract-slips')
                 ->middleware('tenant.feature:slip_document_preview')
-                ->middleware('tenant.permission:list_loan_contract');
-            Route::get('loan-contract-slips/{slipNo}/document/download', [SlipDocumentController::class, 'download'])
-                ->middleware('tenant.feature:slip_document_preview')
-                ->middleware('tenant.permission:list_loan_contract');
+                ->group(function () {
+                    Route::get('{slipNo}/document/preview', [SlipDocumentController::class, 'preview'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::get('{slipNo}/document/download', [SlipDocumentController::class, 'download'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                });
+
+            Route::prefix('interest-payments')
+                ->middleware('tenant.feature:interest_payment_management')
+                ->group(function () {
+                    Route::get('/', [InterestPaymentController::class, 'history'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::get('{slipNo}/calculate', [InterestPaymentController::class, 'calculate'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::post('{slipNo}/pay', [InterestPaymentController::class, 'pay'])
+                        ->middleware('tenant.permission:create_loan_contract');
+                });
+
+            Route::prefix('redemptions')
+                ->middleware('tenant.feature:redemption_management')
+                ->group(function () {
+                    Route::get('/', [PawnRedemptionController::class, 'index'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::get('{slipNo}/calculate', [PawnRedemptionController::class, 'calculate'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                    Route::post('/', [PawnRedemptionController::class, 'store'])
+                        ->middleware('tenant.permission:create_loan_contract');
+                });
+
+            Route::prefix('redemption-records')
+                ->middleware('tenant.feature:redemption_management')
+                ->group(function () {
+                    Route::get('{slipNumber}', [PawnRedemptionController::class, 'show'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                });
+
+            Route::prefix('accounting')
+                ->middleware('tenant.feature:accounting_management')
+                ->group(function () {
+                    Route::get('/', [TenantAccountingController::class, 'index'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::get('incoming', [TenantAccountingController::class, 'listIncomingTransactions'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::get('outgoing', [TenantAccountingController::class, 'listOutgoingTransactions'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::get('ledger', [TenantAccountingController::class, 'getAccountingLedger'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::get('ledger/download', [TenantAccountingController::class, 'downloadAccountingLedger'])
+                        ->middleware('tenant.permission:list_accounting');
+                });
+
+            Route::prefix('expenses')
+                ->middleware('tenant.feature:expense_management')
+                ->group(function () {
+                    Route::get('/', [TenantExpenseController::class, 'index'])
+                        ->middleware('tenant.permission:list_expense');
+                    Route::post('/', [TenantExpenseController::class, 'store'])
+                        ->middleware('tenant.permission:create_expense');
+                    Route::put('{expenseCode}', [TenantExpenseController::class, 'update'])
+                        ->middleware('tenant.permission:update_expense');
+                    Route::delete('{expenseCode}', [TenantExpenseController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_expense');
+                });
+
+            Route::prefix('debts')
+                ->middleware('tenant.feature:debt_management')
+                ->group(function () {
+                    Route::get('/', [TenantDebtController::class, 'index'])
+                        ->middleware('tenant.permission:list_debt');
+                    Route::post('/', [TenantDebtController::class, 'store'])
+                        ->middleware('tenant.permission:create_debt');
+                    Route::post('{debtCode}/paid', [TenantDebtController::class, 'markAsPaid'])
+                        ->middleware('tenant.permission:update_debt');
+                    Route::put('{debtCode}', [TenantDebtController::class, 'update'])
+                        ->middleware('tenant.permission:update_debt');
+                    Route::delete('{debtCode}', [TenantDebtController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_debt');
+                });
+
+            Route::prefix('branding')->group(function () {
+                Route::get('slip-layouts', [TenantBrandingController::class, 'showSlipLayouts'])
+                    ->middleware('tenant.feature:slip_document_layout_management')
+                    ->middleware('tenant.permission:list_loan_contract');
+                Route::put('slip-layouts', [TenantBrandingController::class, 'updateSlipLayouts'])
+                    ->middleware('tenant.feature:slip_document_layout_management')
+                    ->middleware('tenant.permission:manage_slip_document');
+            });
+
+            Route::prefix('settings')->group(function () {
+                Route::get('/', [TenantSettingsController::class, 'show'])
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::put('/', [TenantSettingsController::class, 'update'])
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::put('branding', [TenantSettingsController::class, 'updateBranding'])
+                    ->middleware('tenant.feature:tenant_branding')
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::put('contact', [TenantSettingsController::class, 'updateContact'])
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::post('interest-types', [TenantSettingsController::class, 'createInterestType'])
+                    ->middleware('tenant.feature:master_data_management')
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::post('expense-types', [TenantSettingsController::class, 'createExpenseType'])
+                    ->middleware('tenant.feature:master_data_management')
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::post('material-types', [TenantSettingsController::class, 'createMaterialType'])
+                    ->middleware('tenant.feature:master_data_management')
+                    ->middleware('tenant.permission:manage_slip_document');
+            });
+
+            Route::prefix('slip-documents')
+                ->middleware('tenant.feature:slip_document_layout_management')
+                ->group(function () {
+                    Route::get('config', [SlipDocumentController::class, 'config'])
+                        ->middleware('tenant.permission:list_loan_contract');
+                });
             Route::prefix('expense-types')
                 ->middleware('tenant.permission:create_expense,update_expense,manage_slip_document')
                 ->group(function(){
