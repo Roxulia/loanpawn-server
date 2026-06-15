@@ -44,6 +44,14 @@ class PackageService
         return $this->findEnabledFeatureByPlan($planType, $featureCode)?->value;
     }
 
+    /**
+     * @return array<string, array{code: string, is_active: bool, is_enabled: bool, unlock_in: array{code: string, name: string}|null}>
+     */
+    public function featureFlagsByPlan(string $planType): array
+    {
+        return $this->repository->featureFlagsByPackageCode($planType);
+    }
+
     public function activePaidPackagesExcept(?string $excludedCode = null): Collection
     {
         return $this->repository->activePaidPackagesExcept($excludedCode);

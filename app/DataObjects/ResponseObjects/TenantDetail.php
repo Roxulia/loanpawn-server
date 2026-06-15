@@ -16,6 +16,7 @@ class TenantDetail extends BaseDataObject
     public int $updateKey;
     public TenantContactDetail $tenant_contact;
     public TenantLicenseDetail $tenant_license;
+    public TenantFeatures $tenant_features;
     public ?TenantBrandingDetail $tenant_branding;
     public ?TenantSettingDetail $tenant_setting;
 
@@ -28,6 +29,7 @@ class TenantDetail extends BaseDataObject
         Tenant $tenant,
         TenantContactDetail $tenantContact,
         TenantLicenseDetail $tenantLicense,
+        ?TenantFeatures $tenantFeatures = null,
         ?TenantBrandingDetail $tenantBranding = null,
         ?TenantSettingDetail $tenantSetting = null,
     ): self {
@@ -38,6 +40,7 @@ class TenantDetail extends BaseDataObject
         $detail->updateKey = (int) $tenant->update_key;
         $detail->tenant_contact = $tenantContact;
         $detail->tenant_license = $tenantLicense;
+        $detail->tenant_features = $tenantFeatures ?? new TenantFeatures();
         $detail->tenant_branding = $tenantBranding;
         $detail->tenant_setting = $tenantSetting;
 

@@ -5,10 +5,12 @@ namespace Tests\Feature\PlatformModule;
 use App\DataObjects\RequestObjects\TenantCreate;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantBranding;
+use App\Models\PlatformModule\Feature;
 use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\PlatformUser;
 use App\Services\PlatformModule\TenantServices\TenantDetailService;
 use App\Services\PlatformModule\TenantServices\TenantManagementService;
+use Database\Seeders\PackageSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -16,6 +18,13 @@ use Tests\TestCase;
 class TenantDetailServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(PackageSeeder::class);
+    }
 
     public function test_it_can_build_tenant_detail_by_tenant_id(): void
     {
@@ -45,21 +54,22 @@ class TenantDetailServiceTest extends TestCase
             country: 'Myanmar',
         ));
 
-        TenantBranding::query()->create([
-            'tenant_id' => $tenant->id,
-            'tenant_code' => $tenant->code,
+        $tenantBranding = TenantBranding::query()
+            ->where('tenant_id', $tenant->id)
+            ->firstOrFail();
+        $tenantBranding->fill([
             'primary_color' => '#123456',
             'secondary_color' => '#654321',
             'accent_color' => '#ABCDEF',
-            'slip_header_text' => 'Detail Header',
-            'slip_footer_text' => 'Detail Footer',
-        ]);
+            'slip_header_layout' => ['title' => 'Detail Header'],
+            'slip_footer_layout' => ['text' => 'Detail Footer'],
+        ])->save();
 
         $detail = app(TenantDetailService::class)->findByTenantId($tenant->id);
 
         $this->assertSame('Detail Tenant', $detail->name);
         $this->assertNull($detail->subdomain);
-        $this->assertMatchesRegularExpression('/^DT[0-9]{4}$/', $detail->code);
+        $this->assertMatchesRegularExpression('/^DET[A-Z0-9]{4}$/', $detail->code);
         $this->assertSame('No. 11 Detail Road', $detail->tenant_contact->address);
         $this->assertSame('09444444444', $detail->tenant_contact->phone);
         $this->assertSame('Yangon', $detail->tenant_contact->city);
@@ -67,7 +77,15 @@ class TenantDetailServiceTest extends TestCase
         $this->assertSame('trial', $detail->tenant_license->planType);
         $this->assertSame('active', $detail->tenant_license->status);
         $this->assertSame('#123456', $detail->tenant_branding?->primaryColor);
-        $this->assertSame('Detail Header', $detail->tenant_branding?->slipHeaderText);
+        $this->assertSame(['title' => 'Detail Header'], $detail->tenant_branding?->slipHeaderLayout);
+        $features = $detail->tenant_features->toArray();
+        $this->assertTrue($features['customer_management']['is_active']);
+        $this->assertTrue($features['customer_management']['is_enabled']);
+        $this->assertTrue($detail->toArray()['tenant_features']['customer_management']['is_enabled']);
+        $this->assertTrue($features['online_sync']['is_active']);
+        $this->assertSame(['code', 'is_active', 'is_enabled', 'unlock_in'], array_keys($features['online_sync']));
+        $this->assertFalse($features['online_sync']['is_enabled']);
+        $this->assertSame(['code' => 'basic', 'name' => 'Basic'], $features['online_sync']['unlock_in']);
 
         Carbon::setTestNow();
     }
@@ -114,8 +132,17 @@ class TenantDetailServiceTest extends TestCase
         $detailByCode = app(TenantDetailService::class)->findByTenantCode($tenant->tenant_code);
         $detailBySubdomain = app(TenantDetailService::class)->findBySubdomain($tenant->subdomain);
 
+        Feature::query()->where('code', 'tenant_branding')->update(['is_active' => false]);
+
+        $detailAfterFeatureChange = app(TenantDetailService::class)->findByTenantCode($tenant->tenant_code);
+
         $this->assertSame($tenant->tenant_code, $detailByCode->code);
         $this->assertSame('No. 22 Lookup Road', $detailByCode->tenant_contact->address);
+        $this->assertTrue($detailByCode->tenant_features->toArray()['tenant_branding']['is_enabled']);
+        $this->assertSame(['code' => 'premium', 'name' => 'Premium'], $detailByCode->tenant_features->toArray()['tenant_branding']['unlock_in']);
+        $this->assertTrue($detailByCode->tenant_features->toArray()['online_sync']['is_enabled']);
+        $this->assertFalse($detailAfterFeatureChange->tenant_features->toArray()['tenant_branding']['is_active']);
+        $this->assertTrue($detailAfterFeatureChange->tenant_features->toArray()['tenant_branding']['is_enabled']);
         $this->assertSame($tenant->subdomain, $detailBySubdomain->subdomain);
         $this->assertSame('09555555555', $detailBySubdomain->tenant_contact->phone);
 

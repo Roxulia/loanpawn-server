@@ -76,7 +76,7 @@ class AuthService extends BaseTenantService
 
         $user = $this->repository->findById($tenantUserId);
 
-        if (! $user || (int) $user->tenant_id !== $tenantId || $user->status !== 'active') {
+        if (! $user || (int) $user->tenant_id !== $tenantId) {
             throw new InvalidCredential(null);
         }
 

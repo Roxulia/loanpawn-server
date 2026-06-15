@@ -31,6 +31,57 @@ class PackageRepository
             ->first();
     }
 
+    /**
+     * @return array<string, array{code: string, is_active: bool, is_enabled: bool, unlock_in: array{code: string, name: string}|null}>
+     */
+    public function featureFlagsByPackageCode(string $packageCode): array
+    {
+        $features = Feature::query()
+            ->orderBy('code')
+            ->get(['id', 'code', 'is_active']);
+
+        $enabledFeatureIds = PackageFeature::query()
+            ->select('package_features.feature_id')
+            ->join('packages', 'packages.id', '=', 'package_features.package_id')
+            ->where('packages.code', $packageCode)
+            ->whereIn('package_features.feature_id', $features->pluck('id'))
+            ->where('package_features.is_enabled', true)
+            ->pluck('package_features.feature_id')
+            ->map(fn ($featureId) => (int) $featureId)
+            ->all();
+
+        $enabledFeatureIds = array_flip($enabledFeatureIds);
+
+        $unlockPlans = PackageFeature::query()
+            ->select([
+                'package_features.feature_id',
+                'packages.code as package_code',
+                'packages.name as package_name',
+            ])
+            ->join('packages', 'packages.id', '=', 'package_features.package_id')
+            ->where('packages.is_active', true)
+            ->where('package_features.is_enabled', true)
+            ->whereIn('package_features.feature_id', $features->pluck('id'))
+            ->orderBy('packages.price')
+            ->get()
+            ->groupBy(fn ($row) => (int) $row->feature_id)
+            ->map(fn (Collection $plans) => $plans->first());
+
+        return $features
+            ->mapWithKeys(fn (Feature $feature) => [
+                $feature->code => [
+                    'code' => $feature->code,
+                    'is_active' => (bool) $feature->is_active,
+                    'is_enabled' => array_key_exists((int) $feature->id, $enabledFeatureIds),
+                    'unlock_in' => ($unlockPlan = $unlockPlans->get((int) $feature->id)) ? [
+                        'code' => $unlockPlan->package_code,
+                        'name' => $unlockPlan->package_name,
+                    ] : null,
+                ],
+            ])
+            ->all();
+    }
+
     public function activePaidPackagesExcept(?string $excludedCode = null): Collection
     {
         return Package::query()

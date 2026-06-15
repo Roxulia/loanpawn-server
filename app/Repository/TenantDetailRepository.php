@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\DataObjects\ResponseObjects\TenantBrandingDetail;
 use App\DataObjects\ResponseObjects\TenantContactDetail;
 use App\DataObjects\ResponseObjects\TenantDetail;
+use App\DataObjects\ResponseObjects\TenantFeatures;
 use App\DataObjects\ResponseObjects\TenantLicenseDetail;
 use App\DataObjects\ResponseObjects\TenantSettingDetail;
 use App\DataObjects\ResponseObjects\TenantSettingItem;
@@ -101,6 +102,7 @@ class TenantDetailRepository
         $detail->updateKey = (int) $row->tenant_update_key;
         $detail->tenant_contact = $this->makeTenantContactDetail($row);
         $detail->tenant_license = $this->makeTenantLicenseDetail($row);
+        $detail->tenant_features = new TenantFeatures();
         $detail->tenant_branding = $this->makeTenantBrandingDetail($row);
         $detail->tenant_setting = $this->makeTenantSettingDetail($rows);
 
