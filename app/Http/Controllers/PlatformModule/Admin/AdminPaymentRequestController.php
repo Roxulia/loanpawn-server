@@ -9,6 +9,7 @@ use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminPaymentRequestController extends Controller
 {
@@ -30,6 +31,11 @@ class AdminPaymentRequestController extends Controller
         return view('platform.admin.payment-requests.show', [
             'payment' => $this->billingService->findPaymentRequest($paymentRequest),
         ]);
+    }
+
+    public function downloadAttachment(int $paymentRequest, int $attachment): StreamedResponse
+    {
+        return $this->billingService->downloadPaymentAttachment($paymentRequest, $attachment);
     }
 
     public function accept(Request $request, int $paymentRequest): RedirectResponse

@@ -136,7 +136,7 @@ class TenantRequestService extends BaseTenantService
             $paymentPath = $this->fileStorageUtility->uploadImage(
                 $request->paymentScreenshot,
                 'tenant-requests/'.$tenantRequest->code.'/payments',
-                'public',
+                'local',
                 'payment_screenshot'
             );
 

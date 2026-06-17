@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class TenantRequestServiceTest extends TestCase
@@ -84,7 +85,7 @@ class TenantRequestServiceTest extends TestCase
 
     public function test_platform_user_can_submit_payment_screenshot_for_request(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $this->createDefaultAdminRole();
         $this->createPackages();
 
@@ -136,12 +137,33 @@ class TenantRequestServiceTest extends TestCase
 
         $attachment = \App\Models\PlatformModule\ManualPaymentAttachment::query()->first();
         $this->assertNotNull($attachment);
-        Storage::disk('public')->assertExists($attachment->file_path);
+        Storage::disk('local')->assertExists($attachment->file_path);
+
+        $platformAdmin = PlatformAdmin::query()->create([
+            'code' => 'PA'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Download Admin',
+            'username' => 'downloadadmin',
+            'email' => 'download-admin@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $this->actingAs($platformAdmin, 'platformadmin');
+
+        $downloadUrl = URL::temporarySignedRoute(
+            'admin.payment-requests.attachments.download',
+            now()->addMinutes(10),
+            [
+                'paymentRequest' => $attachment->manual_payment_request_id,
+                'attachment' => $attachment->id,
+            ]
+        );
+
+        $this->get($downloadUrl)->assertDownload(basename($attachment->file_path));
     }
 
     public function test_platform_user_can_submit_payment_screenshot_from_billing_route(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $this->createDefaultAdminRole();
         $this->createPackages();
 
@@ -308,7 +330,7 @@ class TenantRequestServiceTest extends TestCase
     public function test_platform_admin_can_accept_or_decline_request(): void
     {
         Mail::fake();
-        Storage::fake('public');
+        Storage::fake('local');
         $this->createDefaultAdminRole();
         $this->createPackages();
 

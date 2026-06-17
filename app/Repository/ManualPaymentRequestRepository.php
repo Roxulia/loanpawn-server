@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Models\PlatformModule\ManualPaymentAttachment;
 use App\Models\PlatformModule\ManualPaymentRequest;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
@@ -34,6 +35,21 @@ class ManualPaymentRequestRepository
             ->where('is_deleted', false)
             ->with(['platformUser', 'tenant.license', 'tenantRequest', 'attachments', 'reviewer'])
             ->find($id);
+    }
+
+    public function findAttachmentForPaymentRequest(
+        int $paymentRequestId,
+        int $attachmentId
+    ): ?ManualPaymentAttachment {
+        return ManualPaymentAttachment::query()
+            ->where('id', $attachmentId)
+            ->where('is_deleted', false)
+            ->whereHas('manualPaymentRequest', function ($query) use ($paymentRequestId) {
+                $query
+                    ->where('id', $paymentRequestId)
+                    ->where('is_deleted', false);
+            })
+            ->first();
     }
 
     public function paginateByPlatformUser(int $platformUserId, int $perPage = 15): LengthAwarePaginator

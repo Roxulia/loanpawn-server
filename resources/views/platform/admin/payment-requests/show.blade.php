@@ -62,8 +62,8 @@
                     @foreach ($payment->attachments as $attachment)
                         <tr>
                             <td data-label="File">
-                                <a href="{{ asset('storage/'.$attachment->file_path) }}" target="_blank" rel="noopener">
-                                    {{ $attachment->file_path }}
+                                <a href="{{ URL::temporarySignedRoute('admin.payment-requests.attachments.download', now()->addMinutes(10), ['paymentRequest' => $payment->id, 'attachment' => $attachment->id]) }}">
+                                    Download attachment - {{ basename($attachment->file_path) }}
                                 </a>
                             </td>
                             <td data-label="Type">{{ $attachment->file_type }}</td>

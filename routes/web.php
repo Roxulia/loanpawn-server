@@ -48,6 +48,9 @@ Route::name('admin.')->group(function () {
             Route::post('/package-flags/feature-assignment', [AdminPackageFlagController::class, 'updateFeatureAssignment'])->name('package-flags.feature-assignment.update');
             Route::get('/payment-requests', [AdminPaymentRequestController::class, 'index'])->name('payment-requests.index');
             Route::get('/payment-requests/{paymentRequest}', [AdminPaymentRequestController::class, 'show'])->name('payment-requests.show');
+            Route::get('/payment-requests/{paymentRequest}/attachments/{attachment}/download', [AdminPaymentRequestController::class, 'downloadAttachment'])
+                ->middleware('signed')
+                ->name('payment-requests.attachments.download');
             Route::post('/payment-requests/{paymentRequest}/accept', [AdminPaymentRequestController::class, 'accept'])->name('payment-requests.accept');
             Route::post('/payment-requests/{paymentRequest}/reject', [AdminPaymentRequestController::class, 'reject'])->name('payment-requests.reject');
             Route::get('/issued-tickets', [AdminIssuedTicketController::class, 'index'])->name('issued-tickets.index');
