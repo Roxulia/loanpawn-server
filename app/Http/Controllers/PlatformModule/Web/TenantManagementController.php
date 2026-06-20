@@ -29,10 +29,13 @@ class TenantManagementController extends Controller
     ) {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $search = trim((string) $request->query('q', ''));
+
         return view('platform.tenants.index', [
-            'tenants' => $this->tenantPageService->getTenantList(),
+            'tenants' => $this->tenantPageService->getTenantList($search !== '' ? $search : null),
+            'search' => $search,
         ]);
     }
 

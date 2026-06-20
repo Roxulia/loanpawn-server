@@ -15,22 +15,17 @@ function attachmentsHtml(attachments) {
         return '';
     }
 
-    const rows = attachments.map(function (attachment) {
+    const links = attachments.map(function (attachment) {
         return `
-            <tr>
-                <td data-label="Attachment"><a href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">${escapeHtml(attachment.name)}</a></td>
-                <td data-label="Type">${escapeHtml(attachment.type)}</td>
-            </tr>
+            <a class="ticket-attachment-link" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">
+                <span>${escapeHtml(attachment.name)}</span>
+                <small>${escapeHtml(attachment.type)}</small>
+            </a>
         `;
     }).join('');
 
     return `
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Attachment</th><th>Type</th></tr></thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
+        <div class="ticket-message-attachments">${links}</div>
     `;
 }
 
@@ -40,17 +35,20 @@ function appendMessage(thread, currentSender, message) {
     }
 
     const article = document.createElement('article');
-    article.className = 'panel ticket-live-highlight';
+    article.className = 'ticket-message ticket-live-highlight';
     article.dataset.messageId = message.id;
     article.innerHTML = `
-        <p class="metric-label">
-            ${escapeHtml(message.senderLabel)}
-            <span class="muted">- ${escapeHtml(message.createdAt)}</span>
-        </p>
-        <p style="white-space: pre-wrap;">${escapeHtml(message.message)}</p>
-        ${attachmentsHtml(message.attachments)}
+        <div class="ticket-message-bubble">
+            <div class="ticket-message-meta">
+                <span class="sender">${escapeHtml(message.senderLabel)}</span>
+                <time>${escapeHtml(message.createdAt)}</time>
+            </div>
+            <p class="ticket-message-text">${escapeHtml(message.message)}</p>
+            ${attachmentsHtml(message.attachments)}
+        </div>
     `;
     thread.appendChild(article);
+    thread.scrollTop = thread.scrollHeight;
 }
 
 let supportTicketShowsInitialized = false;

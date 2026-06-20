@@ -9,113 +9,154 @@
 @endsection
 
 @section('content')
-    <section class="grid two">
-        <div class="panel">
-            <p class="metric-label">{{ __('app.support.view.ticket') }}</p>
-            <div class="table-wrap" style="margin-top: 12px;">
-                <table>
-                    <tbody>
-                    <tr><th>{{ __('app.common.view.labels.code') }}</th><td data-label="{{ __('app.common.view.labels.code') }}">{{ $ticket->code }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.type') }}</th><td data-label="{{ __('app.common.view.labels.type') }}">{{ __('app.support.view.types.'.$ticket->type) }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.status') }}</th><td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge" data-ticket-status>{{ $ticket->status }}</span></td></tr>
-                    <tr><th>{{ __('app.common.view.labels.created') }}</th><td data-label="{{ __('app.common.view.labels.created') }}">{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.support.view.opened') }}</th><td data-label="{{ __('app.support.view.opened') }}">{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.support.view.resolved') }}</th><td data-label="{{ __('app.support.view.resolved') }}">{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    @php
+        $statusOptions = [];
 
-        <div class="panel">
-            <p class="metric-label">{{ __('app.support.view.platform_user') }}</p>
-            <div class="table-wrap" style="margin-top: 12px;">
-                <table>
-                    <tbody>
-                    <tr><th>{{ __('app.common.view.labels.name') }}</th><td data-label="{{ __('app.common.view.labels.name') }}">{{ $ticket->platformUser?->name ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.email') }}</th><td data-label="{{ __('app.common.view.labels.email') }}">{{ $ticket->platformUser?->email ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.common.view.labels.phone') }}</th><td data-label="{{ __('app.common.view.labels.phone') }}">{{ $ticket->platformUser?->phone ?? '-' }}</td></tr>
-                    <tr><th>{{ __('app.support.view.user_code') }}</th><td data-label="{{ __('app.support.view.user_code') }}">{{ $ticket->platformUser?->code ?? '-' }}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
+        if ($ticket->status === 'pending') {
+            $statusOptions = [
+                'open' => __('app.common.view.actions.open'),
+                'resolved' => __('app.support.view.resolved'),
+            ];
+        } elseif ($ticket->status === 'open') {
+            $statusOptions = [
+                'resolved' => __('app.support.view.resolved'),
+            ];
+        }
+    @endphp
 
-    @if ($ticket->status !== 'resolved')
-        <section class="panel" style="margin-top: 16px;">
-            <div class="action-row">
-                @if ($ticket->status === 'pending')
-                    <form method="POST" action="{{ route('admin.issued-tickets.open', $ticket->code) }}">
-                        @csrf
-                        <button type="submit" class="button secondary">{{ __('app.common.view.actions.open') }}</button>
-                    </form>
-                @endif
-                <form method="POST" action="{{ route('admin.issued-tickets.resolve', $ticket->code) }}">
+    <div class="ticket-detail-shell">
+        <section class="panel">
+            <p class="section-kicker">{{ __('app.support.view.ticket') }}</p>
+            <div class="ticket-info-grid" style="margin-top: 12px;">
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.code') }}</div>
+                    <div class="field-value">{{ $ticket->code }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.type') }}</div>
+                    <div class="field-value">{{ __('app.support.view.types.'.$ticket->type) }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.status') }}</div>
+                    <div class="field-value"><span class="badge" data-ticket-status>{{ $ticket->status }}</span></div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.created') }}</div>
+                    <div class="field-value">{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.support.view.opened') }}</div>
+                    <div class="field-value">{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.support.view.resolved') }}</div>
+                    <div class="field-value">{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</div>
+                </div>
+            </div>
+
+            @if ($statusOptions !== [])
+                <form class="ticket-status-form" method="POST" action="{{ route('admin.issued-tickets.status.update', $ticket->code) }}">
                     @csrf
-                    <button type="submit" class="button primary">{{ __('app.common.view.actions.resolve') }}</button>
+                    <label for="ticket-status">Change status</label>
+                    <div class="ticket-status-form-row">
+                        <select id="ticket-status" name="status" required>
+                            @foreach ($statusOptions as $statusValue => $statusLabel)
+                                <option value="{{ $statusValue }}">{{ $statusLabel }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="button primary">Update Status</button>
+                    </div>
                 </form>
+            @endif
+        </section>
+
+        <section class="panel">
+            <p class="section-kicker">{{ __('app.support.view.platform_user') }}</p>
+            <div class="ticket-info-grid" style="margin-top: 12px;">
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.name') }}</div>
+                    <div class="field-value">{{ $ticket->platformUser?->name ?? '-' }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.email') }}</div>
+                    <div class="field-value">{{ $ticket->platformUser?->email ?? '-' }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.common.view.labels.phone') }}</div>
+                    <div class="field-value">{{ $ticket->platformUser?->phone ?? '-' }}</div>
+                </div>
+                <div class="ticket-info-row">
+                    <div class="field-kicker">{{ __('app.support.view.user_code') }}</div>
+                    <div class="field-value">{{ $ticket->platformUser?->code ?? '-' }}</div>
+                </div>
             </div>
         </section>
-    @endif
 
-    <section
-        class="grid"
-        style="margin-top: 16px;"
-        id="ticket-message-thread"
-        data-support-ticket-show
-        data-ticket-id="{{ $ticket->id }}"
-        data-current-sender="platform_admin"
-        data-status-selector="[data-ticket-status]"
-    >
-        @foreach ($ticket->messages as $threadMessage)
-            <article class="panel" data-message-id="{{ $threadMessage->id }}">
-                <p class="metric-label">
-                    {{ $threadMessage->sender_type === 'platform_admin' ? __('app.support.view.sender.admin') : __('app.support.view.sender.platform_user') }}
-                    <span class="muted">- {{ $threadMessage->created_at?->format('Y-m-d H:i') ?? '-' }}</span>
-                </p>
-                <p style="white-space: pre-wrap;">{{ $threadMessage->message }}</p>
-
-                @if ($threadMessage->attachments->isNotEmpty())
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>{{ __('app.billing.view.attachment') }}</th>
-                                <th>{{ __('app.common.view.labels.type') }}</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach ($threadMessage->attachments as $attachment)
-                                <tr>
-                                    <td data-label="{{ __('app.billing.view.attachment') }}"><a href="{{ asset('storage/'.$attachment->file_path) }}" target="_blank" rel="noopener">{{ $attachment->original_name ?? $attachment->file_path }}</a></td>
-                                    <td data-label="{{ __('app.common.view.labels.type') }}">{{ $attachment->file_type ?? '-' }}</td>
-                                </tr>
-                            @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </article>
-        @endforeach
-    </section>
-
-    @if ($ticket->status !== 'resolved')
-        <form class="panel grid" style="margin-top: 16px;" method="POST" action="{{ route('admin.issued-tickets.messages.store', $ticket->code) }}" enctype="multipart/form-data">
-            @csrf
-            <div>
-                <label for="message">{{ __('app.support.view.admin_reply') }}</label>
-                <textarea id="message" name="message" required maxlength="5000">{{ old('message') }}</textarea>
-                @error('message') <div class="field-error">{{ $message }}</div> @enderror
+        <section class="panel ticket-chat-panel">
+            <div class="ticket-chat-header">
+                <h2>Conversation</h2>
+                <span class="badge">{{ $ticket->messages->count() }}</span>
             </div>
-            <div>
-                <label for="attachments">{{ __('app.common.view.labels.attachments') }}</label>
-                <input id="attachments" name="attachments[]" type="file" multiple>
+            <div
+                class="ticket-chat-scroll"
+                id="ticket-message-thread"
+                data-support-ticket-show
+                data-ticket-id="{{ $ticket->id }}"
+                data-current-sender="platform_admin"
+                data-status-selector="[data-ticket-status]"
+            >
+                @foreach ($ticket->messages as $threadMessage)
+                    @php
+                        $isOwnMessage = $threadMessage->sender_type === 'platform_admin';
+                    @endphp
+                    <article class="ticket-message {{ $isOwnMessage ? 'is-own' : '' }}" data-message-id="{{ $threadMessage->id }}">
+                        <div class="ticket-message-bubble">
+                            <div class="ticket-message-meta">
+                                <span class="sender">
+                                    {{ $threadMessage->sender_type === 'platform_admin' ? __('app.support.view.sender.admin') : __('app.support.view.sender.platform_user') }}
+                                </span>
+                                <time>{{ $threadMessage->created_at?->format('Y-m-d H:i') ?? '-' }}</time>
+                            </div>
+                            <p class="ticket-message-text">{{ $threadMessage->message }}</p>
+
+                            @if ($threadMessage->attachments->isNotEmpty())
+                                <div class="ticket-message-attachments">
+                                    @foreach ($threadMessage->attachments as $attachment)
+                                        <a class="ticket-attachment-link" href="{{ asset('storage/'.$attachment->file_path) }}" target="_blank" rel="noopener">
+                                            <span>{{ $attachment->original_name ?? $attachment->file_path }}</span>
+                                            <small>{{ $attachment->file_type ?? '-' }}</small>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+
+        @if ($ticket->status !== 'resolved')
+            <form class="panel ticket-reply-card" method="POST" action="{{ route('admin.issued-tickets.messages.store', $ticket->code) }}" enctype="multipart/form-data">
+                @csrf
+                <div class="chat-composer-row">
+                    <textarea id="message" name="message" rows="1" required maxlength="5000" placeholder="Type your reply..." aria-label="{{ __('app.support.view.admin_reply') }}">{{ old('message') }}</textarea>
+                    <label class="chat-icon-button" for="attachments" aria-label="{{ __('app.common.view.labels.attachments') }}">
+                        <input id="attachments" name="attachments[]" type="file" multiple>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l9.9-9.9a4 4 0 0 1 5.7 5.7l-9.9 9.9a2 2 0 0 1-2.8-2.8l9.4-9.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </label>
+                    <button type="submit" class="chat-icon-button send" aria-label="{{ __('app.support.view.send_reply') }}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m22 2-7 20-4-9-9-4 20-7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                            <path d="M22 2 11 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                @error('message') <div class="field-error">{{ $message }}</div> @enderror
                 @error('attachments') <div class="field-error">{{ $message }}</div> @enderror
                 @error('attachments.*') <div class="field-error">{{ $message }}</div> @enderror
-            </div>
-            <div>
-                <button type="submit" class="button primary">{{ __('app.support.view.send_reply') }}</button>
-            </div>
-        </form>
-    @endif
+            </form>
+        @endif
+    </div>
 @endsection

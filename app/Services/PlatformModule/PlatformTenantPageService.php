@@ -16,11 +16,11 @@ class PlatformTenantPageService
     ) {
     }
 
-    public function getTenantList(): LengthAwarePaginator
+    public function getTenantList(?string $search = null): LengthAwarePaginator
     {
         $platformUser = $this->authService->getCurrentUser('platformuser');
 
-        return $this->tenantRepository->paginateByPlatformUser($platformUser->id);
+        return $this->tenantRepository->paginateByPlatformUser($platformUser->id, 15, $search);
     }
 
     public function findOwnedTenant(int $tenantId): Tenant

@@ -56,6 +56,7 @@ Route::name('admin.')->group(function () {
             Route::get('/issued-tickets', [AdminIssuedTicketController::class, 'index'])->name('issued-tickets.index');
             Route::get('/issued-tickets/{ticketCode}', [AdminIssuedTicketController::class, 'show'])->name('issued-tickets.show');
             Route::post('/issued-tickets/{ticketCode}/messages', [AdminIssuedTicketController::class, 'reply'])->name('issued-tickets.messages.store');
+            Route::post('/issued-tickets/{ticketCode}/status', [AdminIssuedTicketController::class, 'changeStatus'])->name('issued-tickets.status.update');
             Route::post('/issued-tickets/{ticketCode}/open', [AdminIssuedTicketController::class, 'open'])->name('issued-tickets.open');
             Route::post('/issued-tickets/{ticketCode}/resolve', [AdminIssuedTicketController::class, 'resolve'])->name('issued-tickets.resolve');
         });

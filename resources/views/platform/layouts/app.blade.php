@@ -7,25 +7,74 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="platform-layout">
+@php
+    $platformNavItems = [
+        [
+            'route' => 'platform.dashboard',
+            'active' => request()->routeIs('platform.dashboard'),
+            'label' => __('app.platform.view.dashboard'),
+        ],
+        [
+            'route' => 'platform.tenants.index',
+            'active' => request()->routeIs('platform.tenants.*'),
+            'label' => __('app.platform.view.tenant_management'),
+        ],
+        [
+            'route' => 'platform.billing.index',
+            'active' => request()->routeIs('platform.billing.*'),
+            'label' => __('app.platform.view.billing_management'),
+        ],
+        [
+            'route' => 'platform.customer-service.index',
+            'active' => request()->routeIs('platform.customer-service.*'),
+            'label' => __('app.platform.view.customer_service'),
+        ],
+        [
+            'route' => 'platform.settings',
+            'active' => request()->routeIs('platform.settings'),
+            'label' => __('app.platform.view.user_setting'),
+        ],
+    ];
+@endphp
+
+<header class="platform-mobile-header">
+    <div class="platform-mobile-bar">
+        <div class="mobile-brand-row">
+            <button type="button" class="mobile-menu-button" data-platform-menu-open aria-controls="platform-mobile-nav" aria-expanded="false" aria-label="{{ __('app.common.view.actions.open') }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <div class="mobile-brand">
+                <strong>LonePawn</strong>
+                <span>{{ __('app.platform.view.workspace') }}</span>
+            </div>
+        </div>
+        <form method="POST" action="{{ route('platform.logout') }}">
+            @csrf
+            <button type="submit" class="mobile-logout-button">{{ __('app.common.view.actions.logout') }}</button>
+        </form>
+    </div>
+    <div class="platform-mobile-nav" id="platform-mobile-nav">
+        <nav aria-label="{{ __('app.platform.view.workspace') }}">
+            @foreach ($platformNavItems as $item)
+                <a href="{{ route($item['route']) }}" class="{{ $item['active'] ? 'active' : '' }}">{{ $item['label'] }}</a>
+            @endforeach
+        </nav>
+    </div>
+</header>
+
 <div class="platform-shell">
-    <button type="button" class="platform-sidebar-backdrop" data-platform-menu-close aria-label="{{ __('app.common.view.actions.close') }}"></button>
     <aside class="platform-sidebar" id="platform-sidebar">
-        <button type="button" class="mobile-sidebar-close" data-platform-menu-close aria-label="{{ __('app.common.view.actions.close') }}">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-        </button>
         <div class="platform-brand">
             <strong>LonePawn</strong>
             <span>{{ __('app.platform.view.workspace') }}</span>
         </div>
 
         <nav class="platform-nav" aria-label="{{ __('app.platform.view.workspace') }}">
-            <a href="{{ route('platform.dashboard') }}" class="{{ request()->routeIs('platform.dashboard') ? 'active' : '' }}">{{ __('app.platform.view.dashboard') }}</a>
-            <a href="{{ route('platform.tenants.index') }}" class="{{ request()->routeIs('platform.tenants.*') ? 'active' : '' }}">{{ __('app.platform.view.tenant_management') }}</a>
-            <a href="{{ route('platform.billing.index') }}" class="{{ request()->routeIs('platform.billing.*') ? 'active' : '' }}">{{ __('app.platform.view.billing_management') }}</a>
-            <a href="{{ route('platform.customer-service.index') }}" class="{{ request()->routeIs('platform.customer-service.*') ? 'active' : '' }}">{{ __('app.platform.view.customer_service') }}</a>
-            <a href="{{ route('platform.settings') }}" class="{{ request()->routeIs('platform.settings') ? 'active' : '' }}">{{ __('app.platform.view.user_setting') }}</a>
+            @foreach ($platformNavItems as $item)
+                <a href="{{ route($item['route']) }}" class="{{ $item['active'] ? 'active' : '' }}">{{ $item['label'] }}</a>
+            @endforeach
         </nav>
 
         <form method="POST" action="{{ route('platform.logout') }}" style="margin-top: auto;">
@@ -36,26 +85,22 @@
 
     <main class="platform-main">
         <header class="topbar">
-            <button type="button" class="mobile-menu-button" data-platform-menu-open aria-controls="platform-sidebar" aria-expanded="false" aria-label="{{ __('app.common.view.actions.open') }}">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </button>
             <div>
                 <h1>@yield('pageTitle', __('app.platform.view.dashboard'))</h1>
                 <p>@yield('pageDescription')</p>
             </div>
             <div class="topbar-actions">
                 @yield('pageAction')
-                {{-- <div class="locale-toggle" aria-label="{{ __('app.common.view.locale.language') }}">
-                    @foreach (config('app.supported_locales', ['en', 'mm']) as $locale)
-                        <a href="{{ route('locale.set', $locale) }}" class="{{ app()->getLocale() === $locale ? 'active' : '' }}">
-                            {{ strtoupper($locale) }}
-                        </a>
-                    @endforeach
-                </div> --}}
             </div>
         </header>
+
+        <section class="mobile-page-heading">
+            <h1>@yield('pageTitle', __('app.platform.view.dashboard'))</h1>
+            <p>@yield('pageDescription')</p>
+            <div class="mobile-page-actions">
+                @yield('pageAction')
+            </div>
+        </section>
 
         @if (session('status'))
             <div class="flash">{{ session('status') }}</div>
@@ -72,8 +117,7 @@
 <script>
     (function () {
         const openButton = document.querySelector('[data-platform-menu-open]');
-        const closeButtons = document.querySelectorAll('[data-platform-menu-close]');
-        const navLinks = document.querySelectorAll('.platform-sidebar a');
+        const navLinks = document.querySelectorAll('.platform-mobile-nav a');
 
         function setMenuOpen(isOpen) {
             document.body.classList.toggle('platform-nav-open', isOpen);
@@ -81,13 +125,7 @@
         }
 
         openButton?.addEventListener('click', function () {
-            setMenuOpen(true);
-        });
-
-        closeButtons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                setMenuOpen(false);
-            });
+            setMenuOpen(!document.body.classList.contains('platform-nav-open'));
         });
 
         navLinks.forEach(function (link) {
@@ -98,6 +136,12 @@
 
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
+                setMenuOpen(false);
+            }
+        });
+
+        window.addEventListener('resize', function () {
+            if (window.innerWidth > 940) {
                 setMenuOpen(false);
             }
         });

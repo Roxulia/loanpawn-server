@@ -50,6 +50,22 @@ class AdminIssuedTicketController extends Controller
             ->with('status', $this->responseMessage(MessageCode::PlatformSupportMessageAdded));
     }
 
+    public function changeStatus(Request $request, string $ticketCode): RedirectResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'string', 'in:open,resolved'],
+        ], [], __('validation.attributes'));
+
+        $ticket = $this->ticketService->changeStatusAsAdmin($ticketCode, $validated['status']);
+        $messageCode = $ticket->status === PlatformSupportTicketService::STATUS_RESOLVED
+            ? MessageCode::PlatformSupportTicketResolved
+            : MessageCode::PlatformSupportTicketOpened;
+
+        return redirect()
+            ->route('admin.issued-tickets.show', $ticketCode)
+            ->with('status', $this->responseMessage($messageCode));
+    }
+
     public function open(string $ticketCode): RedirectResponse
     {
         $this->ticketService->openAsAdmin($ticketCode);

@@ -243,6 +243,17 @@ class PlatformSupportTicketService
         });
     }
 
+    public function changeStatusAsAdmin(string $ticketCode, string $status): PlatformSupportTicket
+    {
+        $status = strtolower(trim($status));
+
+        return match ($status) {
+            self::STATUS_OPEN => $this->openAsAdmin($ticketCode),
+            self::STATUS_RESOLVED => $this->resolveAsAdmin($ticketCode),
+            default => throw new InvalidTenantRequest('Unsupported support ticket status.'),
+        };
+    }
+
     protected function normalizeType(string $type): string
     {
         $type = strtolower($type);

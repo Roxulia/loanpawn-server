@@ -4,11 +4,11 @@
 @section('pageTitle', __('app.platform.view.tenant_management'))
 @section('pageDescription', __('app.platform.view.tenant_management_description'))
 
-@section('pageAction')
-    <a href="{{ route('platform.tenants.create') }}" class="button primary">{{ __('app.common.view.actions.create_tenant') }}</a>
-@endsection
-
 @section('content')
+    @php
+        $search = $search ?? '';
+    @endphp
+
     <style>
         #tenant-error-dialog {
             position: fixed;
@@ -26,18 +26,44 @@
         }
     </style>
 
-    <section class="panel">
-        @if ($tenants->total() === 0)
+    <form method="GET" action="{{ route('platform.tenants.index') }}" class="search-panel">
+        <input type="search" name="q" value="{{ $search }}" placeholder="Search tenants..." aria-label="Search tenants">
+        <button type="submit" class="button primary">Search</button>
+    </form>
+
+    <a href="{{ route('platform.tenants.create') }}" class="create-tenant-card mobile-create-tenant-card">
+        <span class="create-icon">+</span>
+        <span>{{ __('app.common.view.actions.create_tenant') }}</span>
+    </a>
+
+    @if ($tenants->total() === 0)
+        <section class="panel">
             <div class="empty-state">
                 <div>
-                    <h2>{{ __('app.platform.view.no_tenants_created') }}</h2>
-                    <p>{{ __('app.platform.view.no_tenants_created_description') }}</p>
+                    <h2>{{ $search !== '' ? 'No matching tenants found' : __('app.platform.view.no_tenants_created') }}</h2>
+                    <p>{{ $search !== '' ? 'Try another name, code, subdomain, status, or plan.' : __('app.platform.view.no_tenants_created_description') }}</p>
                     <a href="{{ route('platform.tenants.create') }}" class="button primary">{{ __('app.common.view.actions.create_tenant') }}</a>
                 </div>
             </div>
-        @else
+        </section>
+    @else
+        <section class="mobile-only-section">
+            <div class="mobile-card-list">
+                @foreach ($tenants as $tenant)
+                    <x-platform.tenant-card :tenant="$tenant" />
+                @endforeach
+            </div>
+        </section>
+
+        <section class="panel desktop-table-panel">
+            <div class="desktop-panel-heading">
+                <h2>{{ __('app.platform.view.tenant_management') }}</h2>
+                <a href="{{ route('platform.tenants.create') }}" class="button primary icon-button-text">
+                    <span aria-hidden="true">+</span>
+                    <span>{{ __('app.common.view.actions.create_tenant') }}</span>
+                </a>
+            </div>
             <div class="table-wrap">
-                <h2 style="margin: 0 0 12px; color: var(--color-heading); font-size: 20px;">{{ __('app.platform.view.tenant_management') }}</h2>
                 <table>
                     <thead>
                     <tr>
@@ -45,9 +71,8 @@
                         <th>{{ __('app.common.view.labels.code') }}</th>
                         <th>{{ __('app.platform.view.subdomain') }}</th>
                         <th>{{ __('app.common.view.labels.plan') }}</th>
+                        <th>{{ __('app.platform.view.expiry') }}</th>
                         <th>{{ __('app.common.view.labels.status') }}</th>
-                        <th>{{ __('app.platform.view.branding') }}</th>
-                        <th>{{ __('app.platform.view.contact') }}</th>
                         <th></th>
                     </tr>
                     </thead>
@@ -58,9 +83,8 @@
                             <td data-label="{{ __('app.common.view.labels.code') }}">{{ $tenant->tenant_code }}</td>
                             <td data-label="{{ __('app.platform.view.subdomain') }}">{{ $tenant->subdomain ?? '-' }}</td>
                             <td data-label="{{ __('app.common.view.labels.plan') }}">{{ $tenant->license?->plan_type ?? 'trial' }}</td>
+                            <td data-label="{{ __('app.platform.view.expiry') }}">{{ $tenant->license?->expires_at?->format('Y-m-d') ?? '-' }}</td>
                             <td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge">{{ $tenant->status }}</span></td>
-                            <td data-label="{{ __('app.platform.view.branding') }}">{{ $tenant->branding ? __('app.platform.view.configured') : __('app.platform.view.missing') }}</td>
-                            <td data-label="{{ __('app.platform.view.contact') }}">{{ $tenant->contact ? __('app.platform.view.configured') : __('app.platform.view.missing') }}</td>
                             <td data-label="">
                                 <a href="{{ route('platform.tenants.edit', $tenant->id) }}" class="button secondary">{{ __('app.platform.view.settings') }}</a>
                                 <form method="POST" action="{{ route('platform.tenants.open-app', $tenant->id) }}" style="display:inline;" data-open-app-form>
@@ -73,12 +97,12 @@
                     </tbody>
                 </table>
             </div>
+        </section>
 
-            <div class="pagination">
-                {{ $tenants->links() }}
-            </div>
-        @endif
-    </section>
+        <div class="pagination">
+            {{ $tenants->links() }}
+        </div>
+    @endif
 
     <dialog class="platform-dialog" id="tenant-error-dialog" aria-labelledby="tenant-error-dialog-title">
         <div class="dialog-header">

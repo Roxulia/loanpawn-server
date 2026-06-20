@@ -22,7 +22,7 @@
         }
     </style>
 
-    <section class="grid kpi">
+    <section class="grid kpi billing-kpi">
         <div class="panel">
             <p class="metric-label">{{ __('app.billing.view.pending_requests') }}</p>
             <p class="metric-value">{{ $billing['pending_count'] }}</p>
@@ -31,25 +31,42 @@
             <p class="metric-label">{{ __('app.billing.view.approved_payments') }}</p>
             <p class="metric-value">{{ $billing['approved_count'] }}</p>
         </div>
-        <div class="panel">
-            <p class="metric-label">{{ __('app.billing.view.approved_total') }}</p>
-            <p class="metric-value">{{ number_format($billing['approved_total'], 0) }}</p>
-        </div>
-        <div class="panel">
-            <p class="metric-label">{{ __('app.common.view.labels.currency') }}</p>
-            <p class="metric-value">MMK</p>
+        <div class="panel billing-total-panel">
+            <div>
+                <p class="metric-label">{{ __('app.billing.view.approved_total') }}</p>
+                <p class="metric-value">{{ number_format($billing['approved_total'], 0) }}</p>
+            </div>
+            <div class="billing-currency">
+                <p class="metric-label">{{ __('app.common.view.labels.currency') }}</p>
+                <p>MMK</p>
+            </div>
         </div>
     </section>
 
-    <section class="panel" style="margin-top: 16px;">
-        @if ($billing['payments']->total() === 0)
+    @if ($billing['payments']->total() === 0)
+        <section class="panel" style="margin-top: 16px;">
             <div class="empty-state">
                 <div>
                     <h2>{{ __('app.billing.view.no_billing_records') }}</h2>
                     <p>{{ __('app.billing.view.no_billing_records_user_description') }}</p>
                 </div>
             </div>
-        @else
+        </section>
+    @else
+        <section class="mobile-only-section" style="margin-top: 16px;">
+            <div style="margin-bottom: 12px; display: flex; justify-content: space-between; gap: 12px; align-items: center;">
+                <p class="section-kicker">{{ __('app.platform.view.billing_management') }}</p>
+                <span class="badge">Recent Activity</span>
+            </div>
+
+            <div class="mobile-card-list">
+                @foreach ($billing['payments'] as $payment)
+                    <x-platform.billing-card :payment="$payment" />
+                @endforeach
+            </div>
+        </section>
+
+        <section class="panel desktop-table-panel">
             <div class="table-wrap">
                 <h2 style="margin: 0 0 12px; color: var(--color-heading); font-size: 20px;">{{ __('app.platform.view.billing_management') }}</h2>
                 <table>
@@ -94,12 +111,12 @@
                     </tbody>
                 </table>
             </div>
+        </section>
 
-            <div class="pagination">
-                {{ $billing['payments']->links() }}
-            </div>
-        @endif
-    </section>
+        <div class="pagination">
+            {{ $billing['payments']->links() }}
+        </div>
+    @endif
 
     @foreach ($billing['payments'] as $payment)
         @if ($payment->status === 'draft' && $payment->tenant_request_id)

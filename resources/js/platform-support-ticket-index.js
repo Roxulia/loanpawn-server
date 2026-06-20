@@ -43,6 +43,26 @@ function customerRowHtml(ticket) {
     `;
 }
 
+function customerCardHtml(ticket) {
+    return `
+        <div class="lp-ticket-card-tags">
+            <span class="lp-ticket-type">${escapeHtml(ticket.typeLabel)}</span>
+            <span class="mobile-card-kicker">${escapeHtml(ticket.code)}</span>
+        </div>
+        <h2 class="mobile-card-title">${escapeHtml(ticket.subject)} ${unreadBadge(ticket)}</h2>
+        <div class="lp-ticket-card-footer">
+            <div class="lp-inline-meta">
+                <span aria-hidden="true">◷</span>
+                <strong>${escapeHtml(ticket.createdAt)}</strong>
+            </div>
+            <div class="lp-ticket-actions">
+                <span class="badge">${escapeHtml(ticket.status)}</span>
+                <a href="${escapeHtml(ticket.userDetailUrl)}" class="button primary">View</a>
+            </div>
+        </div>
+    `;
+}
+
 function adminRowHtml(ticket) {
     return `
         <td data-label="Updated" data-field="updated">${escapeHtml(ticket.updatedAt)}</td>
@@ -79,6 +99,21 @@ function upsertTicket(config, ticket) {
     row.classList.remove('ticket-live-highlight');
     void row.offsetWidth;
     row.classList.add('ticket-live-highlight');
+
+    if (config.cardList && config.role === 'customer') {
+        let card = config.cardList.querySelector(`[data-ticket-card-id="${ticket.id}"]`);
+        if (! card) {
+            card = document.createElement('article');
+            card.className = 'lp-ticket-card';
+            card.dataset.ticketCardId = ticket.id;
+            config.cardList.prepend(card);
+        }
+
+        card.innerHTML = customerCardHtml(ticket);
+        card.classList.remove('ticket-live-highlight');
+        void card.offsetWidth;
+        card.classList.add('ticket-live-highlight');
+    }
 }
 
 function initCustomerIndex(root) {
@@ -90,6 +125,7 @@ function initCustomerIndex(root) {
     const config = {
         role: 'customer',
         body: document.getElementById(root.dataset.bodyId),
+        cardList: document.getElementById(root.dataset.cardListId),
         tableWrap: document.getElementById(root.dataset.tableWrapId),
         emptyState: document.getElementById(root.dataset.emptyStateId),
     };
@@ -151,12 +187,19 @@ function initSupportTicketIndexes() {
 
     supportTicketIndexesInitialized = true;
 
+    const initializedKeys = new Set();
+
     ticketIndexes.forEach(function (root) {
         if (root.dataset.supportTicketIndex === 'admin') {
             initAdminIndex(root);
             return;
         }
 
+        const key = 'customer:' + root.dataset.platformUserId;
+        if (initializedKeys.has(key)) {
+            return;
+        }
+        initializedKeys.add(key);
         initCustomerIndex(root);
     });
 }

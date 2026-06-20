@@ -4,33 +4,57 @@
 @section('pageTitle', __('app.platform.view.customer_service'))
 @section('pageDescription', __('app.support.view.customer_service_description'))
 
-@section('pageAction')
-    <a href="{{ route('platform.customer-service.create') }}" class="button primary">{{ __('app.support.view.create_ticket') }}</a>
-@endsection
-
 @section('content')
-    <section class="panel">
-        @if ($tickets->total() === 0)
-            <div class="empty-state" id="customer-service-empty-state">
+    @if ($tickets->total() === 0)
+        <section class="panel">
+            <div class="empty-state">
                 <div>
                     <h2>{{ __('app.support.view.no_tickets') }}</h2>
                     <p class="muted">{{ __('app.support.view.no_tickets_description') }}</p>
                     <a href="{{ route('platform.customer-service.create') }}" class="button primary">{{ __('app.support.view.create_ticket') }}</a>
                 </div>
             </div>
-        @endif
+        </section>
+    @else
+        <section
+            class="mobile-only-section"
+            data-support-ticket-index="customer"
+            data-platform-user-id="{{ Auth::guard('platformuser')->id() }}"
+            data-body-id="customer-service-table-body"
+            data-card-list-id="customer-service-card-list"
+            data-table-wrap-id="customer-service-table-wrap"
+            data-empty-state-id="customer-service-empty-state"
+        >
+            <a href="{{ route('platform.customer-service.create') }}" class="button primary" style="width: 100%; margin-bottom: 16px;">{{ __('app.support.view.create_ticket') }}</a>
+            <div class="ticket-list-heading">
+                <h2>Active Tickets</h2>
+                <span class="badge">{{ $tickets->total() }}</span>
+            </div>
+            <div class="mobile-card-list" id="customer-service-card-list">
+                @foreach ($tickets as $ticket)
+                    <x-platform.customer-ticket-card :ticket="$ticket" />
+                @endforeach
+            </div>
+        </section>
 
+        <section class="panel desktop-table-panel">
+            <div class="desktop-panel-heading">
+                <h2>{{ __('app.platform.view.customer_service') }}</h2>
+                <a href="{{ route('platform.customer-service.create') }}" class="button primary icon-button-text">
+                    <span aria-hidden="true">+</span>
+                    <span>{{ __('app.support.view.create_ticket') }}</span>
+                </a>
+            </div>
         <div
             class="table-wrap"
-            @if ($tickets->total() === 0) style="display: none;" @endif
             id="customer-service-table-wrap"
             data-support-ticket-index="customer"
             data-platform-user-id="{{ Auth::guard('platformuser')->id() }}"
             data-body-id="customer-service-table-body"
+            data-card-list-id="customer-service-card-list"
             data-table-wrap-id="customer-service-table-wrap"
             data-empty-state-id="customer-service-empty-state"
         >
-            <h2 style="margin: 0 0 12px; color: var(--color-heading); font-size: 20px;">{{ __('app.platform.view.customer_service') }}</h2>
             <table>
                 <thead>
                 <tr>
@@ -65,11 +89,10 @@
                 </tbody>
             </table>
         </div>
+        </section>
 
-        @if ($tickets->total() > 0)
-            <div class="pagination">
-                {{ $tickets->links() }}
-            </div>
-        @endif
-    </section>
+        <div class="pagination">
+            {{ $tickets->links() }}
+        </div>
+    @endif
 @endsection
