@@ -57,6 +57,13 @@ class TenantLicenseRepository
         );
     }
 
+    public function resetCurrentMonthSlipCounts(): int
+    {
+        return TenantLicense::query()->update([
+            'current_month_slip_count' => 0,
+        ]);
+    }
+
     public function createPlanTransition(array $data): TenantLicensePlanTransition
     {
         return TenantLicensePlanTransition::query()->create($data);

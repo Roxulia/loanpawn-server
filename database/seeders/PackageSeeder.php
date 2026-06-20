@@ -30,6 +30,8 @@ class PackageSeeder extends Seeder
                     'name' => $packageDefinition['name'],
                     'description' => $packageDefinition['description'] ?? null,
                     'price' => $packageDefinition['price'],
+                    'max_slip_per_month' => $packageDefinition['max_slip_per_month'] ?? null,
+                    'max_staff_count' => $packageDefinition['max_staff_count'] ?? null,
                     'is_active' => $packageDefinition['is_active'],
                 ]
             );

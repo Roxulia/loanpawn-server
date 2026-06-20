@@ -6,12 +6,14 @@ use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\ResponseObjects\LoanContractSlipDetail;
 use App\Exceptions\InvalidTenantRequest;
+use App\Exceptions\TenantAccessDenied;
 use App\Exceptions\TenantNotFound;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\LoanContractSlipRepository;
 use App\Services\BaseTenantService;
 use App\Services\PawnModule\CollateralItemService;
 use App\Services\PawnModule\InterestFlowService;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\TenantAccountingService;
 use App\Services\TenantModule\TenantAuditLogService;
@@ -37,6 +39,7 @@ class ManagementService extends BaseTenantService
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
+        private TenantLicenseService $tenantLicenseService
     ) {
     }
 
@@ -44,7 +47,11 @@ class ManagementService extends BaseTenantService
     {
         $this->permissionService->authorizeLoanContractCreate();
         $this->validateCreateRequest($request);
+        $tenantId = $this->resolveCurrentTenantId();
 
+        if ($this->tenantLicenseService->checkIfLimitReach('current_month_slip_count', $tenantId)) {
+            throw new TenantAccessDenied("Limit Reached");
+        }
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'loan_contract_slip.create',
             $request->idempotencyKey,
@@ -55,7 +62,6 @@ class ManagementService extends BaseTenantService
             $this->tenantIdempotencyService->replay($idempotencyRecord);
         }
 
-        $tenantId = $this->resolveCurrentTenantId();
         $createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
         $createdDate = CarbonImmutable::now()->startOfDay();
         $expiryQuotaType = $this->normalizeExpiryQuotaType($request->expiryQuotaType);
@@ -85,7 +91,7 @@ class ManagementService extends BaseTenantService
 
                 $this->collateralItemService->createForSlip($slip, $request->collateralItems);
                 $this->interestFlowService->createInitialSchedule($slip, $createdBy);
-
+                $this->tenantLicenseService->incrementCurrentMonthSlipCount($tenantId);
                 $this->tenantAccountingService->createOutgoingForReference(
                     $slip,
                     'Loan Contract Transaction',

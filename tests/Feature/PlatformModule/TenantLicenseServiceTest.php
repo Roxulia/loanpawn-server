@@ -3,10 +3,13 @@
 namespace Tests\Feature\PlatformModule;
 
 use App\Jobs\CheckExpireTenantLicenseJob;
+use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
+use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\PlatformModule\TenantLicense;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
+use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -185,6 +188,175 @@ class TenantLicenseServiceTest extends TestCase
         ]);
 
         Carbon::setTestNow();
+    }
+
+    public function test_tenant_license_usage_counters_default_to_zero(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Counter Owner',
+            'email' => 'counter-owner@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $tenant = $this->createTenant($platformUser, 'counter-tenant');
+
+        $license = TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'COUNTERLICENSE01',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'expires_at' => now()->addMonth(),
+        ]);
+
+        $this->assertSame(0, $license->refresh()->current_month_slip_count);
+        $this->assertSame(0, $license->current_staff_count);
+    }
+
+    public function test_monthly_slip_count_reset_updates_all_licenses_without_staff_count(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Reset Owner',
+            'email' => 'reset-owner@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $activeTenant = $this->createTenant($platformUser, 'reset-active-tenant');
+        $expiredTenant = $this->createTenant($platformUser, 'reset-expired-tenant');
+
+        TenantLicense::query()->create([
+            'tenant_id' => $activeTenant->id,
+            'license_key' => 'RESETLICENSE0001',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'expires_at' => now()->addMonth(),
+            'current_month_slip_count' => 12,
+            'current_staff_count' => 3,
+        ]);
+        TenantLicense::query()->create([
+            'tenant_id' => $expiredTenant->id,
+            'license_key' => 'RESETLICENSE0002',
+            'plan_type' => 'premium',
+            'status' => 'expired',
+            'expires_at' => now()->subMonth(),
+            'current_month_slip_count' => 25,
+            'current_staff_count' => 7,
+        ]);
+
+        $updated = app(TenantLicenseService::class)->resetCurrentMonthSlipCounts();
+
+        $this->assertSame(2, $updated);
+        $this->assertDatabaseHas('tenant_licenses', [
+            'tenant_id' => $activeTenant->id,
+            'current_month_slip_count' => 0,
+            'current_staff_count' => 3,
+        ]);
+        $this->assertDatabaseHas('tenant_licenses', [
+            'tenant_id' => $expiredTenant->id,
+            'current_month_slip_count' => 0,
+            'current_staff_count' => 7,
+        ]);
+    }
+
+    public function test_monthly_reset_job_calls_license_reset(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Reset Job Owner',
+            'email' => 'reset-job-owner@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $tenant = $this->createTenant($platformUser, 'reset-job-tenant');
+
+        TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'RESETJOBLICENSE1',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'expires_at' => now()->addMonth(),
+            'current_month_slip_count' => 9,
+            'current_staff_count' => 2,
+        ]);
+
+        app(ResetTenantLicenseMonthlySlipCountJob::class)->handle(app(TenantLicenseService::class));
+
+        $this->assertDatabaseHas('tenant_licenses', [
+            'tenant_id' => $tenant->id,
+            'current_month_slip_count' => 0,
+            'current_staff_count' => 2,
+        ]);
+    }
+
+    public function test_license_limit_check_maps_counters_to_package_limits(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Limit Owner',
+            'email' => 'limit-owner@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $tenant = $this->createTenant($platformUser, 'limit-tenant');
+        Package::query()->create([
+            'code' => 'basic',
+            'name' => 'Basic',
+            'price' => 1000,
+            'max_slip_per_month' => 2,
+            'max_staff_count' => 3,
+            'is_active' => false,
+        ]);
+        TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'LIMITLICENSE001',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'expires_at' => now()->addMonth(),
+            'current_month_slip_count' => 1,
+            'current_staff_count' => 3,
+        ]);
+        app(TenantContext::class)->set($tenant);
+
+        $service = app(TenantLicenseService::class);
+
+        $this->assertFalse($service->checkIfLimitReach('current_month_slip_count'));
+        $this->assertTrue($service->checkIfLimitReach('current_staff_count'));
+    }
+
+    public function test_license_limit_check_allows_unlimited_package_values(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Unlimited Owner',
+            'email' => 'unlimited-owner@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $tenant = $this->createTenant($platformUser, 'unlimited-tenant');
+        Package::query()->create([
+            'code' => 'premium',
+            'name' => 'Premium',
+            'price' => 1000,
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
+            'is_active' => true,
+        ]);
+        TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'UNLIMITEDLIC001',
+            'plan_type' => 'premium',
+            'status' => 'active',
+            'expires_at' => now()->addMonth(),
+            'current_month_slip_count' => 1000,
+            'current_staff_count' => 100,
+        ]);
+        app(TenantContext::class)->set($tenant);
+
+        $service = app(TenantLicenseService::class);
+
+        $this->assertFalse($service->checkIfLimitReach('current_month_slip_count'));
+        $this->assertFalse($service->checkIfLimitReach('current_staff_count'));
     }
 
     protected function createTenant(PlatformUser $platformUser, string $code): Tenant

@@ -29,6 +29,17 @@ class PackageService
         return $package;
     }
 
+    public function findByCode(string $code): Package
+    {
+        $package = $this->repository->findByCode($code);
+
+        if (! $package) {
+            throw new TenantNotFound($this->messages->responseMessage(MessageCode::PackageNotFound));
+        }
+
+        return $package;
+    }
+
     public function planHasFeature(string $planType, string $featureCode): bool
     {
         return $this->findEnabledFeatureByPlan($planType, $featureCode) !== null;
@@ -70,9 +81,13 @@ class PackageService
         $this->repository->updateFlags($featureFlags, $packageFlags, $mappingFlags);
     }
 
-    public function updatePlanFlags(array $packageFlags): void
+    public function updatePlanFlags(
+        array $packageFlags,
+        array $maxSlipPerMonth = [],
+        array $maxStaffCount = [],
+    ): void
     {
-        $this->repository->updatePlanFlags($packageFlags);
+        $this->repository->updatePlanFlags($packageFlags, $maxSlipPerMonth, $maxStaffCount);
     }
 
     public function createFeature(array $data): void

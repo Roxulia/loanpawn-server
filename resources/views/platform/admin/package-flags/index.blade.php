@@ -53,6 +53,18 @@
             font-size: 13px;
             line-height: 1.5;
         }
+        .plan-limit-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(130px, 1fr));
+            gap: 12px;
+            min-width: min(360px, 100%);
+        }
+        .plan-limit-fields label {
+            margin-bottom: 5px;
+        }
+        .plan-limit-fields input {
+            width: 100%;
+        }
         .switch {
             position: relative;
             display: inline-flex;
@@ -167,6 +179,9 @@
             .flag-row {
                 display: grid;
             }
+            .plan-limit-fields {
+                min-width: 0;
+            }
             .flag-actions,
             .flag-actions .button {
                 width: 100%;
@@ -190,11 +205,37 @@
                             <p class="flag-title">{{ $package->name }}</p>
                             <p class="flag-description">{{ $package->description ?? 'Plan sales availability' }}</p>
                         </div>
-                        <label class="switch" aria-label="{{ $package->name }} status">
-                            <input type="hidden" name="packages[{{ $package->id }}]" value="0">
-                            <input type="checkbox" name="packages[{{ $package->id }}]" value="1" @checked($package->is_active)>
-                            <span class="switch-track"></span>
-                        </label>
+                        <div class="plan-limit-fields">
+                            <div>
+                                <label for="max_slip_per_month_{{ $package->id }}">Max slips / month</label>
+                                <input
+                                    id="max_slip_per_month_{{ $package->id }}"
+                                    type="number"
+                                    min="0"
+                                    name="max_slip_per_month[{{ $package->id }}]"
+                                    value="{{ old('max_slip_per_month.'.$package->id, $package->max_slip_per_month) }}"
+                                    placeholder="Unlimited"
+                                >
+                                @error('max_slip_per_month.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
+                            <div>
+                                <label for="max_staff_count_{{ $package->id }}">Max staff</label>
+                                <input
+                                    id="max_staff_count_{{ $package->id }}"
+                                    type="number"
+                                    min="0"
+                                    name="max_staff_count[{{ $package->id }}]"
+                                    value="{{ old('max_staff_count.'.$package->id, $package->max_staff_count) }}"
+                                    placeholder="Unlimited"
+                                >
+                                @error('max_staff_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
+                            <label class="switch" aria-label="{{ $package->name }} status">
+                                <input type="hidden" name="packages[{{ $package->id }}]" value="0">
+                                <input type="checkbox" name="packages[{{ $package->id }}]" value="1" @checked($package->is_active)>
+                                <span class="switch-track"></span>
+                            </label>
+                        </div>
                     </div>
                 @endforeach
             </div>

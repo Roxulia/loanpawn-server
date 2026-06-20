@@ -213,6 +213,73 @@ class TenantLicenseService extends BaseTenantService
         });
     }
 
+    public function resetCurrentMonthSlipCounts(): int
+    {
+        return $this->runLoggedOperation(__METHOD__, function (): int {
+            return $this->repository->resetCurrentMonthSlipCounts();
+        });
+    }
+
+    public function incrementCurrentMonthSlipCount(?int $tenantId = null): void
+    {
+        $license = $tenantId === null
+            ? $this->repository->findByTenantId($this->resolveCurrentTenantId())
+            : $this->repository->findByTenantId($tenantId);
+
+        if ($license === null) {
+            return;
+        }
+
+        $license->update(
+            [
+                'current_month_slip_count' => $license->current_month_slip_count + 1
+            ]
+        );
+    }
+
+    public function incrementStaffCount(?int $tenantId = null): void
+    {
+        $license = $tenantId === null
+            ? $this->repository->findByTenantId($this->resolveCurrentTenantId())
+            : $this->repository->findByTenantId($tenantId);
+
+        if ($license === null) {
+            return;
+        }
+
+        $license->update(
+            [
+                'current_staff_count' => $license->current_staff_count + 1
+            ]
+        );
+    }
+
+    public function checkIfLimitReach(string $attribute, ?int $tenantId = null): bool
+    {
+        $packageAttribute = match ($attribute) {
+            'current_month_slip_count' => 'max_slip_per_month',
+            'current_staff_count' => 'max_staff_count',
+            default => throw new InvalidTenantRequest('Unsupported license limit attribute.'),
+        };
+
+        $license = $tenantId === null
+            ? $this->repository->findByTenantId($this->resolveCurrentTenantId())
+            : $this->repository->findByTenantId($tenantId);
+
+        if ($license === null) {
+            return false;
+        }
+
+        $package = $this->packageService->findByCode($license->plan_type);
+        $maxAllowed = $package->{$packageAttribute};
+
+        if ($maxAllowed === null) {
+            return false;
+        }
+
+        return ((int) $license->{$attribute} + 1) > (int) $maxAllowed;
+    }
+
     public function ensureTenantHasNoScheduledPlanTransition(int $tenantId): void
     {
         $license = $this->getTenantLicense($tenantId);

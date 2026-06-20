@@ -18,6 +18,13 @@ class PackageRepository
             ->first();
     }
 
+    public function findByCode(string $code): ?Package
+    {
+        return Package::query()
+            ->where('code', $code)
+            ->first();
+    }
+
     public function findEnabledFeatureByPackageCode(string $packageCode, string $featureCode): ?PackageFeature
     {
         return PackageFeature::query()
@@ -122,13 +129,30 @@ class PackageRepository
         });
     }
 
-    public function updatePlanFlags(array $packageFlags): void
+    public function updatePlanFlags(
+        array $packageFlags,
+        array $maxSlipPerMonth = [],
+        array $maxStaffCount = [],
+    ): void
     {
-        DB::transaction(function () use ($packageFlags): void {
+        DB::transaction(function () use ($packageFlags, $maxSlipPerMonth, $maxStaffCount): void {
             foreach ($packageFlags as $packageId => $isActive) {
-                Package::query()->whereKey($packageId)->update(['is_active' => $isActive]);
+                Package::query()->whereKey($packageId)->update([
+                    'is_active' => $isActive,
+                    'max_slip_per_month' => $this->nullableIntegerValue($maxSlipPerMonth, $packageId),
+                    'max_staff_count' => $this->nullableIntegerValue($maxStaffCount, $packageId),
+                ]);
             }
         });
+    }
+
+    protected function nullableIntegerValue(array $values, int|string $key): ?int
+    {
+        if (! array_key_exists($key, $values) || $values[$key] === '' || $values[$key] === null) {
+            return null;
+        }
+
+        return (int) $values[$key];
     }
 
     public function createFeature(array $data): Feature

@@ -53,6 +53,25 @@ class PackageFlagAndPlanTransitionTest extends TestCase
         $this->assertFalse($service->planHasFeature('basic', 'customer_management'));
     }
 
+    public function test_package_seeder_persists_usage_limits(): void
+    {
+        $this->assertDatabaseHas('packages', [
+            'code' => 'trial',
+            'max_slip_per_month' => 30,
+            'max_staff_count' => 2,
+        ]);
+        $this->assertDatabaseHas('packages', [
+            'code' => 'basic',
+            'max_slip_per_month' => 300,
+            'max_staff_count' => 5,
+        ]);
+        $this->assertDatabaseHas('packages', [
+            'code' => 'premium',
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
+        ]);
+    }
+
     public function test_premium_to_basic_approval_is_activated_at_license_expiry(): void
     {
         Carbon::setTestNow('2026-06-01 10:00:00');
@@ -115,10 +134,38 @@ class PackageFlagAndPlanTransitionTest extends TestCase
         $this->actingAs($admin, 'platformadmin')
             ->post(route('admin.package-flags.plans.update'), [
                 'packages' => [$package->id => 0],
+                'max_slip_per_month' => [$package->id => 250],
+                'max_staff_count' => [$package->id => 4],
             ])
             ->assertRedirect(route('admin.package-flags.index'));
 
-        $this->assertDatabaseHas('packages', ['id' => $package->id, 'is_active' => false]);
+        $this->assertDatabaseHas('packages', [
+            'id' => $package->id,
+            'is_active' => false,
+            'max_slip_per_month' => 250,
+            'max_staff_count' => 4,
+        ]);
+    }
+
+    public function test_admin_can_store_blank_plan_limits_as_unlimited(): void
+    {
+        $admin = $this->flagAdmin();
+        $package = Package::query()->where('code', 'basic')->firstOrFail();
+
+        $this->actingAs($admin, 'platformadmin')
+            ->post(route('admin.package-flags.plans.update'), [
+                'packages' => [$package->id => 1],
+                'max_slip_per_month' => [$package->id => null],
+                'max_staff_count' => [$package->id => ''],
+            ])
+            ->assertRedirect(route('admin.package-flags.index'));
+
+        $this->assertDatabaseHas('packages', [
+            'id' => $package->id,
+            'is_active' => true,
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
+        ]);
     }
 
     public function test_admin_can_create_feature_with_disabled_plan_assignments(): void

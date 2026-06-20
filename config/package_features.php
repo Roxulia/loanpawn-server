@@ -69,6 +69,8 @@ return [
             'name' => 'Trial',
             'description' => 'Trial package for evaluating the pawnshop system.',
             'price' => 0,
+            'max_slip_per_month' => 30,
+            'max_staff_count' => 2,
             'is_active' => true,
             'features' => [
                 'tenant_user_management',
@@ -87,6 +89,8 @@ return [
             'name' => 'Basic',
             'description' => 'Basic package for growing pawnshops.',
             'price' => 50000,
+            'max_slip_per_month' => 300,
+            'max_staff_count' => 5,
             'is_active' => true,
             'features' => [
                 'tenant_user_management',
@@ -107,6 +111,8 @@ return [
             'name' => 'Premium',
             'description' => 'Premium package with branding and advanced features.',
             'price' => 100000,
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
             'is_active' => true,
             'features' => [
                 'tenant_user_management',

@@ -2,6 +2,7 @@
 
 use App\Exceptions\ApiException;
 use App\Jobs\CheckExpireTenantLicenseJob;
+use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -60,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->job(new CheckExpireTenantLicenseJob())->daily();
+        $schedule->job(new ResetTenantLicenseMonthlySlipCountJob())->monthlyOn(1, '00:00');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

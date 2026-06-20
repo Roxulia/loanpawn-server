@@ -13,6 +13,8 @@ class Package extends Model
         'name',
         'description',
         'price',
+        'max_slip_per_month',
+        'max_staff_count',
         'is_active',
     ];
 
@@ -20,6 +22,8 @@ class Package extends Model
     {
         return [
             'price' => 'decimal:2',
+            'max_slip_per_month' => 'integer',
+            'max_staff_count' => 'integer',
             'is_active' => 'boolean',
         ];
     }

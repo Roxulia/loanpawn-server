@@ -19,6 +19,8 @@ class TenantLicense extends Model
         'activated_at',
         'approved_by',
         'notes',
+        'current_month_slip_count',
+        'current_staff_count',
         'update_key',
     ];
 
@@ -28,6 +30,8 @@ class TenantLicense extends Model
             'starts_at' => 'datetime',
             'expires_at' => 'datetime',
             'activated_at' => 'datetime',
+            'current_month_slip_count' => 'integer',
+            'current_staff_count' => 'integer',
         ];
     }
 

@@ -54,9 +54,17 @@ class AdminPackageFlagController extends Controller
         $validated = $request->validate([
             'packages' => ['required', 'array'],
             'packages.*' => ['required', 'boolean'],
+            'max_slip_per_month' => ['nullable', 'array'],
+            'max_slip_per_month.*' => ['nullable', 'integer', 'min:0'],
+            'max_staff_count' => ['nullable', 'array'],
+            'max_staff_count.*' => ['nullable', 'integer', 'min:0'],
         ], [], __('validation.attributes'));
 
-        $this->packageService->updatePlanFlags($validated['packages']);
+        $this->packageService->updatePlanFlags(
+            $validated['packages'],
+            $validated['max_slip_per_month'] ?? [],
+            $validated['max_staff_count'] ?? [],
+        );
 
         return redirect()
             ->route('admin.package-flags.index')

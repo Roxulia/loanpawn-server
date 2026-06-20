@@ -12,11 +12,13 @@ use App\Exceptions\DuplicateValueFound;
 use App\Exceptions\InvalidCredential;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\LanguageCodeInvalid;
+use App\Exceptions\TenantAccessDenied;
 use App\Exceptions\TenantUserNotFound;
 use App\Exceptions\UserNotLoggedIn;
 use App\Models\CoreModule\TenantUser;
 use App\Repository\TenantUserRepository;
 use App\Services\BaseTenantService;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\PlatformModule\TenantServices\TenantSettingService;
 use App\Services\TableIdGenerationService;
 use App\Support\TenantContext;
@@ -41,6 +43,7 @@ class TenantUserService extends BaseTenantService
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TenantSettingService $tenantSettingService,
         private TableIdGenerationService $tableIdGenerationService,
+        private TenantLicenseService $tenantLicenseService,
         private Messages $messages
     ) {
     }
@@ -85,6 +88,10 @@ class TenantUserService extends BaseTenantService
     public function create(TenantUserCreate $request): TenantUserCreateResponse
     {
         $tenantId = $request->tenantId ?? $this->resolveCurrentTenantId();
+
+        if ($this->tenantLicenseService->checkIfLimitReach('current_staff_count', $tenantId)) {
+            throw new TenantAccessDenied('Limit Reached');
+        }
         $username = $this->generateUsername($tenantId, $request->name, $request->phone);
         $request->roleId = $request->roleId ?? $this->tenantRoleService->resolveDefaultRoleIdByName('User');
         $this->tenantRoleService->ensureRoleExists($request->roleId, $tenantId);
@@ -112,7 +119,7 @@ class TenantUserService extends BaseTenantService
 
             $user = $this->repository->create($data);
             $this->permissionService->createPermissionFromRole($user);
-
+            $this->tenantLicenseService->incrementStaffCount($tenantId);
             return $user->refresh()->load(['role', 'permission']);
         });
 
