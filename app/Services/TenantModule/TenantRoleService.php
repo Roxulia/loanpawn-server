@@ -15,6 +15,18 @@ class TenantRoleService extends BaseTenantService
     ) {
     }
 
+    public function listOptions(?int $tenantId = null)
+    {
+        $tenantId = $tenantId ?? $this->resolveOptionalCurrentTenantId();
+
+        return $this->repository->listAccessible($tenantId)
+            ->map(fn ($role) => [
+                'role_id' => $role->id,
+                'role_name' => $role->name,
+            ])
+            ->values();
+    }
+
     public function resolveDefaultRoleIdByName(string $roleName): int
     {
         $role = $this->repository->findDefaultByName($roleName);

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LonePawn - Submit Payment Attachment</title>
+<!-- Tailwind CSS CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Manrope & Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"on-tertiary-fixed": "#001f25", "inverse-primary": "#62d4f9", "inverse-surface": "#203241", tertiary: "#46636a", background: "#f6f9ff", primary: "#00677f", "primary-fixed-dim": "#62d4f9", "on-primary": "#ffffff", "surface-bright": "#f6f9ff", "on-surface-variant": "#41484a", "surface-variant": "#d1e5f8", "on-primary-fixed": "#001f28", "surface-container-lowest": "#ffffff", "surface-container-high": "#d7ebfe", "surface-tint": "#00677f", "outline-variant": "#c1c8ca", "on-tertiary": "#ffffff", "on-background": "#091d2b", "on-surface": "#091d2b", "tertiary-fixed-dim": "#adccd4", "inverse-on-surface": "#e6f2ff", "tertiary-fixed": "#c9e8f0", "surface-dim": "#c9dcf0", "secondary-container": "#b7e7fa", "surface-container-low": "#ecf5ff", "secondary-fixed-dim": "#9ecee1", "on-secondary-container": "#396979", "on-error-container": "#93000a", "primary-container": "#13a0c3", secondary: "#356575", "on-primary-container": "#00313e", "surface-container": "#e1f0ff", "secondary-fixed": "#baeafd", "on-secondary-fixed": "#001f28", outline: "#71787a", "primary-fixed": "#b6ebff", "on-secondary-fixed-variant": "#194d5c", "on-secondary": "#ffffff", "on-error": "#ffffff", "on-tertiary-container": "#123137", "error-container": "#ffdad6", "tertiary-container": "#7b99a0", "on-tertiary-fixed-variant": "#2e4b52", surface: "#f6f9ff", "on-primary-fixed-variant": "#004e60", "surface-container-highest": "#d1e5f8", error: "#ba1a1a"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, spacing: {sm: "8px", xl: "32px", unit: "4px", gutter: "24px", "margin-mobile": "16px", lg: "24px", xs: "4px", "margin-desktop": "48px", md: "16px"}, fontFamily: {headline: ["Manrope"], body: ["Inter"], display: ["Manrope"], label: ["Inter"]}, fontSize: {}}}};</script>
+<style data-purpose="custom-styling">
+    body {
+      background-color: #f6f9ff;
+      font-family: 'Inter', sans-serif;
+    }
+    .font-headline {
+      font-family: 'Manrope', sans-serif;
+    }
+    .card-shadow {
+      box-shadow: 0 4px 12px -2px rgba(9, 29, 43, 0.08), 0 2px 6px -1px rgba(9, 29, 43, 0.04);
+    }
+    #menu-toggle:checked ~ #mobile-menu {
+      display: block;
+    }
+</style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="antialiased text-on-surface min-h-screen flex flex-col">
+<!-- BEGIN: MainHeader -->
+<header class="bg-primary p-4 sticky top-0 z-50 shadow-md" data-purpose="mobile-header">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<!-- Hamburger Menu Toggle -->
+<label class="text-on-primary cursor-pointer hover:text-secondary-fixed transition-colors" for="menu-toggle">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</label>
+<div class="flex flex-col">
+<h1 class="text-on-primary font-bold text-xl font-headline leading-tight">LonePawn</h1>
+<span class="text-primary-fixed-dim text-[10px] uppercase tracking-wider font-body">Platform Workspace</span>
+</div>
+</div>
+<!-- Log out Action Button -->
+<button class="bg-primary border border-on-primary text-on-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-on-primary hover:text-primary transition-colors font-body">
+      Log out
+    </button>
+</div>
+<!-- Hidden Checkbox for Menu Logic -->
+<input class="hidden peer" id="menu-toggle" type="checkbox"/>
+<!-- BEGIN: Mobile Dropdown Menu -->
+<div class="hidden absolute top-full left-0 w-full bg-primary border-t border-on-primary-fixed-variant shadow-xl peer-checked:block animate-in slide-in-from-top-2 duration-200" id="mobile-menu">
+<nav class="flex flex-col py-2">
+<a class="flex items-center gap-3 px-6 py-4 text-on-primary hover:bg-on-primary-fixed-variant transition-colors" href="#">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-4 text-on-primary hover:bg-on-primary-fixed-variant transition-colors" href="#">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="font-medium">Tenants</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-4 text-secondary-fixed bg-on-primary-fixed-variant/50" href="#">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="font-medium">Billing</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-4 text-on-primary hover:bg-on-primary-fixed-variant transition-colors border-b border-on-primary-fixed-variant" href="#">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="font-medium">Settings</span>
+</a>
+</nav>
+</div>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: Main Content Container -->
+<main class="flex-grow p-4 max-w-lg mx-auto w-full" data-purpose="form-container">
+<div class="bg-surface-container-lowest rounded-xl card-shadow border border-surface-variant overflow-hidden mb-6">
+<div class="p-5 border-b border-surface-variant">
+<h2 class="text-2xl font-bold text-primary font-headline">Submit Payment Attachment</h2>
+</div>
+<!-- BEGIN: Payment Form -->
+<form class="p-5 space-y-5" id="payment-form">
+<!-- Tenant Field -->
+<div class="space-y-1.5" data-purpose="form-group">
+<label class="block text-[11px] font-bold text-outline uppercase tracking-widest font-body" for="tenant">Tenant</label>
+<input class="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-lg text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all font-body" id="tenant" placeholder="Enter tenant name" type="text" value="A B C"/>
+</div>
+<!-- Amount Field -->
+<div class="space-y-1.5" data-purpose="form-group">
+<label class="block text-[11px] font-bold text-outline uppercase tracking-widest font-body" for="amount">Amount</label>
+<input class="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-lg text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all font-body" id="amount" placeholder="Enter amount" type="text" value="50,000 MMK"/>
+</div>
+<!-- Payment Reference Field -->
+<div class="space-y-1.5" data-purpose="form-group">
+<label class="block text-[11px] font-bold text-outline uppercase tracking-widest font-body" for="reference">Payment Reference</label>
+<input class="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-lg text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all font-body" id="reference" placeholder="Reference number" type="text"/>
+</div>
+<!-- Payment Attachment Field -->
+<div class="space-y-1.5" data-purpose="form-group">
+<label class="block text-[11px] font-bold text-outline uppercase tracking-widest font-body" for="attachment">Payment Attachment</label>
+<div class="relative">
+<input class="hidden" id="attachment" onchange="document.getElementById('file-name').textContent = this.files[0] ? this.files[0].name : 'No file chosen'" type="file"/>
+<label class="flex items-center w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-lg text-on-surface-variant cursor-pointer hover:bg-surface-container-low transition-all font-body" for="attachment">
+<span class="truncate" id="file-name">Choose File No file chosen</span>
+</label>
+</div>
+</div>
+<!-- Note Field -->
+<div class="space-y-1.5" data-purpose="form-group">
+<label class="block text-[11px] font-bold text-outline uppercase tracking-widest font-body" for="note">Note</label>
+<textarea class="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-lg text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all font-body" id="note" placeholder="Add any additional details here..." rows="4"></textarea>
+</div>
+</form>
+<!-- END: Payment Form -->
+</div>
+<!-- BEGIN: Primary Action Button -->
+<div class="fixed bottom-0 left-0 right-0 p-4 bg-surface-container-lowest border-t border-surface-variant md:relative md:bg-transparent md:border-0 md:p-0" data-purpose="form-footer">
+<button class="w-full py-4 bg-primary text-on-primary font-bold rounded-lg shadow-lg active:scale-[0.98] transition-transform font-headline uppercase tracking-wide" form="payment-form" type="submit">
+      Submit Payment
+    </button>
+</div>
+<!-- END: Primary Action Button -->
+<!-- Spacer for fixed bottom button on mobile -->
+<div class="h-20 md:hidden"></div>
+</main>
+<!-- END: Main Content Container -->
+</body></html>

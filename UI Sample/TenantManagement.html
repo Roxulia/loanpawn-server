@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LonePawn - Tenants</title>
+<!-- Tailwind CSS CDN with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"on-tertiary-fixed": "#001f25", "inverse-primary": "#62d4f9", "inverse-surface": "#203241", tertiary: "#46636a", background: "#f6f9ff", primary: "#00677f", "primary-fixed-dim": "#62d4f9", "on-primary": "#ffffff", "surface-bright": "#f6f9ff", "on-surface-variant": "#41484a", "surface-variant": "#d1e5f8", "on-primary-fixed": "#001f28", "surface-container-lowest": "#ffffff", "surface-container-high": "#d7ebfe", "surface-tint": "#00677f", "outline-variant": "#c1c8ca", "on-tertiary": "#ffffff", "on-background": "#091d2b", "on-surface": "#091d2b", "tertiary-fixed-dim": "#adccd4", "inverse-on-surface": "#e6f2ff", "tertiary-fixed": "#c9e8f0", "surface-dim": "#c9dcf0", "secondary-container": "#b7e7fa", "surface-container-low": "#ecf5ff", "secondary-fixed-dim": "#9ecee1", "on-secondary-container": "#396979", "on-error-container": "#93000a", "primary-container": "#13a0c3", secondary: "#356575", "on-primary-container": "#00313e", "surface-container": "#e1f0ff", "secondary-fixed": "#baeafd", "on-secondary-fixed": "#001f28", outline: "#71787a", "primary-fixed": "#b6ebff", "on-secondary-fixed-variant": "#194d5c", "on-secondary": "#ffffff", "on-error": "#ffffff", "on-tertiary-container": "#123137", "error-container": "#ffdad6", "tertiary-container": "#7b99a0", "on-tertiary-fixed-variant": "#2e4b52", surface: "#f6f9ff", "on-primary-fixed-variant": "#004e60", "surface-container-highest": "#d1e5f8", error: "#ba1a1a"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, spacing: {sm: "8px", xl: "32px", unit: "4px", gutter: "24px", "margin-mobile": "16px", lg: "24px", xs: "4px", "margin-desktop": "48px", md: "16px"}, fontFamily: {headline: ["Manrope"], body: ["Inter"], display: ["Manrope"], label: ["Inter"]}, fontSize: {}}}};</script>
+<style data-purpose="custom-styling">
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        body {
+            background-color: #f6f9ff;
+            font-family: 'Inter', sans-serif;
+        }
+        #menu-toggle:checked ~ #mobile-menu {
+            display: block;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="antialiased text-on-surface">
+<!-- BEGIN: MainHeader -->
+<header class="bg-primary p-4 sticky top-0 z-50 shadow-md" data-purpose="mobile-header">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<!-- Hamburger Menu Toggle -->
+<label class="text-on-primary cursor-pointer hover:text-primary-fixed-dim transition-colors" for="menu-toggle">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</label>
+<div class="flex flex-col">
+<h1 class="text-on-primary font-headline font-bold text-xl leading-tight">LonePawn</h1>
+<span class="text-primary-fixed-dim text-[10px] uppercase tracking-wider">Platform Workspace</span>
+</div>
+</div>
+<!-- Log out Action Button -->
+<button class="bg-transparent border border-on-primary text-on-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-on-primary hover:text-primary transition-colors">
+                Log out
+            </button>
+</div>
+<!-- Hidden Checkbox for Menu Logic -->
+<input class="hidden peer" id="menu-toggle" type="checkbox"/>
+<!-- BEGIN: Mobile Dropdown Menu -->
+<div class="hidden absolute top-full left-0 w-full bg-primary border-t border-on-primary/10 shadow-xl peer-checked:block animate-in slide-in-from-top-2 duration-200" id="mobile-menu">
+<nav class="flex flex-col py-2">
+<a class="flex items-center gap-3 px-6 py-4 text-on-primary hover:bg-on-primary-fixed-variant transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-4 text-primary-fixed bg-on-primary-fixed-variant" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">groups</span>
+<span class="font-medium">Tenants</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-4 text-on-primary hover:bg-on-primary-fixed-variant transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">payments</span>
+<span class="font-medium">Billing</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-4 text-on-primary hover:bg-on-primary-fixed-variant transition-colors border-b border-on-primary/10" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+<span class="font-medium">Settings</span>
+</a>
+</nav>
+</div>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: MainContent -->
+<main class="p-4 space-y-6">
+<!-- Title Section -->
+<section>
+<h2 class="text-2xl font-headline font-bold text-on-background">Tenants</h2>
+<p class="text-on-surface-variant text-sm mt-1">Manage your active instances and client workspaces.</p>
+</section>
+<!-- Search and Filter Bar -->
+<div class="flex gap-2">
+<div class="relative flex-grow">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full h-12 pl-10 pr-4 bg-surface-container-lowest border border-outline-variant rounded-xl text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Search tenants..." type="text"/>
+</div>
+<button class="w-12 h-12 flex items-center justify-center bg-surface-container-lowest border border-outline-variant rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<!-- Create New Tenant Action Card -->
+<button class="w-full p-4 bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center gap-3 text-on-surface-variant hover:border-primary hover:bg-primary/5 transition-all group">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined font-bold">add</span>
+</div>
+<span class="font-headline font-bold text-lg text-primary">Create New Tenant</span>
+</button>
+<!-- Tenant Cards List -->
+<div class="space-y-4">
+<!-- Card 1: Zin Lin Htet (Active) -->
+<div class="bg-surface-container-lowest rounded-xl card-shadow overflow-hidden border-t-4 border-primary p-4">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="font-headline font-bold text-lg text-on-surface leading-tight">Zin Lin Htet</h3>
+<p class="text-[11px] font-medium text-on-surface-variant flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">tag</span>
+                            ZLH07ED
+                        </p>
+</div>
+<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                        Active
+                    </span>
+</div>
+<div class="flex items-center gap-4 mb-4 py-2 border-y border-dashed border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">workspace_premium</span>
+<span class="text-sm font-medium text-on-surface">Basic Plan</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">calendar_today</span>
+<span class="text-sm text-on-surface-variant">Aug 12, 2024</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 py-2.5 border border-primary text-primary rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+                        Settings
+                    </button>
+<button class="flex items-center justify-center gap-2 py-2.5 bg-primary text-on-primary rounded-lg text-xs font-bold hover:opacity-90 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+                        Open App
+                    </button>
+</div>
+</div>
+<!-- Card 2: A B C (Expired) -->
+<div class="bg-surface-container-lowest rounded-xl card-shadow overflow-hidden border-t-4 border-primary p-4">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="font-headline font-bold text-lg text-on-surface leading-tight">A B C</h3>
+<p class="text-[11px] font-medium text-on-surface-variant flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">tag</span>
+                            ABC07EC
+                        </p>
+</div>
+<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                        Expired
+                    </span>
+</div>
+<div class="flex items-center gap-4 mb-4 py-2 border-y border-dashed border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">experiment</span>
+<span class="text-sm font-medium text-on-surface">Trial Plan</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">calendar_today</span>
+<span class="text-sm text-on-surface-variant">Jan 05, 2024</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 py-2.5 border border-primary text-primary rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+                        Settings
+                    </button>
+<button class="flex items-center justify-center gap-2 py-2.5 bg-primary text-on-primary rounded-lg text-xs font-bold hover:opacity-90 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+                        Open App
+                    </button>
+</div>
+</div>
+<!-- Card 3: TechFlow (Active) -->
+<div class="bg-surface-container-lowest rounded-xl card-shadow overflow-hidden border-t-4 border-primary p-4">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="font-headline font-bold text-lg text-on-surface leading-tight">TechFlow</h3>
+<p class="text-[11px] font-medium text-on-surface-variant flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">tag</span>
+                            TFL99PQ
+                        </p>
+</div>
+<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                        Active
+                    </span>
+</div>
+<div class="flex items-center gap-4 mb-4 py-2 border-y border-dashed border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">workspace_premium</span>
+<span class="text-sm font-medium text-on-surface">Pro Plan</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">calendar_today</span>
+<span class="text-sm text-on-surface-variant">Dec 20, 2024</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 py-2.5 border border-primary text-primary rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+                        Settings
+                    </button>
+<button class="flex items-center justify-center gap-2 py-2.5 bg-primary text-on-primary rounded-lg text-xs font-bold hover:opacity-90 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+                        Open App
+                    </button>
+</div>
+</div>
+</div>
+<!-- Quick Summary Stats -->
+<div class="grid grid-cols-2 gap-4 pt-4">
+<div class="bg-surface-container-lowest p-4 rounded-xl card-shadow border-t-4 border-primary flex flex-col items-center">
+<span class="text-2xl font-headline font-bold text-primary">24</span>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">Total Tenants</span>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl card-shadow border-t-4 border-primary flex flex-col items-center">
+<span class="text-2xl font-headline font-bold text-primary">03</span>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">Expiring Soon</span>
+</div>
+</div>
+</main>
+<!-- END: MainContent -->
+</body></html>

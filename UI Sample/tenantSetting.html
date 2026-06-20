@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-background" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Tenant Settings - LonePawn</title>
+<!-- Tailwind CSS v3 CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"on-tertiary-fixed": "#001f25", "inverse-primary": "#62d4f9", "inverse-surface": "#203241", tertiary: "#46636a", background: "#f6f9ff", primary: "#00677f", "primary-fixed-dim": "#62d4f9", "on-primary": "#ffffff", "surface-bright": "#f6f9ff", "on-surface-variant": "#41484a", "surface-variant": "#d1e5f8", "on-primary-fixed": "#001f28", "surface-container-lowest": "#ffffff", "surface-container-high": "#d7ebfe", "surface-tint": "#00677f", "outline-variant": "#c1c8ca", "on-tertiary": "#ffffff", "on-background": "#091d2b", "on-surface": "#091d2b", "tertiary-fixed-dim": "#adccd4", "inverse-on-surface": "#e6f2ff", "tertiary-fixed": "#c9e8f0", "surface-dim": "#c9dcf0", "secondary-container": "#b7e7fa", "surface-container-low": "#ecf5ff", "secondary-fixed-dim": "#9ecee1", "on-secondary-container": "#396979", "on-error-container": "#93000a", "primary-container": "#13a0c3", secondary: "#356575", "on-primary-container": "#00313e", "surface-container": "#e1f0ff", "secondary-fixed": "#baeafd", "on-secondary-fixed": "#001f28", outline: "#71787a", "primary-fixed": "#b6ebff", "on-secondary-fixed-variant": "#194d5c", "on-secondary": "#ffffff", "on-error": "#ffffff", "on-tertiary-container": "#123137", "error-container": "#ffdad6", "tertiary-container": "#7b99a0", "on-tertiary-fixed-variant": "#2e4b52", surface: "#f6f9ff", "on-primary-fixed-variant": "#004e60", "surface-container-highest": "#d1e5f8", error: "#ba1a1a"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, spacing: {sm: "8px", xl: "32px", unit: "4px", gutter: "24px", "margin-mobile": "16px", lg: "24px", xs: "4px", "margin-desktop": "48px", md: "16px"}, fontFamily: {"headline-md": ["Manrope"], "headline-lg": ["Manrope"], "label-sm": ["Inter"], "headline-xl": ["Manrope"], "body-lg": ["Inter"], "body-md": ["Inter"], "label-md": ["Inter"], sans: ["Inter", "sans-serif"], jakarta: ["Manrope", "sans-serif"], headline: ["Manrope"], display: ["Manrope"], body: ["Inter"], label: ["Inter"]}, fontSize: {"headline-md": ["24px", {lineHeight: "32px", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.01em", fontWeight: "600"}], "label-sm": ["12px", {lineHeight: "16px", fontWeight: "600"}], "headline-xl": ["40px", {lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["18px", {lineHeight: "28px", fontWeight: "400"}], "body-md": ["16px", {lineHeight: "24px", fontWeight: "400"}], "label-md": ["14px", {lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "500"}]}}}};</script>
+<style data-purpose="custom-styling">
+    .card-shadow {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+    body {
+      background-color: #f6f9ff;
+      font-family: 'Inter', sans-serif;
+    }
+    h1, h2, h3, .font-jakarta {
+      font-family: 'Manrope', sans-serif;
+    }
+    .btn-active:active {
+      transform: scale(0.98);
+      opacity: 0.9;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #43636c !important;
+      ring: 2px;
+      ring-color: rgba(67, 99, 108, 0.2);
+    }
+    #menu-toggle:checked ~ #mobile-menu {
+      display: block;
+    }
+</style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="antialiased text-on-surface flex flex-col h-full">
+<!-- BEGIN: MainHeader -->
+<header class="bg-primary p-4 sticky top-0 z-50 shadow-md" data-purpose="mobile-header">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<!-- Hamburger Menu Toggle -->
+<label class="text-on-primary cursor-pointer hover:text-secondary-fixed transition-colors" for="menu-toggle">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</label>
+<div class="flex flex-col">
+<h1 class="text-on-primary font-bold text-xl leading-tight font-jakarta">LonePawn</h1>
+<span class="text-primary-fixed-dim text-[10px] uppercase tracking-wider">Platform Workspace</span>
+</div>
+</div>
+<!-- Log out Action Button -->
+<button class="bg-transparent border border-on-primary text-on-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-on-primary hover:text-primary transition-colors">
+      Log out
+    </button>
+</div>
+<input class="hidden peer" id="menu-toggle" type="checkbox"/>
+<!-- Dropdown placeholder -->
+<div class="hidden absolute top-full left-0 w-full bg-primary border-t border-primary-container shadow-xl peer-checked:block" id="mobile-menu">
+<nav class="flex flex-col py-2 text-on-primary">
+<a class="px-6 py-4 hover:bg-primary-container" href="#">Dashboard</a>
+<a class="px-6 py-4 hover:bg-primary-container" href="#">Tenants</a>
+<a class="px-6 py-4 bg-primary-container/30 text-secondary-fixed" href="#">Settings</a>
+</nav>
+</div>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: MainContent -->
+<main class="p-4 flex-grow overflow-y-auto pb-10" data-purpose="settings-content">
+<!-- Page Header -->
+<section class="mb-6">
+<h2 class="text-2xl font-bold text-primary font-jakarta">Tenant Settings</h2>
+<p class="text-on-surface-variant text-sm mt-1">Update tenant profile, branding colors, slip text, and business contact settings.</p>
+</section>
+<form class="space-y-6" onsubmit="return false;">
+<!-- BEGIN: TenantProfileSection -->
+<section class="bg-surface-container-lowest rounded-xl card-shadow overflow-hidden border border-outline-variant">
+<div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant">
+<h3 class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Tenant Profile</h3>
+</div>
+<div class="p-4 space-y-4">
+<!-- Tenant Name -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="tenant_name">Tenant Name</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="tenant_name" name="tenant_name" type="text" value="Zin Lin Htet"/>
+</div>
+<!-- Tenant Code -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="tenant_code">Tenant Code</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="tenant_code" name="tenant_code" type="text" value="ZLH07ED"/>
+</div>
+<!-- License -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="license">License</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="license" name="license" type="text" value="trial / expired"/>
+</div>
+<!-- Plan Request -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider">Plan Request</label>
+<button class="w-full bg-secondary text-on-secondary font-bold py-3 px-4 rounded-lg shadow btn-active transition-all text-sm font-jakarta" type="button">
+            Change Plan
+          </button>
+</div>
+<!-- License Key -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="license_key">License Key</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="license_key" name="license_key" type="text" value="BXGW8TEYURSQ9EQW"/>
+</div>
+</div>
+</section>
+<!-- END: TenantProfileSection -->
+<!-- BEGIN: ContactSettingsSection -->
+<section class="bg-surface-container-lowest rounded-xl card-shadow overflow-hidden border border-outline-variant">
+<div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant">
+<h3 class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Contact Settings</h3>
+</div>
+<div class="p-4 space-y-4">
+<!-- Phone -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="phone">Phone</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="phone" name="phone" placeholder="Enter phone number" type="tel"/>
+</div>
+<!-- City -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="city">City</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="city" name="city" type="text" value="Tamwe, Yangon"/>
+</div>
+<!-- Country -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="country">Country</label>
+<input class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 bg-surface-container-lowest text-on-surface" id="country" name="country" type="text" value="Myanmar"/>
+</div>
+<!-- Address -->
+<div data-purpose="form-group">
+<label class="block text-[10px] font-bold text-primary mb-1 uppercase tracking-wider" for="address">Address</label>
+<textarea class="w-full border-outline-variant rounded-lg shadow-sm text-sm p-3 focus:ring-2 focus:ring-primary/20 resize-none bg-surface-container-lowest text-on-surface" id="address" name="address" rows="3">165th street</textarea>
+</div>
+</div>
+</section>
+<!-- END: ContactSettingsSection -->
+<!-- BEGIN: ActionButtons -->
+<div class="flex flex-col gap-3 pt-2">
+<button class="w-full bg-primary text-on-primary font-bold py-4 px-4 rounded-xl shadow-lg btn-active transition-all font-jakarta" type="submit">
+        Save Settings
+      </button>
+<button class="w-full bg-surface-container-lowest text-primary border border-outline-variant font-bold py-4 px-4 rounded-xl shadow-sm btn-active transition-all font-jakarta" type="button">
+        Back to Dashboard
+      </button>
+</div>
+<!-- END: ActionButtons -->
+</form>
+</main>
+<!-- END: MainContent -->
+<!-- Extra padding for mobile bottom -->
+<div class="h-6 bg-background shrink-0"></div>
+</body></html>

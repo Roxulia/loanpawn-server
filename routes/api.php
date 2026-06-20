@@ -16,6 +16,7 @@ use App\Http\Controllers\TenantModule\TenantDashboardController;
 use App\Http\Controllers\TenantModule\TenantDebtController;
 use App\Http\Controllers\TenantModule\TenantExpenseController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
+use App\Http\Controllers\TenantModule\TenantRoleController;
 use App\Http\Controllers\TenantModule\TenantUserController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
 use App\Http\Controllers\TenantModule\LanguageController;
@@ -261,6 +262,11 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.feature:master_data_management');
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantMaterialType'])
                         ->middleware('tenant.feature:master_data_management');
+                });
+            Route::prefix('user-roles')
+                ->group(function(){
+                    Route::get('/', [TenantRoleController::class, 'index'])
+                        ->middleware('tenant.permission:create_user,update_user_admin,update_user_all');
                 });
         });
     });

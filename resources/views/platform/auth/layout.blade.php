@@ -18,6 +18,37 @@
             background: var(--color-background);
         }
 
+        body.platform-login-page {
+            background:
+                radial-gradient(circle at top right, rgba(0,103,127,.8) 0%, transparent 45%),
+                linear-gradient(135deg, #46636a 0%, #356575 50%, #00677f 100%);
+        }
+
+        body.platform-login-page .brand-panel,
+        body.platform-login-page .form-panel {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.32);
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+            backdrop-filter: blur(22px);
+        }
+
+        body.platform-login-page .brand-panel,
+        body.platform-login-page .brand-panel p,
+        body.platform-login-page .panel-header h2,
+        body.platform-login-page label {
+            color: var(--color-on-primary);
+        }
+
+        body.platform-login-page .panel-header p {
+            color: rgba(255, 255, 255, 0.78);
+        }
+
+        body.platform-login-page .feature-list li {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.24);
+            color: rgba(255, 255, 255, 0.82);
+        }
+
         .shell {
             width: min(1040px, calc(100% - 32px));
             margin: 0 auto;
@@ -282,7 +313,7 @@
         }
     </style>
 </head>
-<body>
+<body class="@yield('bodyClass')">
     <div class="shell">
         <section class="brand-panel">
             <span class="eyebrow">LonePawn Platform</span>

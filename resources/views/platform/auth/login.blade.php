@@ -1,6 +1,7 @@
 @extends('platform.auth.layout')
 
 @section('title', ($isAdmin ?? false) ? 'Admin Login' : 'Platform Login')
+@section('bodyClass', 'platform-login-page')
 @section('heading', 'Login')
 @section('description', ($isAdmin ?? false) ? 'Login with your platform admin account.' : 'Login with your platform user account.')
 @section('heroTitle', ($isAdmin ?? false) ? 'Admin Login' : 'Platform User Login')

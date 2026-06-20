@@ -6,6 +6,14 @@ use App\Models\CoreModule\TenantRole;
 
 class TenantRoleRepository
 {
+    public function listAccessible(?int $tenantId)
+    {
+        return TenantRole::query()
+            ->where('is_deleted', false)
+            ->orderBy('name')
+            ->get();
+    }
+
     public function findDefaultByName(string $roleName): ?TenantRole
     {
         return TenantRole::query()
