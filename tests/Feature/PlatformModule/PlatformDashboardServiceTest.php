@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\PlatformModule;
 
+use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\PlatformModule\TenantLicense;
@@ -75,6 +76,7 @@ class PlatformDashboardServiceTest extends TestCase
         $summary = app(PlatformDashboardService::class)->getSummary();
 
         $this->assertTrue($summary['has_data']);
+        $this->assertSame(DashboardTimeFilter::THIS_MONTH, $summary['filters']['timeFilter']);
         $this->assertSame(2, $summary['tenant_counts']['total']);
         $this->assertSame(1, $summary['tenant_counts']['expired']);
         $this->assertSame(1, $summary['plan_breakdown']['basic']);
@@ -87,6 +89,9 @@ class PlatformDashboardServiceTest extends TestCase
         $this->assertSame(1650.0, $summary['financial']['monthIncome']);
         $this->assertSame(1400.0, $summary['financial']['monthExpense']);
         $this->assertSame(250.0, $summary['financial']['monthNet']);
+        $this->assertSame(1650.0, $summary['financial']['periodIncome']);
+        $this->assertSame(1400.0, $summary['financial']['periodExpense']);
+        $this->assertSame(250.0, $summary['financial']['periodNet']);
         $this->assertSame(250.0, $summary['financial']['realizedNetworth']);
         $this->assertSame(10000.0, $summary['financial']['activeCollateralMinimumRetailPrice']);
         $this->assertSame(10250.0, $summary['financial']['unrealizedNetworth']);
@@ -102,6 +107,17 @@ class PlatformDashboardServiceTest extends TestCase
         $this->assertContains('Myanmar / Yangon', $locations);
         $this->assertContains('Myanmar / Mandalay', $locations);
         $this->assertNotContains('Thailand / Bangkok', $locations);
+
+        $daySummary = app(PlatformDashboardService::class)->getSummary(new DashboardTimeFilter(
+            DashboardTimeFilter::THIS_DAY,
+            now(),
+            now(),
+        ));
+
+        $this->assertSame(DashboardTimeFilter::THIS_DAY, $daySummary['filters']['timeFilter']);
+        $this->assertSame(1050.0, $daySummary['financial']['periodIncome']);
+        $this->assertSame(700.0, $daySummary['financial']['periodExpense']);
+        $this->assertSame(350.0, $daySummary['financial']['periodNet']);
     }
 
     public function test_empty_platform_dashboard_has_no_data(): void
@@ -113,6 +129,17 @@ class PlatformDashboardServiceTest extends TestCase
 
         $this->assertFalse($summary['has_data']);
         $this->assertSame(0, $summary['tenant_counts']['total']);
+    }
+
+    public function test_dashboard_time_filter_from_validated_preserves_this_day(): void
+    {
+        $filter = DashboardTimeFilter::fromValidated([
+            'time_filter' => DashboardTimeFilter::THIS_DAY,
+        ]);
+
+        $this->assertSame(DashboardTimeFilter::THIS_DAY, $filter->timeFilter);
+        $this->assertSame('2026-06-20', $filter->startDate->toDateString());
+        $this->assertSame('2026-06-20', $filter->endDate->toDateString());
     }
 
     protected function platformUser(string $email): PlatformUser

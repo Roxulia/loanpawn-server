@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +79,7 @@ class PlatformPortfolioDashboardRepository
         );
     }
 
-    public function tenantPortfolioRows(int $platformUserId, Carbon $today): Collection
+    public function tenantPortfolioRows(int $platformUserId, Carbon $today, DashboardTimeFilter $timeFilter): Collection
     {
         $tenantRows = DB::table('tenants')
             ->leftJoin('tenant_licenses', function ($join): void {
@@ -125,13 +126,13 @@ class PlatformPortfolioDashboardRepository
         );
         $monthTotals = $this->accountingTotalsByTenant(
             $tenantIds,
-            $today->copy()->startOfMonth(),
-            $today->copy()->endOfDay()
+            $timeFilter->startDate,
+            $timeFilter->endDate
         );
         $previousMonthTotals = $this->accountingTotalsByTenant(
             $tenantIds,
-            $today->copy()->subMonthNoOverflow()->startOfMonth(),
-            $today->copy()->subMonthNoOverflow()->day(min($today->day, $today->copy()->subMonthNoOverflow()->daysInMonth))->endOfDay()
+            $timeFilter->previousPeriodStartDate(),
+            $timeFilter->previousPeriodEndDate()
         );
         $debts = $this->unpaidDebtByTenant($tenantIds);
         $activePrincipal = $this->activeLoanPrincipalByTenant($tenantIds);

@@ -2,6 +2,7 @@
 
 namespace App\Services\PlatformModule;
 
+use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use App\Repository\ManualPaymentRequestRepository;
 use App\Repository\PlatformPortfolioDashboardRepository;
 use Carbon\Carbon;
@@ -16,13 +17,14 @@ class PlatformDashboardService
     ) {
     }
 
-    public function getSummary(): array
+    public function getSummary(?DashboardTimeFilter $timeFilter = null): array
     {
+        $timeFilter ??= DashboardTimeFilter::fromValidated([]);
         $platformUser = $this->authService->getCurrentUser('platformuser');
         $today = Carbon::today();
         $tenantCount = $this->portfolioRepository->tenantCount($platformUser->id);
         $configuredTenantCount = $this->portfolioRepository->configuredTenantCount($platformUser->id);
-        $tenantRows = $this->portfolioRepository->tenantPortfolioRows($platformUser->id, $today);
+        $tenantRows = $this->portfolioRepository->tenantPortfolioRows($platformUser->id, $today, $timeFilter);
         $financial = $this->financialSummary($tenantRows);
         $packageUsage = $this->packageUsage($tenantRows);
         $riskTenants = $this->riskTenants($tenantRows);
@@ -32,6 +34,11 @@ class PlatformDashboardService
 
         return [
             'has_data' => $tenantCount > 0,
+            'filters' => [
+                'timeFilter' => $timeFilter->timeFilter,
+                'startDate' => $timeFilter->startDate->toDateString(),
+                'endDate' => $timeFilter->endDate->toDateString(),
+            ],
             'tenant_counts' => [
                 'total' => $tenantCount,
                 'active' => $this->portfolioRepository->activeTenantCount($platformUser->id),
@@ -52,14 +59,14 @@ class PlatformDashboardService
             'expense_leaders' => $expenseLeaders,
             'income_streams' => $this->portfolioRepository->streamLeaders(
                 $platformUser->id,
-                $today->copy()->startOfMonth(),
-                $today->copy()->endOfDay(),
+                $timeFilter->startDate,
+                $timeFilter->endDate,
                 'incoming',
             ),
             'expense_streams' => $this->portfolioRepository->streamLeaders(
                 $platformUser->id,
-                $today->copy()->startOfMonth(),
-                $today->copy()->endOfDay(),
+                $timeFilter->startDate,
+                $timeFilter->endDate,
                 'outgoing',
             ),
             'geographic_summary' => $geographicSummary,
@@ -95,6 +102,9 @@ class PlatformDashboardService
             'monthIncome' => $monthIncome,
             'monthExpense' => $monthExpense,
             'monthNet' => $monthNet,
+            'periodIncome' => $monthIncome,
+            'periodExpense' => $monthExpense,
+            'periodNet' => $monthNet,
             'realizedNetworth' => $monthNet,
             'activeCollateralMinimumRetailPrice' => $activeCollateralMinimumRetailPrice,
             'unrealizedNetworth' => $unrealizedNetworth,
@@ -145,7 +155,7 @@ class PlatformDashboardService
 
                 if ($row['monthNet'] < 0) {
                     $score += 30;
-                    $reasons[] = 'Negative MTD net';
+                    $reasons[] = 'Negative period net';
                 }
 
                 if ($row['todayNet'] < 0) {
@@ -155,7 +165,7 @@ class PlatformDashboardService
 
                 if ($row['monthExpense'] > $row['monthIncome'] && $row['monthExpense'] > 0) {
                     $score += 15;
-                    $reasons[] = 'Expenses exceed income';
+                    $reasons[] = 'Period expenses exceed income';
                 }
 
                 if ($row['unpaidDebt'] > 0) {

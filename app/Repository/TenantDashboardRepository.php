@@ -15,9 +15,14 @@ class TenantDashboardRepository
 {
     public function accountingTotalForDate(string $transactionType, Carbon $date): float
     {
+        return $this->accountingTotalBetween($transactionType, $date->copy()->startOfDay(), $date->copy()->endOfDay());
+    }
+
+    public function accountingTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate): float
+    {
         return (float) TenantAccounting::query()
             ->where('transaction_type', $transactionType)
-            ->whereDate('created_at', $date)
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->sum('amount');
     }
 
@@ -102,7 +107,7 @@ class TenantDashboardRepository
     /**
      * @return Collection<int, PawnLoanContractSlip>
      */
-    public function customerLoanUsage(int $limit = 8): Collection
+    public function customerLoanUsage(?Carbon $startDate = null, ?Carbon $endDate = null, int $limit = 8): Collection
     {
         return PawnLoanContractSlip::query()
             ->with('customer')
@@ -112,6 +117,7 @@ class TenantDashboardRepository
             ->selectRaw("SUM(CASE WHEN LOWER(status) = 'active' THEN loan_amount ELSE 0 END) as active_loan_amount")
             ->selectRaw('MAX(created_date) as last_loan_date')
             ->where('is_deleted', false)
+            ->when($startDate !== null && $endDate !== null, fn ($query) => $query->whereBetween('created_at', [$startDate, $endDate]))
             ->groupBy('customer_id')
             ->orderByDesc('active_loan_amount')
             ->orderByDesc('total_loan_amount')
@@ -139,18 +145,20 @@ class TenantDashboardRepository
 
     public function expenseTotalForDate(Carbon $date): float
     {
+        return $this->expenseTotalBetween($date->copy()->startOfDay(), $date->copy()->endOfDay());
+    }
+
+    public function expenseTotalBetween(Carbon $startDate, Carbon $endDate): float
+    {
         return (float) TenantExpense::query()
             ->where('is_deleted', false)
-            ->whereDate('created_at', $date)
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->sum('amount');
     }
 
     public function expenseTotalForMonth(Carbon $date): float
     {
-        return (float) TenantExpense::query()
-            ->where('is_deleted', false)
-            ->whereBetween('created_at', [$date->copy()->startOfMonth(), $date->copy()->endOfMonth()])
-            ->sum('amount');
+        return $this->expenseTotalBetween($date->copy()->startOfMonth(), $date->copy()->endOfMonth());
     }
 
     /**
@@ -172,12 +180,20 @@ class TenantDashboardRepository
      */
     public function expensesByType(Carbon $date, int $limit = 6): Collection
     {
+        return $this->expensesByTypeBetween($date->copy()->startOfMonth(), $date->copy()->endOfMonth(), $limit);
+    }
+
+    /**
+     * @return Collection<int, TenantExpense>
+     */
+    public function expensesByTypeBetween(Carbon $startDate, Carbon $endDate, int $limit = 6): Collection
+    {
         return TenantExpense::query()
             ->with('expenseType')
             ->select('expense_type_id')
             ->selectRaw('SUM(amount) as total_amount')
             ->where('is_deleted', false)
-            ->whereBetween('created_at', [$date->copy()->startOfMonth(), $date->copy()->endOfMonth()])
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('expense_type_id')
             ->orderByDesc('total_amount')
             ->limit($limit)

@@ -2,6 +2,7 @@
 
 namespace App\Services\TenantModule;
 
+use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use App\DataObjects\ResponseObjects\TenantDashboardSummary;
 use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantExpense;
@@ -20,19 +21,30 @@ class TenantDashboardService extends BaseTenantService
     ) {
     }
 
-    public function summary(): TenantDashboardSummary
+    public function summary(?DashboardTimeFilter $timeFilter = null): TenantDashboardSummary
     {
         $this->authorizeDashboardRead();
 
+        $timeFilter ??= DashboardTimeFilter::fromValidated([]);
         $today = Carbon::today();
-        $todayIncome = $this->repository->accountingTotalForDate('incoming', $today);
-        $todayExpense = $this->repository->accountingTotalForDate('outgoing', $today);
+        $periodIncome = $this->repository->accountingTotalBetween('incoming', $timeFilter->startDate, $timeFilter->endDate);
+        $periodExpense = $this->repository->accountingTotalBetween('outgoing', $timeFilter->startDate, $timeFilter->endDate);
+        $todayIncome = $this->repository->accountingTotalBetween('incoming', $today->copy()->startOfDay(), $today->copy()->endOfDay());
+        $todayExpense = $this->repository->accountingTotalBetween('outgoing', $today->copy()->startOfDay(), $today->copy()->endOfDay());
 
         return new TenantDashboardSummary(
+            filters: [
+                'timeFilter' => $timeFilter->timeFilter,
+                'startDate' => $timeFilter->startDate->toDateString(),
+                'endDate' => $timeFilter->endDate->toDateString(),
+            ],
             financial: [
                 'todayIncome' => $todayIncome,
                 'todayExpense' => $todayExpense,
                 'netToday' => $todayIncome - $todayExpense,
+                'periodIncome' => $periodIncome,
+                'periodExpense' => $periodExpense,
+                'periodNet' => $periodIncome - $periodExpense,
                 'activeLoanPrincipal' => $this->repository->activeLoanPrincipal(),
                 'outstandingDebt' => $this->repository->outstandingDebt(),
             ],
@@ -47,13 +59,20 @@ class TenantDashboardService extends BaseTenantService
             customers: [
                 'totalCustomers' => $this->repository->totalCustomers(),
                 'trustedCustomers' => $this->trustedCustomers(),
-                'topLoanUsage' => $this->mapCustomerLoanUsage($this->repository->customerLoanUsage()),
+                'topLoanUsage' => $this->mapCustomerLoanUsage($this->repository->customerLoanUsage(
+                    $timeFilter->startDate,
+                    $timeFilter->endDate,
+                )),
             ],
             expenses: [
-                'todayTotal' => $this->repository->expenseTotalForDate($today),
-                'monthTotal' => $this->repository->expenseTotalForMonth($today),
+                'todayTotal' => $this->repository->expenseTotalBetween($today->copy()->startOfDay(), $today->copy()->endOfDay()),
+                'periodTotal' => $this->repository->expenseTotalBetween($timeFilter->startDate, $timeFilter->endDate),
+                'monthTotal' => $this->repository->expenseTotalBetween($today->copy()->startOfMonth(), $today->copy()->endOfMonth()),
                 'recent' => $this->mapRecentExpenses($this->repository->recentExpenses()),
-                'byType' => $this->mapExpensesByType($this->repository->expensesByType($today)),
+                'byType' => $this->mapExpensesByType($this->repository->expensesByTypeBetween(
+                    $timeFilter->startDate,
+                    $timeFilter->endDate,
+                )),
             ],
         );
     }
