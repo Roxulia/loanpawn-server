@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Models\PawnModule\PawnLoanContractSlip;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class LoanContractSlipRepository
@@ -96,6 +97,17 @@ class LoanContractSlipRepository
     public function reload(PawnLoanContractSlip $slip): PawnLoanContractSlip
     {
         return $slip->refresh()->load(['customer', 'interestType', 'slipItems.materialType']);
+    }
+
+    public function expireOverdueActiveSlips(CarbonInterface $currentDate): int
+    {
+        return PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_date', '<', $currentDate->toDateString())
+            ->update([
+                'status' => 'expired',
+            ]);
     }
 
 }

@@ -207,11 +207,62 @@ if (dataElement) {
         });
     };
 
+    const lineBenchmark = (name, dataset) => {
+        const canvases = chartsFor(name);
+
+        if (canvases.length === 0 || !dataset || !Array.isArray(dataset.labels) || dataset.labels.length === 0) {
+            return;
+        }
+
+        canvases.forEach((canvas) => {
+            if (!isVisible(canvas) || initializedCharts.has(canvas)) {
+                return;
+            }
+
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: dataset.labels,
+                    datasets: [{
+                        label: 'Current',
+                        data: dataset.current,
+                        borderColor: '#004755',
+                        backgroundColor: 'rgba(0, 96, 115, 0.12)',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.36,
+                        fill: true,
+                    }, {
+                        label: 'Target',
+                        data: dataset.target,
+                        borderColor: '#bfc8cc',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [8, 4],
+                        pointRadius: 3,
+                        tension: 0.36,
+                        fill: false,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: sharedPlugins,
+                    scales: axisOptions,
+                },
+            });
+            initializedCharts.add(canvas);
+        });
+    };
+
     const initializeDashboardCharts = () => {
+        lineBenchmark('overviewBenchmark', chartData.overviewBenchmark);
         doughnut('planDistribution', chartData.planDistribution);
         doughnut('licenseHealth', chartData.licenseHealth);
         groupedBar('tenantIncomeExpense', chartData.tenantIncomeExpense, ['Income', 'Expense']);
-        groupedBar('packageUsage', chartData.packageUsage, ['Current', 'Limit']);
+        groupedBar('slipPackageUsage', chartData.slipPackageUsage, ['Current', 'Limit']);
+        groupedBar('staffPackageUsage', chartData.staffPackageUsage, ['Current', 'Limit']);
         singleBar('geographicNet', chartData.geographicNet, 'Net');
     };
 

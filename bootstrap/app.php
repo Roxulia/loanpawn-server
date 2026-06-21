@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ApiException;
+use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use Illuminate\Foundation\Application;
@@ -61,6 +62,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->job(new CheckExpireTenantLicenseJob())->daily();
+        $schedule->job(new CheckExpirePawnLoanContractSlipJob())->dailyAt('23:59');
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob())->monthlyOn(1, '00:00');
     })
     ->withExceptions(function (Exceptions $exceptions): void {

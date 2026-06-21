@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AssetManager Pro - Financial Performance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#b8eaff",
+                        "primary": "#004755",
+                        "outline": "#6f797c",
+                        "surface-tint": "#12677a",
+                        "inverse-primary": "#8ad1e7",
+                        "background": "#f9f9ff",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed": "#001f28",
+                        "on-tertiary-fixed-variant": "#41484c",
+                        "on-primary": "#ffffff",
+                        "surface-container-high": "#dee8ff",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#dce3e8",
+                        "on-primary-fixed": "#001f27",
+                        "inverse-surface": "#263142",
+                        "on-background": "#111c2c",
+                        "secondary-fixed-dim": "#68d4f9",
+                        "primary-container": "#006073",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#005e75",
+                        "on-tertiary-container": "#c7ced3",
+                        "on-surface-variant": "#3f484b",
+                        "primary-fixed-dim": "#8ad1e7",
+                        "on-surface": "#111c2c",
+                        "outline-variant": "#bfc8cc",
+                        "surface-variant": "#d8e3fa",
+                        "on-secondary-fixed-variant": "#004d61",
+                        "surface-container-low": "#f0f3ff",
+                        "surface-bright": "#f9f9ff",
+                        "on-error-container": "#93000a",
+                        "surface": "#f9f9ff",
+                        "tertiary-container": "#51585c",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#d8e3fa",
+                        "inverse-on-surface": "#ebf1ff",
+                        "on-tertiary-fixed": "#151d20",
+                        "secondary": "#006780",
+                        "surface-container": "#e7eeff",
+                        "tertiary": "#3a4145",
+                        "on-primary-fixed-variant": "#004e5e",
+                        "primary-fixed": "#b0ecff",
+                        "secondary-container": "#6ed9ff",
+                        "on-primary-container": "#92d8ee",
+                        "surface-dim": "#cfdaf1",
+                        "tertiary-fixed-dim": "#c0c7cc"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "gutter": "1.5rem",
+                        "stack-md": "1rem",
+                        "margin-desktop": "2rem",
+                        "stack-lg": "2rem",
+                        "stack-sm": "0.5rem",
+                        "margin-mobile": "1rem"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Hanken Grotesk"],
+                        "body-lg": ["Inter"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "headline-sm": ["Hanken Grotesk"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-sm": ["12px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-sm": ["18px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #f8fafc;
+            color: #111c2c;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .chart-bar-hover:hover {
+            filter: brightness(1.1);
+            cursor: pointer;
+        }
+        .card-shadow {
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- SideNavBar (Shared Component) -->
+<aside class="h-screen w-64 fixed left-0 top-0 border-r border-outline-variant bg-surface-container-lowest flex flex-col py-stack-lg z-50">
+<div class="px-6 mb-10">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">AssetManager Pro</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Portfolio Admin</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:text-primary" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-label-caps">Executive Overview</span>
+</a>
+<a class="flex items-center px-6 py-3 text-primary font-bold border-r-4 border-primary bg-surface-container-high cursor-pointer" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="payments">payments</span>
+<span class="font-label-caps text-label-caps">Financial Performance</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:text-primary" data-icon="assignment_late">assignment_late</span>
+<span class="font-label-caps text-label-caps">Tenant Risk</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:text-primary" data-icon="map">map</span>
+<span class="font-label-caps text-label-caps">Geographic Analysis</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:text-primary" data-icon="analytics">analytics</span>
+<span class="font-label-caps text-label-caps">Portfolio Reports</span>
+</a>
+</nav>
+<div class="mt-auto px-6 space-y-1">
+<a class="flex items-center py-3 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+<a class="flex items-center py-3 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="help">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+</div>
+</aside>
+<!-- TopAppBar (Shared Component) -->
+<header class="fixed top-0 right-0 h-16 left-64 bg-surface border-b border-outline-variant flex justify-between items-center px-gutter z-40">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full focus-within:ring-2 focus-within:ring-primary rounded-lg transition-all">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-2 text-body-md focus:ring-0" placeholder="Search portfolio performance..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface hidden lg:block">Portfolio Dashboard</h2>
+<div class="h-6 w-[1px] bg-outline-variant mx-2 hidden lg:block"></div>
+<div class="flex items-center space-x-1">
+<button class="hover:bg-surface-container-low rounded-full p-2 text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="hover:bg-surface-container-low rounded-full p-2 text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+</button>
+<button class="hover:bg-surface-container-low rounded-full p-2 text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-16 min-h-screen p-margin-desktop">
+<!-- Header Actions -->
+<div class="flex justify-between items-end mb-stack-lg">
+<div>
+<nav class="flex text-body-sm text-outline mb-1">
+<span>Admin</span>
+<span class="mx-2">/</span>
+<span class="text-primary font-medium">Financial Performance</span>
+</nav>
+<h1 class="font-display-lg text-display-lg text-on-background">Financial Performance Analysis</h1>
+</div>
+<div class="flex space-x-3">
+<button class="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-surface-container-low transition-all flex items-center">
+<span class="material-symbols-outlined mr-2 text-[18px]" data-icon="file_download">file_download</span>
+                    Export PDF
+                </button>
+<button class="px-6 py-2 bg-primary text-on-primary font-semibold rounded-lg hover:opacity-90 transition-all flex items-center shadow-md">
+<span class="material-symbols-outlined mr-2 text-[18px]" data-icon="add">add</span>
+                    New Asset Performance
+                </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Key Metric Cards (Row 1) -->
+<div class="col-span-12 lg:col-span-4 bg-white p-stack-lg rounded-xl border border-outline-variant card-shadow">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary-container/10 rounded-lg">
+<span class="material-symbols-outlined text-primary" data-icon="trending_up">trending_up</span>
+</div>
+<span class="text-label-caps font-label-caps text-primary bg-primary/10 px-2 py-1 rounded">+12.4%</span>
+</div>
+<h3 class="text-outline font-label-caps mb-1 uppercase tracking-wider">Total Portfolio Revenue</h3>
+<p class="font-display-lg text-display-lg text-primary">$4,822,150.00</p>
+<div class="mt-4 h-1 w-full bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 72%"></div>
+</div>
+<p class="mt-2 text-body-sm text-outline">72% of annual target reached</p>
+</div>
+<div class="col-span-12 lg:col-span-4 bg-white p-stack-lg rounded-xl border border-outline-variant card-shadow">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-secondary/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<span class="text-label-caps font-label-caps text-error bg-error/10 px-2 py-1 rounded">-2.1%</span>
+</div>
+<h3 class="text-outline font-label-caps mb-1 uppercase tracking-wider">Operating Expenses</h3>
+<p class="font-display-lg text-display-lg text-on-surface">$1,240,400.00</p>
+<div class="mt-4 h-1 w-full bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 45%"></div>
+</div>
+<p class="mt-2 text-body-sm text-outline">45% budget utilization</p>
+</div>
+<div class="col-span-12 lg:col-span-4 bg-white p-stack-lg rounded-xl border border-outline-variant card-shadow">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-surface-container-high rounded-lg">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="domain">domain</span>
+</div>
+<span class="text-label-caps font-label-caps text-on-surface-variant bg-surface-container-high px-2 py-1 rounded">Stable</span>
+</div>
+<h3 class="text-outline font-label-caps mb-1 uppercase tracking-wider">Net Operating Income</h3>
+<p class="font-display-lg text-display-lg text-on-surface">$3,581,750.00</p>
+<div class="mt-4 h-1 w-full bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 88%"></div>
+</div>
+<p class="mt-2 text-body-sm text-outline">88% efficiency ratio</p>
+</div>
+<!-- Portfolio Financial Summary Table (Row 2 - Large) -->
+<div class="col-span-12 xl:col-span-8 bg-white rounded-xl border border-outline-variant card-shadow flex flex-col overflow-hidden">
+<div class="p-stack-lg border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Portfolio Financial Summary</h3>
+<div class="flex space-x-2">
+<span class="text-body-sm text-outline px-3 py-1 bg-surface-container-low rounded-full">Last 12 Months</span>
+<button class="material-symbols-outlined text-outline hover:text-primary cursor-pointer" data-icon="more_vert">more_vert</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-6 py-4 font-label-caps text-label-caps text-outline border-b border-outline-variant">Asset Name</th>
+<th class="px-6 py-4 font-label-caps text-label-caps text-outline border-b border-outline-variant text-right">Revenue</th>
+<th class="px-6 py-4 font-label-caps text-label-caps text-outline border-b border-outline-variant text-right">Expense</th>
+<th class="px-6 py-4 font-label-caps text-label-caps text-outline border-b border-outline-variant text-right">NOI</th>
+<th class="px-6 py-4 font-label-caps text-label-caps text-outline border-b border-outline-variant">Status</th>
+<th class="px-6 py-4 border-b border-outline-variant"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mr-3">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="corporate_fare">corporate_fare</span>
+</div>
+<div>
+<p class="font-semibold text-on-surface">Grand Plaza Suites</p>
+<p class="text-body-sm text-outline">NYC, Manhattan</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono">$842,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-error">$142,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-primary">$700,000</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-primary/10 text-primary">High Yield</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-outline group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center mr-3">
+<span class="material-symbols-outlined text-secondary text-[18px]" data-icon="business">business</span>
+</div>
+<div>
+<p class="font-semibold text-on-surface">Harborview Tech Park</p>
+<p class="text-body-sm text-outline">Seattle, WA</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono">$654,500</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-error">$210,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-primary">$444,500</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-surface-container-high text-on-surface-variant">Stable</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-outline group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center mr-3">
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]" data-icon="apartment">apartment</span>
+</div>
+<div>
+<p class="font-semibold text-on-surface">Midtown Retail Hub</p>
+<p class="text-body-sm text-outline">Chicago, IL</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono">$412,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-error">$88,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-primary">$324,000</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-primary/10 text-primary">High Yield</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-outline group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-lg bg-error-container/20 flex items-center justify-center mr-3">
+<span class="material-symbols-outlined text-error text-[18px]" data-icon="warning">warning</span>
+</div>
+<div>
+<p class="font-semibold text-on-surface">Suburban Lofts</p>
+<p class="text-body-sm text-outline">Austin, TX</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono">$220,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-error">$195,000</td>
+<td class="px-6 py-4 text-right font-data-mono text-data-mono text-primary">$25,000</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-error-container text-on-error-container">At Risk</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-outline group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="mt-auto p-4 border-t border-outline-variant bg-surface-container-lowest">
+<button class="text-primary font-semibold text-body-sm flex items-center hover:underline">
+                        View All Assets
+                        <span class="material-symbols-outlined ml-1 text-[16px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Visualization Card 1 (Row 2 - Small) -->
+<div class="col-span-12 xl:col-span-4 bg-white rounded-xl border border-outline-variant card-shadow flex flex-col p-stack-lg">
+<div class="mb-stack-lg">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-1">Package Usage</h3>
+<p class="text-body-sm text-outline">Current vs Limit Comparison</p>
+</div>
+<div class="space-y-6 flex-1 flex flex-col justify-center">
+<!-- Service 1 -->
+<div>
+<div class="flex justify-between text-body-sm mb-2">
+<span class="font-semibold text-on-surface">Cloud Data Storage</span>
+<span class="font-data-mono text-primary">8.2 TB / 10 TB</span>
+</div>
+<div class="h-2 w-full bg-surface-container-low rounded-full relative">
+<div class="absolute h-full bg-primary rounded-full" style="width: 82%"></div>
+</div>
+</div>
+<!-- Service 2 -->
+<div>
+<div class="flex justify-between text-body-sm mb-2">
+<span class="font-semibold text-on-surface">API Transactions</span>
+<span class="font-data-mono text-primary">445k / 500k</span>
+</div>
+<div class="h-2 w-full bg-surface-container-low rounded-full relative">
+<div class="absolute h-full bg-secondary rounded-full" style="width: 89%"></div>
+</div>
+</div>
+<!-- Service 3 -->
+<div>
+<div class="flex justify-between text-body-sm mb-2">
+<span class="font-semibold text-on-surface">User Licenses</span>
+<span class="font-data-mono text-primary">12 / 15</span>
+</div>
+<div class="h-2 w-full bg-surface-container-low rounded-full relative">
+<div class="absolute h-full bg-primary-container rounded-full" style="width: 80%"></div>
+</div>
+</div>
+</div>
+<div class="mt-8 border-t border-outline-variant pt-6">
+<div class="flex items-center text-body-sm text-on-surface-variant p-3 bg-surface-container-low rounded-lg">
+<span class="material-symbols-outlined text-primary mr-2" data-icon="info">info</span>
+                        You are approaching 90% of your API limit.
+                    </div>
+</div>
+</div>
+<!-- Visualization Card 2: Income vs Expense (Row 3 - Large) -->
+<div class="col-span-12 lg:col-span-7 bg-white rounded-xl border border-outline-variant card-shadow p-stack-lg overflow-hidden flex flex-col">
+<div class="flex justify-between items-center mb-stack-lg">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Income vs Expense</h3>
+<p class="text-body-sm text-outline">Comparative monthly bar chart analysis</p>
+</div>
+<div class="flex items-center space-x-4">
+<div class="flex items-center">
+<div class="w-3 h-3 bg-primary rounded-full mr-2"></div>
+<span class="text-label-caps font-label-caps text-outline">Income</span>
+</div>
+<div class="flex items-center">
+<div class="w-3 h-3 bg-error rounded-full mr-2"></div>
+<span class="text-label-caps font-label-caps text-outline">Expense</span>
+</div>
+</div>
+</div>
+<!-- Custom Bar Chart Mockup -->
+<div class="flex-1 min-h-[300px] flex items-end justify-between px-4 pb-8 relative">
+<!-- Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between py-8 px-4 opacity-10 pointer-events-none">
+<div class="border-t border-outline h-0 w-full"></div>
+<div class="border-t border-outline h-0 w-full"></div>
+<div class="border-t border-outline h-0 w-full"></div>
+<div class="border-t border-outline h-0 w-full"></div>
+</div>
+<!-- Month Columns -->
+<div class="flex flex-col items-center space-y-4 w-full">
+<div class="flex space-x-2 items-end h-48">
+<div class="w-4 bg-primary chart-bar-hover rounded-t-sm" style="height: 60%"></div>
+<div class="w-4 bg-error chart-bar-hover rounded-t-sm" style="height: 30%"></div>
+</div>
+<span class="text-label-caps font-label-caps text-outline">Jan</span>
+</div>
+<div class="flex flex-col items-center space-y-4 w-full">
+<div class="flex space-x-2 items-end h-48">
+<div class="w-4 bg-primary chart-bar-hover rounded-t-sm" style="height: 80%"></div>
+<div class="w-4 bg-error chart-bar-hover rounded-t-sm" style="height: 25%"></div>
+</div>
+<span class="text-label-caps font-label-caps text-outline">Feb</span>
+</div>
+<div class="flex flex-col items-center space-y-4 w-full">
+<div class="flex space-x-2 items-end h-48">
+<div class="w-4 bg-primary chart-bar-hover rounded-t-sm" style="height: 75%"></div>
+<div class="w-4 bg-error chart-bar-hover rounded-t-sm" style="height: 40%"></div>
+</div>
+<span class="text-label-caps font-label-caps text-outline">Mar</span>
+</div>
+<div class="flex flex-col items-center space-y-4 w-full">
+<div class="flex space-x-2 items-end h-48">
+<div class="w-4 bg-primary chart-bar-hover rounded-t-sm" style="height: 90%"></div>
+<div class="w-4 bg-error chart-bar-hover rounded-t-sm" style="height: 35%"></div>
+</div>
+<span class="text-label-caps font-label-caps text-outline">Apr</span>
+</div>
+<div class="flex flex-col items-center space-y-4 w-full">
+<div class="flex space-x-2 items-end h-48">
+<div class="w-4 bg-primary chart-bar-hover rounded-t-sm" style="height: 85%"></div>
+<div class="w-4 bg-error chart-bar-hover rounded-t-sm" style="height: 30%"></div>
+</div>
+<span class="text-label-caps font-label-caps text-outline">May</span>
+</div>
+<div class="flex flex-col items-center space-y-4 w-full">
+<div class="flex space-x-2 items-end h-48">
+<div class="w-4 bg-primary chart-bar-hover rounded-t-sm" style="height: 95%"></div>
+<div class="w-4 bg-error chart-bar-hover rounded-t-sm" style="height: 20%"></div>
+</div>
+<span class="text-label-caps font-label-caps text-outline">Jun</span>
+</div>
+</div>
+</div>
+<!-- Contextual Media Column (Row 3 - Side) -->
+<div class="col-span-12 lg:col-span-5 grid grid-rows-2 gap-gutter">
+<div class="rounded-xl overflow-hidden relative group">
+<img alt="Asset performance dashboard screenshot" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSG5PvQ4_qsFOjQyaDnW0X7BKD_laQIMjEDE00Vq1p9EF28f3MR10RQ1fdsys4Jz0oyqXqCEay2r4lNJKtvZ53iDnjSAHFv2MkfrfmYWiTfzk4OUdPALr2ED3HqiYBCsg7Ji4TMBZoZgbYXz_Qg-Y9pEVAsiSreGoKd_AESswPQSL92odMmu8FJi3iZk90vVhxcYs-qTIsJ4orxnzLHfFz-O6ZtQwMAHP31m9lrIOkADzM06hMPbqEyJFIAYOxy6a1Tg8sbcjl2SA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex flex-col justify-end p-6">
+<h4 class="text-white font-headline-sm text-headline-sm font-bold">Historical Trend Analysis</h4>
+<p class="text-white/80 text-body-sm">Visualizing the 5-year growth pattern of core portfolio assets.</p>
+</div>
+</div>
+<div class="rounded-xl overflow-hidden relative group">
+<img alt="Financial summary reporting interface" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDftYXj24TIOrv3fh4sX3estoBJdeZTbxPcX2wQuWM0Xg_GsAMHby-CNGm8m_3fOhpqJE5dMdW3V2ggHVY8R4WKA3R3pZyY2Ie6_BCnSpeElMKBmOZihNYSSR1jHV8c8jf5wHNsdtqdrhn23kcvsbe5VLU4wCOOEA4guzqsK8UCprTNjOv0gHF0QC6TO90H19tKvsUm9r8YmZVFQhGlrF7KojhBPuUnGgF4AGq5JY7369rPbeuFBSwK-WI03q6do7CNomCkVBhO0Wc"/>
+<div class="absolute inset-0 bg-gradient-to-t from-secondary/80 to-transparent flex flex-col justify-end p-6">
+<h4 class="text-white font-headline-sm text-headline-sm font-bold">Quarterly Audit Ready</h4>
+<p class="text-white/80 text-body-sm">Consolidated financial records for seamless stakeholder reporting.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Dynamic Summary / Insights Section (Horizontal Grid) -->
+<div class="mt-stack-lg grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant">
+<div class="flex items-center mb-3">
+<span class="material-symbols-outlined text-primary mr-2" data-icon="lightbulb">lightbulb</span>
+<h4 class="font-semibold text-on-surface">Portfolio Insight</h4>
+</div>
+<p class="text-body-sm text-on-surface-variant leading-relaxed">
+                    Increasing tenant retention by 4% in Manhattan assets would lead to a projected NOI increase of $240k per annum.
+                </p>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant">
+<div class="flex items-center mb-3">
+<span class="material-symbols-outlined text-secondary mr-2" data-icon="task_alt">task_alt</span>
+<h4 class="font-semibold text-on-surface">Upcoming Audits</h4>
+</div>
+<p class="text-body-sm text-on-surface-variant leading-relaxed">
+                    3 Financial reports are due by the end of Friday. All data sources have been successfully synchronized.
+                </p>
+</div>
+<div class="bg-primary p-6 rounded-xl border border-primary-container shadow-lg">
+<div class="flex items-center mb-3">
+<span class="material-symbols-outlined text-on-primary mr-2" data-icon="auto_awesome">auto_awesome</span>
+<h4 class="font-semibold text-on-primary">AI Optimization</h4>
+</div>
+<p class="text-body-sm text-on-primary-container leading-relaxed">
+                    System suggests reallocating $45k from maintenance surplus to energy-efficiency upgrades for Chicago hub.
+                </p>
+</div>
+</div>
+<!-- Footer Info -->
+<footer class="mt-stack-lg pt-stack-lg border-t border-outline-variant flex justify-between items-center text-body-sm text-outline">
+<p>© 2024 AssetManager Pro. All financial data encrypted &amp; verified.</p>
+<div class="flex space-x-6">
+<a class="hover:text-primary transition-colors" href="#">Data Privacy</a>
+<a class="hover:text-primary transition-colors" href="#">API Docs</a>
+<a class="hover:text-primary transition-colors" href="#">System Status</a>
+</div>
+</footer>
+</main>
+<script>
+        // Simple animation script for bars on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const bars = document.querySelectorAll('.chart-bar-hover');
+            bars.forEach((bar, index) => {
+                const targetHeight = bar.style.height;
+                bar.style.height = '0%';
+                setTimeout(() => {
+                    bar.style.transition = 'height 1s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                    bar.style.height = targetHeight;
+                }, 200 + (index * 50));
+            });
+        });
+    </script>
+</body></html>

@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Jobs\CheckExpireTenantLicenseJob;
+use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Mail\PaymentRequestReviewedMail;
 use App\Mail\PlatformPasswordResetOtpMail;
 use App\Mail\PlatformRegistrationVerificationMail;
@@ -16,6 +17,7 @@ class QueueAssignmentTest extends TestCase
     public function test_scheduled_job_uses_scheduled_queue(): void
     {
         $this->assertSame('scheduled', (new CheckExpireTenantLicenseJob)->queue);
+        $this->assertSame('scheduled', (new CheckExpirePawnLoanContractSlipJob)->queue);
     }
 
     public function test_mailables_use_mail_queue(): void

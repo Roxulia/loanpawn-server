@@ -35,459 +35,25 @@
     $trendClass = fn ($value) => ((float) $value) < 0 ? 'is-negative' : 'is-positive';
 
     $riskRows = collect($summary['risk_tenants'] ?? []);
+    $expiringContractRiskRows = collect($summary['expiring_contract_risks'] ?? []);
     $topUsageRows = collect($summary['package_usage']['topUsage'] ?? [])->take(5);
     $geographicRows = collect($summary['geographic_summary'] ?? []);
+    $financialPerformance = $summary['financial_performance'] ?? [
+        'kpis' => [],
+        'tenantRows' => [],
+        'usageItems' => [],
+        'insights' => [],
+    ];
+    $executiveOverview = $summary['executive_overview'] ?? [
+        'kpis' => [],
+        'benchmarkRows' => [],
+        'priorityEvents' => [],
+    ];
     $bestLocation = $geographicRows->sortByDesc('monthNet')->first();
     $highestGrowthLocation = $geographicRows->sortByDesc('growthPercent')->first();
 @endphp
 
 @section('content')
-    <style>
-        .portfolio-dashboard {
-            --stitch-background: #f9f9ff;
-            --stitch-surface: #ffffff;
-            --stitch-surface-soft: #f0f3ff;
-            --stitch-surface-raised: #e7eeff;
-            --stitch-border: #d8e3fa;
-            --stitch-border-strong: #bfc8cc;
-            --stitch-text: #111c2c;
-            --stitch-muted: #3f484b;
-            --stitch-muted-soft: #6f797c;
-            --stitch-primary: #006073;
-            --stitch-primary-dark: #004755;
-            --stitch-cyan: #31a8cc;
-            --stitch-cyan-soft: #b8eaff;
-            --stitch-slate: #4a5568;
-            --stitch-warning: #e67e22;
-            display: grid;
-            gap: 18px;
-        }
-        .dashboard-filter-panel {
-            border-color: #d8e3fa;
-            background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
-        }
-        .dashboard-filter {
-            display: grid;
-            grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(150px, 0.7fr)) auto;
-            gap: 12px;
-            align-items: end;
-        }
-        .dashboard-filter label {
-            display: grid;
-            gap: 6px;
-            color: var(--color-text-muted);
-            font-size: 13px;
-        }
-        .dashboard-tabs {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            border: 1px solid var(--stitch-border);
-            border-radius: var(--radius-md);
-            padding: 5px;
-            background: rgba(255, 255, 255, 0.96);
-            box-shadow: 0 10px 28px rgba(0, 96, 115, 0.08);
-        }
-        .dashboard-tab {
-            flex: 0 0 auto;
-            min-height: 38px;
-            border: 1px solid transparent;
-            border-radius: var(--radius-sm);
-            padding: 8px 12px;
-            background: transparent;
-            color: var(--stitch-muted);
-            font: inherit;
-            font-size: 13px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
-        }
-        .dashboard-tab:hover,
-        .dashboard-tab[aria-selected="true"] {
-            border-color: #8ad1e7;
-            background: var(--stitch-surface-raised);
-            color: var(--stitch-primary-dark);
-        }
-        .dashboard-tab-panel {
-            display: grid;
-            gap: 18px;
-        }
-        .dashboard-tab-panel[hidden] {
-            display: none;
-        }
-        .stitch-hero {
-            display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
-            gap: 18px;
-            align-items: stretch;
-            border: 1px solid var(--stitch-border);
-            border-radius: var(--radius-lg);
-            padding: clamp(18px, 2.4vw, 28px);
-            background: linear-gradient(135deg, #ffffff 0%, #f9fbff 62%, #e7eeff 100%);
-            box-shadow: 0 8px 24px rgba(0, 96, 115, 0.06);
-        }
-        .stitch-hero-copy {
-            min-width: 0;
-            display: grid;
-            align-content: center;
-        }
-        .stitch-kicker,
-        .metric-label,
-        .card-kicker {
-            margin: 0;
-            color: var(--stitch-muted-soft);
-            font-size: 11px;
-            font-weight: 900;
-            line-height: 16px;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-        .stitch-hero h2 {
-            margin: 7px 0 0;
-            color: var(--stitch-text);
-            font-family: var(--font-heading);
-            font-size: clamp(24px, 3vw, 32px);
-            font-weight: 800;
-            line-height: 1.2;
-        }
-        .stitch-hero p {
-            margin: 10px 0 0;
-            max-width: 760px;
-            color: var(--stitch-muted);
-            line-height: 1.6;
-        }
-        .hero-metrics {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
-        .hero-metric {
-            min-width: 0;
-            border: 1px solid var(--stitch-border);
-            border-radius: var(--radius-md);
-            padding: 14px;
-            background: rgba(255, 255, 255, 0.76);
-        }
-        .hero-metric strong {
-            display: block;
-            margin-top: 6px;
-            color: var(--stitch-primary-dark);
-            font-family: var(--font-heading);
-            font-size: clamp(18px, 2.2vw, 24px);
-            font-weight: 900;
-            line-height: 1.12;
-            overflow-wrap: anywhere;
-        }
-        .hero-metric small {
-            display: block;
-            margin-top: 5px;
-            color: var(--stitch-muted);
-            font-size: 12px;
-            line-height: 1.35;
-        }
-        .kpi-strip {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 14px;
-        }
-        .dashboard-card {
-            position: relative;
-            overflow: hidden;
-            border-color: var(--stitch-border);
-            border-radius: var(--radius-md);
-            background: var(--stitch-surface);
-            box-shadow: 0 6px 18px rgba(0, 96, 115, 0.05);
-        }
-        .metric-card {
-            min-height: 142px;
-            display: grid;
-            align-content: space-between;
-            gap: 12px;
-            padding: 18px;
-        }
-        .metric-card::before {
-            content: "";
-            position: absolute;
-            inset: 0 auto 0 0;
-            width: 4px;
-            background: var(--card-accent, var(--stitch-primary));
-        }
-        .metric-card.accent-cyan {
-            --card-accent: var(--stitch-cyan);
-        }
-        .metric-card.accent-slate {
-            --card-accent: #7899a2;
-        }
-        .metric-card.accent-warning {
-            --card-accent: var(--stitch-warning);
-        }
-        .metric-value {
-            margin: 8px 0 0;
-            color: var(--stitch-primary-dark);
-            font-family: var(--font-heading);
-            font-size: clamp(26px, 3.3vw, 34px);
-            font-weight: 900;
-            line-height: 1.05;
-            overflow-wrap: anywhere;
-        }
-        .metric-subtext {
-            margin: 0;
-            color: var(--stitch-muted);
-            font-size: 13px;
-            line-height: 1.4;
-        }
-        .metric-trend {
-            display: inline-flex;
-            width: fit-content;
-            border-radius: 999px;
-            padding: 4px 8px;
-            background: #eef9f3;
-            color: #167a3d;
-            font-size: 12px;
-            font-weight: 900;
-        }
-        .metric-trend.is-negative {
-            background: #ffdad6;
-            color: #ba1a1a;
-        }
-        .section-heading {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            align-items: flex-start;
-            margin-bottom: 14px;
-        }
-        .section-heading h2 {
-            margin: 0;
-            color: var(--stitch-text);
-            font-family: var(--font-heading);
-            font-size: 20px;
-            font-weight: 800;
-            line-height: 1.25;
-        }
-        .section-heading p {
-            margin: 4px 0 0;
-            color: var(--stitch-muted-soft);
-            font-size: 13px;
-            line-height: 1.4;
-        }
-        .chart-card {
-            padding: clamp(16px, 2vw, 22px);
-        }
-        .dashboard-chart {
-            position: relative;
-            min-height: 290px;
-        }
-        .dashboard-chart canvas {
-            width: 100% !important;
-            max-height: 350px;
-        }
-        .compact-list {
-            display: grid;
-            gap: 10px;
-        }
-        .compact-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--stitch-border);
-        }
-        .compact-row:last-child {
-            padding-bottom: 0;
-            border-bottom: 0;
-        }
-        .compact-row span {
-            color: var(--stitch-muted);
-        }
-        .compact-row strong {
-            color: var(--stitch-text);
-            font-weight: 900;
-            text-align: right;
-        }
-        .finance-layout {
-            display: grid;
-            grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
-            gap: 16px;
-        }
-        .data-card-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-        }
-        .summary-card {
-            padding: clamp(16px, 2vw, 22px);
-        }
-        .usage-list {
-            display: grid;
-            gap: 12px;
-        }
-        .usage-item {
-            display: grid;
-            gap: 8px;
-            border: 1px solid var(--stitch-border);
-            border-radius: var(--radius-md);
-            padding: 12px;
-            background: #fbfcff;
-        }
-        .usage-item-head {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            align-items: center;
-        }
-        .usage-item-head strong {
-            min-width: 0;
-            color: var(--stitch-text);
-            overflow-wrap: anywhere;
-        }
-        .usage-bars {
-            display: grid;
-            gap: 7px;
-        }
-        .usage-bar-row {
-            display: grid;
-            grid-template-columns: 42px minmax(0, 1fr) 46px;
-            gap: 8px;
-            align-items: center;
-            color: var(--stitch-muted);
-            font-size: 12px;
-            font-weight: 800;
-        }
-        .usage-track {
-            height: 8px;
-            overflow: hidden;
-            border-radius: 999px;
-            background: var(--stitch-surface-raised);
-        }
-        .usage-track span {
-            display: block;
-            width: min(var(--usage-value, 0%), 100%);
-            height: 100%;
-            border-radius: inherit;
-            background: var(--stitch-primary);
-        }
-        .usage-track.staff span {
-            background: var(--stitch-cyan);
-        }
-        .location-card-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-        }
-        .location-card {
-            display: grid;
-            gap: 12px;
-            border: 1px solid var(--stitch-border);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            background: var(--stitch-surface);
-            box-shadow: 0 6px 18px rgba(0, 96, 115, 0.05);
-        }
-        .location-card h3 {
-            margin: 0;
-            color: var(--stitch-text);
-            font-family: var(--font-heading);
-            font-size: 17px;
-            line-height: 1.25;
-        }
-        .location-card dl {
-            display: grid;
-            gap: 8px;
-            margin: 0;
-        }
-        .location-card div {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-        }
-        .location-card dt {
-            color: var(--stitch-muted-soft);
-            font-size: 12px;
-            font-weight: 800;
-        }
-        .location-card dd {
-            margin: 0;
-            color: var(--stitch-text);
-            font-weight: 900;
-            text-align: right;
-        }
-        .badge.risk-critical {
-            border-color: #ba1a1a;
-            background: #ffdad6;
-            color: #93000a;
-        }
-        .badge.risk-high {
-            border-color: var(--stitch-warning);
-            background: #fff1d6;
-            color: #8a4b00;
-        }
-        .badge.risk-watch {
-            border-color: #8ad1e7;
-            background: #e7eeff;
-            color: var(--stitch-primary-dark);
-        }
-        .table-wrap table {
-            font-size: 14px;
-        }
-        .table-wrap th {
-            background: var(--stitch-surface-soft);
-            color: var(--stitch-muted);
-        }
-        .table-wrap td {
-            color: var(--stitch-text);
-        }
-        .numeric {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-        @media (max-width: 1180px) {
-            .kpi-strip {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-            .location-card-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
-        @media (max-width: 1100px) {
-            .stitch-hero,
-            .finance-layout {
-                grid-template-columns: 1fr;
-            }
-        }
-        @media (max-width: 940px) {
-            .dashboard-filter {
-                grid-template-columns: 1fr;
-            }
-            .dashboard-chart {
-                min-height: 240px;
-            }
-            .dashboard-tabs {
-                top: 72px;
-            }
-        }
-        @media (max-width: 640px) {
-            .hero-metrics,
-            .kpi-strip,
-            .data-card-grid,
-            .location-card-grid {
-                grid-template-columns: 1fr;
-            }
-            .metric-card {
-                min-height: 124px;
-            }
-            .usage-bar-row {
-                grid-template-columns: 38px minmax(0, 1fr);
-            }
-            .usage-bar-row strong {
-                grid-column: 2;
-            }
-        }
-    </style>
-
     <section class="panel dashboard-filter-panel">
         <form class="dashboard-filter" method="GET" action="{{ route('platform.dashboard') }}">
             <label>
@@ -544,97 +110,97 @@
                         <div class="hero-metric">
                             <span class="card-kicker">{{ __('app.platform.view.resource_usage') }}</span>
                             <strong>{{ $summary['tenant_counts']['resourceUsagePercent'] }}%</strong>
-                            <small>{{ $count($summary['tenant_counts']['configured']) }} configured / {{ $count($summary['tenant_counts']['total']) }} total</small>
+                            <small>
+                                {{ __('app.platform.view.slips') }} {{ $count($summary['tenant_counts']['slipCurrentCount']) }}/{{ $limit($summary['tenant_counts']['slipMaxCount']) }}
+                                ·
+                                {{ __('app.platform.view.staff') }} {{ $count($summary['tenant_counts']['staffCurrentCount']) }}/{{ $limit($summary['tenant_counts']['staffMaxCount']) }}
+                            </small>
                         </div>
                     </div>
                 </div>
 
-                <section class="kpi-strip">
-                    <div class="panel dashboard-card metric-card">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.total_tenants') }}</p>
-                            <p class="metric-value">{{ $count($summary['tenant_counts']['total']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ $count($summary['tenant_counts']['active']) }} {{ __('app.platform.view.active_tenants') }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-warning">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.expired_licenses') }}</p>
-                            <p class="metric-value">{{ $count($summary['tenant_counts']['expired']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ $count($summary['tenant_counts']['expiring']) }} {{ __('app.platform.view.expiring_licenses') }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-cyan">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.pending_payments') }}</p>
-                            <p class="metric-value">{{ $count($summary['pending_payment_count']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ __('app.common.view.labels.payment') }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-slate">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.unrealized_networth') }}</p>
-                            <p class="metric-value">{{ $money($summary['financial']['unrealizedNetworth']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ __('app.platform.view.realized_networth') }} {{ $money($summary['financial']['realizedNetworth']) }}</p>
-                    </div>
+                <section class="overview-kpi-grid">
+                    @foreach ($executiveOverview['kpis'] as $kpi)
+                        <x-platform.dashboard.metric-card
+                            :label="__('app.platform.view.'.$kpi['labelKey'])"
+                            :value="$kpi['displayType'] === 'money' ? $money($kpi['value']) : ($kpi['displayType'] === 'percent' ? $percent($kpi['value']) : $count($kpi['value']))"
+                            :subtext="__('app.platform.view.'.$kpi['subtextKey'], $kpi['subtextParams'])"
+                            :trend="$kpi['trend']"
+                            :tone="$kpi['tone']"
+                            :bars="$kpi['bars']"
+                        />
+                    @endforeach
                 </section>
 
-                <section class="kpi-strip">
-                    <div class="panel dashboard-card metric-card">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.period_net', ['period' => $periodLabel]) }}</p>
-                            <p class="metric-value">{{ $money($summary['financial']['periodNet']) }}</p>
-                        </div>
-                        <span class="metric-trend {{ $trendClass($summary['financial']['growthPercent']) }}">{{ $percent($summary['financial']['growthPercent']) }}</span>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-cyan">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.current_month_slips') }}</p>
-                            <p class="metric-value">{{ $count($summary['package_usage']['currentMonthSlipCount']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ __('app.platform.view.limit') }} {{ $limit($summary['package_usage']['maxSlipPerMonth']) }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-cyan">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.current_staff_count') }}</p>
-                            <p class="metric-value">{{ $count($summary['package_usage']['currentStaffCount']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ __('app.platform.view.limit') }} {{ $limit($summary['package_usage']['maxStaffCount']) }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-slate">
-                        <div>
-                            <p class="metric-label">{{ __('app.platform.view.active_collateral_minimum_retail_price') }}</p>
-                            <p class="metric-value">{{ $money($summary['financial']['activeCollateralMinimumRetailPrice']) }}</p>
-                        </div>
-                        <p class="metric-subtext">{{ __('app.platform.view.portfolio_financial_summary') }}</p>
-                    </div>
-                </section>
-
-                <section class="grid two">
+                <div class="overview-bento-grid">
                     <div class="panel dashboard-card chart-card">
                         <div class="section-heading">
                             <div>
-                                <h2>{{ __('app.platform.view.plan_distribution') }}</h2>
-                                <p>{{ __('app.common.view.labels.current_plan') }}</p>
+                                <h2>{{ __('app.platform.view.performance_benchmark') }}</h2>
+                                <p>{{ __('app.platform.view.current_vs_previous_period') }}</p>
                             </div>
                         </div>
                         <div class="dashboard-chart">
-                            <canvas data-dashboard-chart="planDistribution"></canvas>
+                            <canvas data-dashboard-chart="overviewBenchmark"></canvas>
                         </div>
                     </div>
-                    <div class="panel dashboard-card chart-card">
-                        <div class="section-heading">
-                            <div>
-                                <h2>{{ __('app.platform.view.license_health') }}</h2>
-                                <p>{{ __('app.platform.view.expiring_licenses') }}</p>
+
+                    <div class="overview-side-stack">
+                        <div class="panel dashboard-card chart-card">
+                            <div class="section-heading">
+                                <div>
+                                    <h2>{{ __('app.platform.view.plan_distribution') }}</h2>
+                                    <p>{{ __('app.common.view.labels.current_plan') }}</p>
+                                </div>
+                            </div>
+                            <div class="dashboard-chart">
+                                <canvas data-dashboard-chart="planDistribution"></canvas>
                             </div>
                         </div>
-                        <div class="dashboard-chart">
-                            <canvas data-dashboard-chart="licenseHealth"></canvas>
+                        <div class="panel dashboard-card chart-card">
+                            <div class="section-heading">
+                                <div>
+                                    <h2>{{ __('app.platform.view.license_health') }}</h2>
+                                    <p>{{ __('app.platform.view.expiring_licenses') }}</p>
+                                </div>
+                            </div>
+                            <div class="dashboard-chart">
+                                <canvas data-dashboard-chart="licenseHealth"></canvas>
+                            </div>
                         </div>
                     </div>
-                </section>
+                </div>
+
+                <x-platform.dashboard.summary-card :title="__('app.platform.view.high_priority_tenant_events')" :description="__('app.platform.view.risk')">
+                    <div class="table-wrap overview-event-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>{{ __('app.common.view.labels.tenant') }}</th>
+                                    <th>{{ __('app.common.view.labels.status') }}</th>
+                                    <th class="numeric">{{ __('app.platform.view.period_net', ['period' => $periodLabel]) }}</th>
+                                    <th>{{ __('app.platform.view.risk') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @forelse ($executiveOverview['priorityEvents'] as $event)
+                                <tr>
+                                    <td data-label="{{ __('app.common.view.labels.tenant') }}"><strong>{{ $event['tenant'] }}</strong></td>
+                                    <td data-label="{{ __('app.common.view.labels.status') }}">
+                                        <x-platform.dashboard.status-chip :tone="$event['statusTone']">
+                                            {{ __('app.platform.view.'.$event['statusKey']) }}
+                                        </x-platform.dashboard.status-chip>
+                                    </td>
+                                    <td class="numeric" data-label="{{ __('app.platform.view.period_net', ['period' => $periodLabel]) }}">{{ $money($event['impact']) }}</td>
+                                    <td data-label="{{ __('app.platform.view.risk') }}">{{ $event['detail'] }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4">{{ __('app.common.view.empty.no_records') }}</td></tr>
+                            @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </x-platform.dashboard.summary-card>
             </section>
 
             <section class="dashboard-tab-panel" id="dashboard-panel-financial" data-dashboard-panel="financial" aria-labelledby="dashboard-tab-financial" hidden>
@@ -658,123 +224,106 @@
                     </div>
                 </div>
 
-                <section class="kpi-strip">
-                    <div class="panel dashboard-card metric-card">
-                        <div><p class="metric-label">{{ __('app.platform.view.today_income') }}</p><p class="metric-value">{{ $money($summary['financial']['todayIncome']) }}</p></div>
-                        <p class="metric-subtext">{{ __('app.platform.view.this_day') }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-warning">
-                        <div><p class="metric-label">{{ __('app.platform.view.today_expense') }}</p><p class="metric-value">{{ $money($summary['financial']['todayExpense']) }}</p></div>
-                        <p class="metric-subtext">{{ __('app.platform.view.this_day') }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-cyan">
-                        <div><p class="metric-label">{{ __('app.platform.view.period_income', ['period' => $periodLabel]) }}</p><p class="metric-value">{{ $money($summary['financial']['periodIncome']) }}</p></div>
-                        <p class="metric-subtext">{{ $periodLabel }}</p>
-                    </div>
-                    <div class="panel dashboard-card metric-card accent-slate">
-                        <div><p class="metric-label">{{ __('app.platform.view.period_expense', ['period' => $periodLabel]) }}</p><p class="metric-value">{{ $money($summary['financial']['periodExpense']) }}</p></div>
-                        <p class="metric-subtext">{{ $periodLabel }}</p>
-                    </div>
+                <section class="financial-kpi-grid">
+                    @foreach ($financialPerformance['kpis'] as $kpi)
+                        <x-platform.dashboard.metric-card
+                            :label="__('app.platform.view.'.$kpi['labelKey'])"
+                            :value="$money($kpi['value'])"
+                            :subtext="__('app.platform.view.'.$kpi['subtextKey'], ['percent' => $percent($kpi['progressPercent'])])"
+                            :trend="$kpi['trend']"
+                            :tone="$kpi['tone']"
+                            :progress="$kpi['progressPercent']"
+                        />
+                    @endforeach
                 </section>
 
-                <div class="finance-layout">
-                    <div class="panel dashboard-card summary-card">
-                        <div class="section-heading">
-                            <div>
-                                <h2>{{ __('app.platform.view.portfolio_financial_summary') }}</h2>
-                                <p>{{ __('app.platform.view.unrealized_networth') }}</p>
-                            </div>
+                <div class="financial-main-grid">
+                    <x-platform.dashboard.summary-card :title="__('app.platform.view.portfolio_financial_summary')" :description="__('app.platform.view.net_operating_income')">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>{{ __('app.common.view.labels.tenant') }}</th>
+                                        <th class="numeric">{{ __('app.platform.view.total_portfolio_revenue') }}</th>
+                                        <th class="numeric">{{ __('app.platform.view.operating_expenses') }}</th>
+                                        <th class="numeric">{{ __('app.platform.view.net_operating_income') }}</th>
+                                        <th class="numeric">{{ __('app.platform.view.net_margin') }}</th>
+                                        <th>{{ __('app.common.view.labels.status') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @forelse ($financialPerformance['tenantRows'] as $tenant)
+                                    <tr>
+                                        <td data-label="{{ __('app.common.view.labels.tenant') }}">
+                                            <strong>{{ $tenant['name'] }}</strong><br>
+                                            <span class="muted">{{ $tenant['location'] }}</span>
+                                        </td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.total_portfolio_revenue') }}">{{ $money($tenant['revenue']) }}</td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.operating_expenses') }}">{{ $money($tenant['expense']) }}</td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.net_operating_income') }}">{{ $money($tenant['noi']) }}</td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.net_margin') }}">{{ $percent($tenant['marginPercent']) }}</td>
+                                        <td data-label="{{ __('app.common.view.labels.status') }}">
+                                            <x-platform.dashboard.status-chip :tone="$tenant['statusTone']">
+                                                {{ __('app.platform.view.'.$tenant['statusKey']) }}
+                                            </x-platform.dashboard.status-chip>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="6">{{ __('app.common.view.empty.no_records') }}</td></tr>
+                                @endforelse
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="compact-list">
-                            <div class="compact-row"><span>{{ __('app.platform.view.today_net') }}</span><strong>{{ $money($summary['financial']['todayNet']) }}</strong></div>
-                            <div class="compact-row"><span>{{ __('app.platform.view.period_net', ['period' => $periodLabel]) }}</span><strong>{{ $money($summary['financial']['periodNet']) }}</strong></div>
-                            <div class="compact-row"><span>{{ __('app.platform.view.realized_networth') }}</span><strong>{{ $money($summary['financial']['realizedNetworth']) }}</strong></div>
-                            <div class="compact-row"><span>{{ __('app.platform.view.active_collateral_minimum_retail_price') }}</span><strong>{{ $money($summary['financial']['activeCollateralMinimumRetailPrice']) }}</strong></div>
-                            <div class="compact-row"><span>{{ __('app.platform.view.unrealized_networth') }}</span><strong>{{ $money($summary['financial']['unrealizedNetworth']) }}</strong></div>
-                            <div class="compact-row"><span>{{ __('app.platform.view.previous_period_net') }}</span><strong>{{ $money($summary['financial']['previousMonthNet']) }}</strong></div>
+                    </x-platform.dashboard.summary-card>
+
+                    <x-platform.dashboard.summary-card :title="__('app.platform.view.package_usage')" :description="__('app.platform.view.current_vs_limit')">
+                        <div class="usage-list">
+                            @foreach ($financialPerformance['usageItems'] as $item)
+                                <x-platform.dashboard.progress-item
+                                    :label="__('app.platform.view.'.$item['labelKey'])"
+                                    :current="$count($item['current'])"
+                                    :limit="$limit($item['limit'])"
+                                    :percent="$item['percent']"
+                                    :tone="$item['tone']"
+                                />
+                            @endforeach
                         </div>
-                    </div>
+                    </x-platform.dashboard.summary-card>
+                </div>
+
+                <div class="financial-chart-grid">
                     <div class="panel dashboard-card chart-card">
                         <div class="section-heading">
                             <div>
                                 <h2>{{ __('app.platform.view.income_vs_expense') }}</h2>
-                                <p>{{ __('app.platform.view.financial_performance') }}</p>
+                                <p>{{ __('app.platform.view.comparative_tenant_chart') }}</p>
                             </div>
                         </div>
                         <div class="dashboard-chart">
                             <canvas data-dashboard-chart="tenantIncomeExpense"></canvas>
                         </div>
                     </div>
-                </div>
 
-                <section class="grid two">
-                    <div class="panel dashboard-card summary-card">
-                        <div class="section-heading"><h2>{{ __('app.platform.view.income_leaders') }}</h2></div>
-                        <div class="table-wrap">
-                            <table>
-                                <thead><tr><th>{{ __('app.common.view.labels.tenant') }}</th><th class="numeric">{{ __('app.platform.view.period_income', ['period' => $periodLabel]) }}</th><th class="numeric">{{ __('app.platform.view.today_income') }}</th></tr></thead>
-                                <tbody>
-                                @forelse ($summary['income_leaders'] as $tenant)
-                                    <tr>
-                                        <td data-label="{{ __('app.common.view.labels.tenant') }}">{{ $tenant['name'] }}</td>
-                                        <td class="numeric" data-label="{{ __('app.platform.view.period_income', ['period' => $periodLabel]) }}">{{ $money($tenant['monthIncome']) }}</td>
-                                        <td class="numeric" data-label="{{ __('app.platform.view.today_income') }}">{{ $money($tenant['todayIncome']) }}</td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="3">{{ __('app.common.view.empty.no_records') }}</td></tr>
-                                @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="panel dashboard-card summary-card">
-                        <div class="section-heading"><h2>{{ __('app.platform.view.expense_leaders') }}</h2></div>
-                        <div class="table-wrap">
-                            <table>
-                                <thead><tr><th>{{ __('app.common.view.labels.tenant') }}</th><th class="numeric">{{ __('app.platform.view.period_expense', ['period' => $periodLabel]) }}</th><th class="numeric">{{ __('app.platform.view.today_expense') }}</th></tr></thead>
-                                <tbody>
-                                @forelse ($summary['expense_leaders'] as $tenant)
-                                    <tr>
-                                        <td data-label="{{ __('app.common.view.labels.tenant') }}">{{ $tenant['name'] }}</td>
-                                        <td class="numeric" data-label="{{ __('app.platform.view.period_expense', ['period' => $periodLabel]) }}">{{ $money($tenant['monthExpense']) }}</td>
-                                        <td class="numeric" data-label="{{ __('app.platform.view.today_expense') }}">{{ $money($tenant['todayExpense']) }}</td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="3">{{ __('app.common.view.empty.no_records') }}</td></tr>
-                                @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="grid two">
-                    <div class="panel dashboard-card summary-card">
-                        <div class="section-heading"><h2>{{ __('app.platform.view.income_streams') }}</h2></div>
+                    <x-platform.dashboard.summary-card :title="__('app.platform.view.income_streams')" :description="__('app.platform.view.expense_streams')">
                         <div class="compact-list">
                             @forelse ($summary['income_streams'] as $stream)
-                                <div class="compact-row">
-                                    <span>{{ $stream['name'] }} <span class="muted">({{ $count($stream['transactionCount']) }})</span></span>
-                                    <strong>{{ $money($stream['total']) }}</strong>
-                                </div>
+                                <x-platform.dashboard.compact-row :label="$stream['name'].' ('.$count($stream['transactionCount']).')'" :value="$money($stream['total'])" />
                             @empty
                                 <p class="muted">{{ __('app.common.view.empty.no_records') }}</p>
                             @endforelse
                         </div>
-                    </div>
-                    <div class="panel dashboard-card summary-card">
-                        <div class="section-heading"><h2>{{ __('app.platform.view.expense_streams') }}</h2></div>
-                        <div class="compact-list">
-                            @forelse ($summary['expense_streams'] as $stream)
-                                <div class="compact-row">
-                                    <span>{{ $stream['name'] }} <span class="muted">({{ $count($stream['transactionCount']) }})</span></span>
-                                    <strong>{{ $money($stream['total']) }}</strong>
-                                </div>
-                            @empty
-                                <p class="muted">{{ __('app.common.view.empty.no_records') }}</p>
-                            @endforelse
-                        </div>
-                    </div>
+                    </x-platform.dashboard.summary-card>
+                </div>
+
+                <section class="financial-insight-grid">
+                    @foreach ($financialPerformance['insights'] as $insight)
+                        <x-platform.dashboard.insight-card
+                            :title="__('app.platform.view.'.$insight['titleKey'])"
+                            :body="__('app.platform.view.'.$insight['bodyKey'], $insight['bodyParams'])"
+                            :icon="$insight['icon']"
+                            :tone="$insight['tone']"
+                        />
+                    @endforeach
                 </section>
             </section>
 
@@ -822,14 +371,28 @@
                     <div class="panel dashboard-card chart-card">
                         <div class="section-heading">
                             <div>
-                                <h2>{{ __('app.platform.view.package_usage') }}</h2>
-                                <p>{{ __('app.platform.view.usage') }}</p>
+                                <h2>{{ __('app.platform.view.slip_package_usage') }}</h2>
+                                <p>{{ __('app.platform.view.current_month_slips') }}</p>
                             </div>
                         </div>
                         <div class="dashboard-chart">
-                            <canvas data-dashboard-chart="packageUsage"></canvas>
+                            <canvas data-dashboard-chart="slipPackageUsage"></canvas>
                         </div>
                     </div>
+                    <div class="panel dashboard-card chart-card">
+                        <div class="section-heading">
+                            <div>
+                                <h2>{{ __('app.platform.view.staff_package_usage') }}</h2>
+                                <p>{{ __('app.platform.view.current_staff_count') }}</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-chart">
+                            <canvas data-dashboard-chart="staffPackageUsage"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="grid two">
                     <div class="panel dashboard-card summary-card">
                         <div class="section-heading">
                             <div>
@@ -860,6 +423,43 @@
                             @empty
                                 <p class="muted">{{ __('app.common.view.empty.no_records') }}</p>
                             @endforelse
+                        </div>
+                    </div>
+                    <div class="panel dashboard-card summary-card">
+                        <div class="section-heading">
+                            <div>
+                                <h2>{{ __('app.platform.view.expiring_contract_risk') }}</h2>
+                                <p>{{ __('app.platform.view.next_7_days') }}</p>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>{{ __('app.common.view.labels.tenant') }}</th>
+                                    <th class="numeric">{{ __('app.platform.view.contracts') }}</th>
+                                    <th class="numeric">{{ __('app.platform.view.collectible') }}</th>
+                                    <th class="numeric">{{ __('app.platform.view.minimum_retail') }}</th>
+                                    <th class="numeric">{{ __('app.platform.view.risk_value') }}</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @forelse ($expiringContractRiskRows as $tenant)
+                                    <tr>
+                                        <td data-label="{{ __('app.common.view.labels.tenant') }}">
+                                            <strong>{{ $tenant['name'] }}</strong>
+                                            <div class="muted">{{ __('app.platform.view.nearest_expiry') }} {{ $tenant['nearestExpireDate'] ?? '-' }}</div>
+                                        </td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.contracts') }}">{{ $count($tenant['contractCount']) }}</td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.collectible') }}">{{ $money($tenant['collectibleTotal']) }}</td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.minimum_retail') }}">{{ $money($tenant['minimumRetailTotal']) }}</td>
+                                        <td class="numeric" data-label="{{ __('app.platform.view.risk_value') }}">{{ $percent($tenant['riskValue']) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="5">{{ __('app.common.view.empty.no_records') }}</td></tr>
+                                @endforelse
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>

@@ -207,6 +207,73 @@ class PlatformPortfolioDashboardRepository
             ->all();
     }
 
+    public function expiringContractRiskRows(int $platformUserId, Carbon $today, int $days = 7, int $limit = 5): array
+    {
+        $startDate = $today->copy()->startOfDay()->toDateString();
+        $endDate = $today->copy()->addDays($days)->endOfDay()->toDateString();
+
+        $interestTotals = DB::table('pawn_interest_payments')
+            ->select('slip_id')
+            ->selectRaw('SUM(calculated_interest) as interest_total')
+            ->where('is_deleted', false)
+            ->where('is_paid', false)
+            ->groupBy('slip_id');
+
+        $debtTotals = DB::table('tenant_debts')
+            ->select('slip_id')
+            ->selectRaw('SUM(amount) as debt_total')
+            ->where('is_deleted', false)
+            ->where('is_paid', false)
+            ->whereNotNull('slip_id')
+            ->groupBy('slip_id');
+
+        $collateralTotals = DB::table('pawn_collateral_items')
+            ->select('loan_contract_id')
+            ->selectRaw('SUM(minimum_retail_price) as minimum_retail_total')
+            ->where('is_deleted', false)
+            ->groupBy('loan_contract_id');
+
+        return DB::table('pawn_loan_contract_slips')
+            ->join('tenants', 'tenants.id', '=', 'pawn_loan_contract_slips.tenant_id')
+            ->leftJoinSub($interestTotals, 'interest_totals', function ($join): void {
+                $join->on('interest_totals.slip_id', '=', 'pawn_loan_contract_slips.id');
+            })
+            ->leftJoinSub($debtTotals, 'debt_totals', function ($join): void {
+                $join->on('debt_totals.slip_id', '=', 'pawn_loan_contract_slips.id');
+            })
+            ->leftJoinSub($collateralTotals, 'collateral_totals', function ($join): void {
+                $join->on('collateral_totals.loan_contract_id', '=', 'pawn_loan_contract_slips.id');
+            })
+            ->where('tenants.platform_user_id', $platformUserId)
+            ->where('tenants.is_deleted', false)
+            ->where('pawn_loan_contract_slips.is_deleted', false)
+            ->whereRaw('LOWER(pawn_loan_contract_slips.status) = ?', ['active'])
+            ->whereBetween('pawn_loan_contract_slips.expire_date', [$startDate, $endDate])
+            ->select('tenants.id', 'tenants.name', 'tenants.tenant_code')
+            ->selectRaw('COUNT(pawn_loan_contract_slips.id) as contract_count')
+            ->selectRaw('MIN(pawn_loan_contract_slips.expire_date) as nearest_expire_date')
+            ->selectRaw('SUM(pawn_loan_contract_slips.loan_amount + COALESCE(interest_totals.interest_total, 0) + COALESCE(debt_totals.debt_total, 0)) as collectible_total')
+            ->selectRaw('SUM(COALESCE(collateral_totals.minimum_retail_total, 0)) as minimum_retail_total')
+            ->groupBy('tenants.id', 'tenants.name', 'tenants.tenant_code')
+            ->orderByDesc(DB::raw('CASE WHEN SUM(COALESCE(collateral_totals.minimum_retail_total, 0)) > 0 THEN SUM(pawn_loan_contract_slips.loan_amount + COALESCE(interest_totals.interest_total, 0) + COALESCE(debt_totals.debt_total, 0)) / SUM(COALESCE(collateral_totals.minimum_retail_total, 0)) ELSE 0 END'))
+            ->orderByDesc('collectible_total')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => [
+                'tenantId' => (int) $row->id,
+                'name' => $row->name,
+                'code' => $row->tenant_code,
+                'contractCount' => (int) $row->contract_count,
+                'nearestExpireDate' => $row->nearest_expire_date,
+                'collectibleTotal' => (float) $row->collectible_total,
+                'minimumRetailTotal' => (float) $row->minimum_retail_total,
+                'riskValue' => (float) $row->minimum_retail_total > 0
+                    ? round(((float) $row->collectible_total / (float) $row->minimum_retail_total) * 100, 2)
+                    : 0.0,
+            ])
+            ->all();
+    }
+
     protected function countByColumn(int $platformUserId, string $column, array $keys, string $fallbackKey): array
     {
         $counts = DB::table('tenants')
