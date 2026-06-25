@@ -16,6 +16,7 @@ use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\LoanContractSlipRepository;
 use App\Repository\PawnInterestPaymentRepository;
 use App\Services\BaseTenantService;
+use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\TenantAccountingService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantDebtService;
@@ -37,6 +38,7 @@ class InterestFlowService extends BaseTenantService
         private TenantDebtService $tenantDebtService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantIdempotencyService $tenantIdempotencyService,
+        private CustomerTrustScoreService $customerTrustScoreService,
     ) {
     }
 
@@ -202,6 +204,8 @@ class InterestFlowService extends BaseTenantService
                     $this->resolveCurrentTenantUserId()
                 );
 
+                $this->customerTrustScoreService->recalculateForCustomer((int) $updatedSlip->customer_id);
+
                 return [
                     'status' => $debtAmount > 0.0 ? 'debt_created' : ($changeAmount > 0.0 ? 'change_made' : 'success'),
                     'debtAmount' => $debtAmount,
@@ -353,6 +357,8 @@ class InterestFlowService extends BaseTenantService
             foreach ($this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentDate->toDateString()) as $futurePayment) {
                 $this->repository->delete($futurePayment);
             }
+
+            $this->customerTrustScoreService->recalculateForCustomer((int) $slip->customer_id);
         });
     }
 

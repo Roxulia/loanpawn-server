@@ -3,8 +3,10 @@
 namespace App\Repository;
 
 use App\Models\PawnModule\PawnLoanContractSlip;
+use App\Support\TenantContext;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class LoanContractSlipRepository
 {
@@ -108,6 +110,22 @@ class LoanContractSlipRepository
             ->update([
                 'status' => 'expired',
             ]);
+    }
+
+    public function overdueActiveSlipCustomers(CarbonInterface $currentDate): Collection
+    {
+        $tenantId = app(TenantContext::class)->id();
+        $query = $tenantId === null
+            ? PawnLoanContractSlip::query()->withoutGlobalScope('tenant')
+            : PawnLoanContractSlip::query();
+
+        return $query
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_date', '<', $currentDate->toDateString())
+            ->select('tenant_id', 'customer_id')
+            ->distinct()
+            ->get();
     }
 
 }

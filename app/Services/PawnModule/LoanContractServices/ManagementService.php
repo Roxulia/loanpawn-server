@@ -15,6 +15,7 @@ use App\Services\PawnModule\CollateralItemService;
 use App\Services\PawnModule\InterestFlowService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\TenantAccountingService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantCustomerService;
@@ -39,7 +40,8 @@ class ManagementService extends BaseTenantService
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
-        private TenantLicenseService $tenantLicenseService
+        private TenantLicenseService $tenantLicenseService,
+        private CustomerTrustScoreService $customerTrustScoreService
     ) {
     }
 
@@ -111,6 +113,8 @@ class ManagementService extends BaseTenantService
                     ]
                 );
 
+                $this->customerTrustScoreService->recalculateForCustomer($customerId);
+
                 return $this->repository->reload($slip);
             });
 
@@ -167,6 +171,7 @@ class ManagementService extends BaseTenantService
             $this->tenantAccountingService->deleteForReference($targetSlip);
             $this->repository->markSlipItemsDeleted($targetSlip);
             $this->repository->delete($targetSlip);
+            $this->customerTrustScoreService->recalculateForCustomer((int) $targetSlip->customer_id);
         });
 
         $this->flushLoanContractSlipListCache();
@@ -186,7 +191,12 @@ class ManagementService extends BaseTenantService
 
     public function changeStatus(PawnLoanContractSlip $slip, string $status): PawnLoanContractSlip
     {
-        $updatedSlip = DB::transaction(fn () => $this->repository->updateWithLock($slip, ['status' => $status]));
+        $updatedSlip = DB::transaction(function () use ($slip, $status): PawnLoanContractSlip {
+            $updatedSlip = $this->repository->updateWithLock($slip, ['status' => $status]);
+            $this->customerTrustScoreService->recalculateForCustomer((int) $updatedSlip->customer_id);
+
+            return $updatedSlip;
+        });
         $this->flushLoanContractSlipListCache();
 
         return $updatedSlip;

@@ -18,6 +18,7 @@ use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class InterestFlowServiceTest extends TestCase
@@ -170,6 +171,12 @@ class InterestFlowServiceTest extends TestCase
             'amount' => '5000.00',
             'created_by' => $tenantUser->id,
         ]);
+
+        $trustScore = (int) DB::table('tenant_customers')
+            ->where('id', $created->customerId)
+            ->value('trust_score');
+        $this->assertGreaterThan(50, $trustScore);
+        $this->assertLessThan(100, $trustScore);
     }
 
     public function test_it_records_change_amount_and_change_accounting_when_payment_exceeds_due_interest(): void

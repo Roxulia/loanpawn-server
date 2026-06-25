@@ -17,6 +17,7 @@ use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class LoanContractSlipServiceTest extends TestCase
@@ -70,7 +71,7 @@ class LoanContractSlipServiceTest extends TestCase
             expiryQuotaType: 'Month',
         ));
 
-        $this->assertSame('LSslip-tenant3176D', $created->slipNo);
+        $this->assertSame('LS202604slip-tenant001', $created->slipNo);
         $this->assertSame('2026-04-21', $created->createdDate);
         $this->assertSame('2026-07-21', $created->expireDate);
         $this->assertSame('active', $created->status);
@@ -87,7 +88,7 @@ class LoanContractSlipServiceTest extends TestCase
 
         $this->assertDatabaseHas('pawn_loan_contract_slips', [
             'tenant_id' => $tenant->id,
-            'slip_no' => 'LSslip-tenant3176D',
+            'slip_no' => $created->slipNo,
             'customer_id' => $created->customerId,
             'loan_amount' => 500000,
             'interest_rate' => 5,
@@ -246,6 +247,10 @@ class LoanContractSlipServiceTest extends TestCase
             'target_type' => 'App\\Models\\PawnModule\\PawnLoanContractSlip',
             'target_id' => $created->id,
         ]);
+
+        $this->assertSame(0, (int) DB::table('tenant_customers')
+            ->where('id', $created->customerId)
+            ->value('trust_score'));
     }
 
     public function test_it_creates_monthly_interest_rows_using_the_expected_boundaries(): void

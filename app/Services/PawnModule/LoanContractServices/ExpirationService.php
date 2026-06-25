@@ -3,6 +3,7 @@
 namespace App\Services\PawnModule\LoanContractServices;
 
 use App\Repository\LoanContractSlipRepository;
+use App\Services\TenantModule\CustomerTrustScoreService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -10,6 +11,7 @@ class ExpirationService
 {
     public function __construct(
         private LoanContractSlipRepository $repository,
+        private CustomerTrustScoreService $customerTrustScoreService,
     ) {
     }
 
@@ -19,6 +21,16 @@ class ExpirationService
             ? CarbonImmutable::now()->startOfDay()
             : CarbonImmutable::parse($currentDate)->startOfDay();
 
-        return $this->repository->expireOverdueActiveSlips($currentDate);
+        $customers = $this->repository->overdueActiveSlipCustomers($currentDate);
+        $expiredCount = $this->repository->expireOverdueActiveSlips($currentDate);
+
+        $customers->each(function ($row): void {
+            $this->customerTrustScoreService->recalculateForTenantCustomer(
+                (int) $row->tenant_id,
+                (int) $row->customer_id
+            );
+        });
+
+        return $expiredCount;
     }
 }

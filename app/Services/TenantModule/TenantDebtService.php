@@ -32,6 +32,7 @@ class TenantDebtService extends BaseTenantService
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
+        private CustomerTrustScoreService $customerTrustScoreService,
     ) {
     }
 
@@ -114,6 +115,8 @@ class TenantDebtService extends BaseTenantService
                 return $debt;
             });
 
+            $this->recalculateTrustScoreForDebt($debt);
+
             $this->flushTenantDebtListCache();
             $detail = TenantDebtDetail::fromModel($debt);
 
@@ -193,6 +196,8 @@ class TenantDebtService extends BaseTenantService
         $data['update_key'] = $debt->updateKey+1;
         $original = $debt->only(array_keys($data));
 
+        $originalCustomerId = $debt->slip?->customer_id;
+
         $updatedDebt = DB::transaction(function () use ($debt, $data, $original) {
             $updatedDebt = $this->repository->updateWithLock($debt, $data);
 
@@ -214,6 +219,11 @@ class TenantDebtService extends BaseTenantService
 
             return $updatedDebt;
         });
+
+        $this->recalculateTrustScoreForCustomerIds([
+            $originalCustomerId,
+            $updatedDebt->slip?->customer_id,
+        ]);
 
         $this->flushTenantDebtListCache();
 
@@ -259,6 +269,7 @@ class TenantDebtService extends BaseTenantService
 
             $this->tenantAccountingService->deleteForReference($debt);
             $this->repository->delete($debt);
+            $this->recalculateTrustScoreForDebt($debt);
         });
 
         $this->flushTenantDebtListCache();
@@ -346,6 +357,8 @@ class TenantDebtService extends BaseTenantService
                     ],
                 ]
             );
+            $this->recalculateTrustScoreForDebt($updatedDebt);
+
             return array_merge($updatedDebt->toArray(), [
                 'change_amount' => $amountPaid - $debt->amount,
             ]);
@@ -388,6 +401,8 @@ class TenantDebtService extends BaseTenantService
                 ],
             );
 
+            $this->recalculateTrustScoreForDebt($updatedDebt);
+
             return $updatedDebt;
         });
 
@@ -421,6 +436,24 @@ class TenantDebtService extends BaseTenantService
     protected function resolveCurrentTenantUserId(): ?int
     {
         return Auth::guard('tenantuser')->id();
+    }
+
+    protected function recalculateTrustScoreForDebt(TenantDebt $debt): void
+    {
+        $customerId = $debt->slip?->customer_id;
+
+        if ($customerId === null) {
+            return;
+        }
+
+        $this->customerTrustScoreService->recalculateForCustomer((int) $customerId);
+    }
+
+    protected function recalculateTrustScoreForCustomerIds(array $customerIds): void
+    {
+        $this->customerTrustScoreService->recalculateForCustomers(
+            array_map('intval', array_filter($customerIds))
+        );
     }
 
     protected function flushTenantDebtListCache(): void
