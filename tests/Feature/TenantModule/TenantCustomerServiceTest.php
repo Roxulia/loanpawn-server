@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\DataObjects\RequestObjects\TenantCustomerUpdate;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Services\TenantModule\TenantCustomerService;
@@ -153,6 +154,52 @@ class TenantCustomerServiceTest extends TestCase
 
         $this->assertSame(1, $result->total);
         $this->assertSame('Ko Ko', $result->items[0]->name);
+    }
+
+    public function test_it_lists_customer_summary_and_last_activity(): void
+    {
+        $tenant = $this->createTenant();
+        $this->actingTenantUser($tenant, ['access_all']);
+
+        $trusted = app(TenantCustomerService::class)->createForCurrentTenant(new TenantCustomerCreate(
+            name: 'Trusted Customer',
+            email: 'trusted@example.com',
+            phone: '0911111111',
+            address: 'Yangon',
+            trustScore: 255,
+        ));
+
+        app(TenantCustomerService::class)->createForCurrentTenant(new TenantCustomerCreate(
+            name: 'Risk Customer',
+            email: 'risk@example.com',
+            phone: '0922222222',
+            address: 'Mandalay',
+            trustScore: 20,
+        ));
+
+        PawnLoanContractSlip::query()->create([
+            'tenant_id' => $tenant->id,
+            'slip_no' => 'SLIP-001',
+            'customer_id' => $trusted->customer->id,
+            'loan_amount' => 100000,
+            'interest_rate' => 5,
+            'created_date' => now()->subDays(10)->toDateString(),
+            'expire_date' => now()->subDay()->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $result = app(TenantCustomerService::class)->list(15);
+        $trustedRow = collect($result->items)->firstWhere('name', 'Trusted Customer');
+
+        $this->assertSame(2, $result->summary->totalClients);
+        $this->assertSame(53.9, $result->summary->averageTrustScore);
+        $this->assertSame(1, $result->summary->activePawnLoans);
+        $this->assertSame(2, $result->summary->riskFlagged);
+        $this->assertSame(100, $trustedRow->displayTrustScore);
+        $this->assertSame(1, $trustedRow->activeSlipCount);
+        $this->assertSame('Yangon', $trustedRow->primaryLocation);
+        $this->assertSame('PAYMENT DELINQUENT', $trustedRow->lastActivity->status);
+        $this->assertSame('danger', $trustedRow->lastActivity->tone);
     }
 
     public function test_it_flag_deletes_customer_with_soft_delete(): void
