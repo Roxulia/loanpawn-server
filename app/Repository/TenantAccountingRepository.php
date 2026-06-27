@@ -11,16 +11,32 @@ use App\Support\AccountingReferenceMapper;
 
 class TenantAccountingRepository
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
-        return TenantAccounting::query()
+        $query = TenantAccounting::query()
+            ->where('is_deleted', false)
             ->orderByDesc('id')
-            ->paginate($perPage);
+            ->orderByDesc('created_at');
+
+        if ($search !== null) {
+            $query->where(function ($query) use ($search) {
+                $query->where('description', 'like', "%{$search}%")
+                    ->orWhere('transaction_type', 'like', "%{$search}%")
+                    ->orWhere('reference_type', 'like', "%{$search}%");
+
+                if (is_numeric($search)) {
+                    $query->orWhere('amount', (float) $search);
+                }
+            });
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function listIncomingTransactions(int $perPage = 15): LengthAwarePaginator
     {
         return TenantAccounting::query()
+            ->where('is_deleted', false)
             ->where('transaction_type', 'incoming')
             ->whereDate('created_at', Carbon::today())
             ->orderByDesc('id')
@@ -30,6 +46,7 @@ class TenantAccountingRepository
     public function listOutgoingTransactions(int $perPage = 15): LengthAwarePaginator
     {
         return TenantAccounting::query()
+            ->where('is_deleted', false)
             ->where('transaction_type', 'outgoing')
             ->whereDate('created_at', Carbon::today())
             ->orderByDesc('id')
@@ -96,6 +113,7 @@ class TenantAccountingRepository
     public function paginateAccountingLedger(Carbon $startDate, Carbon $endDate, int $perPage = 15): LengthAwarePaginator
     {
         return TenantAccounting::query()
+            ->where('is_deleted', false)
             ->whereBetween('created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
             ->orderBy('created_at')
             ->orderBy('id')
@@ -105,6 +123,7 @@ class TenantAccountingRepository
     public function getAccountingLedger(Carbon $startDate, Carbon $endDate): array
     {
         return TenantAccounting::query()
+            ->where('is_deleted', false)
             ->whereBetween('created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
             ->orderBy('created_at')
             ->orderBy('id')
@@ -115,6 +134,7 @@ class TenantAccountingRepository
     public function balanceBefore(Carbon $startDate): float
     {
         return (float) TenantAccounting::query()
+            ->where('is_deleted', false)
             ->where('created_at', '<', $startDate->copy()->startOfDay())
             ->selectRaw("
                 COALESCE(SUM(CASE
@@ -135,6 +155,7 @@ class TenantAccountingRepository
         }
 
         $previousRows = TenantAccounting::query()
+            ->where('is_deleted', false)
             ->where('created_at', '>=', $startDate->copy()->startOfDay())
             ->orderBy('created_at')
             ->orderBy('id')
@@ -173,5 +194,28 @@ class TenantAccountingRepository
                 );
             })
             ->toArray();
+    }
+
+    public function allTimeNetBalance(): float
+    {
+        return (float) TenantAccounting::query()
+            ->where('is_deleted', false)
+            ->selectRaw("
+                COALESCE(SUM(CASE
+                    WHEN transaction_type = 'incoming' THEN amount
+                    WHEN transaction_type = 'outgoing' THEN -amount
+                    ELSE 0
+                END), 0) as balance
+            ")
+            ->value('balance');
+    }
+
+    public function transactionTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate): float
+    {
+        return (float) TenantAccounting::query()
+            ->where('is_deleted', false)
+            ->where('transaction_type', $transactionType)
+            ->whereBetween('created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->sum('amount');
     }
 }
