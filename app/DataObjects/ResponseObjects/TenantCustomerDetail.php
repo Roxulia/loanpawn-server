@@ -31,9 +31,9 @@ class TenantCustomerDetail extends BaseDataObject
     public ?array $loanMetrics;
     public ?array $activeSlips;
 
-    public static function fromModel(TenantCustomer $customer): self
+    public static function fromModel(TenantCustomer $customer): static
     {
-        $detail = new self();
+        $detail = new static();
         $detail->id = $customer->id;
         $detail->tenantId = $customer->tenant_id;
         $detail->code = $customer->code;

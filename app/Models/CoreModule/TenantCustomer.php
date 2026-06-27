@@ -2,9 +2,11 @@
 
 namespace App\Models\CoreModule;
 
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TenantCustomer extends Model
@@ -36,6 +38,11 @@ class TenantCustomer extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(TenantUser::class, 'created_by');
+    }
+
+    public function pawnSlips(): HasMany
+    {
+        return $this->hasMany(PawnLoanContractSlip::class, 'customer_id');
     }
 
 }
