@@ -5,24 +5,27 @@ namespace App\Services\TenantModule;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\DataObjects\RequestObjects\TenantCustomerUpdate;
 use App\DataObjects\ResponseObjects\TenantCustomerDetail;
+use App\DataObjects\ResponseObjects\TenantCustomerLastActivity;
 use App\DataObjects\ResponseObjects\TenantCustomerListPage;
+use App\DataObjects\ResponseObjects\TenantCustomerListSummary;
 use App\DataObjects\ResponseObjects\TenantCustomerUpsertResult;
+use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\DuplicateValueFound;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantCustomer;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\TenantCustomerRepository;
 use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
 use App\Support\TenantScopedCacheKeys;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Exceptions\AlreadyUpdatedException;
+use Illuminate\Support\Collection;
 
 class TenantCustomerService extends BaseTenantService
 {
-    protected const TENANT_CUSTOMER_LIST_CACHE_TTL_SECONDS = 600;
+    protected const RISK_TRUST_SCORE_THRESHOLD = 102;
 
     public function __construct(
         private TenantCustomerRepository $repository,
@@ -36,16 +39,25 @@ class TenantCustomerService extends BaseTenantService
     public function list(int $perPage = 15, ?string $search = null): TenantCustomerListPage
     {
         $this->permissionService->authorizeCustomerList();
-        $page = $this->resolveCurrentPage();
         $search = $this->normalizeSearch($search);
-        $version = $this->tenantScopedCacheKeys->currentVersion('tenant-customer-list');
+        $today = CarbonImmutable::today();
+        $paginator = $this->repository->paginate($perPage, $search);
+        $customerIds = collect($paginator->items())->pluck('id')->all();
+        $activitiesByCustomerId = $this->mapLastActivities(
+            $this->repository->latestSlipsForCustomerIds($customerIds),
+            $today,
+        );
+        $summary = $this->repository->customerListSummary($today, self::RISK_TRUST_SCORE_THRESHOLD);
 
-        return Cache::remember(
-            $this->tenantCustomerListCacheKey($version, $page, $perPage, $search),
-            now()->addSeconds(self::TENANT_CUSTOMER_LIST_CACHE_TTL_SECONDS),
-            fn () => TenantCustomerListPage::fromPaginator(
-                $this->repository->paginate($perPage, $search)
-            )
+        return TenantCustomerListPage::fromPaginator(
+            $paginator,
+            new TenantCustomerListSummary(
+                totalClients: (int) $summary['totalClients'],
+                averageTrustScore: $this->normalizeAverageTrustScore((float) $summary['averageTrustScore']),
+                activePawnLoans: (int) $summary['activePawnLoans'],
+                riskFlagged: (int) $summary['riskFlagged'],
+            ),
+            $activitiesByCustomerId,
         );
     }
 
@@ -286,11 +298,6 @@ class TenantCustomerService extends BaseTenantService
         $this->tenantScopedCacheKeys->bumpVersion('tenant-customer-list');
     }
 
-    protected function resolveCurrentPage(): int
-    {
-        return max(1, (int) request()->query('page', 1));
-    }
-
     protected function normalizeSearch(?string $search): ?string
     {
         if ($search === null) {
@@ -302,15 +309,64 @@ class TenantCustomerService extends BaseTenantService
         return $search === '' ? null : $search;
     }
 
-    protected function tenantCustomerListCacheKey(int $version, int $page, int $perPage, ?string $search): string
+    protected function mapLastActivities(iterable $slipsByCustomerId, CarbonImmutable $today): Collection
     {
-        $key = $this->tenantScopedCacheKeys->paginatedListKey('tenant-customer-list', $version, $page, $perPage);
+        return collect($slipsByCustomerId)
+            ->map(fn (PawnLoanContractSlip $slip) => $this->mapLastActivity($slip, $today));
+    }
 
-        if ($search === null) {
-            return $key;
+    protected function mapLastActivity(PawnLoanContractSlip $slip, CarbonImmutable $today): TenantCustomerLastActivity
+    {
+        $status = mb_strtolower((string) $slip->status);
+        $date = $slip->created_date?->toDateString() ?? $slip->created_at?->toDateString();
+
+        if ($status === 'active' && $slip->expire_date !== null && $slip->expire_date->lt($today)) {
+            return new TenantCustomerLastActivity(
+                date: $date,
+                status: 'PAYMENT DELINQUENT',
+                label: 'Active slip past expiry',
+                tone: 'danger',
+            );
         }
 
-        return $key . ':search:' . sha1(mb_strtolower($search));
+        if ($status === 'active') {
+            return new TenantCustomerLastActivity(
+                date: $date,
+                status: 'COLLATERAL VERIFIED',
+                label: 'Active pawn loan in good standing',
+                tone: 'success',
+            );
+        }
+
+        if ($status === 'redeemed') {
+            return new TenantCustomerLastActivity(
+                date: $date,
+                status: 'REDEEMED',
+                label: 'Pawn loan closed',
+                tone: 'success',
+            );
+        }
+
+        if ($status === 'expired') {
+            return new TenantCustomerLastActivity(
+                date: $date,
+                status: 'PAYMENT DELINQUENT',
+                label: 'Expired pawn loan requires review',
+                tone: 'danger',
+            );
+        }
+
+        return new TenantCustomerLastActivity(
+            date: $date,
+            status: mb_strtoupper((string) $slip->status),
+            label: 'Latest pawn activity recorded',
+            tone: 'neutral',
+        );
+    }
+
+    protected function normalizeAverageTrustScore(float $trustScore): float
+    {
+        return round(max(0, min(100, ($trustScore / 255) * 100)), 1);
     }
 
 }
