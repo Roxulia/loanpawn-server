@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
+use App\DataObjects\RequestObjects\TenantAccountingCreate;
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
@@ -173,6 +174,37 @@ class TenantFinanceServiceTest extends TestCase
             'target_type' => 'App\\Models\\CoreModule\\TenantDebt',
             'target_id' => $created->id,
         ]);
+    }
+
+    public function test_it_builds_accounting_overview_and_searches_transactions(): void
+    {
+        $tenant = $this->createTenant();
+        $tenantUser = $this->actingTenantUser($tenant, ['list_accounting']);
+        $accountingService = app(TenantAccountingService::class);
+
+        $accountingService->create(new TenantAccountingCreate(
+            description: 'Redeem payment',
+            transactionType: 'incoming',
+            amount: 1000,
+            createdBy: $tenantUser->id,
+        ));
+        $accountingService->create(new TenantAccountingCreate(
+            description: 'Shop expense',
+            transactionType: 'outgoing',
+            amount: 250,
+            createdBy: $tenantUser->id,
+        ));
+
+        $overview = $accountingService->overview();
+        $searchResult = $accountingService->list(15, 'Redeem');
+
+        $this->assertSame(750.0, $overview->liquidCapital);
+        $this->assertSame(1000.0, $overview->monthIncoming);
+        $this->assertSame(250.0, $overview->monthOutgoing);
+        $this->assertSame(100.0, $overview->incomingProgress);
+        $this->assertSame(25.0, $overview->outgoingProgress);
+        $this->assertSame(1, $searchResult->total);
+        $this->assertSame('Redeem payment', $searchResult->items[0]->description);
     }
 
     protected function createTenant(): Tenant
