@@ -21,6 +21,7 @@ class TenantAccountingController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:120'],
         ]);
 
         if ($validator->fails()) {
@@ -29,7 +30,15 @@ class TenantAccountingController extends Controller
 
         $validated = $validator->validated();
 
-        return $this->successResponse($this->accountingService->list((int) ($validated['per_page'] ?? 15))->toArray());
+        return $this->successResponse($this->accountingService->list(
+            (int) ($validated['per_page'] ?? 15),
+            $validated['search'] ?? null,
+        )->toArray());
+    }
+
+    public function overview(): JsonResponse
+    {
+        return $this->successResponse($this->accountingService->overview()->toArray());
     }
 
     public function getAccountingLedger(Request $request): JsonResponse
