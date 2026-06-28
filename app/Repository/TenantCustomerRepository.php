@@ -3,8 +3,12 @@
 namespace App\Repository;
 
 use App\Models\CoreModule\TenantCustomer;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Exceptions\RequiredValueMissing;
+use App\Support\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class TenantCustomerRepository
 {
@@ -71,6 +75,77 @@ class TenantCustomerRepository
             ->where('code', $code)
             ->where('is_deleted', false)
             ->first();
+    }
+
+    public function customerSlipMetrics(int $customerId): array
+    {
+        $tenantId = app(TenantContext::class)->id();
+        $slips = PawnLoanContractSlip::query()
+            ->where('customer_id', $customerId)
+            ->where('is_deleted', false)
+            ->get(['id', 'loan_amount', 'created_date', 'expire_date', 'status']);
+
+        $totalSlips = $slips->count();
+        $activeSlips = $slips->filter(fn (PawnLoanContractSlip $slip): bool => strtolower((string) $slip->status) === 'active')->count();
+        $completedSlips = $slips->filter(fn (PawnLoanContractSlip $slip): bool => strtolower((string) $slip->status) === 'redeemed')->count();
+        $activeLoanAmount = $slips
+            ->filter(fn (PawnLoanContractSlip $slip): bool => strtolower((string) $slip->status) === 'active')
+            ->sum(fn (PawnLoanContractSlip $slip): float => (float) $slip->loan_amount);
+        $totalLoanAmount = $slips->sum(fn (PawnLoanContractSlip $slip): float => (float) $slip->loan_amount);
+        $termDays = $slips
+            ->map(fn (PawnLoanContractSlip $slip): int => (int) round(CarbonImmutable::parse($slip->created_date)->diffInDays(CarbonImmutable::parse($slip->expire_date))))
+            ->filter(fn (int $days): bool => $days >= 0);
+        $latestActivityDate = $slips->max(fn (PawnLoanContractSlip $slip): ?string => $slip->created_date?->toDateString());
+        $firstSlipDate = $slips->min(fn (PawnLoanContractSlip $slip): ?string => $slip->created_date?->toDateString());
+        $totalInterestPaid = (float) DB::table('pawn_interest_payments')
+            ->join('pawn_loan_contract_slips', 'pawn_loan_contract_slips.id', '=', 'pawn_interest_payments.slip_id')
+            ->where('pawn_interest_payments.tenant_id', $tenantId)
+            ->where('pawn_loan_contract_slips.tenant_id', $tenantId)
+            ->where('pawn_loan_contract_slips.customer_id', $customerId)
+            ->where('pawn_loan_contract_slips.is_deleted', false)
+            ->where('pawn_interest_payments.is_deleted', false)
+            ->where('pawn_interest_payments.is_paid', true)
+            ->sum('pawn_interest_payments.payment_amount');
+
+        return [
+            'total_slips' => $totalSlips,
+            'active_slips' => $activeSlips,
+            'completed_slips' => $completedSlips,
+            'total_loan_amount' => $totalLoanAmount,
+            'active_loan_amount' => $activeLoanAmount,
+            'total_interest_paid' => $totalInterestPaid,
+            'average_loan_term_days' => $termDays->count() > 0 ? (int) round($termDays->average()) : 0,
+            'redemption_rate' => $totalSlips > 0 ? (int) round(($completedSlips / $totalSlips) * 100) : 0,
+            'latest_activity_date' => $latestActivityDate,
+            'first_slip_date' => $firstSlipDate,
+        ];
+    }
+
+    public function activeSlipsForCustomer(int $customerId, int $limit = 8): array
+    {
+        return PawnLoanContractSlip::query()
+            ->with(['interestType', 'slipItems.materialType'])
+            ->where('customer_id', $customerId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->orderBy('expire_date')
+            ->limit($limit)
+            ->get()
+            ->map(function (PawnLoanContractSlip $slip): array {
+                $firstItem = $slip->slipItems->first();
+
+                return [
+                    'id' => $slip->id,
+                    'slip_no' => $slip->slip_no,
+                    'pawned_item' => $firstItem?->name ?? $firstItem?->type ?? '-',
+                    'loan_amount' => (float) $slip->loan_amount,
+                    'interest_rate' => (float) $slip->interest_rate,
+                    'interest_type_name' => $slip->interestType?->name,
+                    'expire_date' => $slip->expire_date?->toDateString(),
+                    'status' => $slip->status,
+                ];
+            })
+            ->all();
     }
 
     public function findByIdWithLock(int $customerId): ?TenantCustomer

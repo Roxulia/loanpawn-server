@@ -4,15 +4,18 @@ namespace App\Repository;
 
 use App\Models\PawnModule\PawnRedemption;
 use App\Exceptions\RequiredValueMissing;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 class PawnRedemptionRepository
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?CarbonImmutable $startDate = null, ?CarbonImmutable $endDate = null): LengthAwarePaginator
     {
         return PawnRedemption::query()
             ->with('slip')
+            ->when($startDate !== null, fn ($query) => $query->whereDate('redemption_date', '>=', $startDate->toDateString()))
+            ->when($endDate !== null, fn ($query) => $query->whereDate('redemption_date', '<=', $endDate->toDateString()))
             ->orderByDesc('id')
             ->paginate($perPage);
     }

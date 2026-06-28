@@ -23,6 +23,8 @@ class PawnRedemptionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
         if ($validator->fails()) {
@@ -31,7 +33,11 @@ class PawnRedemptionController extends Controller
 
         $validated = $validator->validated();
 
-        return $this->successResponse($this->redemptionService->list((int) ($validated['per_page'] ?? 15))->toArray());
+        return $this->successResponse($this->redemptionService->list(
+            (int) ($validated['per_page'] ?? 15),
+            isset($validated['start_date']) ? CarbonImmutable::parse($validated['start_date']) : null,
+            isset($validated['end_date']) ? CarbonImmutable::parse($validated['end_date']) : null,
+        )->toArray());
     }
 
     public function calculate(string $slipNo): JsonResponse

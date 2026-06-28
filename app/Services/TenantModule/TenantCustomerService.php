@@ -113,15 +113,25 @@ class TenantCustomerService extends BaseTenantService
     public function show(int $customerId): TenantCustomerDetail
     {
         $this->permissionService->authorizeCustomerList();
+        $customer = $this->findCustomerForCurrentTenant($customerId);
 
-        return TenantCustomerDetail::fromModel($this->findCustomerForCurrentTenant($customerId));
+        return TenantCustomerDetail::fromModelWithDetail(
+            $customer,
+            $this->repository->customerSlipMetrics($customer->id),
+            $this->repository->activeSlipsForCustomer($customer->id)
+        );
     }
 
     public function showByCode(string $code): TenantCustomerDetail
     {
         $this->permissionService->authorizeCustomerList();
+        $customer = $this->findCustomerForCurrentTenantByCode($code);
 
-        return TenantCustomerDetail::fromModel($this->findCustomerForCurrentTenantByCode($code));
+        return TenantCustomerDetail::fromModelWithDetail(
+            $customer,
+            $this->repository->customerSlipMetrics($customer->id),
+            $this->repository->activeSlipsForCustomer($customer->id)
+        );
     }
 
     public function update(TenantCustomerUpdate $request): TenantCustomerDetail

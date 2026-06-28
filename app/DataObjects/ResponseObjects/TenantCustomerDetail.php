@@ -27,6 +27,9 @@ class TenantCustomerDetail extends BaseDataObject
     public ?int $createdBy;
     public bool $isDeleted;
     public ?string $deletedAt;
+    public ?string $createdAt;
+    public ?array $loanMetrics;
+    public ?array $activeSlips;
 
     public static function fromModel(TenantCustomer $customer): self
     {
@@ -45,11 +48,21 @@ class TenantCustomerDetail extends BaseDataObject
         $detail->createdBy = $customer->created_by;
         $detail->isDeleted = (bool) $customer->is_deleted;
         $detail->deletedAt = $customer->deleted_at?->toISOString();
+        $detail->createdAt = $customer->created_at?->toISOString();
         $nrc_decomposed = NrcHelper::decomposeNRC($customer->nrc);
         $detail->nrc_state = $nrc_decomposed!==null ? $nrc_decomposed['state'] : null;
         $detail->nrc_township = $nrc_decomposed!==null ? $nrc_decomposed['township'] : null;
         $detail->nrc_citizen= $nrc_decomposed!==null ? $nrc_decomposed['citizen'] : null;
         $detail->nrc_number = $nrc_decomposed!==null ? $nrc_decomposed['number'] : null;
+        return $detail;
+    }
+
+    public static function fromModelWithDetail(TenantCustomer $customer, array $loanMetrics, array $activeSlips): self
+    {
+        $detail = self::fromModel($customer);
+        $detail->loanMetrics = $loanMetrics;
+        $detail->activeSlips = $activeSlips;
+
         return $detail;
     }
 }

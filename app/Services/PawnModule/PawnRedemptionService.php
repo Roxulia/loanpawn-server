@@ -49,16 +49,19 @@ class PawnRedemptionService extends BaseTenantService
     ) {
     }
 
-    public function list(int $perPage = 15): PawnRedemptionListPage
+    public function list(int $perPage = 15, ?CarbonImmutable $startDate = null, ?CarbonImmutable $endDate = null): PawnRedemptionListPage
     {
         $this->permissionService->authorizeLoanContractList();
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('pawn-redemption-list');
+        $cacheKey = $this->tenantScopedCacheKeys->paginatedListKey('pawn-redemption-list', $version, $page, $perPage)
+            . ':start-date:' . ($startDate?->toDateString() ?? 'any')
+            . ':end-date:' . ($endDate?->toDateString() ?? 'any');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey('pawn-redemption-list', $version, $page, $perPage),
+            $cacheKey,
             now()->addSeconds(self::PAWN_REDEMPTION_LIST_CACHE_TTL_SECONDS),
-            fn () => PawnRedemptionListPage::fromPaginator($this->repository->paginate($perPage))
+            fn () => PawnRedemptionListPage::fromPaginator($this->repository->paginate($perPage, $startDate, $endDate))
         );
     }
 
