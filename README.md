@@ -138,12 +138,51 @@ composer run dev
 
 The development command starts separate workers for the `default`, `scheduled`, and `mail` queues, along with `php artisan schedule:work`.
 
-Production deployments should invoke Laravel's scheduler every minute and run separate queue workers:
+## Cache and Queue Backends
+
+Redis is optional. At runtime the application checks whether Redis is reachable:
+
+- If Redis is reachable, cache and queued work use Redis.
+- If Redis is not reachable, cache and queued work fall back to the database backend.
+
+Default local environment values keep database as the configured fallback:
+
+```dotenv
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+```
+
+Optional Redis queue/cache connection names can be configured when needed:
+
+```dotenv
+REDIS_CACHE_CONNECTION=cache
+REDIS_QUEUE_CONNECTION=default
+```
+
+When Redis is available, run queue workers against the Redis connection:
 
 ```bash
-php artisan queue:work --queue=default
-php artisan queue:work --queue=scheduled
-php artisan queue:work --queue=mail --tries=3
+php artisan queue:work redis --queue=default
+php artisan queue:work redis --queue=scheduled
+php artisan queue:work redis --queue=mail --tries=3
+```
+
+When Redis is unavailable, run queue workers against the database connection:
+
+```bash
+php artisan queue:work database --queue=default
+php artisan queue:work database --queue=scheduled
+php artisan queue:work database --queue=mail --tries=3
+```
+
+Production deployments should invoke Laravel's scheduler every minute and run the matching Redis or database queue workers shown above:
+
+```bash
+* * * * * cd /path/to/lonepawn-server && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 Run test suite:

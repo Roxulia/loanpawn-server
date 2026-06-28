@@ -4,13 +4,17 @@ namespace Tests\Unit;
 
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
+use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Mail\PaymentRequestReviewedMail;
 use App\Mail\PlatformPasswordResetOtpMail;
 use App\Mail\PlatformRegistrationVerificationMail;
 use App\Mail\TenantLicenseExpiringMail;
 use App\Models\PlatformModule\ManualPaymentRequest;
 use App\Models\PlatformModule\TenantLicense;
-use PHPUnit\Framework\TestCase;
+use App\Support\RedisAvailability;
+use Illuminate\Support\Facades\Redis;
+use Mockery;
+use Tests\TestCase;
 
 class QueueAssignmentTest extends TestCase
 {
@@ -18,6 +22,27 @@ class QueueAssignmentTest extends TestCase
     {
         $this->assertSame('scheduled', (new CheckExpireTenantLicenseJob)->queue);
         $this->assertSame('scheduled', (new CheckExpirePawnLoanContractSlipJob)->queue);
+        $this->assertSame('scheduled', (new ResetTenantLicenseMonthlySlipCountJob)->queue);
+    }
+
+    public function test_scheduled_jobs_use_selected_queue_connection(): void
+    {
+        $this->app->forgetInstance(RedisAvailability::class);
+
+        $connection = Mockery::mock();
+        $connection->shouldReceive('command')
+            ->once()
+            ->with('ping')
+            ->andReturn('PONG');
+
+        Redis::shouldReceive('connection')
+            ->once()
+            ->with('default')
+            ->andReturn($connection);
+
+        $this->assertSame('redis', (new CheckExpireTenantLicenseJob)->connection);
+        $this->assertSame('redis', (new CheckExpirePawnLoanContractSlipJob)->connection);
+        $this->assertSame('redis', (new ResetTenantLicenseMonthlySlipCountJob)->connection);
     }
 
     public function test_mailables_use_mail_queue(): void

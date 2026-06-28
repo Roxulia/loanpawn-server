@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Support\OperationLogger;
+use App\Support\RedisAvailability;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -13,6 +14,7 @@ class ResetTenantLicenseMonthlySlipCountJob implements ShouldQueue
 
     public function __construct()
     {
+        $this->onConnection(app(RedisAvailability::class)->selectedQueueConnection());
         $this->onQueue('scheduled');
     }
 

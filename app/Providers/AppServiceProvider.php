@@ -3,8 +3,11 @@
 namespace App\Providers;
 
 use App\Support\TenantContext;
+use App\Support\RedisAvailability;
+use App\Support\TenantScopedCacheKeys;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -16,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(TenantContext::class, fn () => new TenantContext());
+        $this->app->singleton(RedisAvailability::class, fn () => new RedisAvailability());
     }
 
     /**
@@ -23,6 +27,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /** @var RedisAvailability $redisAvailability */
+        $redisAvailability = app(RedisAvailability::class);
+
+        app(TenantScopedCacheKeys::class)->configureDefaultCacheStore();
+        Queue::setDefaultDriver($redisAvailability->selectedQueueConnection());
+
         RateLimiter::for('public-api', function (Request $request) {
             return Limit::perMinute(20)->by($request->ip());
         });
