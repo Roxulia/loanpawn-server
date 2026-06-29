@@ -9,6 +9,7 @@ class TenantPermissionColumns
         'list_customer' => ['update_customer', 'delete_customer'],
         'list_collateral' => ['update_collateral', 'delete_collateral'],
         'list_expense' => ['update_expense', 'delete_expense'],
+        'list_capital' => ['update_capital', 'delete_capital'],
         'list_debt' => ['update_debt', 'delete_debt'],
         'list_loan_contract' => ['delete_loan_contract'],
     ];

@@ -412,6 +412,11 @@ return [
                 'updated' => 'Expense updated successfully.',
                 'deleted' => 'Expense deleted successfully.',
             ],
+            'capital' => [
+                'created' => 'Capital created successfully.',
+                'updated' => 'Capital updated successfully.',
+                'deleted' => 'Capital deleted successfully.',
+            ],
             'customer' => [
                 'created' => 'Tenant customer created successfully.',
                 'updated' => 'Tenant customer updated successfully.',

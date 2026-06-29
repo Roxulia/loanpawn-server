@@ -10,16 +10,56 @@ use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PawnModule\PawnRedemption;
+use App\Support\AccountingReferenceMapper;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class TenantDashboardRepository
 {
-    public function accountingTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate): float
+    public function dashboardIncomeTotalBetween(Carbon $startDate, Carbon $endDate): float
+    {
+        return $this->accountingTotalBetween(
+            'incoming',
+            $startDate,
+            $endDate,
+            AccountingReferenceMapper::dashboardIncomeReferenceTypes()
+        );
+    }
+
+    public function dashboardExpenseTotalBetween(Carbon $startDate, Carbon $endDate): float
+    {
+        return $this->accountingTotalBetween(
+            'outgoing',
+            $startDate,
+            $endDate,
+            AccountingReferenceMapper::dashboardExpenseReferenceTypes()
+        );
+    }
+
+    public function dashboardNetProfitBetween(Carbon $startDate, Carbon $endDate): float
+    {
+        return (float) TenantAccounting::query()
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->where(function ($query): void {
+                $query->whereNull('reference_type')
+                    ->orWhereNotIn('reference_type', AccountingReferenceMapper::dashboardNetProfitExcludedReferenceTypes());
+            })
+            ->selectRaw("
+                COALESCE(SUM(CASE
+                    WHEN transaction_type = 'incoming' THEN amount
+                    WHEN transaction_type = 'outgoing' THEN -amount
+                    ELSE 0
+                END), 0) as net_profit
+            ")
+            ->value('net_profit');
+    }
+
+    public function accountingTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate, ?array $referenceTypes = null): float
     {
         return (float) TenantAccounting::query()
             ->where('transaction_type', $transactionType)
             ->whereBetween('created_at', [$startDate, $endDate])
+            ->when($referenceTypes !== null, fn ($query) => $query->whereIn('reference_type', $referenceTypes))
             ->sum('amount');
     }
 

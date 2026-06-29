@@ -162,6 +162,23 @@ class TenantAccountingService extends BaseTenantService
         return $accounting;
     }
 
+    public function createIncomingForReference(Model $reference, string $description, float $amount, ?int $createdBy = null): TenantAccounting
+    {
+        $accounting = $this->repository->create([
+            'tenant_id' => $this->resolveCurrentTenantId(),
+            'description' => $description,
+            'transaction_type' => 'incoming',
+            'amount' => $amount,
+            'created_by' => $createdBy,
+            'reference_id' => $reference->getKey(),
+            'reference_type' => $reference::class,
+        ]);
+
+        $this->flushTenantAccountingListCache();
+
+        return $accounting;
+    }
+
     public function createOutgoingForReference(Model $reference, string $description, float $amount, ?int $createdBy = null): TenantAccounting
     {
         $accounting = $this->repository->create([
@@ -210,6 +227,27 @@ class TenantAccountingService extends BaseTenantService
             $this->repository->update($accounting, [
                 'description' => $description,
                 'transaction_type' => 'outgoing',
+                'amount' => $amount,
+            ]);
+        });
+
+        $this->flushTenantAccountingListCache();
+    }
+
+    public function syncIncomingForReference(Model $reference, string $description, float $amount): void
+    {
+        DB::transaction(function () use ($reference, $description, $amount): void {
+            $accounting = $this->repository->findByReferenceWithLock($reference);
+
+            if ($accounting === null) {
+                $this->createIncomingForReference($reference, $description, $amount);
+
+                return;
+            }
+
+            $this->repository->update($accounting, [
+                'description' => $description,
+                'transaction_type' => 'incoming',
                 'amount' => $amount,
             ]);
         });

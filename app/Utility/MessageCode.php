@@ -68,6 +68,9 @@ enum MessageCode: string
     case TenantExpenseCreated = 'tenant.response.expense.created';
     case TenantExpenseUpdated = 'tenant.response.expense.updated';
     case TenantExpenseDeleted = 'tenant.response.expense.deleted';
+    case TenantCapitalCreated = 'tenant.response.capital.created';
+    case TenantCapitalUpdated = 'tenant.response.capital.updated';
+    case TenantCapitalDeleted = 'tenant.response.capital.deleted';
     case TenantCustomerCreated = 'tenant.response.customer.created';
     case TenantCustomerUpdated = 'tenant.response.customer.updated';
     case TenantCustomerDeleted = 'tenant.response.customer.deleted';

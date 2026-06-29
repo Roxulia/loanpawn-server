@@ -11,6 +11,7 @@ use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\OnlineSyncController;
 use App\Http\Controllers\TenantModule\TenantAccountingController;
 use App\Http\Controllers\TenantModule\TenantBrandingController;
+use App\Http\Controllers\TenantModule\TenantCapitalController;
 use App\Http\Controllers\TenantModule\TenantCustomerController;
 use App\Http\Controllers\TenantModule\TenantDashboardController;
 use App\Http\Controllers\TenantModule\TenantDebtController;
@@ -181,6 +182,19 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:update_expense');
                     Route::delete('{expenseCode}', [TenantExpenseController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_expense');
+                });
+
+            Route::prefix('capitals')
+                ->middleware('tenant.feature:capital_management')
+                ->group(function () {
+                    Route::get('/', [TenantCapitalController::class, 'index'])
+                        ->middleware('tenant.permission:list_capital');
+                    Route::post('/', [TenantCapitalController::class, 'store'])
+                        ->middleware('tenant.permission:create_capital');
+                    Route::put('{capitalCode}', [TenantCapitalController::class, 'update'])
+                        ->middleware('tenant.permission:update_capital');
+                    Route::delete('{capitalCode}', [TenantCapitalController::class, 'destroy'])
+                        ->middleware('tenant.permission:delete_capital');
                 });
 
             Route::prefix('debts')

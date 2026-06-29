@@ -6,6 +6,8 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
+use App\DataObjects\RequestObjects\TenantCapitalCreate;
+use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
@@ -13,6 +15,8 @@ use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\TenantCapitalService;
+use App\Services\TenantModule\TenantDashboardService;
 use App\Services\TenantModule\TenantExpenseService;
 use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -97,6 +101,81 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertDatabaseHas('tenant_audit_logs', [
             'action' => 'tenant_expense.deleted',
             'target_type' => 'App\\Models\\CoreModule\\TenantExpense',
+            'target_id' => $created->id,
+        ]);
+    }
+
+    public function test_it_creates_updates_and_deletes_capital_with_linked_incoming_accounting(): void
+    {
+        $tenant = $this->createTenant();
+        $tenantUser = $this->actingTenantUser($tenant, ['dashboard', 'list_capital', 'create_capital', 'update_capital', 'delete_capital', 'list_accounting']);
+
+        $created = app(TenantCapitalService::class)->createForCurrentTenant(new TenantCapitalCreate(
+            description: 'Owner cash injection',
+            amount: 750000,
+        ));
+
+        $this->assertSame('Owner cash injection', $created->description);
+        $this->assertSame($tenantUser->id, $created->createdBy);
+
+        $this->assertDatabaseHas('tenant_accountings', [
+            'tenant_id' => $tenant->id,
+            'description' => 'Owner cash injection',
+            'transaction_type' => 'incoming',
+            'amount' => '750000.00',
+            'reference_id' => $created->id,
+            'reference_type' => 'App\\Models\\CoreModule\\TenantCapital',
+        ]);
+
+        $summary = app(TenantDashboardService::class)->summary();
+        $this->assertSame(750000.0, $summary->financial['cashAvailable']);
+
+        $this->assertDatabaseHas('tenant_audit_logs', [
+            'tenant_id' => $tenant->id,
+            'actor_user_id' => $tenantUser->id,
+            'action' => 'tenant_capital.created',
+            'target_type' => 'App\\Models\\CoreModule\\TenantCapital',
+            'target_id' => $created->id,
+        ]);
+
+        $updated = app(TenantCapitalService::class)->update(new TenantCapitalUpdate(
+            capitalId: $created->id,
+            code: $created->code,
+            updateKey: $created->updateKey,
+            description: 'Owner cash injection April',
+            amount: 850000,
+        ));
+
+        $this->assertSame('Owner cash injection April', $updated->description);
+        $this->assertSame('850000.00', $updated->amount);
+
+        $this->assertDatabaseHas('tenant_accountings', [
+            'reference_id' => $created->id,
+            'reference_type' => 'App\\Models\\CoreModule\\TenantCapital',
+            'description' => 'Owner cash injection April',
+            'transaction_type' => 'incoming',
+            'amount' => '850000.00',
+        ]);
+
+        $list = app(TenantCapitalService::class)->list();
+        $this->assertCount(1, $list->items);
+
+        $accountingList = app(TenantAccountingService::class)->list();
+        $this->assertSame('Capital', $accountingList->items[0]->referenceLabel);
+
+        app(TenantCapitalService::class)->delete($created->id);
+
+        $this->assertDatabaseMissing('tenant_capitals', [
+            'id' => $created->id,
+        ]);
+        $this->assertDatabaseMissing('tenant_accountings', [
+            'reference_id' => $created->id,
+            'reference_type' => 'App\\Models\\CoreModule\\TenantCapital',
+        ]);
+
+        $this->assertDatabaseHas('tenant_audit_logs', [
+            'action' => 'tenant_capital.deleted',
+            'target_type' => 'App\\Models\\CoreModule\\TenantCapital',
             'target_id' => $created->id,
         ]);
     }

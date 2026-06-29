@@ -5,6 +5,7 @@ namespace Tests\Feature\TenantModule;
 use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\TenantAccounting;
+use App\Models\CoreModule\TenantCapital;
 use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantDebt;
 use App\Models\CoreModule\TenantExpense;
@@ -52,18 +53,29 @@ class TenantDashboardServiceTest extends TestCase
         $overdueSlip = $this->createSlip($tenant, $overdueCustomer, 'LS-OVERDUE', 1000000, '2026-06-10');
         $dueSlip = $this->createSlip($tenant, $dueCustomer, 'LS-DUE', 200000, '2026-06-18');
 
-        TenantAccounting::query()->create([
+        $capital = TenantCapital::query()->create([
             'tenant_id' => $tenant->id,
-            'description' => 'Redeem payment',
-            'transaction_type' => 'incoming',
+            'code' => 'CAP-DASH',
+            'description' => 'Capital insertion',
             'amount' => 5000000,
             'created_at' => '2026-06-12 08:00:00',
         ]);
         TenantAccounting::query()->create([
             'tenant_id' => $tenant->id,
-            'description' => 'Shop expense',
+            'description' => 'Capital insertion',
+            'transaction_type' => 'incoming',
+            'amount' => 5000000,
+            'reference_id' => $capital->id,
+            'reference_type' => TenantCapital::class,
+            'created_at' => '2026-06-12 08:00:00',
+        ]);
+        TenantAccounting::query()->create([
+            'tenant_id' => $tenant->id,
+            'description' => 'Loan slip payment',
             'transaction_type' => 'outgoing',
-            'amount' => 1000000,
+            'amount' => 1200000,
+            'reference_id' => $overdueSlip->id,
+            'reference_type' => PawnLoanContractSlip::class,
             'created_at' => '2026-06-13 08:00:00',
         ]);
         $previousIncome = TenantAccounting::query()->create([
@@ -74,11 +86,20 @@ class TenantDashboardServiceTest extends TestCase
         ]);
         $previousIncome->created_at = Carbon::parse('2026-05-30 08:00:00');
         $previousIncome->save();
-        TenantExpense::query()->create([
+        $expense = TenantExpense::query()->create([
             'tenant_id' => $tenant->id,
             'code' => 'EXP-DASH',
             'amount' => 1000000,
             'description' => 'Rent',
+            'created_at' => '2026-06-13 08:00:00',
+        ]);
+        TenantAccounting::query()->create([
+            'tenant_id' => $tenant->id,
+            'description' => 'Rent',
+            'transaction_type' => 'outgoing',
+            'amount' => 1000000,
+            'reference_id' => $expense->id,
+            'reference_type' => TenantExpense::class,
             'created_at' => '2026-06-13 08:00:00',
         ]);
         $debt = TenantDebt::query()->create([
@@ -91,13 +112,31 @@ class TenantDashboardServiceTest extends TestCase
         ]);
         $debt->created_at = Carbon::parse('2026-06-01 09:00:00');
         $debt->save();
-        PawnInterestPayment::query()->create([
+        TenantAccounting::query()->create([
+            'tenant_id' => $tenant->id,
+            'description' => 'Debt payment',
+            'transaction_type' => 'incoming',
+            'amount' => 50000,
+            'reference_id' => $debt->id,
+            'reference_type' => TenantDebt::class,
+            'created_at' => '2026-06-12 08:00:00',
+        ]);
+        $interestPayment = PawnInterestPayment::query()->create([
             'tenant_id' => $tenant->id,
             'slip_id' => $overdueSlip->id,
             'payment_amount' => 300000,
             'calculated_interest' => 300000,
             'payment_date' => '2026-06-12',
             'is_paid' => true,
+        ]);
+        TenantAccounting::query()->create([
+            'tenant_id' => $tenant->id,
+            'description' => 'Interest payment',
+            'transaction_type' => 'incoming',
+            'amount' => 300000,
+            'reference_id' => $interestPayment->id,
+            'reference_type' => PawnInterestPayment::class,
+            'created_at' => '2026-06-12 08:00:00',
         ]);
         PawnRedemption::query()->create([
             'tenant_id' => $tenant->id,
@@ -117,6 +156,7 @@ class TenantDashboardServiceTest extends TestCase
             'type' => 'jewellery',
             'name' => 'Gold Bracelet',
             'estimated_value' => 2000000,
+            'minimum_retail_price' => 2000000,
             'material_type_id' => $gold->id,
             'kyat' => 1,
             'pal' => 0,
@@ -130,6 +170,7 @@ class TenantDashboardServiceTest extends TestCase
             'type' => 'normal',
             'name' => 'Phone',
             'estimated_value' => 500000,
+            'minimum_retail_price' => 500000,
             'item_status' => 'active',
         ]);
         PawnCollateralItem::query()->create([
@@ -139,6 +180,7 @@ class TenantDashboardServiceTest extends TestCase
             'type' => 'jewellery',
             'name' => 'Redeemed Ring',
             'estimated_value' => 9000000,
+            'minimum_retail_price' => 9000000,
             'material_type_id' => $gold->id,
             'kyat' => 2,
             'pal' => 0,
@@ -154,13 +196,13 @@ class TenantDashboardServiceTest extends TestCase
             ))
             ->toArray();
 
-        $this->assertSame(7000000.0, $summary['financial']['cashAvailable']);
+        $this->assertSame(6150000.0, $summary['financial']['cashAvailable']);
         $this->assertSame(1200000.0, $summary['financial']['activeLoanAmount']);
         $this->assertSame(2, $summary['financial']['activeLoanCount']);
         $this->assertSame(300000.0, $summary['financial']['interestCollected']);
-        $this->assertSame(5000000.0, $summary['financial']['totalIncome']);
+        $this->assertSame(300000.0, $summary['financial']['totalIncome']);
         $this->assertSame(1000000.0, $summary['financial']['totalExpenses']);
-        $this->assertSame(4000000.0, $summary['financial']['netProfit']);
+        $this->assertSame(-1850000.0, $summary['financial']['netProfit']);
         $this->assertSame(1250000.0, $summary['financial']['chart'][0]['loanAmount']);
         $this->assertSame(900000.0, $summary['financial']['chart'][11]['returnedAmount']);
         $this->assertSame(300000.0, $summary['financial']['chart'][11]['interest']);

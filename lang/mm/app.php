@@ -412,6 +412,11 @@ return [
                 'updated' => 'ကုန်ကျစရိတ် ပြင်ဆင်ပြီးပါပြီ။',
                 'deleted' => 'ကုန်ကျစရိတ် ဖျက်ပြီးပါပြီ။',
             ],
+            'capital' => [
+                'created' => 'Capital ဖန်တီးပြီးပါပြီ။',
+                'updated' => 'Capital ပြင်ဆင်ပြီးပါပြီ။',
+                'deleted' => 'Capital ဖျက်ပြီးပါပြီ။',
+            ],
             'customer' => [
                 'created' => 'Tenant customer ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'Tenant customer ပြင်ဆင်ပြီးပါပြီ။',

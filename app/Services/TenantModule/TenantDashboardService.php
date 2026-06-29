@@ -36,12 +36,14 @@ class TenantDashboardService extends BaseTenantService
         $previousStartDate = $timeFilter->previousPeriodStartDate();
         $previousEndDate = $timeFilter->previousPeriodEndDate();
 
-        $periodIncome = $this->repository->accountingTotalBetween('incoming', $timeFilter->startDate, $timeFilter->endDate);
-        $periodExpense = $this->repository->accountingTotalBetween('outgoing', $timeFilter->startDate, $timeFilter->endDate);
+        $periodIncome = $this->repository->dashboardIncomeTotalBetween($timeFilter->startDate, $timeFilter->endDate);
+        $periodExpense = $this->repository->dashboardExpenseTotalBetween($timeFilter->startDate, $timeFilter->endDate);
         $periodInterest = $this->repository->interestCollectedBetween($timeFilter->startDate, $timeFilter->endDate);
-        $previousIncome = $this->repository->accountingTotalBetween('incoming', $previousStartDate, $previousEndDate);
-        $previousExpense = $this->repository->accountingTotalBetween('outgoing', $previousStartDate, $previousEndDate);
+        $periodNetProfit = $this->repository->dashboardNetProfitBetween($timeFilter->startDate, $timeFilter->endDate);
+        $previousIncome = $this->repository->dashboardIncomeTotalBetween($previousStartDate, $previousEndDate);
+        $previousExpense = $this->repository->dashboardExpenseTotalBetween($previousStartDate, $previousEndDate);
         $previousInterest = $this->repository->interestCollectedBetween($previousStartDate, $previousEndDate);
+        $previousNetProfit = $this->repository->dashboardNetProfitBetween($previousStartDate, $previousEndDate);
         $collateralItems = $this->repository->collateralItemsForDashboard();
 
         return new TenantDashboardSummary(
@@ -57,11 +59,11 @@ class TenantDashboardService extends BaseTenantService
                 'interestCollected' => $periodInterest,
                 'totalIncome' => $periodIncome,
                 'totalExpenses' => $periodExpense,
-                'netProfit' => $periodIncome - $periodExpense,
+                'netProfit' => $periodNetProfit,
                 'previousIncome' => $previousIncome,
                 'previousExpenses' => $previousExpense,
                 'previousInterestCollected' => $previousInterest,
-                'previousNetProfit' => $previousIncome - $previousExpense,
+                'previousNetProfit' => $previousNetProfit,
                 'chart' => $this->buildFinancialChart($timeFilter),
             ],
             risk: [

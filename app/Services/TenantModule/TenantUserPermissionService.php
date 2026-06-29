@@ -220,6 +220,26 @@ class TenantUserPermissionService extends BaseTenantService
         $this->authorizeTenantPermission('delete_expense');
     }
 
+    public function authorizeCapitalList(): void
+    {
+        $this->authorizeTenantPermission('list_capital');
+    }
+
+    public function authorizeCapitalCreate(): void
+    {
+        $this->authorizeTenantPermission('create_capital');
+    }
+
+    public function authorizeCapitalUpdate(): void
+    {
+        $this->authorizeTenantPermission('update_capital');
+    }
+
+    public function authorizeCapitalDelete(): void
+    {
+        $this->authorizeTenantPermission('delete_capital');
+    }
+
     public function authorizeDebtList(): void
     {
         $this->authorizeTenantPermission('list_debt');
