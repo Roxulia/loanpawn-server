@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantAccountingCreate;
 use App\DataObjects\ResponseObjects\AccountingLedger;
 use App\DataObjects\ResponseObjects\TenantAccountingDetail;
 use App\DataObjects\ResponseObjects\TenantAccountingListPage;
+use App\DataObjects\ResponseObjects\TenantAccountingOverview;
 use App\Exports\TenantAccountingLedgerExport;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\TenantAccounting;
@@ -31,6 +32,33 @@ class TenantAccountingService extends BaseTenantService
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
     ) {
+    }
+
+    public function overview(): TenantAccountingOverview
+    {
+        $this->permissionService->authorizeAccountingList();
+        $version = $this->tenantScopedCacheKeys->currentVersion('tenant-accounting-overview');
+
+        return Cache::remember(
+            $this->tenantScopedCacheKeys->listKey('tenant-accounting-overview', $version),
+            now()->addSeconds(self::TENANT_ACCOUNTING_LIST_CACHE_TTL_SECONDS),
+            function () {
+                $today = Carbon::today();
+                $monthStart = $today->copy()->startOfMonth();
+                $monthEnd = $today->copy()->endOfMonth();
+                $monthIncoming = $this->repository->transactionTotalBetween('incoming', $monthStart, $monthEnd);
+                $monthOutgoing = $this->repository->transactionTotalBetween('outgoing', $monthStart, $monthEnd);
+                $largestFlow = max($monthIncoming, $monthOutgoing, 1);
+
+                return new TenantAccountingOverview(
+                    liquidCapital: $this->repository->allTimeNetBalance(),
+                    monthIncoming: $monthIncoming,
+                    monthOutgoing: $monthOutgoing,
+                    incomingProgress: round(min(100, ($monthIncoming / $largestFlow) * 100), 1),
+                    outgoingProgress: round(min(100, ($monthOutgoing / $largestFlow) * 100), 1),
+                );
+            }
+        );
     }
 
     public function buildAccountingLedger(Carbon $startDate, Carbon $endDate, int $perPage = 15): AccountingLedger
@@ -113,16 +141,17 @@ class TenantAccountingService extends BaseTenantService
         );
     }
 
-    public function list(int $perPage = 15): TenantAccountingListPage
+    public function list(int $perPage = 15, ?string $search = null): TenantAccountingListPage
     {
         $this->permissionService->authorizeAccountingList();
         $page = $this->resolveCurrentPage();
+        $search = $this->normalizeSearch($search);
         $version = $this->tenantScopedCacheKeys->currentVersion('tenant-accounting-list');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey('tenant-accounting-list', $version, $page, $perPage),
+            $this->tenantAccountingListCacheKey($version, $page, $perPage, $search),
             now()->addSeconds(self::TENANT_ACCOUNTING_LIST_CACHE_TTL_SECONDS),
-            fn () => TenantAccountingListPage::fromPaginator($this->repository->paginate($perPage))
+            fn () => TenantAccountingListPage::fromPaginator($this->repository->paginate($perPage, $search))
         );
     }
 
@@ -278,6 +307,7 @@ class TenantAccountingService extends BaseTenantService
         $this->tenantScopedCacheKeys->bumpVersion('tenant-accounting-list', tenantId: $tenantId);
         $this->tenantScopedCacheKeys->bumpVersion('tenant-accounting-incoming-list', tenantId: $tenantId);
         $this->tenantScopedCacheKeys->bumpVersion('tenant-accounting-outgoing-list', tenantId: $tenantId);
+        $this->tenantScopedCacheKeys->bumpVersion('tenant-accounting-overview', tenantId: $tenantId);
     }
 
     protected function resolveCurrentPage(): int
@@ -298,5 +328,27 @@ class TenantAccountingService extends BaseTenantService
         if ($startDate->diffInMonths($endDate) > self::TENANT_ACCOUNTING_LEDGER_MAX_TIME_RANGE_MONTHS) {
             throw new InvalidTenantRequest('Time range cannot exceed ' . self::TENANT_ACCOUNTING_LEDGER_MAX_TIME_RANGE_MONTHS . ' months.');
         }
+    }
+
+    protected function normalizeSearch(?string $search): ?string
+    {
+        if ($search === null) {
+            return null;
+        }
+
+        $search = trim($search);
+
+        return $search === '' ? null : $search;
+    }
+
+    protected function tenantAccountingListCacheKey(int $version, int $page, int $perPage, ?string $search): string
+    {
+        $key = $this->tenantScopedCacheKeys->paginatedListKey('tenant-accounting-list', $version, $page, $perPage);
+
+        if ($search === null) {
+            return $key;
+        }
+
+        return $key . ':search:' . sha1(mb_strtolower($search));
     }
 }

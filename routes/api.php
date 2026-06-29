@@ -161,6 +161,8 @@ Route::prefix('tenant')->group(function () {
                 ->group(function () {
                     Route::get('/', [TenantAccountingController::class, 'index'])
                         ->middleware('tenant.permission:list_accounting');
+                    Route::get('overview', [TenantAccountingController::class, 'overview'])
+                        ->middleware('tenant.permission:list_accounting');
                     Route::get('incoming', [TenantAccountingController::class, 'listIncomingTransactions'])
                         ->middleware('tenant.permission:list_accounting');
                     Route::get('outgoing', [TenantAccountingController::class, 'listOutgoingTransactions'])
