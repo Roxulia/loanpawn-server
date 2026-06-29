@@ -7,23 +7,59 @@ use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantDebt;
 use App\Models\CoreModule\TenantExpense;
 use App\Models\PawnModule\PawnCollateralItem;
+use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
+use App\Models\PawnModule\PawnRedemption;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class TenantDashboardRepository
 {
-    public function accountingTotalForDate(string $transactionType, Carbon $date): float
-    {
-        return $this->accountingTotalBetween($transactionType, $date->copy()->startOfDay(), $date->copy()->endOfDay());
-    }
-
     public function accountingTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate): float
     {
         return (float) TenantAccounting::query()
             ->where('transaction_type', $transactionType)
             ->whereBetween('created_at', [$startDate, $endDate])
             ->sum('amount');
+    }
+
+    public function accountingBalance(): float
+    {
+        return (float) TenantAccounting::query()
+            ->selectRaw("
+                COALESCE(SUM(CASE
+                    WHEN transaction_type = 'incoming' THEN amount
+                    WHEN transaction_type = 'outgoing' THEN -amount
+                    ELSE 0
+                END), 0) as balance
+            ")
+            ->value('balance');
+    }
+
+    public function accountingDailyTotalsBetween(string $transactionType, Carbon $startDate, Carbon $endDate): Collection
+    {
+        return TenantAccounting::query()
+            ->selectRaw('DATE(created_at) as summary_date')
+            ->selectRaw('SUM(amount) as total_amount')
+            ->where('transaction_type', $transactionType)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
+    }
+
+    public function expenseDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
+    {
+        return TenantExpense::query()
+            ->selectRaw('DATE(created_at) as summary_date')
+            ->selectRaw('SUM(amount) as total_amount')
+            ->where('is_deleted', false)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
     }
 
     public function activeLoanPrincipal(): float
@@ -34,118 +70,163 @@ class TenantDashboardRepository
             ->sum('loan_amount');
     }
 
-    public function outstandingDebt(): float
-    {
-        return (float) TenantDebt::query()
-            ->where('is_deleted', false)
-            ->where('is_paid', false)
-            ->sum('amount');
-    }
-
-    public function collateralSummary(): array
-    {
-        $baseQuery = PawnCollateralItem::query()->where('is_deleted', false);
-
-        return [
-            'totalItems' => (clone $baseQuery)->count(),
-            'jewelleryItems' => (clone $baseQuery)->whereRaw('LOWER(type) = ?', ['jewellery'])->count(),
-            'normalItems' => (clone $baseQuery)->whereRaw('LOWER(type) != ?', ['jewellery'])->count(),
-            'activeItems' => (clone $baseQuery)->whereRaw('LOWER(item_status) = ?', ['active'])->count(),
-            'redeemedItems' => (clone $baseQuery)->whereRaw('LOWER(item_status) = ?', ['redeemed'])->count(),
-            'confiscatedItems' => (clone $baseQuery)->whereRaw('LOWER(item_status) = ?', ['confiscated'])->count(),
-            'estimatedValue' => (float) (clone $baseQuery)->sum('estimated_value'),
-        ];
-    }
-
-    public function loanStatusCounts(): array
-    {
-        $baseQuery = PawnLoanContractSlip::query()->where('is_deleted', false);
-
-        return [
-            'activeSlips' => (clone $baseQuery)->whereRaw('LOWER(status) = ?', ['active'])->count(),
-            'expiredSlips' => (clone $baseQuery)->whereRaw('LOWER(status) = ?', ['expired'])->count(),
-            'redeemedSlips' => (clone $baseQuery)->whereRaw('LOWER(status) = ?', ['redeemed'])->count(),
-        ];
-    }
-
-    /**
-     * @return Collection<int, PawnLoanContractSlip>
-     */
-    public function nearlyExpiredSlips(Carbon $today, Carbon $limitDate, int $limit = 8): Collection
+    public function activeLoanCount(): int
     {
         return PawnLoanContractSlip::query()
-            ->with('customer')
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereBetween('expire_date', [$today->toDateString(), $limitDate->toDateString()])
-            ->orderBy('expire_date')
-            ->orderBy('id')
-            ->limit($limit)
-            ->get();
-    }
-
-    public function totalCustomers(): int
-    {
-        return TenantCustomer::query()
-            ->where('is_deleted', false)
             ->count();
     }
 
-    /**
-     * @return Collection<int, TenantCustomer>
-     */
-    public function trustedCustomers(int $limit = 8): Collection
+    public function loanDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
-        return TenantCustomer::query()
+        return PawnLoanContractSlip::query()
+            ->selectRaw('DATE(created_date) as summary_date')
+            ->selectRaw('SUM(loan_amount) as total_amount')
             ->where('is_deleted', false)
-            ->orderByDesc('trust_score')
-            ->orderBy('name')
-            ->limit($limit)
-            ->get();
+            ->whereBetween('created_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
     }
 
-    /**
-     * @return Collection<int, PawnLoanContractSlip>
-     */
-    public function customerLoanUsage(?Carbon $startDate = null, ?Carbon $endDate = null, int $limit = 8): Collection
+    public function debtDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
+    {
+        return TenantDebt::query()
+            ->selectRaw('DATE(created_at) as summary_date')
+            ->selectRaw('SUM(amount) as total_amount')
+            ->where('is_deleted', false)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
+    }
+
+    public function interestCollectedBetween(Carbon $startDate, Carbon $endDate): float
+    {
+        return (float) PawnInterestPayment::query()
+            ->where('is_deleted', false)
+            ->where('is_paid', true)
+            ->whereBetween('payment_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->sum('payment_amount');
+    }
+
+    public function interestDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
+    {
+        return PawnInterestPayment::query()
+            ->selectRaw('DATE(payment_date) as summary_date')
+            ->selectRaw('SUM(payment_amount) as total_amount')
+            ->where('is_deleted', false)
+            ->where('is_paid', true)
+            ->whereBetween('payment_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
+    }
+
+    public function redemptionDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
+    {
+        return PawnRedemption::query()
+            ->selectRaw('DATE(redemption_date) as summary_date')
+            ->selectRaw('SUM(received_amount) as total_amount')
+            ->where('is_deleted', false)
+            ->whereBetween('redemption_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
+    }
+
+    public function activeSlipsDueOn(Carbon $date): int
+    {
+        return PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_date', $date->toDateString())
+            ->count();
+    }
+
+    public function activeSlipsDueBetween(Carbon $startDate, Carbon $endDate): int
+    {
+        return PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereBetween('expire_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->count();
+    }
+
+    public function activeOverdueLoanCount(Carbon $today): int
+    {
+        return PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_date', '<', $today->toDateString())
+            ->count();
+    }
+
+    public function activeOverdueLoanAmount(Carbon $today): float
+    {
+        return (float) PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_date', '<', $today->toDateString())
+            ->sum('loan_amount');
+    }
+
+    public function highRiskCustomerCount(int $trustScoreThreshold, Carbon $today): int
+    {
+        $overdueCustomerIds = PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_date', '<', $today->toDateString())
+            ->whereNotNull('customer_id')
+            ->pluck('customer_id')
+            ->all();
+
+        return TenantCustomer::query()
+            ->where('is_deleted', false)
+            ->where(function ($query) use ($trustScoreThreshold, $overdueCustomerIds) {
+                $query->whereNull('trust_score')
+                    ->orWhere('trust_score', '<', $trustScoreThreshold)
+                    ->when($overdueCustomerIds !== [], fn ($customerQuery) => $customerQuery->orWhereIn('id', $overdueCustomerIds));
+            })
+            ->count();
+    }
+
+    public function badRepaymentHistoryCustomerCount(Carbon $today): int
+    {
+        return PawnLoanContractSlip::query()
+            ->select('customer_id')
+            ->where('is_deleted', false)
+            ->whereNotNull('customer_id')
+            ->where(function ($query) use ($today) {
+                $query->whereRaw('LOWER(status) = ?', ['expired'])
+                    ->orWhere(function ($activeQuery) use ($today) {
+                        $activeQuery->whereRaw('LOWER(status) = ?', ['active'])
+                            ->whereDate('expire_date', '<', $today->toDateString());
+                    });
+            })
+            ->groupBy('customer_id')
+            ->havingRaw('COUNT(*) >= 2')
+            ->get()
+            ->count();
+    }
+
+    public function loansRequiringAttention(Carbon $today, Carbon $weekEnd, int $limit = 8): Collection
     {
         return PawnLoanContractSlip::query()
             ->with('customer')
-            ->select('customer_id')
-            ->selectRaw('COUNT(*) as slip_count')
-            ->selectRaw('SUM(loan_amount) as total_loan_amount')
-            ->selectRaw("SUM(CASE WHEN LOWER(status) = 'active' THEN loan_amount ELSE 0 END) as active_loan_amount")
-            ->selectRaw('MAX(created_date) as last_loan_date')
-            ->where('is_deleted', false)
-            ->when($startDate !== null && $endDate !== null, fn ($query) => $query->whereBetween('created_at', [$startDate, $endDate]))
-            ->groupBy('customer_id')
-            ->orderByDesc('active_loan_amount')
-            ->orderByDesc('total_loan_amount')
-            ->limit($limit)
-            ->get();
-    }
-
-    public function activeLoanUsageByCustomerIds(array $customerIds): Collection
-    {
-        if ($customerIds === []) {
-            return collect();
-        }
-
-        return PawnLoanContractSlip::query()
-            ->select('customer_id')
-            ->selectRaw('COUNT(*) as active_slip_count')
-            ->selectRaw('SUM(loan_amount) as active_loan_amount')
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereIn('customer_id', $customerIds)
-            ->groupBy('customer_id')
-            ->get()
-            ->keyBy('customer_id');
-    }
-
-    public function expenseTotalForDate(Carbon $date): float
-    {
-        return $this->expenseTotalBetween($date->copy()->startOfDay(), $date->copy()->endOfDay());
+            ->whereDate('expire_date', '<=', $weekEnd->toDateString())
+            ->orderByRaw('CASE WHEN expire_date < ? THEN 0 ELSE 1 END', [$today->toDateString()])
+            ->orderBy('expire_date')
+            ->orderByDesc('loan_amount')
+            ->limit($limit)
+            ->get();
     }
 
     public function expenseTotalBetween(Carbon $startDate, Carbon $endDate): float
@@ -156,46 +237,36 @@ class TenantDashboardRepository
             ->sum('amount');
     }
 
-    public function expenseTotalForMonth(Carbon $date): float
+    public function collateralItemsForDashboard(): Collection
     {
-        return $this->expenseTotalBetween($date->copy()->startOfMonth(), $date->copy()->endOfMonth());
-    }
-
-    /**
-     * @return Collection<int, TenantExpense>
-     */
-    public function recentExpenses(int $limit = 6): Collection
-    {
-        return TenantExpense::query()
-            ->with('expenseType')
+        return PawnCollateralItem::query()
+            ->with(['loanContract.customer', 'materialType'])
             ->where('is_deleted', false)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->limit($limit)
+            ->whereRaw('LOWER(item_status) != ?', ['redeemed'])
+            ->orderByRaw("CASE WHEN LOWER(item_status) = 'active' THEN 0 ELSE 1 END")
+            ->orderByDesc('minimum_retail_price')
             ->get();
     }
 
-    /**
-     * @return Collection<int, TenantExpense>
-     */
-    public function expensesByType(Carbon $date, int $limit = 6): Collection
+    public function collateralItemsNeedingReview(Carbon $today, int $limit = 8): Collection
     {
-        return $this->expensesByTypeBetween($date->copy()->startOfMonth(), $date->copy()->endOfMonth(), $limit);
-    }
-
-    /**
-     * @return Collection<int, TenantExpense>
-     */
-    public function expensesByTypeBetween(Carbon $startDate, Carbon $endDate, int $limit = 6): Collection
-    {
-        return TenantExpense::query()
-            ->with('expenseType')
-            ->select('expense_type_id')
-            ->selectRaw('SUM(amount) as total_amount')
+        return PawnCollateralItem::query()
+            ->with(['loanContract.customer', 'materialType'])
             ->where('is_deleted', false)
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->groupBy('expense_type_id')
-            ->orderByDesc('total_amount')
+            ->where(function ($query) use ($today) {
+                $query->whereRaw('LOWER(item_status) IN (?, ?)', ['expired', 'confiscated'])
+                    ->orWhereHas('loanContract', function ($loanQuery) use ($today) {
+                        $loanQuery->where('is_deleted', false)
+                            ->where(function ($statusQuery) use ($today) {
+                                $statusQuery->whereRaw('LOWER(status) = ?', ['expired'])
+                                    ->orWhere(function ($activeQuery) use ($today) {
+                                        $activeQuery->whereRaw('LOWER(status) = ?', ['active'])
+                                            ->whereDate('expire_date', '<', $today->toDateString());
+                                    });
+                            });
+                    });
+            })
+            ->orderByDesc('minimum_retail_price')
             ->limit($limit)
             ->get();
     }

@@ -339,6 +339,7 @@ class TenantUserService extends BaseTenantService
                 'status' => 'inactive',
                 'update_key' => $lockedUser->update_key+1
             ]);
+            $this->tenantLicenseService->decrementStaffCount($this->resolveCurrentTenantId());
         });
 
         $this->flushTenantUserListCache();

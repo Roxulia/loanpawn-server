@@ -253,6 +253,39 @@ class TenantLicenseService extends BaseTenantService
             ]
         );
     }
+    public function decrementCurrentMonthSlipCount(?int $tenantId = null): void
+    {
+        $license = $tenantId === null
+            ? $this->repository->findByTenantId($this->resolveCurrentTenantId())
+            : $this->repository->findByTenantId($tenantId);
+
+        if ($license === null) {
+            return;
+        }
+
+        $license->update(
+            [
+                'current_month_slip_count' => $license->current_month_slip_count - 1
+            ]
+        );
+    }
+
+    public function decrementStaffCount(?int $tenantId = null): void
+    {
+        $license = $tenantId === null
+            ? $this->repository->findByTenantId($this->resolveCurrentTenantId())
+            : $this->repository->findByTenantId($tenantId);
+
+        if ($license === null) {
+            return;
+        }
+
+        $license->update(
+            [
+                'current_staff_count' => $license->current_staff_count - 1
+            ]
+        );
+    }
 
     public function checkIfLimitReach(string $attribute, ?int $tenantId = null): bool
     {

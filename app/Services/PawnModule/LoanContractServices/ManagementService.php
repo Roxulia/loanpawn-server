@@ -172,6 +172,7 @@ class ManagementService extends BaseTenantService
             $this->repository->markSlipItemsDeleted($targetSlip);
             $this->repository->delete($targetSlip);
             $this->customerTrustScoreService->recalculateForCustomer((int) $targetSlip->customer_id);
+            $this->tenantLicenseService->decrementCurrentMonthSlipCount($this->resolveCurrentTenantUserId());
         });
 
         $this->flushLoanContractSlipListCache();

@@ -4,16 +4,21 @@ namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use App\DataObjects\ResponseObjects\TenantDashboardSummary;
-use App\Models\CoreModule\TenantCustomer;
-use App\Models\CoreModule\TenantExpense;
+use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\TenantDashboardRepository;
 use App\Services\BaseTenantService;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
+use Illuminate\Support\Collection;
 
 class TenantDashboardService extends BaseTenantService
 {
-    private const NEARLY_EXPIRED_DAYS = 7;
+    private const RISK_WINDOW_DAYS = 7;
+    private const HIGH_RISK_TRUST_PERCENT = 40;
+    private const MEDIUM_RISK_TRUST_PERCENT = 60;
+    private const LOW_MARGIN_LTV = 85;
+    private const TRUST_SCORE_MAX = 255;
 
     public function __construct(
         private TenantDashboardRepository $repository,
@@ -27,10 +32,17 @@ class TenantDashboardService extends BaseTenantService
 
         $timeFilter ??= DashboardTimeFilter::fromValidated([]);
         $today = Carbon::today();
+        $weekEnd = $today->copy()->addDays(self::RISK_WINDOW_DAYS);
+        $previousStartDate = $timeFilter->previousPeriodStartDate();
+        $previousEndDate = $timeFilter->previousPeriodEndDate();
+
         $periodIncome = $this->repository->accountingTotalBetween('incoming', $timeFilter->startDate, $timeFilter->endDate);
         $periodExpense = $this->repository->accountingTotalBetween('outgoing', $timeFilter->startDate, $timeFilter->endDate);
-        $todayIncome = $this->repository->accountingTotalBetween('incoming', $today->copy()->startOfDay(), $today->copy()->endOfDay());
-        $todayExpense = $this->repository->accountingTotalBetween('outgoing', $today->copy()->startOfDay(), $today->copy()->endOfDay());
+        $periodInterest = $this->repository->interestCollectedBetween($timeFilter->startDate, $timeFilter->endDate);
+        $previousIncome = $this->repository->accountingTotalBetween('incoming', $previousStartDate, $previousEndDate);
+        $previousExpense = $this->repository->accountingTotalBetween('outgoing', $previousStartDate, $previousEndDate);
+        $previousInterest = $this->repository->interestCollectedBetween($previousStartDate, $previousEndDate);
+        $collateralItems = $this->repository->collateralItemsForDashboard();
 
         return new TenantDashboardSummary(
             filters: [
@@ -39,41 +51,29 @@ class TenantDashboardService extends BaseTenantService
                 'endDate' => $timeFilter->endDate->toDateString(),
             ],
             financial: [
-                'todayIncome' => $todayIncome,
-                'todayExpense' => $todayExpense,
-                'netToday' => $todayIncome - $todayExpense,
-                'periodIncome' => $periodIncome,
-                'periodExpense' => $periodExpense,
-                'periodNet' => $periodIncome - $periodExpense,
-                'activeLoanPrincipal' => $this->repository->activeLoanPrincipal(),
-                'outstandingDebt' => $this->repository->outstandingDebt(),
+                'cashAvailable' => $this->repository->accountingBalance(),
+                'activeLoanAmount' => $this->repository->activeLoanPrincipal(),
+                'activeLoanCount' => $this->repository->activeLoanCount(),
+                'interestCollected' => $periodInterest,
+                'totalIncome' => $periodIncome,
+                'totalExpenses' => $periodExpense,
+                'netProfit' => $periodIncome - $periodExpense,
+                'previousIncome' => $previousIncome,
+                'previousExpenses' => $previousExpense,
+                'previousInterestCollected' => $previousInterest,
+                'previousNetProfit' => $previousIncome - $previousExpense,
+                'chart' => $this->buildFinancialChart($timeFilter),
             ],
-            collateral: $this->repository->collateralSummary(),
-            loans: [
-                ...$this->repository->loanStatusCounts(),
-                'nearlyExpiredSlips' => $this->mapNearlyExpiredSlips($this->repository->nearlyExpiredSlips(
-                    $today,
-                    $today->copy()->addDays(self::NEARLY_EXPIRED_DAYS),
-                ), $today),
+            risk: [
+                'dueToday' => $this->repository->activeSlipsDueOn($today),
+                'dueThisWeek' => $this->repository->activeSlipsDueBetween($today, $weekEnd),
+                'overdueLoans' => $this->repository->activeOverdueLoanCount($today),
+                'overdueAmount' => $this->repository->activeOverdueLoanAmount($today),
+                'highRiskCustomers' => $this->repository->highRiskCustomerCount($this->trustScoreFromPercent(self::HIGH_RISK_TRUST_PERCENT), $today),
+                'badRepaymentHistoryCount' => $this->repository->badRepaymentHistoryCustomerCount($today),
+                'loansRequiringAttention' => $this->mapLoansRequiringAttention($this->repository->loansRequiringAttention($today, $weekEnd), $today),
             ],
-            customers: [
-                'totalCustomers' => $this->repository->totalCustomers(),
-                'trustedCustomers' => $this->trustedCustomers(),
-                'topLoanUsage' => $this->mapCustomerLoanUsage($this->repository->customerLoanUsage(
-                    $timeFilter->startDate,
-                    $timeFilter->endDate,
-                )),
-            ],
-            expenses: [
-                'todayTotal' => $this->repository->expenseTotalBetween($today->copy()->startOfDay(), $today->copy()->endOfDay()),
-                'periodTotal' => $this->repository->expenseTotalBetween($timeFilter->startDate, $timeFilter->endDate),
-                'monthTotal' => $this->repository->expenseTotalBetween($today->copy()->startOfMonth(), $today->copy()->endOfMonth()),
-                'recent' => $this->mapRecentExpenses($this->repository->recentExpenses()),
-                'byType' => $this->mapExpensesByType($this->repository->expensesByTypeBetween(
-                    $timeFilter->startDate,
-                    $timeFilter->endDate,
-                )),
-            ],
+            collateral: $this->buildCollateralSummary($collateralItems, $today),
         );
     }
 
@@ -82,83 +82,185 @@ class TenantDashboardService extends BaseTenantService
         $this->permissionService->authorizeDashboardRead();
     }
 
-    protected function mapNearlyExpiredSlips(iterable $slips, Carbon $today): array
+    protected function buildFinancialChart(DashboardTimeFilter $timeFilter): array
     {
-        return collect($slips)
-            ->map(fn (PawnLoanContractSlip $slip) => [
-                'slipNo' => $slip->slip_no,
-                'customerName' => $slip->customer?->name ?? '-',
-                'loanAmount' => (float) $slip->loan_amount,
-                'expireDate' => $slip->expire_date?->toDateString(),
-                'daysRemaining' => $slip->expire_date === null ? 0 : $today->diffInDays($slip->expire_date, false),
-            ])
-            ->values()
-            ->all();
-    }
+        $loanRows = $this->repository->loanDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
+        $debtRows = $this->repository->debtDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
+        $expenseRows = $this->repository->expenseDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
+        $redemptionRows = $this->repository->redemptionDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
+        $interestRows = $this->repository->interestDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
 
-    protected function mapTrustedCustomers(iterable $customers): array
-    {
-        $customerCollection = collect($customers);
-        $usageByCustomerId = $this->repository->activeLoanUsageByCustomerIds($customerCollection->pluck('id')->all());
-
-        return $customerCollection
-            ->map(function (TenantCustomer $customer) use ($usageByCustomerId) {
-                $usage = $usageByCustomerId->get($customer->id);
+        return collect(CarbonPeriod::create($timeFilter->startDate, $timeFilter->endDate))
+            ->map(function (Carbon $date) use ($loanRows, $debtRows, $expenseRows, $redemptionRows, $interestRows) {
+                $key = $date->toDateString();
 
                 return [
-                    'code' => $customer->code,
-                    'name' => $customer->name,
-                    'trustScore' => $customer->trust_score,
-                    'activeLoanAmount' => $usage === null ? 0.0 : (float) $usage->active_loan_amount,
-                    'activeSlipCount' => $usage === null ? 0 : (int) $usage->active_slip_count,
+                    'date' => $key,
+                    'loanAmount' => $this->summaryRowAmount($loanRows, $key) + $this->summaryRowAmount($debtRows, $key),
+                    'returnedAmount' => $this->summaryRowAmount($redemptionRows, $key),
+                    'interest' => $this->summaryRowAmount($interestRows, $key),
+                    'expenses' => $this->summaryRowAmount($expenseRows, $key),
                 ];
             })
             ->values()
             ->all();
     }
 
-    protected function trustedCustomers(): array
+    protected function summaryRowAmount(Collection $rows, string $key): float
     {
-        return $this->mapTrustedCustomers($this->repository->trustedCustomers());
+        $row = $rows->get($key);
+
+        return $row === null ? 0.0 : (float) $row->total_amount;
     }
 
-    protected function mapCustomerLoanUsage(iterable $rows): array
+    protected function mapLoansRequiringAttention(iterable $slips, Carbon $today): array
     {
-        return collect($rows)
-            ->map(fn (PawnLoanContractSlip $row) => [
-                'code' => $row->customer?->code ?? (string) $row->customer_id,
-                'name' => $row->customer?->name ?? 'Customer #' . $row->customer_id,
-                'totalLoanAmount' => (float) $row->total_loan_amount,
-                'activeLoanAmount' => (float) $row->active_loan_amount,
-                'slipCount' => (int) $row->slip_count,
-                'lastLoanDate' => $row->last_loan_date,
-            ])
+        return collect($slips)
+            ->map(function (PawnLoanContractSlip $slip) use ($today) {
+                $overdueDays = $this->overdueDays($slip->expire_date, $today);
+                $trustPercent = $this->trustPercent($slip->customer?->trust_score);
+
+                return [
+                    'customerName' => $slip->customer?->name ?? '-',
+                    'loanCode' => $slip->slip_no,
+                    'dueDate' => $slip->expire_date?->toDateString(),
+                    'loanAmount' => (float) $slip->loan_amount,
+                    'overdueDays' => $overdueDays,
+                    'riskLevel' => $this->riskLevel($overdueDays, $trustPercent, $slip->expire_date, $today),
+                    'trustPercent' => $trustPercent,
+                ];
+            })
             ->values()
             ->all();
     }
 
-    protected function mapRecentExpenses(iterable $expenses): array
+    protected function buildCollateralSummary(Collection $items, Carbon $today): array
     {
-        return collect($expenses)
-            ->map(fn (TenantExpense $expense) => [
-                'code' => $expense->code,
-                'description' => $expense->description,
-                'amount' => (float) $expense->amount,
-                'expenseTypeName' => $expense->expenseType?->name,
-                'createdAt' => $expense->created_at?->toISOString(),
+        $mappedItems = $items
+            ->map(fn (PawnCollateralItem $item) => $this->mapCollateralItem($item, $today))
+            ->values();
+        $validValueItems = $mappedItems->filter(fn (array $item) => $item['estimatedMarketValue'] > 0);
+        $totalValue = (float) $mappedItems->sum('estimatedMarketValue');
+        $jewelleryValue = (float) $mappedItems
+            ->filter(fn (array $item) => $item['isJewellery'])
+            ->sum('estimatedMarketValue');
+        $totalLoanAgainstValue = (float) $validValueItems->sum('loanAmount');
+        $totalCollateralForLtv = (float) $validValueItems->sum('estimatedMarketValue');
+        $reviewItems = $mappedItems
+            ->filter(fn (array $item) => in_array($item['status'], ['Low Margin', 'Expired'], true))
+            ->sortByDesc(fn (array $item) => $item['ltvRatio'])
+            ->take(8)
+            ->values();
+
+        return [
+            'totalCollateralValue' => $totalValue,
+            'averageLtvRatio' => $totalCollateralForLtv <= 0 ? 0.0 : ($totalLoanAgainstValue / $totalCollateralForLtv) * 100,
+            'goldJewelryValue' => $jewelleryValue,
+            'expiredCollateralCount' => $mappedItems->where('status', 'Expired')->count(),
+            'lowMarginCollateralItems' => $mappedItems->where('status', 'Low Margin')->count(),
+            'categoryBreakdown' => $this->categoryBreakdown($mappedItems),
+            'items' => $mappedItems->all(),
+            'itemsNeedingReview' => $reviewItems->all(),
+        ];
+    }
+
+    protected function mapCollateralItem(PawnCollateralItem $item, Carbon $today): array
+    {
+        $loanAmount = (float) ($item->loanContract?->loan_amount ?? 0);
+        $estimatedValue = (float) $item->minimum_retail_price;
+        $ltvRatio = $estimatedValue <= 0 ? 0.0 : ($loanAmount / $estimatedValue) * 100;
+        $isExpired = $this->isCollateralExpired($item, $today);
+        $status = match (true) {
+            $isExpired => 'Expired',
+            $ltvRatio >= self::LOW_MARGIN_LTV => 'Low Margin',
+            default => 'Safe',
+        };
+
+        return [
+            'code' => $item->code,
+            'itemName' => $item->name ?: $item->code,
+            'category' => $this->collateralCategory($item),
+            'estimatedMarketValue' => $estimatedValue,
+            'loanAmount' => $loanAmount,
+            'ltvRatio' => $ltvRatio,
+            'status' => $status,
+            'isJewellery' => $this->isJewellery($item),
+            'materialTypeId' => $item->material_type_id,
+            'materialTypeName' => $item->materialType?->name,
+            'kyat' => (float) ($item->kyat ?? 0),
+            'pal' => (float) ($item->pal ?? 0),
+            'yway' => (float) ($item->yway ?? 0),
+        ];
+    }
+
+    protected function categoryBreakdown(Collection $items): array
+    {
+        return $items
+            ->groupBy('category')
+            ->map(fn (Collection $categoryItems, string $category) => [
+                'category' => $category,
+                'value' => (float) $categoryItems->sum('estimatedMarketValue'),
+                'count' => $categoryItems->count(),
             ])
+            ->sortByDesc('value')
             ->values()
             ->all();
     }
 
-    protected function mapExpensesByType(iterable $expenses): array
+    protected function collateralCategory(PawnCollateralItem $item): string
     {
-        return collect($expenses)
-            ->map(fn (TenantExpense $expense) => [
-                'name' => $expense->expenseType?->name ?? 'No expense type',
-                'total' => (float) $expense->total_amount,
-            ])
-            ->values()
-            ->all();
+        if (! $this->isJewellery($item)) {
+            return 'Other';
+        }
+
+        return $item->materialType?->name ?: 'Jewelry';
+    }
+
+    protected function isCollateralExpired(PawnCollateralItem $item, Carbon $today): bool
+    {
+        $itemStatus = strtolower((string) $item->item_status);
+        $loanStatus = strtolower((string) $item->loanContract?->status);
+        $expireDate = $item->loanContract?->expire_date;
+
+        return $itemStatus === 'expired'
+            || $loanStatus === 'expired'
+            || ($loanStatus === 'active' && $expireDate !== null && $expireDate->lt($today));
+    }
+
+    protected function isJewellery(PawnCollateralItem $item): bool
+    {
+        return strtolower((string) $item->type) === 'jewellery';
+    }
+
+    protected function riskLevel(int $overdueDays, float $trustPercent, ?Carbon $dueDate, Carbon $today): string
+    {
+        if ($overdueDays >= self::RISK_WINDOW_DAYS || $trustPercent < self::HIGH_RISK_TRUST_PERCENT) {
+            return 'High';
+        }
+
+        if ($overdueDays > 0 || $trustPercent < self::MEDIUM_RISK_TRUST_PERCENT || ($dueDate !== null && $dueDate->lte($today->copy()->addDays(self::RISK_WINDOW_DAYS)))) {
+            return 'Medium';
+        }
+
+        return 'Low';
+    }
+
+    protected function overdueDays(?Carbon $dueDate, Carbon $today): int
+    {
+        if ($dueDate === null || $dueDate->gte($today)) {
+            return 0;
+        }
+
+        return (int) $dueDate->diffInDays($today);
+    }
+
+    protected function trustPercent(?int $trustScore): float
+    {
+        return max(0, min(100, (($trustScore ?? 0) / self::TRUST_SCORE_MAX) * 100));
+    }
+
+    protected function trustScoreFromPercent(int $percent): int
+    {
+        return (int) floor((self::TRUST_SCORE_MAX * $percent) / 100);
     }
 }

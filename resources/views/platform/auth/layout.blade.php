@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'LonePawn Platform Auth')</title>
+    <link rel="icon" type="image/png" sizes="64x64" href="{{ asset('loanpawn-64x64.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         * {
@@ -315,17 +316,7 @@
 </head>
 <body class="@yield('bodyClass')">
     <div class="shell">
-        <section class="brand-panel">
-            <span class="eyebrow">LonePawn Platform</span>
-            <h1>@yield('heroTitle', 'Tenant Access')</h1>
-            <p>@yield('heroText', 'Platform authentication and password recovery for LonePawn server users.')</p>
 
-            <ul class="feature-list">
-                <li>Platform user access is separated from tenant operation data.</li>
-                <li>Password recovery uses OTP verification before password reset.</li>
-                <li>Current flow is built on the existing `AuthService` in the platform module.</li>
-            </ul>
-        </section>
 
         <section class="form-panel">
             <div class="panel-header">

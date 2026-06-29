@@ -59,6 +59,13 @@
     font-size: 28px;
 }
 
+.landing-brand-logo {
+    display: block;
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+}
+
 .landing-nav-links {
     display: flex;
     align-items: center;

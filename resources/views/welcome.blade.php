@@ -6,6 +6,7 @@
     <meta name="description" content="LonePawn is the operating system for SME pawn shops. Manage contracts, collateral, interest, risk, and tenant oversight from one platform.">
 
     <title>{{ config('app.name', 'LonePawn') }} - Operating System for SME Pawn Shops</title>
+    <link rel="icon" type="image/png" sizes="64x64" href="{{ asset('loanpawn-64x64.png') }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,8 +27,7 @@
 <nav class="landing-nav" aria-label="Primary">
     <div class="landing-nav-inner">
         <a class="landing-brand" href="{{ url('/') }}" aria-label="{{ config('app.name', 'LonePawn') }} home">
-            <span class="material-symbols-outlined fill" aria-hidden="true">layers</span>
-            <span>{{ config('app.name', 'LonePawn') }}</span>
+            <img class="landing-brand-logo" src="{{ asset('loanpawn-64x64.png') }}" alt="{{ config('app.name', 'LonePawn') }}">
         </a>
         <div class="landing-nav-links" aria-label="Sections">
             <a href="#features">Features</a>
@@ -196,9 +196,8 @@
 
 <footer class="landing-footer">
     <div class="landing-footer-inner">
-        <a class="landing-brand" href="{{ url('/') }}">
-            <span class="material-symbols-outlined fill" aria-hidden="true">layers</span>
-            <span>{{ config('app.name', 'LonePawn') }}</span>
+        <a class="landing-brand" href="{{ url('/') }}" aria-label="{{ config('app.name', 'LonePawn') }} home">
+            <img class="landing-brand-logo" src="{{ asset('loanpawn-64x64.png') }}" alt="{{ config('app.name', 'LonePawn') }}">
         </a>
         <div class="landing-footer-links">
             <span>Pawn shop operations, license control, and portfolio visibility.</span>
