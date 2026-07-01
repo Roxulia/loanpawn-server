@@ -42,15 +42,21 @@
                 </div>
                 <div class="ticket-info-row">
                     <div class="field-kicker">{{ __('app.common.view.labels.created') }}</div>
-                    <div class="field-value">{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</div>
+                    <div class="field-value">
+                        <time datetime="{{ $ticket->created_at?->toISOString() }}" data-local-time="datetime">{{ $ticket->created_at?->format('Y-m-d H:i') ?? '-' }}</time>
+                    </div>
                 </div>
                 <div class="ticket-info-row">
                     <div class="field-kicker">{{ __('app.support.view.opened') }}</div>
-                    <div class="field-value">{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</div>
+                    <div class="field-value">
+                        <time datetime="{{ $ticket->opened_at?->toISOString() }}" data-local-time="datetime">{{ $ticket->opened_at?->format('Y-m-d H:i') ?? '-' }}</time>
+                    </div>
                 </div>
                 <div class="ticket-info-row">
                     <div class="field-kicker">{{ __('app.support.view.resolved') }}</div>
-                    <div class="field-value">{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</div>
+                    <div class="field-value">
+                        <time datetime="{{ $ticket->resolved_at?->toISOString() }}" data-local-time="datetime">{{ $ticket->resolved_at?->format('Y-m-d H:i') ?? '-' }}</time>
+                    </div>
                 </div>
             </div>
 
@@ -115,7 +121,7 @@
                                 <span class="sender">
                                     {{ $threadMessage->sender_type === 'platform_admin' ? __('app.support.view.sender.admin') : __('app.support.view.sender.platform_user') }}
                                 </span>
-                                <time>{{ $threadMessage->created_at?->format('Y-m-d H:i') ?? '-' }}</time>
+                                <time datetime="{{ $threadMessage->created_at?->toISOString() }}" data-local-time="datetime">{{ $threadMessage->created_at?->format('Y-m-d H:i') ?? '-' }}</time>
                             </div>
                             <p class="ticket-message-text">{{ $threadMessage->message }}</p>
 

@@ -248,10 +248,10 @@ class PlatformPortfolioDashboardRepository
             ->where('tenants.is_deleted', false)
             ->where('pawn_loan_contract_slips.is_deleted', false)
             ->whereRaw('LOWER(pawn_loan_contract_slips.status) = ?', ['active'])
-            ->whereBetween('pawn_loan_contract_slips.expire_date', [$startDate, $endDate])
+            ->whereBetween(DB::raw('DATE(pawn_loan_contract_slips.expire_at)'), [$startDate, $endDate])
             ->select('tenants.id', 'tenants.name', 'tenants.tenant_code')
             ->selectRaw('COUNT(pawn_loan_contract_slips.id) as contract_count')
-            ->selectRaw('MIN(pawn_loan_contract_slips.expire_date) as nearest_expire_date')
+            ->selectRaw('MIN(pawn_loan_contract_slips.expire_at) as nearest_expire_at')
             ->selectRaw('SUM(pawn_loan_contract_slips.loan_amount + COALESCE(interest_totals.interest_total, 0) + COALESCE(debt_totals.debt_total, 0)) as collectible_total')
             ->selectRaw('SUM(COALESCE(collateral_totals.minimum_retail_total, 0)) as minimum_retail_total')
             ->groupBy('tenants.id', 'tenants.name', 'tenants.tenant_code')
@@ -264,7 +264,7 @@ class PlatformPortfolioDashboardRepository
                 'name' => $row->name,
                 'code' => $row->tenant_code,
                 'contractCount' => (int) $row->contract_count,
-                'nearestExpireDate' => $row->nearest_expire_date,
+                'nearestExpireAt' => $row->nearest_expire_at,
                 'collectibleTotal' => (float) $row->collectible_total,
                 'minimumRetailTotal' => (float) $row->minimum_retail_total,
                 'riskValue' => (float) $row->minimum_retail_total > 0

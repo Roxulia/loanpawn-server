@@ -13,6 +13,7 @@ use App\Models\PawnModule\PawnRedemption;
 use App\Support\AccountingReferenceMapper;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class TenantDashboardRepository
 {
@@ -121,10 +122,10 @@ class TenantDashboardRepository
     public function loanDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
         return PawnLoanContractSlip::query()
-            ->selectRaw('DATE(created_date) as summary_date')
+            ->selectRaw('DATE(created_at) as summary_date')
             ->selectRaw('SUM(loan_amount) as total_amount')
             ->where('is_deleted', false)
-            ->whereBetween('created_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('summary_date')
             ->orderBy('summary_date')
             ->get()
@@ -149,18 +150,18 @@ class TenantDashboardRepository
         return (float) PawnInterestPayment::query()
             ->where('is_deleted', false)
             ->where('is_paid', true)
-            ->whereBetween('payment_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereBetween(DB::raw('DATE(payment_at)'), [$startDate->toDateString(), $endDate->toDateString()])
             ->sum('payment_amount');
     }
 
     public function interestDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
         return PawnInterestPayment::query()
-            ->selectRaw('DATE(payment_date) as summary_date')
+            ->selectRaw('DATE(payment_at) as summary_date')
             ->selectRaw('SUM(payment_amount) as total_amount')
             ->where('is_deleted', false)
             ->where('is_paid', true)
-            ->whereBetween('payment_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereBetween(DB::raw('DATE(payment_at)'), [$startDate->toDateString(), $endDate->toDateString()])
             ->groupBy('summary_date')
             ->orderBy('summary_date')
             ->get()
@@ -170,10 +171,10 @@ class TenantDashboardRepository
     public function redemptionDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
         return PawnRedemption::query()
-            ->selectRaw('DATE(redemption_date) as summary_date')
+            ->selectRaw('DATE(redemption_at) as summary_date')
             ->selectRaw('SUM(received_amount) as total_amount')
             ->where('is_deleted', false)
-            ->whereBetween('redemption_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereBetween(DB::raw('DATE(redemption_at)'), [$startDate->toDateString(), $endDate->toDateString()])
             ->groupBy('summary_date')
             ->orderBy('summary_date')
             ->get()
@@ -185,7 +186,7 @@ class TenantDashboardRepository
         return PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', $date->toDateString())
+            ->whereDate('expire_at', $date->toDateString())
             ->count();
     }
 
@@ -194,7 +195,7 @@ class TenantDashboardRepository
         return PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereBetween('expire_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereBetween(DB::raw('DATE(expire_at)'), [$startDate->toDateString(), $endDate->toDateString()])
             ->count();
     }
 
@@ -203,7 +204,7 @@ class TenantDashboardRepository
         return PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', '<', $today->toDateString())
+            ->whereDate('expire_at', '<', $today->toDateString())
             ->count();
     }
 
@@ -212,7 +213,7 @@ class TenantDashboardRepository
         return (float) PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', '<', $today->toDateString())
+            ->whereDate('expire_at', '<', $today->toDateString())
             ->sum('loan_amount');
     }
 
@@ -221,7 +222,7 @@ class TenantDashboardRepository
         $overdueCustomerIds = PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', '<', $today->toDateString())
+            ->whereDate('expire_at', '<', $today->toDateString())
             ->whereNotNull('customer_id')
             ->pluck('customer_id')
             ->all();
@@ -246,7 +247,7 @@ class TenantDashboardRepository
                 $query->whereRaw('LOWER(status) = ?', ['expired'])
                     ->orWhere(function ($activeQuery) use ($today) {
                         $activeQuery->whereRaw('LOWER(status) = ?', ['active'])
-                            ->whereDate('expire_date', '<', $today->toDateString());
+                            ->whereDate('expire_at', '<', $today->toDateString());
                     });
             })
             ->groupBy('customer_id')
@@ -261,9 +262,9 @@ class TenantDashboardRepository
             ->with('customer')
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', '<=', $weekEnd->toDateString())
-            ->orderByRaw('CASE WHEN expire_date < ? THEN 0 ELSE 1 END', [$today->toDateString()])
-            ->orderBy('expire_date')
+            ->whereDate('expire_at', '<=', $weekEnd->toDateString())
+            ->orderByRaw('CASE WHEN DATE(expire_at) < ? THEN 0 ELSE 1 END', [$today->toDateString()])
+            ->orderBy('expire_at')
             ->orderByDesc('loan_amount')
             ->limit($limit)
             ->get();
@@ -301,7 +302,7 @@ class TenantDashboardRepository
                                 $statusQuery->whereRaw('LOWER(status) = ?', ['expired'])
                                     ->orWhere(function ($activeQuery) use ($today) {
                                         $activeQuery->whereRaw('LOWER(status) = ?', ['active'])
-                                            ->whereDate('expire_date', '<', $today->toDateString());
+                                            ->whereDate('expire_at', '<', $today->toDateString());
                                     });
                             });
                     });

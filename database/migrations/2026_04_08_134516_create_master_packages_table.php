@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('name', 80);
             $table->text('description')->nullable();
             $table->decimal('price', 14, 2)->default(0);
+            $table->unsignedInteger('max_slip_per_month')->nullable();
+            $table->unsignedInteger('max_staff_count')->nullable();
             $table->boolean('is_active')->default(true)->index();
             $table->timestamps();
         });

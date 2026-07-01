@@ -328,9 +328,10 @@ class TenantCustomerService extends BaseTenantService
     protected function mapLastActivity(PawnLoanContractSlip $slip, CarbonImmutable $today): TenantCustomerLastActivity
     {
         $status = mb_strtolower((string) $slip->status);
-        $date = $slip->created_date?->toDateString() ?? $slip->created_at?->toDateString();
+        $date = $slip->created_at?->toDateString();
+        $expireDate = $slip->expire_at;
 
-        if ($status === 'active' && $slip->expire_date !== null && $slip->expire_date->lt($today)) {
+        if ($status === 'active' && $expireDate !== null && $expireDate->lt($today)) {
             return new TenantCustomerLastActivity(
                 date: $date,
                 status: 'PAYMENT DELINQUENT',

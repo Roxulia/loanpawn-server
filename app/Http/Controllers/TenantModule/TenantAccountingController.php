@@ -44,8 +44,8 @@ class TenantAccountingController extends Controller
     public function getAccountingLedger(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'start_at' => ['required', 'date'],
+            'end_at' => ['required', 'date', 'after_or_equal:start_at'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -54,8 +54,8 @@ class TenantAccountingController extends Controller
         }
 
         $validated = $validator->validated();
-        $startDate = new \Carbon\Carbon($validated['start_date']);
-        $endDate = new \Carbon\Carbon($validated['end_date']);
+        $startDate = new \Carbon\Carbon($validated['start_at']);
+        $endDate = new \Carbon\Carbon($validated['end_at']);
 
         try {
             $ledger = $this->accountingService->buildAccountingLedger($startDate, $endDate, (int) ($validated['per_page'] ?? 15));
@@ -68,8 +68,8 @@ class TenantAccountingController extends Controller
     public function downloadAccountingLedger(Request $request): StreamedResponse|JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'start_at' => ['required', 'date'],
+            'end_at' => ['required', 'date', 'after_or_equal:start_at'],
         ]);
 
         if ($validator->fails()) {
@@ -80,8 +80,8 @@ class TenantAccountingController extends Controller
 
         try {
             return $this->accountingService->downloadAccountingLedger(
-                new \Carbon\Carbon($validated['start_date']),
-                new \Carbon\Carbon($validated['end_date']),
+                new \Carbon\Carbon($validated['start_at']),
+                new \Carbon\Carbon($validated['end_at']),
             );
         } catch (\Exception $e) {
             return $this->errorResponse($this->responseMessage(MessageCode::TenantAccountingLedgerDownloadFailed), ['error' => $e->getMessage()], 500);

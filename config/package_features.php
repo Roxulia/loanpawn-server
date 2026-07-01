@@ -42,10 +42,6 @@ return [
             'name' => 'Debt management',
             'description' => 'Manage tenant debt records.',
         ],
-        'online_sync' => [
-            'name' => 'Online sync',
-            'description' => 'Push offline desktop synchronization logs to the server.',
-        ],
         'slip_document_preview' => [
             'name' => 'Slip document preview',
             'description' => 'Preview and download loan contract slip documents.',
@@ -54,8 +50,12 @@ return [
             'name' => 'Slip document layout management',
             'description' => 'Customize loan contract slip header and footer layouts.',
         ],
-        'tenant_branding' => [
-            'name' => 'Tenant branding',
+        'subdomain_available' => [
+            'name' => 'Subdomain available',
+            'description' => 'Allow tenant access through a dedicated subdomain.',
+        ],
+        'branding_management' => [
+            'name' => 'Branding management',
             'description' => 'Customize tenant logo, favicon, colors, and branding text.',
         ],
         'master_data_management' => [
@@ -88,6 +88,7 @@ return [
                 'capital_management',
                 'debt_management',
                 'slip_document_preview',
+                'subdomain_available',
             ],
         ],
         'basic' => [
@@ -108,9 +109,9 @@ return [
                 'expense_management',
                 'capital_management',
                 'debt_management',
-                'online_sync',
                 'slip_document_preview',
                 'master_data_management',
+                'subdomain_available',
             ],
         ],
         'premium' => [
@@ -131,11 +132,10 @@ return [
                 'expense_management',
                 'capital_management',
                 'debt_management',
-                'online_sync',
                 'slip_document_preview',
                 'slip_document_layout_management',
-                'tenant_branding',
                 'master_data_management',
+                'subdomain_available',
             ],
         ],
     ],

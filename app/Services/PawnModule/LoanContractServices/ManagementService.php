@@ -65,14 +65,14 @@ class ManagementService extends BaseTenantService
         }
 
         $createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $createdDate = CarbonImmutable::now()->startOfDay();
+        $createdAt = CarbonImmutable::now();
         $expiryQuotaType = $this->normalizeExpiryQuotaType($request->expiryQuotaType);
-        $expireDate = $this->interestFlowService->calculateExpireDate($createdDate, $request->expiryQuota, $expiryQuotaType);
+        $expireAt = $this->interestFlowService->calculateExpireDate($createdAt, $request->expiryQuota, $expiryQuotaType);
 
         try {
-            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdDate, $expireDate, $expiryQuotaType) {
+            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType) {
                 $customerId = $this->tenantCustomerService->createCustomer($request->customer)->customer->id;
-                $slipNo = $this->tableIdGenerationService->generate('pawn_loan_contract_slips', $createdDate);
+                $slipNo = $this->tableIdGenerationService->generate('pawn_loan_contract_slips', $createdAt->startOfDay());
 
                 $slip = $this->repository->create([
                     'tenant_id' => $tenantId,
@@ -81,9 +81,10 @@ class ManagementService extends BaseTenantService
                     'loan_amount' => $request->loanAmount,
                     'interest_rate' => $request->interestRate,
                     'interest_type_id' => $request->interestTypeId,
-                    'created_date' => $createdDate->toDateString(),
-                    'expire_date' => $expireDate->toDateString(),
-                    'last_interest_added_date' => $createdDate->toDateString(),
+                    'expire_at' => $expireAt,
+                    'last_interest_added_at' => $createdAt,
+                    'created_at' => $createdAt,
+                    'updated_at' => $createdAt,
                     'status' => 'active',
                     'notes' => $request->notes,
                     'created_by' => $createdBy,

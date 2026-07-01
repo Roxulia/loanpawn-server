@@ -10,22 +10,22 @@ class InterestBreakDown extends BaseDataObject
     public int $id;
     public int $updateKey;
     public float $interestAmount;
-    public ?string $startDate;
-    public ?string $endDate;
+    public ?string $startPeriodAt;
+    public ?string $endPeriodAt;
 
     public static function fromValues(
         int $id,
         int $updateKey,
         float $interestAmount,
-        ?string $startDate = null,
-        ?string $endDate = null,
+        ?string $startPeriodAt = null,
+        ?string $endPeriodAt = null,
     ): self {
         $breakDown = new self();
         $breakDown->id = $id;
         $breakDown->updateKey = $updateKey;
         $breakDown->interestAmount = $interestAmount;
-        $breakDown->startDate = $startDate;
-        $breakDown->endDate = $endDate;
+        $breakDown->startPeriodAt = $startPeriodAt;
+        $breakDown->endPeriodAt = $endPeriodAt;
 
         return $breakDown;
     }
@@ -36,8 +36,8 @@ class InterestBreakDown extends BaseDataObject
             id: $payment->id,
             updateKey: (int) $payment->update_key,
             interestAmount: (float) $payment->calculated_interest,
-            startDate: $payment->start_period?->toDateString(),
-            endDate: $payment->end_period?->toDateString(),
+            startPeriodAt: $payment->start_period_at?->toISOString(),
+            endPeriodAt: $payment->end_period_at?->toISOString(),
         );
     }
 }

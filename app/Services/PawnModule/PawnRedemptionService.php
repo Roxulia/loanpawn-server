@@ -79,9 +79,9 @@ class PawnRedemptionService extends BaseTenantService
         }
 
         $createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $redemptionDate = $request->redemptionDate === null
+        $redemptionDate = $request->redemptionAt === null
             ? CarbonImmutable::now()
-            : CarbonImmutable::parse($request->redemptionDate);
+            : CarbonImmutable::parse($request->redemptionAt);
 
         try {
             $redemption = DB::transaction(function () use ($request, $createdBy, $redemptionDate): PawnRedemption {
@@ -110,7 +110,7 @@ class PawnRedemptionService extends BaseTenantService
                     'interest_amount' => $redemptionResult->calculatedInterest,
                     'received_amount' => $request->paymentAmount,
                     'change_amount' => $changeAmount,
-                    'redemption_date' => $redemptionDate->toDateString(),
+                    'redemption_at' => $redemptionDate,
                     'notes' => $request->notes,
                     'created_by' => $createdBy,
                 ]);
@@ -258,7 +258,7 @@ class PawnRedemptionService extends BaseTenantService
 
         $targetDate = $date ?? CarbonImmutable::now()->startOfDay();
 
-        if ((string) $slip->status === 'expired' || CarbonImmutable::parse($slip->expire_date)->startOfDay()->lt($targetDate->startOfDay())) {
+        if ((string) $slip->status === 'expired' || CarbonImmutable::parse($slip->expire_at)->lt($targetDate)) {
             throw new InvalidTenantRequest('Cannot redeem an expired slip.');
         }
     }
@@ -293,7 +293,7 @@ class PawnRedemptionService extends BaseTenantService
             'payment_amount' => $request->paymentAmount,
             'debts' => $request->debts,
             'interests' => $request->interests,
-            'redemption_date' => $request->redemptionDate,
+            'redemption_at' => $request->redemptionAt,
             'notes' => $request->notes,
             'created_by' => $request->createdBy,
         ];

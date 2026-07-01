@@ -160,16 +160,37 @@ class CustomerTrustScoreServiceTest extends TestCase
 
     protected function createSlip(Tenant $tenant, TenantCustomer $customer, array $overrides): int
     {
+        if (isset($overrides['created_date'])) {
+            $overrides['created_at'] = CarbonImmutable::parse($overrides['created_date'])->startOfDay();
+            unset($overrides['created_date']);
+        }
+
+        if (isset($overrides['expire_date'])) {
+            $overrides['expire_at'] = CarbonImmutable::parse($overrides['expire_date'])->startOfDay();
+            unset($overrides['expire_date']);
+        }
+
+        if (isset($overrides['last_interest_added_date'])) {
+            $overrides['last_interest_added_at'] = CarbonImmutable::parse($overrides['last_interest_added_date'])->startOfDay();
+            unset($overrides['last_interest_added_date']);
+        }
+
+        if (array_key_exists('last_interest_paid_date', $overrides)) {
+            $overrides['last_interest_paid_at'] = $overrides['last_interest_paid_date'] === null
+                ? null
+                : CarbonImmutable::parse($overrides['last_interest_paid_date'])->startOfDay();
+            unset($overrides['last_interest_paid_date']);
+        }
+
         return DB::table('pawn_loan_contract_slips')->insertGetId(array_merge([
             'tenant_id' => $tenant->id,
             'slip_no' => 'SCORE-'.str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
             'customer_id' => $customer->id,
             'loan_amount' => 100000,
             'interest_rate' => 10,
-            'created_date' => '2026-01-01',
-            'expire_date' => '2026-06-01',
-            'last_interest_added_date' => '2026-01-01',
-            'last_interest_paid_date' => null,
+            'expire_at' => '2026-06-01 00:00:00',
+            'last_interest_added_at' => '2026-01-01 00:00:00',
+            'last_interest_paid_at' => null,
             'status' => 'active',
             'expiry_quota' => 6,
             'expiry_quota_type' => 'Month',
@@ -181,15 +202,32 @@ class CustomerTrustScoreServiceTest extends TestCase
 
     protected function createInterestPayment(Tenant $tenant, int $slipId, array $overrides): void
     {
+        if (array_key_exists('payment_date', $overrides)) {
+            $overrides['payment_at'] = $overrides['payment_date'] === null
+                ? null
+                : CarbonImmutable::parse($overrides['payment_date'])->startOfDay();
+            unset($overrides['payment_date']);
+        }
+
+        if (isset($overrides['start_period'])) {
+            $overrides['start_period_at'] = CarbonImmutable::parse($overrides['start_period'])->startOfDay();
+            unset($overrides['start_period']);
+        }
+
+        if (isset($overrides['end_period'])) {
+            $overrides['end_period_at'] = CarbonImmutable::parse($overrides['end_period'])->startOfDay();
+            unset($overrides['end_period']);
+        }
+
         DB::table('pawn_interest_payments')->insert(array_merge([
             'tenant_id' => $tenant->id,
             'slip_id' => $slipId,
             'payment_amount' => 10000,
             'change_amount' => 0,
             'calculated_interest' => 10000,
-            'payment_date' => null,
-            'start_period' => '2026-01-01',
-            'end_period' => '2026-01-31',
+            'payment_at' => null,
+            'start_period_at' => '2026-01-01 00:00:00',
+            'end_period_at' => '2026-01-31 00:00:00',
             'is_paid' => false,
             'is_deleted' => false,
             'created_at' => now(),

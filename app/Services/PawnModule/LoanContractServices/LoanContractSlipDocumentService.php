@@ -107,8 +107,8 @@ class LoanContractSlipDocumentService
             'slip' => [
                 'id' => $slip->id,
                 'slipNo' => $slip->slip_no,
-                'createdDate' => $slip->created_date?->toDateString(),
-                'expireDate' => $slip->expire_date?->toDateString(),
+                'createdAt' => $slip->created_at?->toISOString(),
+                'expireAt' => $slip->expire_at?->toISOString(),
                 'loanAmount' => number_format((float) $slip->loan_amount, self::DEFAULT_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
                 'interestRate' => number_format((float) $slip->interest_rate, self::INTEREST_RATE_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
                 'status' => $slip->status,
@@ -143,8 +143,8 @@ class LoanContractSlipDocumentService
             'slip' => [
                 'id' => 0,
                 'slipNo' => self::DUMMY_PREVIEW_SLIP_NO,
-                'createdDate' => now()->toDateString(),
-                'expireDate' => now()->addDays(90)->toDateString(),
+                'createdAt' => now()->toISOString(),
+                'expireAt' => now()->addDays(90)->toISOString(),
                 'loanAmount' => number_format(1500000, self::DEFAULT_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
                 'interestRate' => number_format(3.5, self::INTEREST_RATE_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
                 'status' => 'active',

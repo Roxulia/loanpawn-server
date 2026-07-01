@@ -38,6 +38,8 @@ return new class extends Migration
             $table->timestamp('activated_at')->nullable();
             $table->foreignId('approved_by')->nullable()->constrained('platform_admins')->nullOnDelete();
             $table->text('notes')->nullable();
+            $table->unsignedInteger('current_month_slip_count')->default(0);
+            $table->unsignedInteger('current_staff_count')->default(0);
             $table->timestamps();
         });
     }

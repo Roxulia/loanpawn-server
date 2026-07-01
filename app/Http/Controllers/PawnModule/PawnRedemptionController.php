@@ -23,8 +23,8 @@ class PawnRedemptionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'start_at' => ['nullable', 'date'],
+            'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
         ]);
 
         if ($validator->fails()) {
@@ -35,8 +35,8 @@ class PawnRedemptionController extends Controller
 
         return $this->successResponse($this->redemptionService->list(
             (int) ($validated['per_page'] ?? 15),
-            isset($validated['start_date']) ? CarbonImmutable::parse($validated['start_date']) : null,
-            isset($validated['end_date']) ? CarbonImmutable::parse($validated['end_date']) : null,
+            isset($validated['start_at']) ? CarbonImmutable::parse($validated['start_at']) : null,
+            isset($validated['end_at']) ? CarbonImmutable::parse($validated['end_at']) : null,
         )->toArray());
     }
 
@@ -59,13 +59,13 @@ class PawnRedemptionController extends Controller
             'interests.*.id' => ['required', 'integer', 'min:1'],
             'interests.*.update_key' => ['required', 'integer', 'min:0'],
             'interests.*.interest_amount' => ['required', 'numeric', 'min:0'],
-            'interests.*.start_date' => ['nullable', 'date'],
-            'interests.*.end_date' => ['nullable', 'date'],
+            'interests.*.start_period_at' => ['nullable', 'date'],
+            'interests.*.end_period_at' => ['nullable', 'date'],
             'debts' => ['present', 'array'],
             'debts.*.id' => ['required', 'integer', 'min:1'],
             'debts.*.update_key' => ['required', 'integer', 'min:0'],
             'debts.*.amount' => ['required', 'numeric', 'min:0'],
-            'redemption_date' => ['nullable', 'date'],
+            'redemption_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'created_by' => ['nullable', 'integer'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
@@ -93,12 +93,12 @@ class PawnRedemptionController extends Controller
                     id: (int) $breakdown['id'],
                     updateKey: (int) $breakdown['update_key'],
                     interestAmount: (float) $breakdown['interest_amount'],
-                    startDate: $breakdown['start_date'] ?? null,
-                    endDate: $breakdown['end_date'] ?? null,
+                    startPeriodAt: $breakdown['start_period_at'] ?? null,
+                    endPeriodAt: $breakdown['end_period_at'] ?? null,
                 ),
                 $validated['interests']
             ),
-            redemptionDate: isset($validated['redemption_date']) ? CarbonImmutable::parse($validated['redemption_date']) : null,
+            redemptionAt: isset($validated['redemption_at']) ? CarbonImmutable::parse($validated['redemption_at']) : null,
             notes: $validated['notes'] ?? null,
             createdBy: $validated['created_by'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,

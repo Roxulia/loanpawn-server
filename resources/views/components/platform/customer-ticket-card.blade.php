@@ -16,7 +16,7 @@
     <div class="lp-ticket-card-footer">
         <div class="lp-inline-meta">
             <span aria-hidden="true">◷</span>
-            <strong>{{ $ticket->created_at?->format('Y-m-d') ?? '-' }}</strong>
+            <strong><time datetime="{{ $ticket->created_at?->toISOString() }}" data-local-time="date">{{ $ticket->created_at?->format('Y-m-d') ?? '-' }}</time></strong>
         </div>
         <div class="lp-ticket-actions">
             <span class="badge">{{ $ticket->status }}</span>

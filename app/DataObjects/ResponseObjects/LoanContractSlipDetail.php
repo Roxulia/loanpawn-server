@@ -17,9 +17,9 @@ class LoanContractSlipDetail extends BaseDataObject
     public ?int $interestTypeId;
     public ?string $interestTypeCode;
     public ?string $interestTypeName;
-    public string $createdDate;
-    public string $expireDate;
-    public ?string $lastInterestAddedDate;
+    public ?string $expireAt;
+    public ?string $lastInterestAddedAt;
+    public ?string $lastInterestPaidAt;
     public string $status;
     public ?string $notes;
     public ?int $createdBy;
@@ -48,9 +48,9 @@ class LoanContractSlipDetail extends BaseDataObject
         $detail->interestTypeId = $slip->interest_type_id;
         $detail->interestTypeCode = $slip->interestType?->code;
         $detail->interestTypeName = $slip->interestType?->name;
-        $detail->createdDate = $slip->created_date->toDateString();
-        $detail->expireDate = $slip->expire_date->toDateString();
-        $detail->lastInterestAddedDate = $slip->last_interest_added_date?->toDateString();
+        $detail->expireAt = $slip->expire_at?->toISOString();
+        $detail->lastInterestAddedAt = $slip->last_interest_added_at?->toISOString();
+        $detail->lastInterestPaidAt = $slip->last_interest_paid_at?->toISOString();
         $detail->status = $slip->status;
         $detail->notes = $slip->notes;
         $detail->createdBy = $slip->created_by;

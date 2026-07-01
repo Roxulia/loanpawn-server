@@ -17,11 +17,11 @@ class PawnInterestPayment extends Model
         'payment_amount',
         'change_amount',
         'calculated_interest',
-        'payment_date',
+        'payment_at',
         'notes',
         'created_by',
-        'start_period',
-        'end_period',
+        'start_period_at',
+        'end_period_at',
         'is_paid',
     ];
 
@@ -31,9 +31,9 @@ class PawnInterestPayment extends Model
             'payment_amount' => 'decimal:2',
             'change_amount' => 'decimal:2',
             'calculated_interest' => 'decimal:2',
-            'payment_date' => 'date',
-            'start_period' => 'date',
-            'end_period' => 'date',
+            'payment_at' => 'datetime',
+            'start_period_at' => 'datetime',
+            'end_period_at' => 'datetime',
             'is_paid' => 'boolean',
         ];
     }

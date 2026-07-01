@@ -70,7 +70,9 @@
                 <tbody id="customer-service-table-body">
                 @foreach ($tickets as $ticket)
                     <tr data-ticket-id="{{ $ticket->id }}">
-                        <td data-label="{{ __('app.common.view.labels.created') }}" data-field="created">{{ $ticket->created_at?->format('Y-m-d') ?? '-' }}</td>
+                        <td data-label="{{ __('app.common.view.labels.created') }}" data-field="created">
+                            <time datetime="{{ $ticket->created_at?->toISOString() }}" data-local-time="date">{{ $ticket->created_at?->format('Y-m-d') ?? '-' }}</time>
+                        </td>
                         <td data-label="{{ __('app.common.view.labels.code') }}" data-field="code">{{ $ticket->code }}</td>
                         <td data-label="{{ __('app.common.view.labels.subject') }}" data-field="subject">
                             {{ $ticket->subject }}

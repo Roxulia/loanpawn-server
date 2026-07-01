@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('address',100)->nullable();
             $table->string('password');
             $table->string('status', 20)->default('active')->index();
+            $table->string('prefer_lang', 8)->default('en');
             $table->timestamp('last_login_at')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('tenant_users')->nullOnDelete();
             $table->rememberToken();
@@ -48,6 +49,7 @@ return new class extends Migration
             $table->boolean('is_deleted')->default(false)->index();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
             $table->foreignId('tenant_user_id')->constrained('tenant_users')->cascadeOnDelete();
+            $table->boolean('dashboard')->default(false);
             $table->boolean('access_all')->default(false);
             $table->boolean('list_user')->default(false);
             $table->boolean('create_user')->default(false);
@@ -71,6 +73,10 @@ return new class extends Migration
             $table->boolean('create_expense')->default(false);
             $table->boolean('update_expense')->default(false);
             $table->boolean('delete_expense')->default(false);
+            $table->boolean('list_capital')->default(false);
+            $table->boolean('create_capital')->default(false);
+            $table->boolean('update_capital')->default(false);
+            $table->boolean('delete_capital')->default(false);
             $table->boolean('list_debt')->default(false);
             $table->boolean('create_debt')->default(false);
             $table->boolean('update_debt')->default(false);

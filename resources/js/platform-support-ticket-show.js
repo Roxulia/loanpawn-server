@@ -1,3 +1,5 @@
+import { formatLocalDateTime } from './local-time';
+
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, function (character) {
         return {
@@ -29,6 +31,12 @@ function attachmentsHtml(attachments) {
     `;
 }
 
+function messageDateTime(message) {
+    const formatted = formatLocalDateTime(message.createdAtIso);
+
+    return formatted === '-' ? message.createdAt : formatted;
+}
+
 function appendMessage(thread, currentSender, message) {
     if (! thread || message.senderType === currentSender || thread.querySelector(`[data-message-id="${message.id}"]`)) {
         return;
@@ -41,7 +49,7 @@ function appendMessage(thread, currentSender, message) {
         <div class="ticket-message-bubble">
             <div class="ticket-message-meta">
                 <span class="sender">${escapeHtml(message.senderLabel)}</span>
-                <time>${escapeHtml(message.createdAt)}</time>
+                <time datetime="${escapeHtml(message.createdAtIso || '')}" data-local-time="datetime">${escapeHtml(messageDateTime(message))}</time>
             </div>
             <p class="ticket-message-text">${escapeHtml(message.message)}</p>
             ${attachmentsHtml(message.attachments)}

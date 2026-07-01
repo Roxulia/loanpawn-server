@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('username')->unique();
             $table->string('email')->unique();
             $table->string('password');
+            $table->string('telegram_chat_id')->nullable()->index();
             $table->string('status', 20)->default('active')->index();
             $table->rememberToken();
             $table->timestamps();

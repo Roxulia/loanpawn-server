@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('subject', 180);
             $table->enum('type', ['bugs', 'features', 'support'])->index();
             $table->enum('status', ['pending', 'open', 'resolved'])->default('pending')->index();
+            $table->unsignedInteger('user_unread_replies_count')->default(0);
             $table->timestamp('opened_at')->nullable();
             $table->timestamp('resolved_at')->nullable();
             $table->foreignId('resolved_by')->nullable()->constrained('platform_admins')->nullOnDelete();

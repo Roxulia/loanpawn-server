@@ -20,7 +20,7 @@ return [
         'trim',
         explode(',', env(
             'CORS_ALLOWED_ORIGINS',
-            'http://app.loanpawn.1morebit.tech:5173,http://app.loanpawn.1morebit.tech,http://localhost:5173,http://127.0.0.1:5173'
+            'http://app.lonepawn.com:5173,http://app.lonepawn.com,http://localhost:5173,http://127.0.0.1:5173'
         ))
     )),
 
@@ -28,7 +28,7 @@ return [
         'trim',
         explode(',', env(
             'CORS_ALLOWED_ORIGIN_PATTERNS',
-            '#^http://[a-z0-9-]+\.loanpawn\.1morebit\.tech(:[0-9]+)?$#'
+            '#^http://[a-z0-9-]+\.lonepawn\.com(:[0-9]+)?$#'
         ))
     )),
 

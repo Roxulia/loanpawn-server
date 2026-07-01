@@ -10,12 +10,12 @@ class InterestPaymentHistoryItem extends BaseDataObject
     public int $id;
     public int $updateKey;
     public ?string $slipNo;
-    public ?string $startDate;
-    public ?string $endDate;
+    public ?string $startPeriodAt;
+    public ?string $endPeriodAt;
     public float $interestAmount;
     public float $paymentAmount;
     public float $changeAmount;
-    public ?string $paymentDate;
+    public ?string $paymentAt;
     public bool $isPaid;
     public ?string $notes;
 
@@ -25,12 +25,12 @@ class InterestPaymentHistoryItem extends BaseDataObject
         $item->id = $payment->id;
         $item->updateKey = (int) $payment->update_key;
         $item->slipNo = $payment->slip?->slip_no;
-        $item->startDate = $payment->start_period?->toDateString();
-        $item->endDate = $payment->end_period?->toDateString();
+        $item->startPeriodAt = $payment->start_period_at?->toISOString();
+        $item->endPeriodAt = $payment->end_period_at?->toISOString();
         $item->interestAmount = (float) $payment->calculated_interest;
         $item->paymentAmount = (float) $payment->payment_amount;
         $item->changeAmount = (float) $payment->change_amount;
-        $item->paymentDate = $payment->payment_date?->toDateString();
+        $item->paymentAt = $payment->payment_at?->toISOString();
         $item->isPaid = (bool) $payment->is_paid;
         $item->notes = $payment->notes;
 

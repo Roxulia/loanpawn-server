@@ -48,6 +48,8 @@ enum MessageCode: string
     case PlatformUserDeleted = 'platform.response.user.deleted';
     case PlatformPaymentRequestAccepted = 'billing.response.payment_request.accepted';
     case PlatformPaymentRequestRejected = 'billing.response.payment_request.rejected';
+    case PlatformPaymentQrUploaded = 'billing.response.payment_qr.uploaded';
+    case PlatformPaymentQrActivated = 'billing.response.payment_qr.activated';
     case PlatformPackageFlagsUpdated = 'platform.response.package_flags.updated';
     case PlatformLicenseValidationFailed = 'platform.response.license.validation_failed';
     case PlatformLoginSuccess = 'auth.response.login_success';

@@ -66,6 +66,8 @@ class PlatformSupportTicketMessageCreated implements ShouldBroadcast
             'userUnreadRepliesCount' => (int) $ticket->user_unread_replies_count,
             'createdAt' => $ticket->created_at?->format('Y-m-d') ?? '-',
             'updatedAt' => $ticket->updated_at?->format('Y-m-d') ?? '-',
+            'createdAtIso' => $ticket->created_at?->toISOString(),
+            'updatedAtIso' => $ticket->updated_at?->toISOString(),
             'adminDetailUrl' => route('admin.issued-tickets.show', $ticket->code),
             'userDetailUrl' => route('platform.customer-service.show', $ticket->code),
         ];
@@ -82,6 +84,7 @@ class PlatformSupportTicketMessageCreated implements ShouldBroadcast
             'senderLabel' => $message->sender_type === 'platform_admin' ? 'Admin' : 'Platform User',
             'message' => $message->message,
             'createdAt' => $message->created_at?->format('Y-m-d H:i') ?? '-',
+            'createdAtIso' => $message->created_at?->toISOString(),
             'attachments' => $message->attachments
                 ->where('is_deleted', false)
                 ->map(fn ($attachment): array => [

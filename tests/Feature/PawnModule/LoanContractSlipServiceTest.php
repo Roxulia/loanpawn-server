@@ -72,8 +72,8 @@ class LoanContractSlipServiceTest extends TestCase
         ));
 
         $this->assertSame('LS202604slip-tenant001', $created->slipNo);
-        $this->assertSame('2026-04-21', $created->createdDate);
-        $this->assertSame('2026-07-21', $created->expireDate);
+        $this->assertSame('2026-04-21', CarbonImmutable::parse($created->createdAt)->toDateString());
+        $this->assertSame('2026-07-21', CarbonImmutable::parse($created->expireAt)->toDateString());
         $this->assertSame('active', $created->status);
         $this->assertSame('Loan note', $created->notes);
         $this->assertSame($tenantUser->id, $created->createdBy);
@@ -93,7 +93,7 @@ class LoanContractSlipServiceTest extends TestCase
             'loan_amount' => 500000,
             'interest_rate' => 5,
             'interest_type_id' => $interestType->id,
-            'expire_date' => '2026-07-21 00:00:00',
+            'expire_at' => '2026-07-21 00:00:00',
             'expiry_quota' => 3,
             'expiry_quota_type' => 'Month',
         ]);
@@ -125,8 +125,8 @@ class LoanContractSlipServiceTest extends TestCase
             'slip_id' => $created->id,
             'payment_amount' => 0,
             'calculated_interest' => 25000,
-            'start_period' => '2026-04-21 00:00:00',
-            'end_period' => '2026-05-20 00:00:00',
+            'start_period_at' => '2026-04-21 00:00:00',
+            'end_period_at' => '2026-05-20 00:00:00',
             'is_paid' => false,
         ]);
 
@@ -190,7 +190,7 @@ class LoanContractSlipServiceTest extends TestCase
 
         $this->assertSame($existingCustomer->id, $created->customerId);
         $this->assertDatabaseCount('tenant_customers', 1);
-        $this->assertSame('2026-05-05', $created->expireDate);
+        $this->assertSame('2026-05-05', CarbonImmutable::parse($created->expireAt)->toDateString());
     }
 
     public function test_it_deletes_slip_accounting_and_marks_slip_items_deleted(): void
@@ -286,12 +286,12 @@ class LoanContractSlipServiceTest extends TestCase
             expiryQuotaType: 'Month',
         ));
 
-        $this->assertSame('2026-06-28', $created->expireDate);
+        $this->assertSame('2026-06-28', CarbonImmutable::parse($created->expireAt)->toDateString());
         $this->assertDatabaseCount('pawn_interest_payments', 4);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-02-28 00:00:00',
-            'end_period' => '2026-03-27 00:00:00',
+            'start_period_at' => '2026-02-28 00:00:00',
+            'end_period_at' => '2026-03-27 00:00:00',
         ]);
     }
 
@@ -328,22 +328,22 @@ class LoanContractSlipServiceTest extends TestCase
             expiryQuotaType: 'Month',
         ));
 
-        $this->assertSame('2026-06-28', $created->expireDate);
+        $this->assertSame('2026-06-28', CarbonImmutable::parse($created->expireAt)->toDateString());
         $this->assertDatabaseCount('pawn_interest_payments', 18);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-02-28 00:00:00',
-            'end_period' => '2026-03-06 00:00:00',
+            'start_period_at' => '2026-02-28 00:00:00',
+            'end_period_at' => '2026-03-06 00:00:00',
         ]);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-03-07 00:00:00',
-            'end_period' => '2026-03-13 00:00:00',
+            'start_period_at' => '2026-03-07 00:00:00',
+            'end_period_at' => '2026-03-13 00:00:00',
         ]);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-06-27 00:00:00',
-            'end_period' => '2026-06-28 00:00:00',
+            'start_period_at' => '2026-06-27 00:00:00',
+            'end_period_at' => '2026-06-28 00:00:00',
         ]);
     }
 

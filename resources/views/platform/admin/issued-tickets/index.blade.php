@@ -40,7 +40,9 @@
                 <tbody id="issued-ticket-table-body">
                 @foreach ($tickets as $ticket)
                     <tr data-ticket-id="{{ $ticket->id }}">
-                        <td data-label="{{ __('app.common.view.labels.updated') }}" data-field="updated">{{ $ticket->updated_at?->format('Y-m-d') ?? '-' }}</td>
+                        <td data-label="{{ __('app.common.view.labels.updated') }}" data-field="updated">
+                            <time datetime="{{ $ticket->updated_at?->toISOString() }}" data-local-time="date">{{ $ticket->updated_at?->format('Y-m-d') ?? '-' }}</time>
+                        </td>
                         <td data-label="{{ __('app.common.view.labels.code') }}" data-field="code">{{ $ticket->code }}</td>
                         <td data-label="{{ __('app.common.view.labels.user') }}" data-field="user">{{ $ticket->platformUser?->name ?? '-' }}</td>
                         <td data-label="{{ __('app.common.view.labels.subject') }}" data-field="subject">{{ $ticket->subject }}</td>

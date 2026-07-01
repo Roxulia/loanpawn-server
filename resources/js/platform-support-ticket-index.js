@@ -1,3 +1,5 @@
+import { formatLocalDate } from './local-time';
+
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, function (character) {
         return {
@@ -31,9 +33,15 @@ function unreadBadge(ticket) {
     return `<span class="ticket-unread-badge" data-field="unread" ${count === 0 ? 'hidden' : ''}>${escapeHtml(count)}</span>`;
 }
 
+function ticketDate(ticket, field, fallbackField) {
+    const formatted = formatLocalDate(ticket[field]);
+
+    return formatted === '-' ? ticket[fallbackField] : formatted;
+}
+
 function customerRowHtml(ticket) {
     return `
-        <td data-label="Created" data-field="created">${escapeHtml(ticket.createdAt)}</td>
+        <td data-label="Created" data-field="created">${escapeHtml(ticketDate(ticket, 'createdAtIso', 'createdAt'))}</td>
         <td data-label="Code" data-field="code">${escapeHtml(ticket.code)}</td>
         <td data-label="Subject" data-field="subject">${escapeHtml(ticket.subject)} ${unreadBadge(ticket)}</td>
         <td data-label="Type" data-field="type">${escapeHtml(ticket.typeLabel)}</td>
@@ -53,7 +61,7 @@ function customerCardHtml(ticket) {
         <div class="lp-ticket-card-footer">
             <div class="lp-inline-meta">
                 <span aria-hidden="true">◷</span>
-                <strong>${escapeHtml(ticket.createdAt)}</strong>
+                <strong>${escapeHtml(ticketDate(ticket, 'createdAtIso', 'createdAt'))}</strong>
             </div>
             <div class="lp-ticket-actions">
                 <span class="badge">${escapeHtml(ticket.status)}</span>
@@ -65,7 +73,7 @@ function customerCardHtml(ticket) {
 
 function adminRowHtml(ticket) {
     return `
-        <td data-label="Updated" data-field="updated">${escapeHtml(ticket.updatedAt)}</td>
+        <td data-label="Updated" data-field="updated">${escapeHtml(ticketDate(ticket, 'updatedAtIso', 'updatedAt'))}</td>
         <td data-label="Code" data-field="code">${escapeHtml(ticket.code)}</td>
         <td data-label="User" data-field="user">${escapeHtml(ticket.userName)}</td>
         <td data-label="Subject" data-field="subject">${escapeHtml(ticket.subject)}</td>

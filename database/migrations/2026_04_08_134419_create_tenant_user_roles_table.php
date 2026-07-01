@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('name', 50);
             $table->string('description')->nullable();
             $table->boolean('is_default')->default(false)->index();
+            $table->boolean('dashboard')->default(false);
             $table->boolean('access_all')->default(false);
             $table->boolean('list_user')->default(false);
             $table->boolean('create_user')->default(false);
@@ -41,6 +42,10 @@ return new class extends Migration
             $table->boolean('create_expense')->default(false);
             $table->boolean('update_expense')->default(false);
             $table->boolean('delete_expense')->default(false);
+            $table->boolean('list_capital')->default(false);
+            $table->boolean('create_capital')->default(false);
+            $table->boolean('update_capital')->default(false);
+            $table->boolean('delete_capital')->default(false);
             $table->boolean('list_debt')->default(false);
             $table->boolean('create_debt')->default(false);
             $table->boolean('update_debt')->default(false);

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->integer('update_key')->default(0)->index();
             $table->boolean('is_deleted')->default(false)->index();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
+            $table->string('nrc')->nullable();
             $table->string('name', 120);
             $table->string('email')->nullable();
             $table->string('phone', 30)->nullable();
@@ -33,6 +34,8 @@ return new class extends Migration
             $table->unique(['tenant_id','email']);
             $table->unique(['tenant_id','phone']);
             $table->unique(['tenant_id','code']);
+            $table->index(['tenant_id','nrc'],'customer_nrc_index');
+            $table->unique(['tenant_id','nrc'],'customer_nrc_unique');
         });
     }
 

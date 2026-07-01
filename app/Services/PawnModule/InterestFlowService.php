@@ -58,7 +58,8 @@ class InterestFlowService extends BaseTenantService
     public function calculateInterestBySlipNo(string $slipNo): InterestCalculationResult
     {
         $slip = $this->resolveActiveSlipBySlipNo($slipNo);
-        $currentDate = CarbonImmutable::now()->startOfDay();
+        $currentAt = CarbonImmutable::now();
+        $currentDate = $currentAt->startOfDay();
         $payments = $this->dueUnpaidPayments($slip, $currentDate);
         $interestBreakdown = $payments
             ->map(fn (PawnInterestPayment $payment): InterestBreakDown => InterestBreakDown::fromModel($payment))
@@ -91,10 +92,11 @@ class InterestFlowService extends BaseTenantService
             $this->tenantIdempotencyService->replay($idempotencyRecord);
         }
 
-        $currentDate = CarbonImmutable::now()->startOfDay();
+        $currentAt = CarbonImmutable::now();
+        $currentDate = $currentAt->startOfDay();
 
         try {
-            $result = DB::transaction(function () use ($slipNo, $request, $currentDate): array {
+            $result = DB::transaction(function () use ($slipNo, $request, $currentAt, $currentDate): array {
                 $slip = $this->resolveActiveSlipBySlipNoWithLock($slipNo);
                 if($slip->update_key !== $request->slipUpdateKey)
                 {
@@ -149,7 +151,7 @@ class InterestFlowService extends BaseTenantService
                     $updatedPayment = $this->repository->update($payment, [
                         'is_paid' => true,
                         'created_by' => $this->resolveCurrentTenantUserId(),
-                        'payment_date' => $currentDate->toDateString(),
+                        'payment_at' => $currentAt,
                         'payment_amount' => $appliedAmount,
                         'change_amount' => $changeAmount,
                         'update_key' => $payment->update_key+1
@@ -189,9 +191,9 @@ class InterestFlowService extends BaseTenantService
                 }
 
                 $updatedSlip = $this->loanContractSlipRepository->update($slip, [
-                    'last_interest_paid_date' => $currentDate->toDateString(),
-                    'last_interest_added_date' => $currentDate->toDateString(),
-                    'expire_date' => $this->calculateExpireDate($currentDate, (int) $slip->expiry_quota, (string) $slip->expiry_quota_type)->toDateString(),
+                    'last_interest_paid_at' => $currentAt,
+                    'last_interest_added_at' => $currentAt,
+                    'expire_at' => $this->calculateExpireDate($currentAt, (int) $slip->expiry_quota, (string) $slip->expiry_quota_type),
                     'update_key' => $slip->update_key+1
                 ]);
 
@@ -200,7 +202,7 @@ class InterestFlowService extends BaseTenantService
                 $this->createLoanContractInterestPayments(
                     $updatedSlip,
                     $nextScheduleStart,
-                    CarbonImmutable::parse($updatedSlip->expire_date)->startOfDay(),
+                    CarbonImmutable::parse($updatedSlip->expire_at)->startOfDay(),
                     $this->resolveCurrentTenantUserId()
                 );
 
@@ -239,7 +241,8 @@ class InterestFlowService extends BaseTenantService
     {
         DB::transaction(function () use ($slip, $isRedemptionProcess): void {
             $this->loanContractSlipRepository->findByIdWithLock($slip->id);
-            $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, CarbonImmutable::now()->toDateString());
+            $paymentAt = CarbonImmutable::now();
+            $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
 
             foreach ($payments as $payment) {
                 if ($payment->is_paid) {
@@ -249,7 +252,7 @@ class InterestFlowService extends BaseTenantService
                 $payment = $this->repository->update($payment, [
                     'is_paid' => true,
                     'created_by' => $this->resolveCurrentTenantUserId(),
-                    'payment_date' => CarbonImmutable::now()->toDateString(),
+                    'payment_at' => $paymentAt,
                     'payment_amount' => (float) $payment->calculated_interest,
                     'change_amount' => 0,
                 ]);
@@ -262,7 +265,7 @@ class InterestFlowService extends BaseTenantService
                 return;
             }
 
-            $futurePayments = $this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, CarbonImmutable::now()->toDateString());
+                $futurePayments = $this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
 
             foreach ($futurePayments as $payment) {
                 $this->repository->delete($payment);
@@ -280,8 +283,8 @@ class InterestFlowService extends BaseTenantService
         $payments = $this->dueUnpaidPayments($slip, CarbonImmutable::now()->startOfDay());
         $interestBreakdown = $payments->map(fn (PawnInterestPayment $payment): array => [
             'id' => $payment->id,
-            'start_date' => optional($payment->start_period)->toDateString(),
-            'end_date' => optional($payment->end_period)->toDateString(),
+            'start_period_at' => $payment->start_period_at?->toISOString(),
+            'end_period_at' => $payment->end_period_at?->toISOString(),
             'interest_amount' => (float) $payment->calculated_interest,
             'is_paid' => (bool) $payment->is_paid,
         ])->all();
@@ -347,7 +350,7 @@ class InterestFlowService extends BaseTenantService
                 $this->repository->update($payment, [
                     'is_paid' => true,
                     'created_by' => $createdBy,
-                    'payment_date' => $paymentDate->toDateString(),
+                    'payment_at' => $paymentDate,
                     'payment_amount' => (float) $payment->calculated_interest,
                     'change_amount' => 0,
                     'update_key' => $payment->update_key+1
@@ -370,8 +373,8 @@ class InterestFlowService extends BaseTenantService
 
         $this->createLoanContractInterestPayments(
             $slip,
-            CarbonImmutable::parse($slip->created_date)->startOfDay(),
-            CarbonImmutable::parse($slip->expire_date)->startOfDay(),
+            CarbonImmutable::parse($slip->created_at)->startOfDay(),
+            CarbonImmutable::parse($slip->expire_at)->startOfDay(),
             $createdBy
         );
     }
@@ -396,7 +399,7 @@ class InterestFlowService extends BaseTenantService
 
     public function calculateEndDate(CarbonInterface $currentDate, PawnLoanContractSlip $slip): CarbonImmutable
     {
-        $date = CarbonImmutable::parse($currentDate)->startOfDay();
+        $date = CarbonImmutable::parse($currentDate);
         $interestType = $slip->interestType;
         $interestTypeName = $interestType?->name;
 
@@ -423,10 +426,9 @@ class InterestFlowService extends BaseTenantService
                 'payment_amount' => 0,
                 'change_amount' => 0,
                 'calculated_interest' => $interestAmount,
-                'payment_date' => null,
                 'created_by' => null,
-                'start_period' => $currentDate->toDateString(),
-                'end_period' => $endDate->toDateString(),
+                'start_period_at' => $currentDate,
+                'end_period_at' => $endDate,
                 'is_paid' => false,
             ]);
 
@@ -436,8 +438,8 @@ class InterestFlowService extends BaseTenantService
                 $payment->id,
                 [
                     'slip_id' => $slip->id,
-                    'start_period' => $payment->start_period?->toDateString(),
-                    'end_period' => $payment->end_period?->toDateString(),
+                    'start_period_at' => $payment->start_period_at?->toISOString(),
+                    'end_period_at' => $payment->end_period_at?->toISOString(),
                     'calculated_interest' => (float) $payment->calculated_interest,
                 ]
             );
@@ -477,11 +479,10 @@ class InterestFlowService extends BaseTenantService
                 'payment_amount' => 0,
                 'change_amount' => 0,
                 'calculated_interest' => $interestAmount,
-                'payment_date' => null,
                 'notes' => null,
                 'created_by' => $createdBy,
-                'start_period' => $currentStart->toDateString(),
-                'end_period' => $endDate->toDateString(),
+                'start_period_at' => $currentStart,
+                'end_period_at' => $endDate,
                 'is_paid' => false,
             ]);
 
@@ -491,8 +492,8 @@ class InterestFlowService extends BaseTenantService
                 $payment->id,
                 [
                     'slip_id' => $slip->id,
-                    'start_period' => $payment->start_period?->toDateString(),
-                    'end_period' => $payment->end_period?->toDateString(),
+                    'start_period_at' => $payment->start_period_at?->toISOString(),
+                    'end_period_at' => $payment->end_period_at?->toISOString(),
                     'calculated_interest' => (float) $payment->calculated_interest,
                 ],
                 $createdBy
@@ -510,9 +511,9 @@ class InterestFlowService extends BaseTenantService
     protected function resolveAccrualStartDate(PawnInterestPayment $lastPayment): CarbonImmutable
     {
         $latestDate = collect([
-            $lastPayment->end_period,
-            $lastPayment->payment_date,
-            $lastPayment->start_period,
+            $lastPayment->end_period_at,
+            $lastPayment->payment_at,
+            $lastPayment->start_period_at,
         ])
             ->filter()
             ->map(fn ($date): CarbonImmutable => CarbonImmutable::parse($date)->startOfDay())

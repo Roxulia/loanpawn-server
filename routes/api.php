@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\PlatformModule\LicenseController;
 use App\Http\Controllers\PlatformModule\TenantController;
+use App\Http\Controllers\PlatformModule\TelegramWebhookController;
 use App\Http\Controllers\PawnModule\CollateralItemController;
 use App\Http\Controllers\PawnModule\InterestPaymentController;
 use App\Http\Controllers\PawnModule\LoanContractSlipController;
@@ -29,6 +30,9 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::post('/license/validate', [LicenseController::class, 'validateLicense'])
+    ->middleware('throttle:public-api');
+
+Route::post('/telegram/webhook', TelegramWebhookController::class)
     ->middleware('throttle:public-api');
 
 Route::prefix('tenant')->group(function () {

@@ -6,6 +6,7 @@ use App\Http\Controllers\PlatformModule\Admin\AdminDashboardController;
 use App\Http\Controllers\PlatformModule\Admin\AdminIssuedTicketController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPaymentQrController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
 use App\Http\Controllers\PlatformModule\AuthController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\PlatformModule\LanguageController;
 use App\Http\Controllers\PlatformModule\Web\BillingManagementController;
 use App\Http\Controllers\PlatformModule\Web\CustomerServiceController;
 use App\Http\Controllers\PlatformModule\Web\DashboardController;
+use App\Http\Controllers\PlatformModule\Web\PaymentQrImageController;
 use App\Http\Controllers\PlatformModule\Web\TenantManagementController;
 use Illuminate\Support\Facades\Route;
 
@@ -53,6 +55,10 @@ Route::name('admin.')->group(function () {
                 ->name('payment-requests.attachments.download');
             Route::post('/payment-requests/{paymentRequest}/accept', [AdminPaymentRequestController::class, 'accept'])->name('payment-requests.accept');
             Route::post('/payment-requests/{paymentRequest}/reject', [AdminPaymentRequestController::class, 'reject'])->name('payment-requests.reject');
+            Route::get('/payment-qrs', [AdminPaymentQrController::class, 'index'])->name('payment-qrs.index');
+            Route::post('/payment-qrs', [AdminPaymentQrController::class, 'store'])->name('payment-qrs.store');
+            Route::post('/payment-qrs/{paymentQr}/activate', [AdminPaymentQrController::class, 'activate'])->name('payment-qrs.activate');
+            Route::get('/payment-qrs/{paymentQr}/image', [AdminPaymentQrController::class, 'image'])->name('payment-qrs.image');
             Route::get('/issued-tickets', [AdminIssuedTicketController::class, 'index'])->name('issued-tickets.index');
             Route::get('/issued-tickets/{ticketCode}', [AdminIssuedTicketController::class, 'show'])->name('issued-tickets.show');
             Route::post('/issued-tickets/{ticketCode}/messages', [AdminIssuedTicketController::class, 'reply'])->name('issued-tickets.messages.store');
@@ -103,6 +109,7 @@ Route::name('platform.')->group(function () {
 
         Route::get('/billing', [BillingManagementController::class, 'index'])->name('billing.index');
         Route::post('/billing/tenant-requests/{tenantRequest}/payment', [BillingManagementController::class, 'submitPayment'])->name('billing.payment.submit');
+        Route::get('/payment-qrs/{paymentQr}/image', [PaymentQrImageController::class, 'show'])->name('payment-qrs.image');
 
         Route::prefix('customer-service')->name('customer-service.')->controller(CustomerServiceController::class)->group(function () {
             Route::get('/', 'index')->name('index');

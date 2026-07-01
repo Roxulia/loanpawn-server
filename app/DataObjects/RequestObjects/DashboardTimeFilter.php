@@ -37,8 +37,8 @@ class DashboardTimeFilter extends BaseDataObject
             self::THIS_MONTH => new self($timeFilter, $today->copy()->startOfMonth(), $today),
             self::CUSTOM => new self(
                 $timeFilter,
-                Carbon::parse($data['start_date']),
-                Carbon::parse($data['end_date']),
+                Carbon::parse($data['start_at']),
+                Carbon::parse($data['end_at']),
             ),
             default => new self(self::THIS_MONTH, $today->copy()->startOfMonth(), $today),
         };
@@ -60,8 +60,8 @@ class DashboardTimeFilter extends BaseDataObject
     {
         return [
             'time_filter' => $this->timeFilter,
-            'start_date' => $this->startDate->toDateString(),
-            'end_date' => $this->endDate->toDateString(),
+            'start_at' => $this->startDate->toISOString(),
+            'end_at' => $this->endDate->toISOString(),
         ];
     }
 }

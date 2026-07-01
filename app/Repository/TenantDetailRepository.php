@@ -129,7 +129,7 @@ class TenantDetailRepository
         $detail->licenseKey = $row->license_key;
         $detail->updateKey = (int) $row->license_update_key;
         $detail->planType = $row->license_plan_type;
-        $detail->expireDate = $row->license_expires_at
+        $detail->expiresAt = $row->license_expires_at
             ? Carbon::parse($row->license_expires_at)->toISOString()
             : null;
         $detail->status = $row->license_status;

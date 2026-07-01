@@ -41,6 +41,11 @@
             'label' => __('app.billing.view.payment_requests'),
         ],
         [
+            'route' => 'admin.payment-qrs.index',
+            'active' => request()->routeIs('admin.payment-qrs.*'),
+            'label' => __('app.platform.view.payment_qr_management'),
+        ],
+        [
             'route' => 'admin.issued-tickets.index',
             'active' => request()->routeIs('admin.issued-tickets.*'),
             'label' => __('app.support.view.issued_tickets'),

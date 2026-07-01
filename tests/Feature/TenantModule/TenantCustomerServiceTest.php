@@ -183,8 +183,8 @@ class TenantCustomerServiceTest extends TestCase
             'customer_id' => $trusted->customer->id,
             'loan_amount' => 100000,
             'interest_rate' => 5,
-            'created_date' => now()->subDays(10)->toDateString(),
-            'expire_date' => now()->subDay()->toDateString(),
+            'created_at' => now()->subDays(10),
+            'expire_at' => now()->subDay()->startOfDay(),
             'status' => 'active',
         ]);
 

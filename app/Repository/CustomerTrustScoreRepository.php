@@ -18,8 +18,8 @@ class CustomerTrustScoreRepository
             ->selectRaw("SUM(CASE WHEN LOWER(status) = 'expired' AND is_deleted = 0 AND deleted_at IS NULL THEN 1 ELSE 0 END) as expired_slip_count")
             ->selectRaw('SUM(CASE WHEN is_deleted = 0 AND deleted_at IS NULL THEN loan_amount ELSE 0 END) as lifetime_principal')
             ->selectRaw("SUM(CASE WHEN LOWER(status) = 'active' AND is_deleted = 0 AND deleted_at IS NULL THEN loan_amount ELSE 0 END) as active_principal")
-            ->selectRaw('MIN(CASE WHEN is_deleted = 0 AND deleted_at IS NULL THEN created_date ELSE NULL END) as first_slip_date')
-            ->selectRaw('MAX(CASE WHEN is_deleted = 0 AND deleted_at IS NULL THEN created_date ELSE NULL END) as latest_slip_date')
+            ->selectRaw('MIN(CASE WHEN is_deleted = 0 AND deleted_at IS NULL THEN DATE(created_at) ELSE NULL END) as first_slip_date')
+            ->selectRaw('MAX(CASE WHEN is_deleted = 0 AND deleted_at IS NULL THEN DATE(created_at) ELSE NULL END) as latest_slip_date')
             ->first();
 
         $interestMetrics = DB::table('pawn_interest_payments')
@@ -30,11 +30,11 @@ class CustomerTrustScoreRepository
             ->where('pawn_loan_contract_slips.is_deleted', false)
             ->whereNull('pawn_loan_contract_slips.deleted_at')
             ->where('pawn_interest_payments.is_deleted', false)
-            ->whereDate('pawn_interest_payments.start_period', '<=', $today->toDateString())
+            ->whereDate('pawn_interest_payments.start_period_at', '<=', $today->toDateString())
             ->selectRaw('COUNT(*) as due_interest_count')
             ->selectRaw('SUM(CASE WHEN pawn_interest_payments.is_paid = 1 THEN 1 ELSE 0 END) as paid_interest_count')
             ->selectRaw('SUM(CASE WHEN pawn_interest_payments.is_paid = 0 THEN 1 ELSE 0 END) as unpaid_due_interest_count')
-            ->selectRaw('SUM(CASE WHEN pawn_interest_payments.is_paid = 1 AND pawn_interest_payments.payment_date <= pawn_interest_payments.end_period THEN 1 ELSE 0 END) as on_time_interest_count')
+            ->selectRaw('SUM(CASE WHEN pawn_interest_payments.is_paid = 1 AND pawn_interest_payments.payment_at <= pawn_interest_payments.end_period_at THEN 1 ELSE 0 END) as on_time_interest_count')
             ->first();
 
         $debtMetrics = DB::table('tenant_debts')

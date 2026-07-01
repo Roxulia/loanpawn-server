@@ -20,6 +20,7 @@ use App\Models\PlatformModule\Tenant;
 use App\Services\TenantModule\TenantDashboardService;
 use App\Support\TenantContext;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
@@ -126,7 +127,7 @@ class TenantDashboardServiceTest extends TestCase
             'slip_id' => $overdueSlip->id,
             'payment_amount' => 300000,
             'calculated_interest' => 300000,
-            'payment_date' => '2026-06-12',
+            'payment_at' => '2026-06-12 00:00:00',
             'is_paid' => true,
         ]);
         TenantAccounting::query()->create([
@@ -147,7 +148,7 @@ class TenantDashboardServiceTest extends TestCase
             'interest_amount' => 100000,
             'received_amount' => 900000,
             'change_amount' => 0,
-            'redemption_date' => '2026-06-12',
+            'redemption_at' => '2026-06-12 00:00:00',
         ]);
         PawnCollateralItem::query()->create([
             'tenant_id' => $tenant->id,
@@ -293,8 +294,8 @@ class TenantDashboardServiceTest extends TestCase
             'customer_id' => $customer->id,
             'loan_amount' => $amount,
             'interest_rate' => 5,
-            'created_date' => '2026-06-01',
-            'expire_date' => $expireDate,
+            'created_at' => '2026-06-01 00:00:00',
+            'expire_at' => CarbonImmutable::parse($expireDate)->startOfDay(),
             'status' => 'active',
             'expiry_quota' => 1,
             'expiry_quota_type' => 'Month',

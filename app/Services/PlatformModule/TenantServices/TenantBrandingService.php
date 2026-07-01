@@ -21,7 +21,7 @@ use Illuminate\Http\UploadedFile;
 
 class TenantBrandingService extends BaseTenantService
 {
-    protected const FEATURE_TENANT_BRANDING = 'tenant_branding';
+    protected const FEATURE_TENANT_BRANDING = 'branding_management';
 
     public function __construct(
         private TenantLicenseService $tenantLicenseService,

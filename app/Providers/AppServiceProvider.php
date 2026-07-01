@@ -2,6 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\PlatformModule\ManualPaymentAttachment;
+use App\Models\PlatformModule\PlatformSupportTicket;
+use App\Models\PlatformModule\PlatformSupportTicketAttachment;
+use App\Models\PlatformModule\TenantRequest;
+use App\Observers\ManualPaymentAttachmentObserver;
+use App\Observers\PlatformSupportTicketAttachmentObserver;
+use App\Observers\PlatformSupportTicketObserver;
+use App\Observers\TenantRequestObserver;
 use App\Support\TenantContext;
 use App\Support\RedisAvailability;
 use App\Support\TenantScopedCacheKeys;
@@ -27,6 +35,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        TenantRequest::observe(TenantRequestObserver::class);
+        ManualPaymentAttachment::observe(ManualPaymentAttachmentObserver::class);
+        PlatformSupportTicket::observe(PlatformSupportTicketObserver::class);
+        PlatformSupportTicketAttachment::observe(PlatformSupportTicketAttachmentObserver::class);
+
         /** @var RedisAvailability $redisAvailability */
         $redisAvailability = app(RedisAvailability::class);
 

@@ -25,8 +25,8 @@ class DashboardController extends Controller
                 DashboardTimeFilter::THIS_MONTH,
                 DashboardTimeFilter::CUSTOM,
             ])],
-            'start_date' => ['required_if:time_filter,'.DashboardTimeFilter::CUSTOM, 'date'],
-            'end_date' => ['required_if:time_filter,'.DashboardTimeFilter::CUSTOM, 'date', 'after_or_equal:start_date'],
+            'start_at' => ['required_if:time_filter,'.DashboardTimeFilter::CUSTOM, 'date'],
+            'end_at' => ['required_if:time_filter,'.DashboardTimeFilter::CUSTOM, 'date', 'after_or_equal:start_at'],
         ]);
 
         return view('platform.dashboard', [

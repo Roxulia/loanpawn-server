@@ -15,6 +15,7 @@ class PlatformAdmin extends Authenticatable
         'code',
         'username',
         'email',
+        'telegram_chat_id',
         'password',
         'status',
     ];

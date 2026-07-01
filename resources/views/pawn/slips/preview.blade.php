@@ -161,8 +161,8 @@
             <div class="meta-card">
                 <h3>{{ __('app.pawn.view.slip_detail') }}</h3>
                 <div class="meta-line"><strong>{{ __('app.pawn.view.slip_no') }}:</strong> {{ $document['slip']['slipNo'] }}</div>
-                <div class="meta-line"><strong>{{ __('app.pawn.view.created_date') }}:</strong> {{ $document['slip']['createdDate'] }}</div>
-                <div class="meta-line"><strong>{{ __('app.pawn.view.expire_date') }}:</strong> {{ $document['slip']['expireDate'] }}</div>
+                <div class="meta-line"><strong>{{ __('app.pawn.view.created_date') }}:</strong> {{ \Carbon\CarbonImmutable::parse($document['slip']['createdAt'])->toDateString() }}</div>
+                <div class="meta-line"><strong>{{ __('app.pawn.view.expire_date') }}:</strong> {{ \Carbon\CarbonImmutable::parse($document['slip']['expireAt'])->toDateString() }}</div>
                 <div class="meta-line"><strong>{{ __('app.common.view.labels.status') }}:</strong> {{ $document['slip']['status'] }}</div>
                 <div class="meta-line"><strong>{{ __('app.pawn.view.interest_type') }}:</strong> {{ $document['slip']['interestType'] }}</div>
             </div>

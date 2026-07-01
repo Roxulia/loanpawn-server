@@ -25,6 +25,7 @@ return new class extends Migration
 
             $table->unique(['tenant_id','name']);
             $table->unique(['tenant_id','code']);
+            $table->index(['tenant_id', 'is_default']);
         });
     }
 

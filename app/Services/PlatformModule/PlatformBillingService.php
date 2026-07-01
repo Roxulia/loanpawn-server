@@ -9,6 +9,7 @@ class PlatformBillingService
     public function __construct(
         private AuthService $authService,
         private ManualPaymentRequestRepository $paymentRequestRepository,
+        private PaymentQrService $paymentQrService,
     ) {
     }
 
@@ -21,6 +22,7 @@ class PlatformBillingService
             'pending_count' => $this->paymentRequestRepository->countPendingByPlatformUser($platformUser->id),
             'approved_count' => $this->paymentRequestRepository->countApprovedByPlatformUser($platformUser->id),
             'approved_total' => $this->paymentRequestRepository->totalApprovedAmountByPlatformUser($platformUser->id),
+            'active_payment_qr' => $this->paymentQrService->active(),
         ];
     }
 }

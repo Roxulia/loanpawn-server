@@ -20,7 +20,7 @@ class PawnRedemption extends Model
         'interest_amount',
         'received_amount',
         'change_amount',
-        'redemption_date',
+        'redemption_at',
         'notes',
         'created_by',
     ];
@@ -33,7 +33,7 @@ class PawnRedemption extends Model
             'interest_amount' => 'decimal:2',
             'received_amount' => 'decimal:2',
             'change_amount' => 'decimal:2',
-            'redemption_date' => 'date',
+            'redemption_at' => 'datetime',
         ];
     }
 

@@ -72,8 +72,8 @@ class InterestFlowServiceTest extends TestCase
         $this->assertSame('2026-04-04', $result->currentDate);
         $this->assertCount(2, $result->interestBreakdown);
         $this->assertSame(20000.0, $result->totalInterestAmount);
-        $this->assertSame('2026-02-28', $result->interestBreakdown[0]->startDate);
-        $this->assertSame('2026-03-28', $result->interestBreakdown[1]->startDate);
+        $this->assertSame('2026-02-28', CarbonImmutable::parse($result->interestBreakdown[0]->startPeriodAt)->toDateString());
+        $this->assertSame('2026-03-28', CarbonImmutable::parse($result->interestBreakdown[1]->startPeriodAt)->toDateString());
         $this->assertIsInt($result->interestBreakdown[0]->updateKey);
     }
 
@@ -134,27 +134,27 @@ class InterestFlowServiceTest extends TestCase
 
         $this->assertDatabaseHas('pawn_loan_contract_slips', [
             'id' => $created->id,
-            'last_interest_paid_date' => '2026-04-04 00:00:00',
-            'last_interest_added_date' => '2026-04-04 00:00:00',
-            'expire_date' => '2026-08-04 00:00:00',
+            'last_interest_paid_at' => '2026-04-04 10:00:00',
+            'last_interest_added_at' => '2026-04-04 10:00:00',
+            'expire_at' => '2026-08-04 00:00:00',
         ]);
 
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-02-28 00:00:00',
+            'start_period_at' => '2026-02-28 00:00:00',
             'payment_amount' => '10000.00',
             'is_paid' => true,
         ]);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-03-28 00:00:00',
+            'start_period_at' => '2026-03-28 00:00:00',
             'payment_amount' => '5000.00',
             'is_paid' => true,
         ]);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-05-04 00:00:00',
-            'end_period' => '2026-06-03 00:00:00',
+            'start_period_at' => '2026-05-04 00:00:00',
+            'end_period_at' => '2026-06-03 00:00:00',
             'is_paid' => false,
         ]);
 
@@ -230,7 +230,7 @@ class InterestFlowServiceTest extends TestCase
 
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period' => '2026-03-28 00:00:00',
+            'start_period_at' => '2026-03-28 00:00:00',
             'payment_amount' => '10000.00',
             'change_amount' => '5000.00',
             'is_paid' => true,
@@ -301,8 +301,8 @@ class InterestFlowServiceTest extends TestCase
                 id: $breakdown->id,
                 updateKey: $breakdown->updateKey,
                 interestAmount: $breakdown->interestAmount,
-                startDate: $breakdown->startDate,
-                endDate: $breakdown->endDate,
+                startPeriodAt: $breakdown->startPeriodAt,
+                endPeriodAt: $breakdown->endPeriodAt,
             ),
             $interestBreakdown
         );

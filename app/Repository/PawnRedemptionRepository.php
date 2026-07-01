@@ -14,8 +14,8 @@ class PawnRedemptionRepository
     {
         return PawnRedemption::query()
             ->with('slip')
-            ->when($startDate !== null, fn ($query) => $query->whereDate('redemption_date', '>=', $startDate->toDateString()))
-            ->when($endDate !== null, fn ($query) => $query->whereDate('redemption_date', '<=', $endDate->toDateString()))
+            ->when($startDate !== null, fn ($query) => $query->whereDate('redemption_at', '>=', $startDate->toDateString()))
+            ->when($endDate !== null, fn ($query) => $query->whereDate('redemption_at', '<=', $endDate->toDateString()))
             ->orderByDesc('id')
             ->paginate($perPage);
     }

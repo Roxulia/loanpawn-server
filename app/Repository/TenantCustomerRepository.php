@@ -58,7 +58,7 @@ class TenantCustomerRepository
                                     $statusQuery->whereRaw('LOWER(status) = ?', ['expired'])
                                         ->orWhere(function ($activeQuery) use ($today) {
                                             $activeQuery->whereRaw('LOWER(status) = ?', ['active'])
-                                                ->whereDate('expire_date', '<', $today->toDateString());
+                                                ->whereDate('expire_at', '<', $today->toDateString());
                                         });
                                 });
                         });
@@ -80,7 +80,7 @@ class TenantCustomerRepository
         return PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereIn('customer_id', $customerIds)
-            ->orderByDesc('created_date')
+            ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->get()
             ->unique('customer_id')
@@ -140,7 +140,7 @@ class TenantCustomerRepository
         $slips = PawnLoanContractSlip::query()
             ->where('customer_id', $customerId)
             ->where('is_deleted', false)
-            ->get(['id', 'loan_amount', 'created_date', 'expire_date', 'status']);
+            ->get(['id', 'loan_amount', 'created_at', 'expire_at', 'status']);
 
         $totalSlips = $slips->count();
         $activeSlips = $slips->filter(fn (PawnLoanContractSlip $slip): bool => strtolower((string) $slip->status) === 'active')->count();
@@ -150,10 +150,10 @@ class TenantCustomerRepository
             ->sum(fn (PawnLoanContractSlip $slip): float => (float) $slip->loan_amount);
         $totalLoanAmount = $slips->sum(fn (PawnLoanContractSlip $slip): float => (float) $slip->loan_amount);
         $termDays = $slips
-            ->map(fn (PawnLoanContractSlip $slip): int => (int) round(CarbonImmutable::parse($slip->created_date)->diffInDays(CarbonImmutable::parse($slip->expire_date))))
+            ->map(fn (PawnLoanContractSlip $slip): int => (int) round(CarbonImmutable::parse($slip->created_at)->diffInDays(CarbonImmutable::parse($slip->expire_at))))
             ->filter(fn (int $days): bool => $days >= 0);
-        $latestActivityDate = $slips->max(fn (PawnLoanContractSlip $slip): ?string => $slip->created_date?->toDateString());
-        $firstSlipDate = $slips->min(fn (PawnLoanContractSlip $slip): ?string => $slip->created_date?->toDateString());
+        $latestActivityDate = $slips->max(fn (PawnLoanContractSlip $slip): ?string => $slip->created_at?->toDateString());
+        $firstSlipDate = $slips->min(fn (PawnLoanContractSlip $slip): ?string => $slip->created_at?->toDateString());
         $totalInterestPaid = (float) DB::table('pawn_interest_payments')
             ->join('pawn_loan_contract_slips', 'pawn_loan_contract_slips.id', '=', 'pawn_interest_payments.slip_id')
             ->where('pawn_interest_payments.tenant_id', $tenantId)
@@ -185,7 +185,7 @@ class TenantCustomerRepository
             ->where('customer_id', $customerId)
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->orderBy('expire_date')
+            ->orderBy('expire_at')
             ->limit($limit)
             ->get()
             ->map(function (PawnLoanContractSlip $slip): array {
@@ -198,7 +198,7 @@ class TenantCustomerRepository
                     'loan_amount' => (float) $slip->loan_amount,
                     'interest_rate' => (float) $slip->interest_rate,
                     'interest_type_name' => $slip->interestType?->name,
-                    'expire_date' => $slip->expire_date?->toDateString(),
+                    'expire_at' => $slip->expire_at?->toISOString(),
                     'status' => $slip->status,
                 ];
             })

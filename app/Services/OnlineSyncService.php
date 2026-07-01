@@ -315,12 +315,12 @@ class OnlineSyncService extends BaseTenantService
 
     protected function normalizeDateFields(array $data): array
     {
-        foreach (['created_date', 'expire_date', 'last_interest_added_date', 'last_interest_paid_date', 'payment_date', 'start_period', 'end_period', 'redemption_date'] as $field) {
+        foreach (['expire_at', 'last_interest_added_at', 'last_interest_paid_at', 'payment_at', 'start_period_at', 'end_period_at', 'redemption_at'] as $field) {
             if (! isset($data[$field])) {
                 continue;
             }
 
-            $data[$field] = CarbonImmutable::parse($data[$field])->toDateString();
+            $data[$field] = CarbonImmutable::parse($data[$field]);
         }
 
         return $data;
@@ -419,10 +419,9 @@ class OnlineSyncService extends BaseTenantService
                     'loan_amount' => 'loan_amount',
                     'interest_rate' => 'interest_rate',
                     'interest_rate_id' => 'interest_type_id',
-                    'created_date' => 'created_date',
-                    'expire_date' => 'expire_date',
-                    'last_interest_added_date' => 'last_interest_added_date',
-                    'last_interest_paid_date' => 'last_interest_paid_date',
+                    'expire_at' => 'expire_at',
+                    'last_interest_added_at' => 'last_interest_added_at',
+                    'last_interest_paid_at' => 'last_interest_paid_at',
                     'status' => 'status',
                     'notes' => 'notes',
                     'created_by' => 'created_by',
@@ -475,11 +474,11 @@ class OnlineSyncService extends BaseTenantService
                     'payment_amount' => 'payment_amount',
                     'change_amount' => 'change_amount',
                     'calculated_interest' => 'calculated_interest',
-                    'payment_date' => 'payment_date',
+                    'payment_at' => 'payment_at',
                     'notes' => 'notes',
                     'created_by' => 'created_by',
-                    'start_period' => 'start_period',
-                    'end_period' => 'end_period',
+                    'start_period_at' => 'start_period_at',
+                    'end_period_at' => 'end_period_at',
                     'is_paid' => 'is_paid',
                 ],
             ],
@@ -493,7 +492,7 @@ class OnlineSyncService extends BaseTenantService
                     'interest_amount' => 'interest_amount',
                     'received_amount' => 'received_amount',
                     'change_amount' => 'change_amount',
-                    'redemption_date' => 'redemption_date',
+                    'redemption_at' => 'redemption_at',
                     'notes' => 'notes',
                     'created_by' => 'created_by',
                 ],

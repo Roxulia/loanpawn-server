@@ -6,6 +6,7 @@ use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Support\TenantContext;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
 class LoanContractSlipRepository
@@ -106,7 +107,7 @@ class LoanContractSlipRepository
         return PawnLoanContractSlip::query()
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', '<', $currentDate->toDateString())
+            ->whereDate('expire_at', '<', $currentDate->toDateString())
             ->update([
                 'status' => 'expired',
             ]);
@@ -122,7 +123,7 @@ class LoanContractSlipRepository
         return $query
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
-            ->whereDate('expire_date', '<', $currentDate->toDateString())
+            ->whereDate('expire_at', '<', $currentDate->toDateString())
             ->select('tenant_id', 'customer_id')
             ->distinct()
             ->get();

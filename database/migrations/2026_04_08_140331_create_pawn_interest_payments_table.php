@@ -20,11 +20,11 @@ return new class extends Migration
             $table->decimal('payment_amount', 14, 2);
             $table->decimal('change_amount', 14, 2)->default(0);
             $table->decimal('calculated_interest', 14, 2)->default(0);
-            $table->date('payment_date')->nullable();
+            $table->timestamp('payment_at')->nullable();
             $table->text('notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('tenant_users')->nullOnDelete();
-            $table->date('start_period')->nullable();
-            $table->date('end_period')->nullable();
+            $table->timestamp('start_period_at')->nullable()->index();
+            $table->timestamp('end_period_at')->nullable();
             $table->boolean('is_paid')->default(true)->index();
             $table->timestamps();
 

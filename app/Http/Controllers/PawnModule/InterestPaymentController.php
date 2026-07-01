@@ -55,8 +55,8 @@ class InterestPaymentController extends Controller
             'interest_breakdown.*.id' => ['required', 'integer', 'min:1'],
             'interest_breakdown.*.update_key' => ['required', 'integer', 'min:0'],
             'interest_breakdown.*.interest_amount' => ['required', 'numeric', 'min:0'],
-            'interest_breakdown.*.start_date' => ['nullable', 'date'],
-            'interest_breakdown.*.end_date' => ['nullable', 'date'],
+            'interest_breakdown.*.start_period_at' => ['nullable', 'date'],
+            'interest_breakdown.*.end_period_at' => ['nullable', 'date'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -78,8 +78,8 @@ class InterestPaymentController extends Controller
                             id: (int) $breakdown['id'],
                             updateKey: (int) $breakdown['update_key'],
                             interestAmount: (float) $breakdown['interest_amount'],
-                            startDate: $breakdown['start_date'] ?? null,
-                            endDate: $breakdown['end_date'] ?? null,
+                            startPeriodAt: $breakdown['start_period_at'] ?? null,
+                            endPeriodAt: $breakdown['end_period_at'] ?? null,
                         ),
                         $validated['interest_breakdown']
                     ),

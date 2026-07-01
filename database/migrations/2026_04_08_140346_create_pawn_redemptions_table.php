@@ -23,7 +23,7 @@ return new class extends Migration
             $table->decimal('interest_amount', 14, 2)->default(0);
             $table->decimal('received_amount', 14, 2)->default(0);
             $table->decimal('change_amount', 14, 2)->default(0);
-            $table->date('redemption_date');
+            $table->timestamp('redemption_at')->nullable()->index();
             $table->text('notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('tenant_users')->nullOnDelete();
             $table->timestamps();

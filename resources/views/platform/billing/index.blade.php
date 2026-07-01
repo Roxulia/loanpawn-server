@@ -120,7 +120,11 @@
 
     @foreach ($billing['payments'] as $payment)
         @if ($payment->status === 'draft' && $payment->tenant_request_id)
-            <dialog class="platform-dialog" id="payment-dialog-{{ $payment->id }}">
+            <dialog
+                class="platform-dialog"
+                id="payment-dialog-{{ $payment->id }}"
+                @if ((int) session('open_payment_tenant_request_id') === (int) $payment->tenant_request_id) data-auto-open-payment-dialog @endif
+            >
                 <form method="POST" action="{{ route('platform.billing.payment.submit', $payment->tenant_request_id) }}" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="update_key" value="{{ $payment->tenantRequest->update_key }}">
@@ -136,6 +140,22 @@
                         <div>
                             <label>{{ __('app.common.view.labels.amount') }}</label>
                             <input value="{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}" disabled>
+                        </div>
+                        <div style="grid-column: 1 / -1;">
+                            <label>{{ __('app.billing.view.active_payment_qr') }}</label>
+                            @if ($billing['active_payment_qr'])
+                                <div class="payment-qr-payment-panel">
+                                    <img src="{{ route('platform.payment-qrs.image', $billing['active_payment_qr']->id) }}" alt="{{ __('app.billing.view.payment_qr') }}">
+                                    <div>
+                                        <strong>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</strong>
+                                        <p class="muted">{{ __('app.billing.view.active_payment_qr_description') }}</p>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="payment-qr-empty">
+                                    {{ __('app.billing.view.no_active_qr') }}
+                                </div>
+                            @endif
                         </div>
                         <div>
                             <label for="payment_reference_{{ $payment->id }}">{{ __('app.common.view.labels.payment_reference') }}</label>
@@ -171,5 +191,7 @@
                 document.getElementById(button.dataset.closeDialog)?.close();
             });
         });
+
+        document.querySelector('[data-auto-open-payment-dialog]')?.showModal();
     </script>
 @endsection

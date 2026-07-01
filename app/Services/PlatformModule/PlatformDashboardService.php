@@ -51,9 +51,9 @@ class PlatformDashboardService
         return [
             'has_data' => $tenantCount > 0,
             'filters' => [
-                'timeFilter' => $timeFilter->timeFilter,
-                'startDate' => $timeFilter->startDate->toDateString(),
-                'endDate' => $timeFilter->endDate->toDateString(),
+                'time_filter' => $timeFilter->timeFilter,
+                'start_at' => $timeFilter->startDate->toISOString(),
+                'end_at' => $timeFilter->endDate->toISOString(),
             ],
             'tenant_counts' => $tenantCounts,
             'plan_breakdown' => $this->portfolioRepository->planBreakdown($platformUser->id),

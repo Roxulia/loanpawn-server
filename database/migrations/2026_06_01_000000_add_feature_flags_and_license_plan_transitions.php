@@ -8,10 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('features', function (Blueprint $table) {
-            $table->boolean('is_active')->default(true)->index()->after('description');
-        });
-
         Schema::create('tenant_license_plan_transitions', function (Blueprint $table) {
             $table->id();
             $table->integer('update_key')->default(0)->index();
@@ -34,9 +30,5 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('tenant_license_plan_transitions');
-
-        Schema::table('features', function (Blueprint $table) {
-            $table->dropColumn('is_active');
-        });
     }
 };

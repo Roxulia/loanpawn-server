@@ -39,4 +39,11 @@ return [
         'url' => env('FRONTEND_TENANT_APP_URL', 'https://app.loanpawn.1morebit.tech'),
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+        'notifications_enabled' => env('TELEGRAM_NOTIFICATIONS_ENABLED', false),
+        'queue' => env('TELEGRAM_QUEUE', 'default'),
+    ],
+
 ];

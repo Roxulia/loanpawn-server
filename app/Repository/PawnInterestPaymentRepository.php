@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Models\PawnModule\PawnInterestPayment;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class PawnInterestPaymentRepository
 {
@@ -59,7 +60,7 @@ class PawnInterestPaymentRepository
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
             ->whereIn('id', $paymentIds)
-            ->orderBy('start_period')
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
@@ -68,7 +69,7 @@ class PawnInterestPaymentRepository
     {
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
-            ->orderByDesc('end_period')
+            ->orderByDesc('end_period_at')
             ->orderByDesc('id')
             ->first();
     }
@@ -80,8 +81,8 @@ class PawnInterestPaymentRepository
     {
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
-            ->whereDate('start_period', '<=', $date)
-            ->orderBy('start_period')
+            ->whereDate('start_period_at', '<=', $date)
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
@@ -90,8 +91,8 @@ class PawnInterestPaymentRepository
     {
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
-            ->whereDate('start_period', '<=', $date)
-            ->orderBy('start_period')
+            ->whereDate('start_period_at', '<=', $date)
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -104,8 +105,8 @@ class PawnInterestPaymentRepository
     {
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
-            ->whereDate('start_period', '>', $date)
-            ->orderBy('start_period')
+            ->whereDate('start_period_at', '>', $date)
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
@@ -114,8 +115,8 @@ class PawnInterestPaymentRepository
     {
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
-            ->whereDate('start_period', '>', $date)
-            ->orderBy('start_period')
+            ->whereDate('start_period_at', '>', $date)
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -129,8 +130,8 @@ class PawnInterestPaymentRepository
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
-            ->whereDate('start_period', '<=', $date)
-            ->orderBy('start_period')
+            ->whereDate('start_period_at', '<=', $date)
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
@@ -140,8 +141,8 @@ class PawnInterestPaymentRepository
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
-            ->whereDate('start_period', '<=', $date)
-            ->orderBy('start_period')
+            ->whereDate('start_period_at', '<=', $date)
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -155,13 +156,15 @@ class PawnInterestPaymentRepository
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
             ->where(function ($query) use ($payment) {
-                $query->whereDate('start_period', '>', $payment->start_period)
+                $paymentStart = $payment->start_period_at;
+                $query->whereDate('start_period_at', '>', $paymentStart)
                     ->orWhere(function ($nested) use ($payment) {
-                        $nested->whereDate('start_period', '=', $payment->start_period)
+                        $paymentStart = $payment->start_period_at;
+                        $nested->whereDate('start_period_at', '=', $paymentStart)
                             ->where('id', '>', $payment->id);
                     });
             })
-            ->orderBy('start_period')
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
@@ -171,13 +174,15 @@ class PawnInterestPaymentRepository
         return PawnInterestPayment::query()
             ->where('slip_id', $slipId)
             ->where(function ($query) use ($payment) {
-                $query->whereDate('start_period', '>', $payment->start_period)
+                $paymentStart = $payment->start_period_at;
+                $query->whereDate('start_period_at', '>', $paymentStart)
                     ->orWhere(function ($nested) use ($payment) {
-                        $nested->whereDate('start_period', '=', $payment->start_period)
+                        $paymentStart = $payment->start_period_at;
+                        $nested->whereDate('start_period_at', '=', $paymentStart)
                             ->where('id', '>', $payment->id);
                     });
             })
-            ->orderBy('start_period')
+            ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
             ->get();

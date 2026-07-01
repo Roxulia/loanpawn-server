@@ -48,9 +48,9 @@ class TenantDashboardService extends BaseTenantService
 
         return new TenantDashboardSummary(
             filters: [
-                'timeFilter' => $timeFilter->timeFilter,
-                'startDate' => $timeFilter->startDate->toDateString(),
-                'endDate' => $timeFilter->endDate->toDateString(),
+                'time_filter' => $timeFilter->timeFilter,
+                'start_at' => $timeFilter->startDate->toISOString(),
+                'end_at' => $timeFilter->endDate->toISOString(),
             ],
             financial: [
                 'cashAvailable' => $this->repository->accountingBalance(),
@@ -119,16 +119,17 @@ class TenantDashboardService extends BaseTenantService
     {
         return collect($slips)
             ->map(function (PawnLoanContractSlip $slip) use ($today) {
-                $overdueDays = $this->overdueDays($slip->expire_date, $today);
+                $dueDate = $slip->expire_at;
+                $overdueDays = $this->overdueDays($dueDate, $today);
                 $trustPercent = $this->trustPercent($slip->customer?->trust_score);
 
                 return [
                     'customerName' => $slip->customer?->name ?? '-',
                     'loanCode' => $slip->slip_no,
-                    'dueDate' => $slip->expire_date?->toDateString(),
+                    'dueDate' => $dueDate?->toDateString(),
                     'loanAmount' => (float) $slip->loan_amount,
                     'overdueDays' => $overdueDays,
-                    'riskLevel' => $this->riskLevel($overdueDays, $trustPercent, $slip->expire_date, $today),
+                    'riskLevel' => $this->riskLevel($overdueDays, $trustPercent, $dueDate, $today),
                     'trustPercent' => $trustPercent,
                 ];
             })
@@ -222,7 +223,7 @@ class TenantDashboardService extends BaseTenantService
     {
         $itemStatus = strtolower((string) $item->item_status);
         $loanStatus = strtolower((string) $item->loanContract?->status);
-        $expireDate = $item->loanContract?->expire_date;
+        $expireDate = $item->loanContract?->expire_at;
 
         return $itemStatus === 'expired'
             || $loanStatus === 'expired'

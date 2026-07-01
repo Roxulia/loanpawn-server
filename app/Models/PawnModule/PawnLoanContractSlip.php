@@ -23,15 +23,16 @@ class PawnLoanContractSlip extends Model
         'loan_amount',
         'interest_rate',
         'interest_type_id',
-        'created_date',
-        'expire_date',
-        'last_interest_added_date',
-        'last_interest_paid_date',
+        'expire_at',
+        'last_interest_added_at',
+        'last_interest_paid_at',
         'status',
         'notes',
         'created_by',
         'expiry_quota',
         'expiry_quota_type',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array
@@ -39,10 +40,9 @@ class PawnLoanContractSlip extends Model
         return [
             'loan_amount' => 'decimal:2',
             'interest_rate' => 'decimal:4',
-            'created_date' => 'date',
-            'expire_date' => 'date',
-            'last_interest_added_date' => 'date',
-            'last_interest_paid_date' => 'date',
+            'expire_at' => 'datetime',
+            'last_interest_added_at' => 'datetime',
+            'last_interest_paid_at' => 'datetime',
         ];
     }
 

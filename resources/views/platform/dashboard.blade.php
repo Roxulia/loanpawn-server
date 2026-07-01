@@ -14,13 +14,13 @@
     $percent = fn ($value) => number_format((float) $value, 2).'%';
     $limit = fn ($value) => $value === null ? __('app.platform.view.unlimited') : $count($value);
     $filter = $summary['filters'] ?? [
-        'timeFilter' => request('time_filter', 'this_month'),
-        'startDate' => request('start_date'),
-        'endDate' => request('end_date'),
+        'time_filter' => request('time_filter', 'this_month'),
+        'startAt' => request('start_at'),
+        'endAt' => request('end_at'),
     ];
-    $selectedTimeFilter = $filter['timeFilter'] ?? 'this_month';
-    $selectedStartDate = $filter['startDate'] ?? '';
-    $selectedEndDate = $filter['endDate'] ?? '';
+    $selectedTimeFilter = $filter['time_filter'] ?? 'this_month';
+    $selectedStartDate = isset($filter['startAt']) ? \Carbon\CarbonImmutable::parse($filter['startAt'])->toDateString() : '';
+    $selectedEndDate = isset($filter['endAt']) ? \Carbon\CarbonImmutable::parse($filter['endAt'])->toDateString() : '';
     $periodLabel = match ($selectedTimeFilter) {
         'this_week' => __('app.platform.view.this_week'),
         'this_month' => __('app.platform.view.this_month'),
@@ -67,11 +67,11 @@
             </label>
             <label data-dashboard-custom-date>
                 <span>{{ __('app.platform.view.start_date') }}</span>
-                <input type="date" name="start_date" value="{{ $selectedStartDate }}">
+                <input type="date" name="start_at" value="{{ $selectedStartDate }}">
             </label>
             <label data-dashboard-custom-date>
                 <span>{{ __('app.platform.view.end_date') }}</span>
-                <input type="date" name="end_date" value="{{ $selectedEndDate }}">
+                <input type="date" name="end_at" value="{{ $selectedEndDate }}">
             </label>
             <button type="submit" class="button primary">{{ __('app.platform.view.apply_filter') }}</button>
         </form>

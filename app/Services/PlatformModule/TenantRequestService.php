@@ -10,7 +10,9 @@ use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Exceptions\TenantNotFound;
 use App\Mail\PaymentRequestReviewedMail;
+use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\Tenant;
+use App\Models\PlatformModule\TenantRequest;
 use App\Repository\TenantRequestRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
@@ -172,6 +174,13 @@ class TenantRequestService extends BaseTenantService
         return $this->runLoggedOperation(__METHOD__, function () use ($tenantRequestId, $adminReviewNote): TenantRequestDetail {
             $admin = $this->authService->getCurrentUser('platformadmin');
 
+            return $this->acceptRequestAsAdmin($tenantRequestId, $admin, $adminReviewNote);
+        });
+    }
+
+    public function acceptRequestAsAdmin(int $tenantRequestId, PlatformAdmin $admin, ?string $adminReviewNote = null): TenantRequestDetail
+    {
+        return $this->runLoggedOperation(__METHOD__, function () use ($tenantRequestId, $admin, $adminReviewNote): TenantRequestDetail {
             $tenantRequest = $this->repository->findById($tenantRequestId);
 
             if (! $tenantRequest) {
@@ -217,6 +226,13 @@ class TenantRequestService extends BaseTenantService
         return $this->runLoggedOperation(__METHOD__, function () use ($tenantRequestId, $adminReviewNote): TenantRequestDetail {
             $admin = $this->authService->getCurrentUser('platformadmin');
 
+            return $this->declineRequestAsAdmin($tenantRequestId, $admin, $adminReviewNote);
+        });
+    }
+
+    public function declineRequestAsAdmin(int $tenantRequestId, PlatformAdmin $admin, ?string $adminReviewNote = null): TenantRequestDetail
+    {
+        return $this->runLoggedOperation(__METHOD__, function () use ($tenantRequestId, $admin, $adminReviewNote): TenantRequestDetail {
             $tenantRequest = $this->repository->findById($tenantRequestId);
 
             if (! $tenantRequest) {
@@ -386,7 +402,7 @@ class TenantRequestService extends BaseTenantService
         return round((float) $package->price * $months * (1 - $discountRate), 2);
     }
 
-    protected function resolveReplaceablePlanChange(int $tenantId): ?\App\Models\PlatformModule\TenantRequest
+    protected function resolveReplaceablePlanChange(int $tenantId): ?TenantRequest
     {
         $existingRequest = $this->repository->findOpenPlanChangeByTenantId($tenantId);
 

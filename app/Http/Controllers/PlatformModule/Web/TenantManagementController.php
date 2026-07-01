@@ -78,14 +78,14 @@ class TenantManagementController extends Controller
         return view('platform.tenants.settings', [
             'tenant' => $ownedTenant,
             'planOptions' => $this->tenantPageService->activePaidPlansExcept($ownedTenant->license?->plan_type),
-            'canManageBranding' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'tenant_branding'),
+            'canManageBranding' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'branding_management'),
         ]);
     }
 
     public function update(Request $request, int $tenant): RedirectResponse
     {
         $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
-        $canManageBranding = $this->tenantLicenseService->tenantHasFeature($tenant, 'tenant_branding');
+        $canManageBranding = $this->tenantLicenseService->tenantHasFeature($tenant, 'branding_management');
 
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:255'],
@@ -130,7 +130,7 @@ class TenantManagementController extends Controller
                 'note' => ['nullable', 'string', 'max:1000'],
             ], [], __('validation.attributes'));
 
-            $this->tenantRequestService->createRequest(new TenantRequestCreate(
+            $tenantRequest = $this->tenantRequestService->createRequest(new TenantRequestCreate(
                 tenantId: $tenant,
                 requestType: 'plan_change',
                 requestedPlanType: $validated['requested_plan_type'],
@@ -140,7 +140,8 @@ class TenantManagementController extends Controller
 
             return redirect()
                 ->route('platform.billing.index')
-                ->with('status', $this->responseMessage(MessageCode::PlatformPlanChangeRequestCreated));
+                ->with('status', $this->responseMessage(MessageCode::PlatformPlanChangeRequestCreated))
+                ->with('open_payment_tenant_request_id', $tenantRequest->id);
         }
         catch (ApiException $exception) {
             return back()
@@ -165,7 +166,7 @@ class TenantManagementController extends Controller
                 'note' => ['nullable', 'string', 'max:1000'],
             ], [], __('validation.attributes'));
 
-            $this->tenantRequestService->createRequest(new TenantRequestCreate(
+            $tenantRequest = $this->tenantRequestService->createRequest(new TenantRequestCreate(
                 tenantId: $tenant,
                 requestType: 'extension',
                 extensionMonths: (int) $validated['extension_months'],
@@ -174,7 +175,8 @@ class TenantManagementController extends Controller
 
             return redirect()
                 ->route('platform.billing.index')
-                ->with('status', $this->responseMessage(MessageCode::PlatformExtensionRequestCreated));
+                ->with('status', $this->responseMessage(MessageCode::PlatformExtensionRequestCreated))
+                ->with('open_payment_tenant_request_id', $tenantRequest->id);
         }
         catch (ApiException $exception) {
             return back()

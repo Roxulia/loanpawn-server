@@ -15,7 +15,7 @@ class PawnRedemptionDetail extends BaseDataObject
     public float $interestAmount;
     public float $receivedAmount;
     public float $changeAmount;
-    public ?string $redemptionDate;
+    public ?string $redemptionAt;
     public ?string $notes;
     public ?int $createdBy;
     public int $updateKey;
@@ -31,7 +31,7 @@ class PawnRedemptionDetail extends BaseDataObject
         $detail->interestAmount = (float) $redemption->interest_amount;
         $detail->receivedAmount = (float) $redemption->received_amount;
         $detail->changeAmount = (float) $redemption->change_amount;
-        $detail->redemptionDate = $redemption->redemption_date?->toDateString();
+        $detail->redemptionAt = $redemption->redemption_at?->toISOString();
         $detail->notes = $redemption->notes;
         $detail->createdBy = $redemption->created_by;
         $detail->updateKey = (int) $redemption->update_key;
