@@ -5,6 +5,7 @@ namespace Tests\Feature\PawnModule;
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\InterestType;
 use App\Models\CoreModule\ItemCategoryType;
+use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
@@ -141,6 +142,65 @@ class PawnOperationApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'name' => 'Laptop',
             'item_category_type_id' => $itemCategoryType->id,
+        ]);
+    }
+
+    public function test_backend_calculates_jewellery_minimum_retail_price_before_insert(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-21 09:30:00'));
+
+        [$tenant, $tenantUser] = $this->tenantUserContext();
+        $interestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'monthly',
+            'name' => 'Monthly',
+            'duration_in_days' => 30,
+            'is_default' => true,
+        ]);
+        $materialType = MaterialType::query()->create([
+            'tenant_id' => null,
+            'code' => 'gold',
+            'name' => 'Gold',
+            'is_default' => true,
+        ]);
+
+        Sanctum::actingAs($tenantUser, [], 'tenantuser');
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->postJson('/api/tenant/loan-contract-slips', [
+                'customer' => [
+                    'name' => 'Jewellery Customer',
+                    'phone' => '09900000004',
+                ],
+                'collateral_items' => [
+                    [
+                        'type' => 'Jewellery',
+                        'name' => 'Gold Bracelet Set',
+                        'brand_name' => 'None',
+                        'material_type_id' => $materialType->id,
+                        'material_price_per_kyat' => 1000000,
+                        'kyat' => 1,
+                        'pal' => 8,
+                        'yway' => 0,
+                        'item_status' => 'pawned',
+                        'quantity' => 2,
+                        'minimum_retail_price' => 1,
+                    ],
+                ],
+                'loan_amount' => 1000000,
+                'interest_rate' => 5,
+                'interest_type_id' => $interestType->id,
+                'expiry_quota' => 3,
+                'expiry_quota_type' => 'Month',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('pawn_collateral_items', [
+            'tenant_id' => $tenant->id,
+            'type' => 'Jewellery',
+            'name' => 'Gold Bracelet Set',
+            'quantity' => 2,
+            'minimum_retail_price' => '3000000.00',
         ]);
     }
 

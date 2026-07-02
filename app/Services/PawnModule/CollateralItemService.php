@@ -258,9 +258,20 @@ class CollateralItemService extends BaseTenantService
             'contains_gemstones' => $request->containsGemstones,
             'gemstone_details' => $request->gemstoneDetails,
             'quantity' => $request->quantity,
-            'minimum_retail_price' => $request->minimumRetailPrice,
+            'minimum_retail_price' => $this->calculateMinimumRetailPrice($request),
             'is_deleted' => false,
         ];
+    }
+
+    protected function calculateMinimumRetailPrice(PawnCollateralItemCreate $request): float
+    {
+        if ($this->normalizeType($request->type) !== 'Jewellery') {
+            return $request->minimumRetailPrice;
+        }
+
+        $weightInKyat = $request->kyat + ($request->pal / 16) + ($request->yway / 128);
+
+        return (float) round($request->materialPricePerKyat * $weightInKyat * $request->quantity);
     }
 
     protected function normalizeType(string $type): string

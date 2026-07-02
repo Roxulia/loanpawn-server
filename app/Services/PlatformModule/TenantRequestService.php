@@ -23,6 +23,7 @@ use App\Utility\FileStorageUtility;
 use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class TenantRequestService extends BaseTenantService
@@ -425,8 +426,8 @@ class TenantRequestService extends BaseTenantService
             return 1;
         }
 
-        $daysUntilExpiry = max(1, now()->startOfDay()->diffInDays($license->expires_at->copy()->startOfDay()));
-
-        return max(1, (int) ceil($daysUntilExpiry / 30));
+        $monthsUntilExpiry = now()->startOfDay()->diffInMonths($license->expires_at->copy()->startOfDay());
+        Log::info("Tenant {$tenant->id} license expires in {$monthsUntilExpiry} months.");
+        return max(1, (int) ($monthsUntilExpiry));
     }
 }

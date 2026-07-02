@@ -132,24 +132,12 @@
                         <h2>{{ __('app.billing.view.submit_payment_attachment') }}</h2>
                         <button type="button" class="dialog-close icon-only" data-close-dialog="payment-dialog-{{ $payment->id }}" aria-label="{{ __('app.common.view.actions.close') }}">&times;</button>
                     </div>
-                    <div class="grid">
-                        <div>
-                            <label>{{ __('app.common.view.labels.tenant') }}</label>
-                            <input value="{{ $payment->tenant?->name ?? '-' }}" disabled>
-                        </div>
-                        <div>
-                            <label>{{ __('app.common.view.labels.amount') }}</label>
-                            <input value="{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}" disabled>
-                        </div>
-                        <div style="grid-column: 1 / -1;">
+                    <div class="payment-attachment-modal-body">
+                        <div class="payment-attachment-qr-section">
                             <label>{{ __('app.billing.view.active_payment_qr') }}</label>
                             @if ($billing['active_payment_qr'])
                                 <div class="payment-qr-payment-panel">
                                     <img src="{{ route('platform.payment-qrs.image', $billing['active_payment_qr']->id) }}" alt="{{ __('app.billing.view.payment_qr') }}">
-                                    <div>
-                                        <strong>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</strong>
-                                        <p class="muted">{{ __('app.billing.view.active_payment_qr_description') }}</p>
-                                    </div>
                                 </div>
                             @else
                                 <div class="payment-qr-empty">
@@ -157,10 +145,18 @@
                                 </div>
                             @endif
                         </div>
-                        <div>
-                            <label for="payment_reference_{{ $payment->id }}">{{ __('app.common.view.labels.payment_reference') }}</label>
-                            <input id="payment_reference_{{ $payment->id }}" name="payment_reference" value="{{ old('payment_reference') }}">
+
+                        <div class="payment-detail-grid">
+                            <div class="payment-info-box">
+                                <span>{{ __('app.common.view.labels.tenant') }}</span>
+                                <strong>{{ $payment->tenant?->name ?? '-' }}</strong>
+                            </div>
+                            <div class="payment-info-box">
+                                <span>{{ __('app.common.view.labels.amount') }}</span>
+                                <strong>{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</strong>
+                            </div>
                         </div>
+
                         <div>
                             <label for="payment_screenshot_{{ $payment->id }}">{{ __('app.billing.view.payment_attachment') }}</label>
                             <input id="payment_screenshot_{{ $payment->id }}" type="file" name="payment_screenshot" accept="image/*" required>

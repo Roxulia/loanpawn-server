@@ -29,8 +29,8 @@
         $upgradeBillingMonths = 1;
 
         if ($licenseExpiresAt !== null && $licenseExpiresAt->isFuture()) {
-            $daysUntilExpiry = max(1, now()->startOfDay()->diffInDays($licenseExpiresAt->copy()->startOfDay()));
-            $upgradeBillingMonths = max(1, (int) ceil($daysUntilExpiry / 30));
+            $monthsUntilExpiry = max(1, now()->startOfDay()->diffInMonth($licenseExpiresAt->copy()->startOfDay()));
+            $upgradeBillingMonths = max(1, (int) ceil($monthsUntilExpiry));
         }
 
         $packagePrices = $planOptions

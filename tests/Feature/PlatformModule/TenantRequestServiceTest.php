@@ -12,6 +12,7 @@ use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\PlatformUser;
 use App\Services\PlatformModule\TenantRequestService;
 use App\Services\PlatformModule\TenantServices\TenantManagementService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -22,6 +23,13 @@ use Tests\TestCase;
 class TenantRequestServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        CarbonImmutable::setTestNow();
+
+        parent::tearDown();
+    }
 
     public function test_platform_user_can_create_upgrade_request_with_total_cost(): void
     {
@@ -53,10 +61,9 @@ class TenantRequestServiceTest extends TestCase
             requestType: 'plan_change',
             requestedPlanType: 'basic',
         ));
-        $billingMonths = (int) ceil(max(
-            1,
-            now()->startOfDay()->diffInDays($tenant->license->expires_at->copy()->startOfDay())
-        ) / 30);
+        $billingMonths = max(1, (int) ceil(
+            now()->startOfDay()->diffInMonths($tenant->license->expires_at->copy()->startOfDay())
+        ));
         $expectedTotalCost = number_format(50000 * $billingMonths, 2, '.', '');
 
         $this->assertSame('plan_change', $detail->requestType);
@@ -80,6 +87,48 @@ class TenantRequestServiceTest extends TestCase
             'platform_user_id' => $platformUser->id,
             'amount' => $expectedTotalCost,
             'status' => 'draft',
+        ]);
+    }
+
+    public function test_upgrade_request_bills_exact_calendar_months_until_license_expiry(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-02 09:00:00'));
+        Storage::fake('public');
+        $this->createDefaultAdminRole();
+        $this->createPackages();
+
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Calendar User',
+            'email' => 'calendar-user@example.com',
+            'phone' => '09111111112',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($platformUser, 'platformuser');
+
+        $tenant = app(TenantManagementService::class)->createTenant(new TenantCreate(
+            name: 'Calendar Tenant',
+            code: 'calendar-tenant',
+            subdomain: 'calendar-subdomain',
+            createdByAdmin: false,
+            planType: null,
+        ));
+        $tenant->license()->update([
+            'expires_at' => CarbonImmutable::parse('2026-10-02 00:00:00'),
+        ]);
+
+        $detail = app(TenantRequestService::class)->createRequest(new TenantRequestCreate(
+            tenantId: $tenant->id,
+            requestType: 'plan_change',
+            requestedPlanType: 'basic',
+        ));
+
+        $this->assertSame('150000.00', $detail->totalCost);
+        $this->assertDatabaseHas('tenant_requests', [
+            'id' => $detail->id,
+            'total_cost' => '150000.00',
         ]);
     }
 
