@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\DefaultDataCreate;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\InterestType;
+use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
 use App\Repository\DefaultDataRepository;
 use App\Services\BaseTenantService;
@@ -39,6 +40,23 @@ class DefaultDataService extends BaseTenantService
             $this->tenantScopedCacheKeys->listKey('material_types', $version, $tenantId),
             now()->addDay(),
             fn () => $this->defaultDataRepository->findAllMaterialTypes()
+        );
+    }
+
+    public function getItemCategoryTypes(): array
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+
+        $version = $this->tenantScopedCacheKeys->currentVersion(
+            'item_category_types',
+            1,
+            $tenantId
+        );
+
+        return cache()->remember(
+            $this->tenantScopedCacheKeys->listKey('item_category_types', $version, $tenantId),
+            now()->addDay(),
+            fn () => $this->defaultDataRepository->findAllItemCategoryTypes()
         );
     }
 
@@ -110,6 +128,23 @@ class DefaultDataService extends BaseTenantService
         );
     }
 
+    public function getItemCategoryTypeByCode(string $code): ItemCategoryType
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+
+        $version = $this->tenantScopedCacheKeys->currentVersion(
+            'item_category_types',
+            1,
+            $tenantId
+        );
+
+        return cache()->remember(
+            $this->tenantScopedCacheKeys->itemKey('item_category_types', $code, $version, $tenantId),
+            now()->addDay(),
+            fn () => $this->defaultDataRepository->findItemCategoryByCode($code)
+        );
+    }
+
     public function getInterestTypeByCode(string $code): InterestType
     {
         $tenantId = $this->resolveCurrentTenantId();
@@ -138,6 +173,18 @@ class DefaultDataService extends BaseTenantService
 
         //clear all tenant cache of material types
         $this->tenantScopedCacheKeys->bumpGlobalVersion('material_types');
+    }
+
+    public function createDefaultItemCategoryType(string $name,string $code):void
+    {
+        $this->defaultDataRepository->createItemCategoryType([
+            'tenant_id' => null,
+            'name' => $name,
+            'code' => $code,
+            'is_default' => true,
+        ]);
+
+        $this->tenantScopedCacheKeys->bumpGlobalVersion('item_category_types');
     }
 
     public function createDefaultInterestType(string $name,string $code,int $durationInDays):void
@@ -177,6 +224,20 @@ class DefaultDataService extends BaseTenantService
         ]);
 
         $this->tenantScopedCacheKeys->bumpTenantVersion('material_types');
+
+        return $item->toArray();
+    }
+
+    public function createCurrentTenantItemCategoryType(DefaultDataCreate $request): array
+    {
+        $item = $this->defaultDataRepository->createItemCategoryType([
+            'tenant_id' => $this->resolveCurrentTenantId(),
+            'name' => $request->name,
+            'code' => $this->resolveCode(ItemCategoryType::class, $request->code ?? $request->name),
+            'is_default' => false,
+        ]);
+
+        $this->tenantScopedCacheKeys->bumpTenantVersion('item_category_types');
 
         return $item->toArray();
     }
@@ -245,6 +306,25 @@ class DefaultDataService extends BaseTenantService
 
         throw new InvalidTenantRequest(
             'Material type not found or does not belong to the current tenant.'
+        );
+    }
+
+    public function deleteCurrentTenantItemCategoryType(string $code)
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+
+        $deleted = ItemCategoryType::query()
+            ->where('code', $code)
+            ->where('tenant_id', $tenantId)
+            ->delete();
+
+        if ($deleted > 0) {
+            $this->tenantScopedCacheKeys->bumpTenantVersion('item_category_types', $tenantId);
+            return;
+        }
+
+        throw new InvalidTenantRequest(
+            'Item category type not found or does not belong to the current tenant.'
         );
     }
 

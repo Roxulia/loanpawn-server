@@ -18,6 +18,8 @@ class LoanContractSlipItemDetail extends BaseDataObject
     public string $estimatedValue;
     public ?int $materialTypeId;
     public ?string $materialTypeName;
+    public ?int $itemCategoryTypeId;
+    public ?string $itemCategoryTypeName;
     public string $kyat;
     public string $pal;
     public string $yway;
@@ -43,6 +45,8 @@ class LoanContractSlipItemDetail extends BaseDataObject
         $detail->estimatedValue = (string) $item->estimated_value;
         $detail->materialTypeId = $item->material_type_id;
         $detail->materialTypeName = $item->materialType?->name;
+        $detail->itemCategoryTypeId = $item->item_category_type_id;
+        $detail->itemCategoryTypeName = $item->itemCategoryType?->name;
         $detail->kyat = (string) $item->kyat;
         $detail->pal = (string) $item->pal;
         $detail->yway = (string) $item->yway;

@@ -8,13 +8,13 @@ class PawnCollateralItemRepository
 {
     public function create(array $data): PawnCollateralItem
     {
-        return PawnCollateralItem::query()->create($data)->load('materialType');
+        return PawnCollateralItem::query()->create($data)->load(['materialType', 'itemCategoryType']);
     }
 
     public function findById(int $itemId): ?PawnCollateralItem
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->find($itemId);
     }
 
@@ -22,7 +22,7 @@ class PawnCollateralItemRepository
     {
         $item->update($data);
 
-        return $item->refresh()->load('materialType');
+        return $item->refresh()->load(['materialType', 'itemCategoryType']);
     }
 
     public function delete(PawnCollateralItem $item): void

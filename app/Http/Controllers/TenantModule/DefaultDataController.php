@@ -22,6 +22,11 @@ class DefaultDataController extends Controller
         return $this->successResponse($this->defaultDataService->getMaterialTypes());
     }
 
+    public function getItemCategoryTypes(Request $request)
+    {
+        return $this->successResponse($this->defaultDataService->getItemCategoryTypes());
+    }
+
     public function getInterestTypes(Request $request)
     {
         return $this->successResponse($this->defaultDataService->getInterestTypes());
@@ -50,6 +55,21 @@ class DefaultDataController extends Controller
         ));
 
         return $this->successResponse($materialType, $this->responseMessage(MessageCode::TenantMaterialTypeCreated), 201);
+    }
+
+    public function createCurrentTenantItemCategoryType(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:item_category_types,code,NULL,id,tenant_id,'.app(TenantContext::class)->id(),
+        ]);
+
+        $itemCategoryType = $this->defaultDataService->createCurrentTenantItemCategoryType(new DefaultDataCreate(
+            name: $data['name'],
+            code: $data['code'],
+        ));
+
+        return $this->successResponse($itemCategoryType, $this->responseMessage(MessageCode::TenantItemCategoryTypeCreated), 201);
     }
 
     public function createCurrentTenantInterestType(Request $request)
@@ -88,6 +108,12 @@ class DefaultDataController extends Controller
     {
         $this->defaultDataService->deleteCurrentTenantMaterialType($code);
         return $this->successResponse(message: $this->responseMessage(MessageCode::TenantMaterialTypeDeleted));
+    }
+
+    public function deleteCurrentTenantItemCategoryType(Request $request, string $code)
+    {
+        $this->defaultDataService->deleteCurrentTenantItemCategoryType($code);
+        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantItemCategoryTypeDeleted));
     }
 
     public function deleteCurrentTenantInterestType(Request $request, string $code)

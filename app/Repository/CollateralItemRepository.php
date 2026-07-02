@@ -12,7 +12,7 @@ class CollateralItemRepository
     public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
         $query = PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->where('is_deleted', false)
             ->orderByDesc('created_at');
 
@@ -32,7 +32,7 @@ class CollateralItemRepository
     {
         $this->requireValue($data, 'code');
 
-        return PawnCollateralItem::query()->create($data)->load('materialType');
+        return PawnCollateralItem::query()->create($data)->load(['materialType', 'itemCategoryType']);
     }
 
     protected function requireValue(array $data, string $key): void
@@ -46,7 +46,7 @@ class CollateralItemRepository
     {
         $item->update($data);
 
-        return $item->refresh()->load('materialType');
+        return $item->refresh()->load(['materialType', 'itemCategoryType']);
     }
 
     public function updateWithLock(PawnCollateralItem $item, array $data): PawnCollateralItem
@@ -67,14 +67,14 @@ class CollateralItemRepository
     public function findById(int $itemId): ?PawnCollateralItem
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->find($itemId);
     }
 
     public function findByCode(string $code): ?PawnCollateralItem
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->where('code', $code)
             ->where('is_deleted', false)
             ->first();
@@ -83,7 +83,7 @@ class CollateralItemRepository
     public function findByIdWithLock(int $itemId): ?PawnCollateralItem
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->whereKey($itemId)
             ->lockForUpdate()
             ->first();
@@ -92,7 +92,7 @@ class CollateralItemRepository
     public function findByCodeWithLock(string $code): ?PawnCollateralItem
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->where('code', $code)
             ->where('is_deleted', false)
             ->lockForUpdate()
@@ -105,7 +105,7 @@ class CollateralItemRepository
     public function findByLoanContractId(int $loanContractId): Collection
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->where('loan_contract_id', $loanContractId)
             ->where('is_deleted', false)
             ->orderBy('id')
@@ -115,7 +115,7 @@ class CollateralItemRepository
     public function findByLoanContractIdWithLock(int $loanContractId): Collection
     {
         return PawnCollateralItem::query()
-            ->with('materialType')
+            ->with(['materialType', 'itemCategoryType'])
             ->where('loan_contract_id', $loanContractId)
             ->where('is_deleted', false)
             ->orderBy('id')

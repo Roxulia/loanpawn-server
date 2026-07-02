@@ -181,7 +181,7 @@ class TenantCustomerRepository
     public function activeSlipsForCustomer(int $customerId, int $limit = 8): array
     {
         return PawnLoanContractSlip::query()
-            ->with(['interestType', 'slipItems.materialType'])
+            ->with(['interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
             ->where('customer_id', $customerId)
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])

@@ -8,7 +8,7 @@ class PawnCollateralItemUpdate extends BaseDataObject
 {
     public function __construct(
         public int $itemId,
-        public string $code,
+        public string $code = '',
         public ?string $type = null,
         public ?string $name = null,
         public ?string $description = null,
@@ -16,6 +16,7 @@ class PawnCollateralItemUpdate extends BaseDataObject
         public ?string $imageUrl = null,
         public ?float $estimatedValue = null,
         public ?int $materialTypeId = null,
+        public ?int $itemCategoryTypeId = null,
         public ?float $kyat = null,
         public ?float $pal = null,
         public ?float $yway = null,
@@ -24,7 +25,7 @@ class PawnCollateralItemUpdate extends BaseDataObject
         public ?array $gemstoneDetails = null,
         public ?int $quantity = null,
         public ?float $minimumRetailPrice = null,
-        public int $updateKey,
+        public int $updateKey = 0,
     ) {
     }
 }

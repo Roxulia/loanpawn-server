@@ -14,7 +14,7 @@ class LoanContractSlipRepository
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return PawnLoanContractSlip::query()
-            ->with(['customer', 'interestType', 'slipItems.materialType'])
+            ->with(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
             ->orderByDesc('id')
             ->paginate($perPage);
     }
@@ -23,7 +23,7 @@ class LoanContractSlipRepository
     {
         return PawnLoanContractSlip::query()
             ->create($data)
-            ->load(['customer', 'interestType', 'slipItems.materialType']);
+            ->load(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType']);
     }
 
     public function markSlipItemsDeleted(PawnLoanContractSlip $slip): void
@@ -43,7 +43,7 @@ class LoanContractSlipRepository
     {
         $slip->update($data);
 
-        return $slip->refresh()->load(['customer', 'interestType', 'slipItems.materialType']);
+        return $slip->refresh()->load(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType']);
     }
 
     public function updateWithLock(PawnLoanContractSlip $slip, array $data): PawnLoanContractSlip
@@ -59,7 +59,7 @@ class LoanContractSlipRepository
     public function findBySlipNo(string $slipNo): ?PawnLoanContractSlip
     {
         return PawnLoanContractSlip::query()
-            ->with(['customer', 'interestType', 'slipItems.materialType'])
+            ->with(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
             ->where('slip_no', $slipNo)
             ->first();
     }
@@ -67,7 +67,7 @@ class LoanContractSlipRepository
     public function findBySlipNoWithLock(string $slipNo): ?PawnLoanContractSlip
     {
         return PawnLoanContractSlip::query()
-            ->with(['customer', 'interestType', 'slipItems.materialType'])
+            ->with(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
             ->where('slip_no', $slipNo)
             ->lockForUpdate()
             ->first();
@@ -76,14 +76,14 @@ class LoanContractSlipRepository
     public function findById(int $slipId): ?PawnLoanContractSlip
     {
         return PawnLoanContractSlip::query()
-            ->with(['customer', 'interestType', 'slipItems.materialType'])
+            ->with(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
             ->find($slipId);
     }
 
     public function findByIdWithLock(int $slipId): ?PawnLoanContractSlip
     {
         return PawnLoanContractSlip::query()
-            ->with(['customer', 'interestType', 'slipItems.materialType'])
+            ->with(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
             ->whereKey($slipId)
             ->lockForUpdate()
             ->first();
@@ -99,7 +99,7 @@ class LoanContractSlipRepository
 
     public function reload(PawnLoanContractSlip $slip): PawnLoanContractSlip
     {
-        return $slip->refresh()->load(['customer', 'interestType', 'slipItems.materialType']);
+        return $slip->refresh()->load(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType']);
     }
 
     public function expireOverdueActiveSlips(CarbonInterface $currentDate): int

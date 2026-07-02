@@ -281,7 +281,7 @@ class TenantDashboardRepository
     public function collateralItemsForDashboard(): Collection
     {
         return PawnCollateralItem::query()
-            ->with(['loanContract.customer', 'materialType'])
+            ->with(['loanContract.customer', 'materialType', 'itemCategoryType'])
             ->where('is_deleted', false)
             ->whereRaw('LOWER(item_status) != ?', ['redeemed'])
             ->orderByRaw("CASE WHEN LOWER(item_status) = 'active' THEN 0 ELSE 1 END")
@@ -292,7 +292,7 @@ class TenantDashboardRepository
     public function collateralItemsNeedingReview(Carbon $today, int $limit = 8): Collection
     {
         return PawnCollateralItem::query()
-            ->with(['loanContract.customer', 'materialType'])
+            ->with(['loanContract.customer', 'materialType', 'itemCategoryType'])
             ->where('is_deleted', false)
             ->where(function ($query) use ($today) {
                 $query->whereRaw('LOWER(item_status) IN (?, ?)', ['expired', 'confiscated'])

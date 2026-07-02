@@ -82,7 +82,7 @@ class LoanContractSlipDocumentService
     protected function resolveSlip(string $slipNo): PawnLoanContractSlip
     {
         return $this->loanContractLookUpService->findModelBySlipNo($slipNo)
-            ->loadMissing(['customer', 'interestType', 'slipItems.materialType']);
+            ->loadMissing(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType']);
     }
 
     protected function buildLoanContractSlipContext(PawnLoanContractSlip $slip, TenantBranding $branding, array $paper, object $tenantDetail): array

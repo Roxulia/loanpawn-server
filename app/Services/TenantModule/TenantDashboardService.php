@@ -190,6 +190,8 @@ class TenantDashboardService extends BaseTenantService
             'isJewellery' => $this->isJewellery($item),
             'materialTypeId' => $item->material_type_id,
             'materialTypeName' => $item->materialType?->name,
+            'itemCategoryTypeId' => $item->item_category_type_id,
+            'itemCategoryTypeName' => $item->itemCategoryType?->name,
             'kyat' => (float) ($item->kyat ?? 0),
             'pal' => (float) ($item->pal ?? 0),
             'yway' => (float) ($item->yway ?? 0),
@@ -213,7 +215,7 @@ class TenantDashboardService extends BaseTenantService
     protected function collateralCategory(PawnCollateralItem $item): string
     {
         if (! $this->isJewellery($item)) {
-            return 'Other';
+            return $item->itemCategoryType?->name ?: 'Other';
         }
 
         return $item->materialType?->name ?: 'Jewelry';

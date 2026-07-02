@@ -3,6 +3,7 @@
 namespace Tests\Feature\TenantModule;
 
 use App\DataObjects\RequestObjects\DashboardTimeFilter;
+use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantCapital;
@@ -47,6 +48,12 @@ class TenantDashboardServiceTest extends TestCase
             'tenant_id' => null,
             'code' => 'gold',
             'name' => 'Gold',
+            'is_default' => true,
+        ]);
+        $watchCategory = ItemCategoryType::query()->create([
+            'tenant_id' => null,
+            'code' => 'watches',
+            'name' => 'Watches',
             'is_default' => true,
         ]);
         $overdueCustomer = $this->createCustomer($tenant, 'Overdue Customer', 80);
@@ -172,6 +179,7 @@ class TenantDashboardServiceTest extends TestCase
             'name' => 'Phone',
             'estimated_value' => 500000,
             'minimum_retail_price' => 500000,
+            'item_category_type_id' => $watchCategory->id,
             'item_status' => 'active',
         ]);
         PawnCollateralItem::query()->create([
@@ -220,7 +228,7 @@ class TenantDashboardServiceTest extends TestCase
         $this->assertSame(2000000.0, $summary['collateral']['goldJewelryValue']);
         $this->assertCount(2, $summary['collateral']['items']);
         $this->assertSame('Gold', $summary['collateral']['categoryBreakdown'][0]['category']);
-        $this->assertSame('Other', $summary['collateral']['categoryBreakdown'][1]['category']);
+        $this->assertSame('Watches', $summary['collateral']['categoryBreakdown'][1]['category']);
         $this->assertSame('Expired', $summary['collateral']['itemsNeedingReview'][0]['status']);
     }
 

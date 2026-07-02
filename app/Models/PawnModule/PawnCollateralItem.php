@@ -3,6 +3,7 @@
 namespace App\Models\PawnModule;
 
 use App\Models\CoreModule\MaterialType;
+use App\Models\CoreModule\ItemCategoryType;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,7 @@ class PawnCollateralItem extends Model
         'image_url',
         'estimated_value',
         'material_type_id',
+        'item_category_type_id',
         'kyat',
         'pal',
         'yway',
@@ -52,6 +54,11 @@ class PawnCollateralItem extends Model
     public function materialType(): BelongsTo
     {
         return $this->belongsTo(MaterialType::class);
+    }
+
+    public function itemCategoryType(): BelongsTo
+    {
+        return $this->belongsTo(ItemCategoryType::class);
     }
 
     public function loanContract(): BelongsTo

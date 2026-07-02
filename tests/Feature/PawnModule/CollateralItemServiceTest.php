@@ -4,6 +4,7 @@ namespace Tests\Feature\PawnModule;
 
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemUpdate;
+use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
@@ -23,6 +24,18 @@ class CollateralItemServiceTest extends TestCase
     {
         $tenant = $this->createTenant();
         $this->actingTenantUser($tenant);
+        $watchCategory = ItemCategoryType::query()->create([
+            'tenant_id' => null,
+            'code' => 'watches',
+            'name' => 'Watches',
+            'is_default' => true,
+        ]);
+        $carCategory = ItemCategoryType::query()->create([
+            'tenant_id' => null,
+            'code' => 'car',
+            'name' => 'Car',
+            'is_default' => true,
+        ]);
 
         $created = app(CollateralItemService::class)->create(new PawnCollateralItemCreate(
             type: 'Normal',
@@ -30,21 +43,49 @@ class CollateralItemServiceTest extends TestCase
             description: 'MacBook Pro',
             brandName: 'Apple',
             estimatedValue: 1500,
+            itemCategoryTypeId: $watchCategory->id,
         ));
 
         $updated = app(CollateralItemService::class)->update(new PawnCollateralItemUpdate(
             itemId: $created->id,
             description: 'MacBook Pro 16',
+            itemCategoryTypeId: $carCategory->id,
             itemStatus: 'inactive',
         ));
 
         $this->assertSame('MacBook Pro 16', $updated->description);
+        $this->assertSame($carCategory->id, $updated->itemCategoryTypeId);
+        $this->assertSame('Car', $updated->itemCategoryTypeName);
         $this->assertSame('inactive', $updated->itemStatus);
 
         app(CollateralItemService::class)->delete($created->id);
 
         $this->assertSoftDeleted('pawn_collateral_items', [
             'id' => $created->id,
+        ]);
+    }
+
+    public function test_it_seeds_default_item_category_types(): void
+    {
+        $this->seed(\Database\Seeders\ItemCategoryTypeSeeder::class);
+
+        $this->assertDatabaseHas('item_category_types', [
+            'tenant_id' => null,
+            'code' => 'watches',
+            'name' => 'Watches',
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('item_category_types', [
+            'tenant_id' => null,
+            'code' => 'real_estate',
+            'name' => 'Real Estate',
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('item_category_types', [
+            'tenant_id' => null,
+            'code' => 'car',
+            'name' => 'Car',
+            'is_default' => true,
         ]);
     }
 

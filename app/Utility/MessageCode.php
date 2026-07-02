@@ -86,9 +86,11 @@ enum MessageCode: string
     case TenantUserPasswordReset = 'tenant.response.user.password_reset';
     case TenantUserPermissionsUpdated = 'tenant.response.user.permissions_updated';
     case TenantMaterialTypeCreated = 'tenant.response.default_data.material_type_created';
+    case TenantItemCategoryTypeCreated = 'tenant.response.default_data.item_category_type_created';
     case TenantInterestTypeCreated = 'tenant.response.default_data.interest_type_created';
     case TenantExpenseTypeCreated = 'tenant.response.default_data.expense_type_created';
     case TenantMaterialTypeDeleted = 'tenant.response.default_data.material_type_deleted';
+    case TenantItemCategoryTypeDeleted = 'tenant.response.default_data.item_category_type_deleted';
     case TenantInterestTypeDeleted = 'tenant.response.default_data.interest_type_deleted';
     case TenantExpenseTypeDeleted = 'tenant.response.default_data.expense_type_deleted';
     case TenantSlipLayoutUpdated = 'tenant.response.branding.slip_layout_updated';

@@ -14,6 +14,7 @@ class PawnCollateralItemCreate extends BaseDataObject
         public ?string $imageUrl = null,
         public float $estimatedValue = 0,
         public ?int $materialTypeId = null,
+        public ?int $itemCategoryTypeId = null,
         public float $kyat = 0,
         public float $pal = 0,
         public float $yway = 0,

@@ -248,6 +248,9 @@ Route::prefix('tenant')->group(function () {
                 Route::post('material-types', [TenantSettingsController::class, 'createMaterialType'])
                     ->middleware('tenant.feature:master_data_management')
                     ->middleware('tenant.permission:manage_slip_document');
+                Route::post('item-category-types', [TenantSettingsController::class, 'createItemCategoryType'])
+                    ->middleware('tenant.feature:master_data_management')
+                    ->middleware('tenant.permission:manage_slip_document');
             });
 
             Route::prefix('slip-documents')
@@ -281,6 +284,15 @@ Route::prefix('tenant')->group(function () {
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantMaterialType'])
                         ->middleware('tenant.feature:master_data_management');
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantMaterialType'])
+                        ->middleware('tenant.feature:master_data_management');
+                });
+            Route::prefix('item-category-types')
+                ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
+                ->group(function(){
+                    Route::get('/', [DefaultDataController::class, 'getItemCategoryTypes']);
+                    Route::post('/', [DefaultDataController::class, 'createCurrentTenantItemCategoryType'])
+                        ->middleware('tenant.feature:master_data_management');
+                    Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantItemCategoryType'])
                         ->middleware('tenant.feature:master_data_management');
                 });
             Route::prefix('user-roles')

@@ -4,6 +4,7 @@ namespace Tests\Feature\PawnModule;
 
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\InterestType;
+use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
@@ -45,6 +46,12 @@ class PawnOperationApiTest extends TestCase
             'duration_in_days' => 30,
             'is_default' => true,
         ]);
+        $itemCategoryType = ItemCategoryType::query()->create([
+            'tenant_id' => null,
+            'code' => 'watches',
+            'name' => 'Watches',
+            'is_default' => true,
+        ]);
 
         Sanctum::actingAs($tenantUser, [], 'tenantuser');
 
@@ -58,6 +65,7 @@ class PawnOperationApiTest extends TestCase
                     [
                         'type' => 'Normal',
                         'name' => 'Laptop',
+                        'item_category_type_id' => $itemCategoryType->id,
                         'estimated_value' => 900000,
                         'item_status' => 'pawned',
                         'quantity' => 1,
@@ -72,7 +80,7 @@ class PawnOperationApiTest extends TestCase
             ]);
 
         $created->assertCreated()
-            ->assertJsonPath('data.slip_no', 'api-tenant202604001');
+            ->assertJsonPath('data.slip_no', 'LS202604api-tenant001');
 
         $slipNo = $created->json('data.slip_no');
 
@@ -128,6 +136,11 @@ class PawnOperationApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'slip_no' => $slipNo,
             'status' => 'redeemed',
+        ]);
+        $this->assertDatabaseHas('pawn_collateral_items', [
+            'tenant_id' => $tenant->id,
+            'name' => 'Laptop',
+            'item_category_type_id' => $itemCategoryType->id,
         ]);
     }
 
@@ -241,7 +254,7 @@ class PawnOperationApiTest extends TestCase
         ])->postJson('/api/tenant/loan-contract-slips', $payload);
 
         $first->assertCreated()
-            ->assertJsonPath('data.slip_no', 'api-tenant202604001');
+            ->assertJsonPath('data.slip_no', 'LS202604api-tenant001');
 
         $second = $this->withHeaders([
             'X-Tenant-Code' => $tenant->tenant_code,

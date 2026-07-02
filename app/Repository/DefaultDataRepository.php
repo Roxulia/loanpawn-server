@@ -4,6 +4,7 @@ namespace App\Repository;
 
 
 use App\Support\TenantContext;
+use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\InterestType;
 use App\Models\CoreModule\ExpenseType;
@@ -21,6 +22,18 @@ class DefaultDataRepository
     public function findAllMaterialTypes(): array
     {
         return MaterialType::query()
+            ->where(function ($query) {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', app(TenantContext::class)->id());
+            })
+            ->orderBy('name')
+            ->get()
+            ->toArray();
+    }
+
+    public function findAllItemCategoryTypes(): array
+    {
+        return ItemCategoryType::query()
             ->where(function ($query) {
                 $query->whereNull('tenant_id')
                     ->orWhere('tenant_id', app(TenantContext::class)->id());
@@ -59,6 +72,11 @@ class DefaultDataRepository
         return MaterialType::query()->create($data);
     }
 
+    public function createItemCategoryType(array $data): ItemCategoryType
+    {
+        return ItemCategoryType::query()->create($data);
+    }
+
     public function createInterestType(array $data): InterestType
     {
         return InterestType::query()->create($data);
@@ -77,6 +95,11 @@ class DefaultDataRepository
     public function findMaterialByCode(string $code) : ?MaterialType
     {
         return MaterialType::query()->where('code',$code)->first();
+    }
+
+    public function findItemCategoryByCode(string $code) : ?ItemCategoryType
+    {
+        return ItemCategoryType::query()->where('code', $code)->first();
     }
 
     public function findInterestByCode(string $code) : ?InterestType

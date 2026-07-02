@@ -195,6 +195,24 @@ class TenantSettingsController extends Controller
         return $this->successResponse($data, statusCode: 201);
     }
 
+    public function createItemCategoryType(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:120'],
+            'code' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator->errors());
+        }
+
+        $data = $this->defaultDataService->createCurrentTenantItemCategoryType(
+            $this->makeDefaultDataCreate($validator->validated()),
+        );
+
+        return $this->successResponse($data, statusCode: 201);
+    }
+
     protected function makeDefaultDataCreate(array $data): DefaultDataCreate
     {
         return new DefaultDataCreate(

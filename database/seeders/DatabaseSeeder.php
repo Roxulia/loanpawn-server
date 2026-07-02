@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             PackageSeeder::class,
             ExpenseTypeSeeder::class,
             MaterialTypeSeeder::class,
+            ItemCategoryTypeSeeder::class,
             InterestTypeSeeder::class,
             TenantRoleSeeder::class,
             PlatformAccessSeeder::class,
