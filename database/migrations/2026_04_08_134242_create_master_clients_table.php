@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('platform_users', function (Blueprint $table) {
             $table->id();
-            $table->string('code',10)->unique()->index();
+            $table->string('code',20)->unique()->index();
             $table->integer('update_key')->default(0)->index();
             $table->boolean('is_deleted')->default(false)->index();
             $table->string('name');
