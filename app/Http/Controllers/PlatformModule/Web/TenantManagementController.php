@@ -16,6 +16,7 @@ use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TenantManagementController extends Controller
@@ -79,6 +80,7 @@ class TenantManagementController extends Controller
             'tenant' => $ownedTenant,
             'planOptions' => $this->tenantPageService->activePaidPlansExcept($ownedTenant->license?->plan_type),
             'canManageBranding' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'branding_management'),
+            'canManageSubdomain' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'subdomain_available'),
         ]);
     }
 
@@ -86,10 +88,18 @@ class TenantManagementController extends Controller
     {
         $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
         $canManageBranding = $this->tenantLicenseService->tenantHasFeature($tenant, 'branding_management');
+        $canManageSubdomain = $this->tenantLicenseService->tenantHasFeature($tenant, 'subdomain_available');
 
         $validated = $request->validate([
+            'update_key' => ['required', 'integer', 'min:0'],
             'name' => ['nullable', 'string', 'max:255'],
-            'subdomain' => ['nullable', 'string', 'max:63'],
+            'subdomain' => [
+                'nullable',
+                'string',
+                'max:25',
+                'regex:/^[a-z0-9](?:[a-z0-9-]{0,23}[a-z0-9])?$/',
+                Rule::unique('tenants', 'subdomain')->ignore($tenant),
+            ],
             'address' => ['nullable', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:255'],
@@ -103,7 +113,7 @@ class TenantManagementController extends Controller
             tenantId: $tenant,
             updateKey: $validated['update_key'],
             name: $validated['name'] ?? null,
-            subdomain: $canManageBranding ? ($validated['subdomain'] ?? null) : $ownedTenant->subdomain,
+            subdomain: $canManageSubdomain ? ($validated['subdomain'] ?? null) : $ownedTenant->subdomain,
             code: null,
             address: $validated['address'] ?? null,
             phone: $validated['phone'] ?? null,

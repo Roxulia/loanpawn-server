@@ -101,7 +101,9 @@ Route::name('platform.')->group(function () {
             Route::get('/create', 'create')->name('create');
             Route::post('/', 'store')->name('store');
             Route::get('/{tenant}/settings', 'edit')->name('edit');
-            Route::put('/{tenant}/settings', 'update')->name('update');
+            Route::put('/{tenant}/settings', 'update')
+                ->middleware('platform.tenant.submitted-feature:subdomain_available,subdomain')
+                ->name('update');
             Route::post('/{tenant}/upgrade-request', 'requestPlanChange')->name('upgrade-request');
             Route::post('/{tenant}/extension-request', 'requestLicenseExtension')->name('extension-request');
             Route::post('/{tenant}/open-app', 'openApp')->name('open-app');

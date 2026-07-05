@@ -42,6 +42,7 @@
     <form method="POST" action="{{ route('platform.tenants.update', $tenant->id) }}" class="grid">
         @csrf
         @method('PUT')
+        <input type="hidden" name="update_key" value="{{ $tenant->update_key }}">
 
         <section class="panel">
             <h2 style="margin-top: 0; color: var(--color-heading); font-size: 20px;">Tenant Profile</h2>
@@ -55,10 +56,17 @@
                     <label>Tenant Code</label>
                     <input value="{{ $tenant->tenant_code }}" disabled>
                 </div>
-                @if ($canManageBranding)
+                @if ($canManageSubdomain)
                     <div>
                         <label for="subdomain">Subdomain</label>
-                        <input id="subdomain" name="subdomain" value="{{ old('subdomain', $tenant->subdomain) }}">
+                        <input
+                            id="subdomain"
+                            name="subdomain"
+                            value="{{ old('subdomain', $tenant->subdomain) }}"
+                            maxlength="25"
+                            data-character-counter="subdomain-character-count"
+                        >
+                        <div id="subdomain-character-count" class="field-help" aria-live="polite"> {{ strlen((string) old('subdomain', $tenant->subdomain)) }}/25 characters remaining</div>
                         @error('subdomain') <div class="field-error">{{ $message }}</div> @enderror
                     </div>
                 @endif
@@ -288,5 +296,21 @@
         document.getElementById('requested_plan_type')?.addEventListener('change', updateUpgradePricePreview);
         document.getElementById('downgrade_extension_months')?.addEventListener('change', updateUpgradePricePreview);
         updateUpgradePricePreview();
+
+        document.querySelectorAll('[data-character-counter]').forEach(function (input) {
+            const counter = document.getElementById(input.dataset.characterCounter);
+            const maxLength = Number(input.getAttribute('maxlength') || 0);
+
+            if (!counter || maxLength <= 0) {
+                return;
+            }
+
+            const updateCounter = function () {
+                counter.textContent = input.value.length + '/' + maxLength;
+            };
+
+            input.addEventListener('input', updateCounter);
+            updateCounter();
+        });
     </script>
 @endsection

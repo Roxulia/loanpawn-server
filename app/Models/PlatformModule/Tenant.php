@@ -19,6 +19,7 @@ class Tenant extends Model
         'plan_type',
         'subdomain',
         'status',
+        'update_key',
     ];
 
     public function owner(): BelongsTo

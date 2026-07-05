@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantFeature;
+use App\Http\Middleware\EnsurePlatformTenantSubmittedFeature;
 use App\Http\Middleware\LogHttpOperation;
 use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\StandardizeJsonResponse;
@@ -55,6 +56,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.access' => EnsureTenantUserBelongsToTenant::class,
             'tenant.permission' => EnsureTenantPermission::class,
             'tenant.feature' => EnsureTenantFeature::class,
+            'platform.tenant.submitted-feature' => EnsurePlatformTenantSubmittedFeature::class,
             'platform.role' => EnsurePlatformRole::class,
             'admin.password.changed' => EnsureAdminPasswordChanged::class,
             'tenant.plan' => \App\Http\Middleware\resolvePlan::class,
