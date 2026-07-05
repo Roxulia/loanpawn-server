@@ -13,8 +13,7 @@ class PlatformAdminTelegramNotificationService
     public function __construct(
         private PlatformAdminRepository $adminRepository,
         private TelegramBotService $telegramBotService,
-    ) {
-    }
+    ) {}
 
     public function sendTenantRequestCreated(int $tenantRequestId): void
     {
@@ -114,6 +113,11 @@ class PlatformAdminTelegramNotificationService
         $this->sendToAdmins($text);
     }
 
+    public function sendInternalServerError(array $context): void
+    {
+        $this->sendToAdmins($this->internalServerErrorText($context));
+    }
+
     public static function callbackData(int $tenantRequestId, string $action): string
     {
         $actionCode = $action === 'approve' ? 'a' : 'r';
@@ -183,9 +187,45 @@ class PlatformAdminTelegramNotificationService
             ."\nSubject: ".$this->escape($ticket->subject);
     }
 
-    private function value(?string $value): string
+    private function internalServerErrorText(array $context): string
     {
-        return $this->escape($value === null || $value === '' ? '-' : $value);
+        return '<b>'.$this->escape('Internal server error').'</b>'
+            ."\nEnvironment: ".$this->value($context['environment'] ?? null)
+            ."\nException: ".$this->value($context['exception'] ?? null)
+            ."\nMessage: ".$this->value($context['message'] ?? null)
+            ."\nRequest: ".$this->value(trim(($context['method'] ?? '').' '.($context['path'] ?? '')))
+            ."\nURL: ".$this->value($context['url'] ?? null)
+            ."\nIP: ".$this->value($context['ip'] ?? null)
+            ."\nUser ID: ".$this->value($context['user_id'] ?? null)
+            ."\nTenant: ".$this->value($this->tenantValue($context))
+            ."\nOccurred at: ".$this->value($context['occurred_at'] ?? null)
+            ."\nTrace:\n<pre>".$this->escape($this->blankToDash($context['trace'] ?? null)).'</pre>';
+    }
+
+    private function tenantValue(array $context): string
+    {
+        $tenantId = $context['tenant_id'] ?? null;
+        $tenantName = $context['tenant_name'] ?? null;
+
+        if ($tenantId === null && ($tenantName === null || $tenantName === '')) {
+            return '-';
+        }
+
+        return trim(($tenantName ?: '-').' #'.($tenantId ?: '-'));
+    }
+
+    private function blankToDash(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+
+        return (string) $value;
+    }
+
+    private function value(mixed $value): string
+    {
+        return $this->escape($this->blankToDash($value));
     }
 
     private function escape(string $value): string

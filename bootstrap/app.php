@@ -1,27 +1,28 @@
 <?php
 
 use App\Exceptions\ApiException;
+use App\Http\Middleware\ApplyLocale;
+use App\Http\Middleware\EnsureAdminPasswordChanged;
+use App\Http\Middleware\EnsurePlatformRole;
+use App\Http\Middleware\EnsurePlatformTenantSubmittedFeature;
+use App\Http\Middleware\EnsureTenantFeature;
+use App\Http\Middleware\EnsureTenantPermission;
+use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
+use App\Http\Middleware\LogHttpOperation;
+use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\StandardizeJsonResponse;
+use App\Http\Responses\ApiResponse;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
-use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Configuration\Exceptions;
-use Illuminate\Foundation\Configuration\Middleware;
-use App\Http\Middleware\ResolveTenant;
-use App\Http\Middleware\EnsurePlatformRole;
-use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
-use App\Http\Middleware\EnsureAdminPasswordChanged;
-use App\Http\Middleware\EnsureTenantPermission;
-use App\Http\Middleware\EnsureTenantFeature;
-use App\Http\Middleware\EnsurePlatformTenantSubmittedFeature;
-use App\Http\Middleware\LogHttpOperation;
-use App\Http\Middleware\ApplyLocale;
-use App\Http\Middleware\StandardizeJsonResponse;
-use App\Http\Responses\ApiResponse;
+use App\Support\InternalServerErrorNotifier;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -91,6 +92,7 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         });
         $exceptions->render(function (Throwable $e, $request) {
+            app(InternalServerErrorNotifier::class)->notify($e, $request);
 
             if ($e instanceof ApiException) {
                 return null; // Let Laravel handle web requests

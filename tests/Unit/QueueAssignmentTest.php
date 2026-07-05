@@ -2,9 +2,10 @@
 
 namespace Tests\Unit;
 
-use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
+use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
+use App\Jobs\Telegram\SendInternalServerErrorTelegramNotificationJob;
 use App\Mail\PaymentRequestReviewedMail;
 use App\Mail\PlatformPasswordResetOtpMail;
 use App\Mail\PlatformRegistrationVerificationMail;
@@ -57,5 +58,14 @@ class QueueAssignmentTest extends TestCase
         foreach ($mailables as $mailable) {
             $this->assertSame('mail', $mailable->queue);
         }
+    }
+
+    public function test_internal_server_error_telegram_job_uses_telegram_queue(): void
+    {
+        config(['services.telegram.queue' => 'telegram']);
+
+        $job = new SendInternalServerErrorTelegramNotificationJob([]);
+
+        $this->assertSame('telegram', $job->queue);
     }
 }
