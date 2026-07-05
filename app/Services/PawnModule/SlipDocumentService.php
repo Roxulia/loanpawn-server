@@ -13,28 +13,44 @@ use Mpdf\Mpdf;
 class SlipDocumentService
 {
     protected const EMPTY_BINARY_RESPONSE = '';
+
     protected const STORAGE_DISK = 'public';
+
     protected const DEFAULT_IMAGE_MIME = 'image/png';
+
     protected const MPDF_TEMP_DIRECTORY = 'app/mpdf-temp';
+
     protected const DIRECTORY_PERMISSIONS = 0777;
+
     protected const DIRECTORY_RECURSIVE = true;
+
     protected const ORIENTATION_LANDSCAPE = 'landscape';
+
     protected const ORIENTATION_INDEX = 0;
+
     protected const ORIENTATION_LENGTH = 1;
+
     protected const EMPTY_WIDTH = 100;
+
     protected const ZERO_MARGIN = 0;
+
     protected const DEFAULT_LOGO_WIDTH_MM = 24;
+
     protected const DEFAULT_BARCODE_HEIGHT_MM = 10;
+
     protected const DEFAULT_DIVIDER_WIDTH_MM = 0.4;
+
     protected const DEFAULT_SPACER_HEIGHT_MM = 4;
+
     protected const DEFAULT_FONT_SIZE_PT = 10;
+
     protected const DEFAULT_LINE_HEIGHT = 1.4;
+
     protected const TABLE_WIDTH_PERCENT = 100;
 
     public function __construct(
         private SlipDocumentBarcodeService $barcodeService,
-    ) {
-    }
+    ) {}
 
     public function getLayoutConfig(): SlipDocumentLayoutConfig
     {
@@ -108,8 +124,8 @@ class SlipDocumentService
 
     public function buildMpdf(array $paper): Mpdf
     {
-        $config = (new ConfigVariables())->getDefaults();
-        $fontConfig = (new FontVariables())->getDefaults();
+        $config = (new ConfigVariables)->getDefaults();
+        $fontConfig = (new FontVariables)->getDefaults();
         $fontDir = config('slip_document.fonts.mpdf_font_dir');
         $fontData = config('slip_document.fonts.mpdf_font_data');
         $tempDir = storage_path(self::MPDF_TEMP_DIRECTORY);
@@ -149,7 +165,8 @@ class SlipDocumentService
             'barcode' => '<div style="'.$style.'">'.$this->barcodeService->renderSvg(
                 $context['slip']['slipNo'] ?? self::EMPTY_BINARY_RESPONSE,
                 (float) ($props['height_mm'] ?? self::DEFAULT_BARCODE_HEIGHT_MM),
-                (bool) ($props['show_text'] ?? true)
+                (bool) ($props['show_text'] ?? true),
+                $props['type'] ?? null
             ).'</div>',
             'divider' => '<div style="'.$style.' border-top: '.(float) ($props['border_width_mm'] ?? self::DEFAULT_DIVIDER_WIDTH_MM).'mm solid #111827;"></div>',
             'spacer' => '<div style="'.$style.' height: '.(float) ($props['height_mm'] ?? self::DEFAULT_SPACER_HEIGHT_MM).'mm;"></div>',

@@ -7,23 +7,43 @@ use App\Exceptions\InvalidTenantRequest;
 class SlipDocumentLayoutValidator
 {
     protected const DEFAULT_LAYOUT_VERSION = 1;
+
     protected const DEFAULT_MAX_COMPONENTS = 40;
+
     protected const DEFAULT_MAX_DEPTH = 3;
+
     protected const DEFAULT_ROW_GAP_MM = 3;
+
     protected const DEFAULT_LOGO_WIDTH_MM = 22;
+
     protected const DEFAULT_HEADER_SIDE_WIDTH_PERCENT = 24;
+
     protected const DEFAULT_HEADER_CENTER_WIDTH_PERCENT = 52;
+
     protected const DEFAULT_BARCODE_HEIGHT_MM = 10;
+
     protected const DEFAULT_DIVIDER_WIDTH_MM = 0.4;
+
     protected const DEFAULT_SECTION_MARGIN_MM = 2;
+
     protected const DEFAULT_FOOTER_FONT_SIZE_PT = 9;
+
     protected const DEFAULT_COMPONENT_LOGO_WIDTH_MM = 24;
+
     protected const DEFAULT_SPACER_HEIGHT_MM = 4;
+
     protected const DEFAULT_STYLE_FONT_SIZE_PT = 10;
+
     protected const DEFAULT_STYLE_WIDTH_PERCENT = 100;
+
     protected const DEFAULT_STYLE_LINE_HEIGHT = 1.4;
+
+    protected const DEFAULT_BARCODE_TYPE = 'C128B';
+
     protected const DEFAULT_SIZE_MIN = 0;
+
     protected const DEFAULT_SIZE_MAX = 9999;
+
     protected const ROUNDING_PRECISION = 2;
 
     public function normalizeLayout(?array $layout, string $zone): array
@@ -158,6 +178,7 @@ class SlipDocumentLayoutValidator
             'barcode' => [
                 'height_mm' => $this->normalizeSize($props['height_mm'] ?? self::DEFAULT_BARCODE_HEIGHT_MM, 'height_mm'),
                 'show_text' => filter_var($props['show_text'] ?? true, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? true,
+                'type' => $this->normalizeBarcodeType($props['type'] ?? config('slip_document.barcode.default_type', self::DEFAULT_BARCODE_TYPE)),
             ],
             'divider' => [
                 'border_width_mm' => $this->normalizeSize($props['border_width_mm'] ?? self::DEFAULT_DIVIDER_WIDTH_MM, 'border_width_mm'),
@@ -232,6 +253,21 @@ class SlipDocumentLayoutValidator
 
         if (! in_array($normalized, $allowed, true)) {
             throw new InvalidTenantRequest('Slip document layout contains an invalid option.');
+        }
+
+        return $normalized;
+    }
+
+    protected function normalizeBarcodeType(mixed $value): string
+    {
+        $normalized = strtoupper(trim((string) $value));
+        $allowed = array_map(
+            fn (string $type): string => strtoupper($type),
+            config('slip_document.barcode.supported_types', [self::DEFAULT_BARCODE_TYPE, 'C39'])
+        );
+
+        if (! in_array($normalized, $allowed, true)) {
+            throw new InvalidTenantRequest('Slip document layout contains an invalid barcode type.');
         }
 
         return $normalized;

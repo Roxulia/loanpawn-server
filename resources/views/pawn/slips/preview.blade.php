@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ __('app.pawn.view.slip_preview') }} - {{ $document['slip']['slipNo'] }}</title>
+    @php
+        $compactItemLayout = in_array($paper['paperType'] ?? null, ['MM80', 'Receipt80'], true)
+            || (float) ($paper['widthMm'] ?? 0) < 90;
+    @endphp
     <style>
         @page {
             size: {{ $paper['widthMm'] }}mm {{ $paper['heightMm'] }}mm;
@@ -82,6 +86,68 @@
             text-align: left;
         }
 
+        .items-cards {
+            display: none;
+            margin-top: 2mm;
+        }
+
+        .item-card {
+            position: relative;
+            border: 0.25mm solid #d1d5db;
+            border-radius: 1mm;
+            padding: 2mm 9mm 2mm 2mm;
+            margin-bottom: 2mm;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .item-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 2mm;
+            padding-right: 3mm;
+        }
+
+        .item-card-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-size: 9pt;
+            font-weight: 700;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        .item-card-type {
+            flex: 0 0 auto;
+            max-width: 22mm;
+            color: #4b5563;
+            font-size: 7.5pt;
+            line-height: 1.25;
+            text-align: right;
+            word-break: break-word;
+        }
+
+        .item-card-qty {
+            position: absolute;
+            top: 1.6mm;
+            right: 2mm;
+            color: #111827;
+            font-size: 7.5pt;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .item-card-description {
+            margin-top: 1mm;
+            color: #374151;
+            font-size: 7.5pt;
+            line-height: 1.35;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
         .summary {
             margin-top: 4mm;
             width: 100%;
@@ -116,10 +182,18 @@
                 grid-template-columns: 1fr;
             }
 
+            .items-table {
+                display: none;
+            }
+
+            .items-cards {
+                display: block;
+            }
+
             .items-table th,
             .items-table td {
                 padding: 1.2mm;
-                font-size: 7.5pt;
+                font-size: 6.5pt;
             }
 
             .meta-card h3 {
@@ -151,6 +225,16 @@
                 min-height: auto;
             }
         }
+
+        @if ($compactItemLayout)
+            .items-table {
+                display: none;
+            }
+
+            .items-cards {
+                display: block;
+            }
+        @endif
     </style>
 </head>
 <body>
@@ -199,6 +283,18 @@
                     @endforeach
                 </tbody>
             </table>
+            <div class="items-cards">
+                @foreach ($document['items'] as $item)
+                    <article class="item-card">
+                        <div class="item-card-qty">{{ (int) $item['quantity'] }}x</div>
+                        <div class="item-card-header">
+                            <div class="item-card-name">{{ $item['name'] }}</div>
+                            <div class="item-card-type">{{ $item['type'] }}</div>
+                        </div>
+                        <div class="item-card-description">{{ $item['description'] }}</div>
+                    </article>
+                @endforeach
+            </div>
         </section>
 
         <section class="summary">

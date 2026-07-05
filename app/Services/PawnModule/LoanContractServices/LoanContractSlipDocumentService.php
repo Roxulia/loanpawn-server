@@ -93,7 +93,7 @@ class LoanContractSlipDocumentService
             ->map(function (PawnCollateralItem $item): array {
                 return [
                     'name' => $item->name,
-                    'type' => $item->type,
+                    'type' => $item->type===self::JEWELLERY_TYPE ? $item->materialType->name." Jewellery" : $item->itemCategoryType->name,
                     'quantity' => (int) $item->quantity,
                     'minimumRetailPrice' => number_format((float) $item->minimum_retail_price, self::DEFAULT_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
                     'estimatedValue' => number_format((float) $item->estimated_value, self::DEFAULT_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
