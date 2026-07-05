@@ -356,9 +356,7 @@ class TenantManagementService extends BaseTenantService
             || $request->faviconPath !== null
             || $request->primaryColor !== null
             || $request->secondaryColor !== null
-            || $request->accentColor !== null
-            || $request->slipHeaderText !== null
-            || $request->slipFooterText !== null;
+            || $request->accentColor !== null;
     }
 
     protected function flushTenantListCaches(int $platformUserId): void
