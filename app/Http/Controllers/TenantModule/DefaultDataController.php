@@ -22,9 +22,23 @@ class DefaultDataController extends Controller
         return $this->successResponse($this->defaultDataService->getMaterialTypes());
     }
 
+    public function getPaginatedMaterialTypes(Request $request)
+    {
+        return $this->successResponse(
+            $this->defaultDataService->listMaterialTypes($this->paginationPerPage($request))->toArray()
+        );
+    }
+
     public function getItemCategoryTypes(Request $request)
     {
         return $this->successResponse($this->defaultDataService->getItemCategoryTypes());
+    }
+
+    public function getPaginatedItemCategoryTypes(Request $request)
+    {
+        return $this->successResponse(
+            $this->defaultDataService->listItemCategoryTypes($this->paginationPerPage($request))->toArray()
+        );
     }
 
     public function getInterestTypes(Request $request)
@@ -32,9 +46,23 @@ class DefaultDataController extends Controller
         return $this->successResponse($this->defaultDataService->getInterestTypes());
     }
 
+    public function getPaginatedInterestTypes(Request $request)
+    {
+        return $this->successResponse(
+            $this->defaultDataService->listInterestTypes($this->paginationPerPage($request))->toArray()
+        );
+    }
+
     public function getExpenseTypes(Request $request)
     {
         return $this->successResponse($this->defaultDataService->getExpenseTypes());
+    }
+
+    public function getPaginatedExpenseTypes(Request $request)
+    {
+        return $this->successResponse(
+            $this->defaultDataService->listExpenseTypes($this->paginationPerPage($request))->toArray()
+        );
     }
 
     public function getExpenseTypeByCode(Request $request, string $code)
@@ -126,5 +154,14 @@ class DefaultDataController extends Controller
     {
         $this->defaultDataService->deleteCurrentTenantExpenseType($code);
         return $this->successResponse(message: $this->responseMessage(MessageCode::TenantExpenseTypeDeleted));
+    }
+
+    protected function paginationPerPage(Request $request): int
+    {
+        $validated = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return (int) ($validated['per_page'] ?? 15);
     }
 }

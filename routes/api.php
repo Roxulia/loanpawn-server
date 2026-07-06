@@ -263,6 +263,7 @@ Route::prefix('tenant')->group(function () {
                 ->middleware('tenant.permission:create_expense,update_expense,manage_slip_document')
                 ->group(function(){
                     Route::get('/', [DefaultDataController::class, 'getExpenseTypes']);
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedExpenseTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantExpenseType'])
                         ->middleware('tenant.feature:master_data_management');
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantExpenseType'])
@@ -272,6 +273,7 @@ Route::prefix('tenant')->group(function () {
                 ->middleware('tenant.permission:create_loan_contract,update_loan_contract,manage_slip_document')
                 ->group(function(){
                     Route::get('/', [DefaultDataController::class, 'getInterestTypes']);
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedInterestTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantInterestType'])
                         ->middleware('tenant.feature:master_data_management');
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantInterestType'])
@@ -281,6 +283,7 @@ Route::prefix('tenant')->group(function () {
                 ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
                 ->group(function(){
                     Route::get('/', [DefaultDataController::class, 'getMaterialTypes']);
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedMaterialTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantMaterialType'])
                         ->middleware('tenant.feature:master_data_management');
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantMaterialType'])
@@ -290,6 +293,7 @@ Route::prefix('tenant')->group(function () {
                 ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
                 ->group(function(){
                     Route::get('/', [DefaultDataController::class, 'getItemCategoryTypes']);
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedItemCategoryTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantItemCategoryType'])
                         ->middleware('tenant.feature:master_data_management');
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantItemCategoryType'])

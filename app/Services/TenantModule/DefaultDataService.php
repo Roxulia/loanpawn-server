@@ -3,6 +3,7 @@
 namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\DefaultDataCreate;
+use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\InterestType;
@@ -43,6 +44,15 @@ class DefaultDataService extends BaseTenantService
         );
     }
 
+    public function listMaterialTypes(int $perPage = 15): DefaultDataListPage
+    {
+        return $this->listDefaultData(
+            prefix: 'material_types',
+            perPage: $perPage,
+            resolver: fn () => $this->defaultDataRepository->paginateMaterialTypes($perPage),
+        );
+    }
+
     public function getItemCategoryTypes(): array
     {
         $tenantId = $this->resolveCurrentTenantId();
@@ -57,6 +67,15 @@ class DefaultDataService extends BaseTenantService
             $this->tenantScopedCacheKeys->listKey('item_category_types', $version, $tenantId),
             now()->addDay(),
             fn () => $this->defaultDataRepository->findAllItemCategoryTypes()
+        );
+    }
+
+    public function listItemCategoryTypes(int $perPage = 15): DefaultDataListPage
+    {
+        return $this->listDefaultData(
+            prefix: 'item_category_types',
+            perPage: $perPage,
+            resolver: fn () => $this->defaultDataRepository->paginateItemCategoryTypes($perPage),
         );
     }
 
@@ -77,6 +96,15 @@ class DefaultDataService extends BaseTenantService
         );
     }
 
+    public function listInterestTypes(int $perPage = 15): DefaultDataListPage
+    {
+        return $this->listDefaultData(
+            prefix: 'interest_types',
+            perPage: $perPage,
+            resolver: fn () => $this->defaultDataRepository->paginateInterestTypes($perPage),
+        );
+    }
+
     public function getExpenseTypes(): array
     {
         $tenantId = $this->resolveCurrentTenantId();
@@ -91,6 +119,15 @@ class DefaultDataService extends BaseTenantService
             $this->tenantScopedCacheKeys->listKey('expense_types', $version, $tenantId),
             now()->addDay(),
             fn () => $this->defaultDataRepository->findAllExpenseTypes()
+        );
+    }
+
+    public function listExpenseTypes(int $perPage = 15): DefaultDataListPage
+    {
+        return $this->listDefaultData(
+            prefix: 'expense_types',
+            perPage: $perPage,
+            resolver: fn () => $this->defaultDataRepository->paginateExpenseTypes($perPage),
         );
     }
 
@@ -360,5 +397,23 @@ class DefaultDataService extends BaseTenantService
         }
 
         return $code;
+    }
+
+    protected function listDefaultData(string $prefix, int $perPage, callable $resolver): DefaultDataListPage
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $page = (int) request()->query('page', 1);
+
+        $version = $this->tenantScopedCacheKeys->currentVersion(
+            $prefix,
+            1,
+            $tenantId
+        );
+
+        return cache()->remember(
+            $this->tenantScopedCacheKeys->paginatedListKey($prefix, $version, $page, $perPage, $tenantId),
+            now()->addDay(),
+            fn () => DefaultDataListPage::fromPaginator($resolver())
+        );
     }
 }

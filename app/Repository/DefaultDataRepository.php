@@ -8,6 +8,7 @@ use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\InterestType;
 use App\Models\CoreModule\ExpenseType;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class DefaultDataRepository
 {
@@ -31,6 +32,17 @@ class DefaultDataRepository
             ->toArray();
     }
 
+    public function paginateMaterialTypes(int $perPage = 15): LengthAwarePaginator
+    {
+        return MaterialType::query()
+            ->where(function ($query) {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', app(TenantContext::class)->id());
+            })
+            ->orderBy('name')
+            ->paginate($perPage);
+    }
+
     public function findAllItemCategoryTypes(): array
     {
         return ItemCategoryType::query()
@@ -41,6 +53,17 @@ class DefaultDataRepository
             ->orderBy('name')
             ->get()
             ->toArray();
+    }
+
+    public function paginateItemCategoryTypes(int $perPage = 15): LengthAwarePaginator
+    {
+        return ItemCategoryType::query()
+            ->where(function ($query) {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', app(TenantContext::class)->id());
+            })
+            ->orderBy('name')
+            ->paginate($perPage);
     }
 
 
@@ -55,6 +78,17 @@ class DefaultDataRepository
             ->toArray();
     }
 
+    public function paginateInterestTypes(int $perPage = 15): LengthAwarePaginator
+    {
+        return InterestType::query()
+            ->where(function ($query) {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', app(TenantContext::class)->id());
+            })
+            ->orderBy('name')
+            ->paginate($perPage);
+    }
+
     public function findAllExpenseTypes(): array
     {
         return ExpenseType::query()
@@ -65,6 +99,17 @@ class DefaultDataRepository
              ->orderBy('name')
              ->get()
              ->toArray();
+    }
+
+    public function paginateExpenseTypes(int $perPage = 15): LengthAwarePaginator
+    {
+        return ExpenseType::query()
+            ->where(function ($query) {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', app(TenantContext::class)->id());
+            })
+            ->orderBy('name')
+            ->paginate($perPage);
     }
 
     public function createMaterialType(array $data): MaterialType
