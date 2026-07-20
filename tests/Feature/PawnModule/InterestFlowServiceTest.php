@@ -128,6 +128,7 @@ class InterestFlowServiceTest extends TestCase
 
         $this->assertDatabaseHas('tenant_debts', [
             'slip_id' => $created->id,
+            'customer_id' => $created->customerId,
             'amount' => '5000.00',
             'tag' => 'InterestPayment',
         ]);
@@ -170,6 +171,13 @@ class InterestFlowServiceTest extends TestCase
             'transaction_type' => 'incoming',
             'amount' => '5000.00',
             'created_by' => $tenantUser->id,
+        ]);
+        $this->assertDatabaseHas('tenant_accountings', [
+            'description' => 'Remaining interest from payment ID: 2',
+            'transaction_type' => 'internal',
+            'amount' => '5000.00',
+            'created_by' => $tenantUser->id,
+            'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
         ]);
 
         $trustScore = (int) DB::table('tenant_customers')

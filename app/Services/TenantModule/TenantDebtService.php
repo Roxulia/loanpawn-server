@@ -18,7 +18,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Exceptions\AlreadyUpdatedException;
+use App\Services\PawnModule\LoanContractServices\LookUpService;
 use Throwable;
+use App\Exceptions\InvalidTenantRequest;
+use App\Models\PawnModule\PawnLoanContractSlip;
 
 class TenantDebtService extends BaseTenantService
 {
@@ -33,6 +36,8 @@ class TenantDebtService extends BaseTenantService
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
         private CustomerTrustScoreService $customerTrustScoreService,
+        private LookUpService $slipLookUpService,
+        private TenantCustomerService $tenantCustomerService
     ) {
     }
 
@@ -49,11 +54,15 @@ class TenantDebtService extends BaseTenantService
         );
     }
 
-    public function createForCurrentTenant(TenantDebtCreate $request): TenantDebtDetail
+    public function createExternalDebt(TenantDebtCreate $request): TenantDebtDetail
     {
         $this->permissionService->authorizeDebtCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
+
+        if ($request->slipCode !== null && $request->customerCode !== null) {
+            throw new InvalidTenantRequest('Debt can be linked to either a slip or a customer, not both.');
+        }
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_debt.create',
@@ -65,12 +74,84 @@ class TenantDebtService extends BaseTenantService
             $this->tenantIdempotencyService->replay($idempotencyRecord);
         }
 
+        $slip = null;
+        $customerId = null;
+
+        if ($request->slipCode !== null) {
+            $slip = $this->slipLookUpService->findModelBySlipNo($request->slipCode);
+            if ($slip->status === 'redeemed') {
+                throw new InvalidTenantRequest('Cannot add debt to an already redeemed slip.');
+            }
+
+            $targetDate = CarbonImmutable::now()->startOfDay();
+
+            if ((string) $slip->status === 'expired' || CarbonImmutable::parse($slip->expire_at)->lt($targetDate)) {
+                throw new InvalidTenantRequest('Cannot add debt to an expired slip.');
+            }
+
+            $customerId = $slip->customer_id;
+        }
+
+        if ($request->customerCode !== null) {
+            $customerId = $this->tenantCustomerService->resolveIdByCode($request->customerCode);
+        }
+
         try {
-            $debt = DB::transaction(function () use ($request) {
+            $debt = $this->createDebtRecord($request, $slip, $customerId, 'external');
+
+            if ($idempotencyRecord !== null) {
+                $detail = TenantDebtDetail::fromModel($debt);
+                $this->tenantIdempotencyService->markCompleted(
+                    $idempotencyRecord,
+                    201,
+                    [
+                        'message' => 'Debt created successfully.',
+                        'data' => $detail->toArray(),
+                    ],
+                    TenantDebt::class,
+                    $debt->id
+                );
+
+                return $detail;
+            }
+
+            return TenantDebtDetail::fromModel($debt);
+        } catch (Throwable $exception) {
+            if ($idempotencyRecord !== null) {
+                $this->tenantIdempotencyService->markFailed($idempotencyRecord);
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function createInternalDebt(TenantDebtCreate $request): TenantDebtDetail
+    {
+        $request->tenantId = $this->resolveCurrentTenantId();
+        $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
+
+        if ($request->slipId === null) {
+            throw new InvalidTenantRequest('Slip ID is required for internal debt creation.');
+        }
+
+        $slip = $this->slipLookUpService->findModelById($request->slipId);
+        $debt = $this->createDebtRecord($request, $slip, $slip->customer_id, 'internal');
+
+        return TenantDebtDetail::fromModel($debt);
+    }
+
+    protected function createDebtRecord(
+        TenantDebtCreate $request,
+        ?PawnLoanContractSlip $slip,
+        ?int $customerId,
+        string $operationType
+    ): TenantDebt {
+        $debt = DB::transaction(function () use ($request, $slip, $customerId, $operationType) {
                 $debt = $this->repository->create([
                     'tenant_id' => $request->tenantId,
                     'code' => $this->tableIdGenerationService->generate('tenant_debts', CarbonImmutable::now()),
-                    'slip_id' => $request->slipId,
+                    'slip_id' => $slip === null ? null : $slip->getKey(),
+                    'customer_id' => $customerId,
                     'amount' => $request->amount,
                     'description' => $request->description,
                     'tag' => $request->tag,
@@ -78,15 +159,15 @@ class TenantDebtService extends BaseTenantService
                     'accepted_by' => $request->acceptedBy,
                     'created_by' => $request->createdBy,
                 ]);
-                if ($request->internalOperation) {
+
+                if ($operationType === 'internal') {
                     $this->tenantAccountingService->createInternalTransfer(
                         $debt,
                         $debt->description,
                         (float) $debt->amount,
                         $debt->created_by
                     );
-                }
-                else{
+                } else {
                     $this->tenantAccountingService->createOutgoingForReference(
                         $debt,
                         $debt->description,
@@ -103,6 +184,7 @@ class TenantDebtService extends BaseTenantService
                     [
                         'debt' => $debt->only([
                             'slip_id',
+                            'customer_id',
                             'amount',
                             'description',
                             'tag',
@@ -115,32 +197,11 @@ class TenantDebtService extends BaseTenantService
                 return $debt;
             });
 
-            $this->recalculateTrustScoreForDebt($debt);
+        $this->recalculateTrustScoreForDebt($debt);
 
-            $this->flushTenantDebtListCache();
-            $detail = TenantDebtDetail::fromModel($debt);
+        $this->flushTenantDebtListCache();
 
-            if ($idempotencyRecord !== null) {
-                $this->tenantIdempotencyService->markCompleted(
-                    $idempotencyRecord,
-                    201,
-                    [
-                        'message' => 'Debt created successfully.',
-                        'data' => $detail->toArray(),
-                    ],
-                    TenantDebt::class,
-                    $debt->id
-                );
-            }
-
-            return $detail;
-        } catch (Throwable $exception) {
-            if ($idempotencyRecord !== null) {
-                $this->tenantIdempotencyService->markFailed($idempotencyRecord);
-            }
-
-            throw $exception;
-        }
+        return $debt;
     }
 
     protected function tenantDebtCreateIdempotencyPayload(TenantDebtCreate $request): array
@@ -149,6 +210,8 @@ class TenantDebtService extends BaseTenantService
             'amount' => $request->amount,
             'description' => $request->description,
             'slip_id' => $request->slipId,
+            'slip_code' => $request->slipCode,
+            'customer_code' => $request->customerCode,
             'tag' => $request->tag,
             'is_paid' => $request->isPaid,
             'accepted_by' => $request->acceptedBy,
@@ -196,7 +259,7 @@ class TenantDebtService extends BaseTenantService
         $data['update_key'] = $debt->updateKey+1;
         $original = $debt->only(array_keys($data));
 
-        $originalCustomerId = $debt->slip?->customer_id;
+        $originalCustomerId = $debt->customer_id ?? $debt->slip?->customer_id;
 
         $updatedDebt = DB::transaction(function () use ($debt, $data, $original) {
             $updatedDebt = $this->repository->updateWithLock($debt, $data);
@@ -223,6 +286,7 @@ class TenantDebtService extends BaseTenantService
         $this->recalculateTrustScoreForCustomerIds([
             $originalCustomerId,
             $updatedDebt->slip?->customer_id,
+            $updatedDebt->customer_id,
         ]);
 
         $this->flushTenantDebtListCache();
@@ -258,6 +322,7 @@ class TenantDebtService extends BaseTenantService
                 [
                     'debt' => $debt->only([
                         'slip_id',
+                        'customer_id',
                         'amount',
                         'description',
                         'tag',
@@ -440,7 +505,7 @@ class TenantDebtService extends BaseTenantService
 
     protected function recalculateTrustScoreForDebt(TenantDebt $debt): void
     {
-        $customerId = $debt->slip?->customer_id;
+        $customerId = $debt->customer_id ?? $debt->slip?->customer_id;
 
         if ($customerId === null) {
             return;

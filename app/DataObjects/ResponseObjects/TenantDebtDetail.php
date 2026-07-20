@@ -13,6 +13,9 @@ class TenantDebtDetail extends BaseDataObject
     public int $updateKey;
     public ?int $slipId;
     public ?string $slipNo;
+    public ?int $customerId;
+    public ?string $customerCode;
+    public ?string $customerName;
     public string $amount;
     public string $description;
     public ?string $tag;
@@ -31,6 +34,9 @@ class TenantDebtDetail extends BaseDataObject
         $detail->updateKey = (int) $debt->update_key;
         $detail->slipId = $debt->slip_id;
         $detail->slipNo = $debt->slip?->slip_no;
+        $detail->customerId = $debt->customer_id;
+        $detail->customerCode = $debt->customer?->code;
+        $detail->customerName = $debt->customer?->name;
         $detail->amount = (string) $debt->amount;
         $detail->description = $debt->description;
         $detail->tag = $debt->tag;

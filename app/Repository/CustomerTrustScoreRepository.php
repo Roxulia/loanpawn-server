@@ -38,12 +38,17 @@ class CustomerTrustScoreRepository
             ->first();
 
         $debtMetrics = DB::table('tenant_debts')
-            ->join('pawn_loan_contract_slips', 'pawn_loan_contract_slips.id', '=', 'tenant_debts.slip_id')
+            ->leftJoin('pawn_loan_contract_slips', 'pawn_loan_contract_slips.id', '=', 'tenant_debts.slip_id')
             ->where('tenant_debts.tenant_id', $tenantId)
-            ->where('pawn_loan_contract_slips.tenant_id', $tenantId)
-            ->where('pawn_loan_contract_slips.customer_id', $customerId)
-            ->where('pawn_loan_contract_slips.is_deleted', false)
-            ->whereNull('pawn_loan_contract_slips.deleted_at')
+            ->where(function ($query) use ($tenantId, $customerId) {
+                $query->where('tenant_debts.customer_id', $customerId)
+                    ->orWhere(function ($slipQuery) use ($tenantId, $customerId) {
+                        $slipQuery->where('pawn_loan_contract_slips.tenant_id', $tenantId)
+                            ->where('pawn_loan_contract_slips.customer_id', $customerId)
+                            ->where('pawn_loan_contract_slips.is_deleted', false)
+                            ->whereNull('pawn_loan_contract_slips.deleted_at');
+                    });
+            })
             ->where('tenant_debts.is_deleted', false)
             ->selectRaw('COUNT(*) as debt_count')
             ->selectRaw('SUM(CASE WHEN tenant_debts.is_paid = 0 THEN 1 ELSE 0 END) as unpaid_debt_count')

@@ -535,13 +535,12 @@ class InterestFlowService extends BaseTenantService
             return 0.0;
         }
 
-        $this->tenantDebtService->createForCurrentTenant(new TenantDebtCreate(
+        $this->tenantDebtService->createInternalDebt(new TenantDebtCreate(
             amount: $remainingInterest,
             description: 'Remaining interest from payment ID: '.$payment->id,
             slipId: $slip->id,
             tag: 'InterestPayment',
             createdBy: $this->resolveCurrentTenantUserId(),
-            internalOperation: true,
         ));
 
         return $remainingInterest;

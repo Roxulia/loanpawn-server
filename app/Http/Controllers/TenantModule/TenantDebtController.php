@@ -46,10 +46,11 @@ class TenantDebtController extends Controller
         }
 
         $validated = $validator->validated();
-        $debt = $this->debtService->createForCurrentTenant(new TenantDebtCreate(
+        $debt = $this->debtService->createExternalDebt(new TenantDebtCreate(
             amount: (float) $validated['amount'],
             description: $validated['description'],
-            slipId: $validated['slip_id'] ?? null,
+            slipCode: $validated['slip_code'] ?? null,
+            customerCode: $validated['customer_code'] ?? null,
             tag: $validated['tag'] ?? null,
             isPaid: (bool) ($validated['is_paid'] ?? false),
             acceptedBy: $validated['accepted_by'] ?? null,
@@ -114,7 +115,8 @@ class TenantDebtController extends Controller
         return [
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
-            'slip_id' => ['nullable', 'integer'],
+            'slip_code' => ['nullable'],
+            'customer_code' => ['nullable'],
             'tag' => ['nullable', 'string', 'max:120'],
             'is_paid' => ['nullable', 'boolean'],
             'accepted_by' => ['nullable', 'integer'],

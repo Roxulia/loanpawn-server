@@ -30,6 +30,7 @@ class TenantCustomerDetail extends BaseDataObject
     public ?string $createdAt;
     public ?array $loanMetrics;
     public ?array $activeSlips;
+    public ?array $unpaidDebts;
 
     public static function fromModel(TenantCustomer $customer): static
     {
@@ -57,11 +58,12 @@ class TenantCustomerDetail extends BaseDataObject
         return $detail;
     }
 
-    public static function fromModelWithDetail(TenantCustomer $customer, array $loanMetrics, array $activeSlips): self
+    public static function fromModelWithDetail(TenantCustomer $customer, array $loanMetrics, array $activeSlips, array $unpaidDebts): self
     {
         $detail = self::fromModel($customer);
         $detail->loanMetrics = $loanMetrics;
         $detail->activeSlips = $activeSlips;
+        $detail->unpaidDebts = $unpaidDebts;
 
         return $detail;
     }

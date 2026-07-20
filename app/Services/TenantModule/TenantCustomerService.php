@@ -130,7 +130,8 @@ class TenantCustomerService extends BaseTenantService
         return TenantCustomerDetail::fromModelWithDetail(
             $customer,
             $this->repository->customerSlipMetrics($customer->id),
-            $this->repository->activeSlipsForCustomer($customer->id)
+            $this->repository->activeSlipsForCustomer($customer->id),
+            $this->repository->unpaidDebtsForCustomer($customer->id)
         );
     }
 
@@ -142,7 +143,8 @@ class TenantCustomerService extends BaseTenantService
         return TenantCustomerDetail::fromModelWithDetail(
             $customer,
             $this->repository->customerSlipMetrics($customer->id),
-            $this->repository->activeSlipsForCustomer($customer->id)
+            $this->repository->activeSlipsForCustomer($customer->id),
+            $this->repository->unpaidDebtsForCustomer($customer->id)
         );
     }
 

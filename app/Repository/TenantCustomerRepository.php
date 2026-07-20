@@ -205,6 +205,44 @@ class TenantCustomerRepository
             ->all();
     }
 
+    public function unpaidDebtsForCustomer(int $customerId, int $limit = 8): array
+    {
+        $tenantId = app(TenantContext::class)->id();
+
+        return DB::table('tenant_debts')
+            ->leftJoin('pawn_loan_contract_slips', 'pawn_loan_contract_slips.id', '=', 'tenant_debts.slip_id')
+            ->where('tenant_debts.tenant_id', $tenantId)
+            ->where('tenant_debts.is_deleted', false)
+            ->where('tenant_debts.is_paid', false)
+            ->where(function ($query) use ($tenantId, $customerId) {
+                $query->where('tenant_debts.customer_id', $customerId)
+                    ->orWhere(function ($slipQuery) use ($tenantId, $customerId) {
+                        $slipQuery->where('pawn_loan_contract_slips.tenant_id', $tenantId)
+                            ->where('pawn_loan_contract_slips.customer_id', $customerId)
+                            ->where('pawn_loan_contract_slips.is_deleted', false)
+                            ->whereNull('pawn_loan_contract_slips.deleted_at');
+                    });
+            })
+            ->orderByDesc('tenant_debts.created_at')
+            ->orderByDesc('tenant_debts.id')
+            ->limit($limit)
+            ->get([
+                'tenant_debts.id',
+                'tenant_debts.code',
+                'tenant_debts.amount',
+                'tenant_debts.tag',
+                'tenant_debts.created_at',
+            ])
+            ->map(fn ($debt): array => [
+                'id' => (int) $debt->id,
+                'code' => $debt->code,
+                'amount' => (float) $debt->amount,
+                'tag' => $debt->tag,
+                'created_at' => $debt->created_at === null ? null : CarbonImmutable::parse($debt->created_at)->toISOString(),
+            ])
+            ->all();
+    }
+
     public function findByIdWithLock(int $customerId): ?TenantCustomer
     {
         return TenantCustomer::query()

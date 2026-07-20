@@ -15,6 +15,7 @@ class TenantDebt extends Model
         'tenant_id',
         'code',
         'slip_id',
+        'customer_id',
         'amount',
         'description',
         'tag',
@@ -34,6 +35,11 @@ class TenantDebt extends Model
     public function slip(): BelongsTo
     {
         return $this->belongsTo(PawnLoanContractSlip::class, 'slip_id');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(TenantCustomer::class, 'customer_id');
     }
 
     public function acceptedByUser(): BelongsTo

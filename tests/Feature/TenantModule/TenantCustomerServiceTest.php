@@ -13,6 +13,7 @@ use App\Services\TenantModule\TenantCustomerService;
 use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class TenantCustomerServiceTest extends TestCase
@@ -129,6 +130,96 @@ class TenantCustomerServiceTest extends TestCase
 
         $this->assertSame($created->customer->id, $detail->id);
         $this->assertSame('Detail Customer', $detail->name);
+    }
+
+    public function test_it_shows_customer_detail_with_related_unpaid_debts(): void
+    {
+        $tenant = $this->createTenant();
+        $this->actingTenantUser($tenant, ['access_all']);
+
+        $target = app(TenantCustomerService::class)->createForCurrentTenant(new TenantCustomerCreate(
+            name: 'Debt Detail Customer',
+            phone: '0912345678',
+        ));
+        $other = app(TenantCustomerService::class)->createForCurrentTenant(new TenantCustomerCreate(
+            name: 'Other Debt Customer',
+            phone: '0987654321',
+        ));
+
+        $slip = PawnLoanContractSlip::query()->create([
+            'tenant_id' => $tenant->id,
+            'slip_no' => 'SLIP-DEBT-001',
+            'customer_id' => $target->customer->id,
+            'loan_amount' => 100000,
+            'interest_rate' => 5,
+            'created_at' => now()->subDays(10),
+            'expire_at' => now()->addMonth(),
+            'status' => 'active',
+        ]);
+
+        DB::table('tenant_debts')->insert([
+            [
+                'tenant_id' => $tenant->id,
+                'code' => 'DEBT-DIRECT',
+                'customer_id' => $target->customer->id,
+                'slip_id' => null,
+                'amount' => 25000,
+                'description' => 'Direct unpaid debt',
+                'tag' => 'direct',
+                'is_paid' => false,
+                'created_at' => now()->subMinutes(2),
+                'updated_at' => now()->subMinutes(2),
+            ],
+            [
+                'tenant_id' => $tenant->id,
+                'code' => 'DEBT-SLIP',
+                'customer_id' => null,
+                'slip_id' => $slip->id,
+                'amount' => 15000,
+                'description' => 'Slip unpaid debt',
+                'tag' => 'interest',
+                'is_paid' => false,
+                'created_at' => now()->subMinute(),
+                'updated_at' => now()->subMinute(),
+            ],
+            [
+                'tenant_id' => $tenant->id,
+                'code' => 'DEBT-PAID',
+                'customer_id' => $target->customer->id,
+                'slip_id' => null,
+                'amount' => 5000,
+                'description' => 'Paid debt',
+                'tag' => 'paid',
+                'is_paid' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'tenant_id' => $tenant->id,
+                'code' => 'DEBT-OTHER',
+                'customer_id' => $other->customer->id,
+                'slip_id' => null,
+                'amount' => 9000,
+                'description' => 'Other customer debt',
+                'tag' => 'other',
+                'is_paid' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $detail = app(TenantCustomerService::class)->show($target->customer->id);
+        $debtCodes = collect($detail->unpaidDebts)->pluck('code')->all();
+
+        $this->assertCount(2, $detail->unpaidDebts);
+        $this->assertContains('DEBT-DIRECT', $debtCodes);
+        $this->assertContains('DEBT-SLIP', $debtCodes);
+        $this->assertNotContains('DEBT-PAID', $debtCodes);
+        $this->assertNotContains('DEBT-OTHER', $debtCodes);
+        $this->assertArrayNotHasKey('slip_no', $detail->unpaidDebts[0]);
+        $this->assertArrayHasKey('amount', $detail->unpaidDebts[0]);
+        $this->assertArrayHasKey('tag', $detail->unpaidDebts[0]);
+        $this->assertArrayHasKey('created_at', $detail->unpaidDebts[0]);
     }
 
     public function test_it_searches_customers_by_name_phone_email_or_address(): void

@@ -9,9 +9,12 @@ use App\DataObjects\RequestObjects\TenantExpenseUpdate;
 use App\DataObjects\RequestObjects\TenantCapitalCreate;
 use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\DataObjects\RequestObjects\TenantAccountingCreate;
+use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExpenseType;
+use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Services\TenantModule\TenantDebtService;
@@ -186,7 +189,7 @@ class TenantFinanceServiceTest extends TestCase
         $tenant = $this->createTenant();
         $tenantUser = $this->actingTenantUser($tenant, ['list_debt', 'create_debt', 'update_debt', 'delete_debt', 'list_accounting']);
 
-        $created = app(TenantDebtService::class)->createForCurrentTenant(new TenantDebtCreate(
+        $created = app(TenantDebtService::class)->createExternalDebt(new TenantDebtCreate(
             amount: 125000,
             description: 'Emergency cash debt',
             tag: 'cash-advance',
@@ -195,6 +198,8 @@ class TenantFinanceServiceTest extends TestCase
 
         $this->assertSame('Emergency cash debt', $created->description);
         $this->assertSame('cash-advance', $created->tag);
+        $this->assertNull($created->slipId);
+        $this->assertNull($created->customerId);
 
         $this->assertDatabaseHas('tenant_accountings', [
             'tenant_id' => $tenant->id,
@@ -253,6 +258,71 @@ class TenantFinanceServiceTest extends TestCase
             'target_type' => 'App\\Models\\CoreModule\\TenantDebt',
             'target_id' => $created->id,
         ]);
+    }
+
+    public function test_it_creates_external_debt_for_customer_code(): void
+    {
+        $tenant = $this->createTenant();
+        $tenantUser = $this->actingTenantUser($tenant, ['list_debt', 'create_debt', 'list_customer']);
+        $customer = $this->createCustomer($tenant, 'TC0001', 'Customer Linked Debt');
+
+        $created = app(TenantDebtService::class)->createExternalDebt(new TenantDebtCreate(
+            amount: 50000,
+            description: 'Customer debt',
+            customerCode: $customer->code,
+            createdBy: $tenantUser->id,
+        ));
+
+        $this->assertSame($customer->id, $created->customerId);
+        $this->assertSame($customer->code, $created->customerCode);
+        $this->assertSame($customer->name, $created->customerName);
+
+        $this->assertDatabaseHas('tenant_debts', [
+            'id' => $created->id,
+            'slip_id' => null,
+            'customer_id' => $customer->id,
+            'amount' => '50000.00',
+        ]);
+    }
+
+    public function test_it_creates_external_debt_for_slip_code_and_stores_slip_customer(): void
+    {
+        $tenant = $this->createTenant();
+        $tenantUser = $this->actingTenantUser($tenant, ['list_debt', 'create_debt']);
+        $customer = $this->createCustomer($tenant, 'TC0002', 'Slip Linked Debt');
+        $slip = $this->createSlip($tenant, $customer, $tenantUser, 'SLIP-001');
+
+        $created = app(TenantDebtService::class)->createExternalDebt(new TenantDebtCreate(
+            amount: 75000,
+            description: 'Slip debt',
+            slipCode: $slip->slip_no,
+            createdBy: $tenantUser->id,
+        ));
+
+        $this->assertSame($slip->id, $created->slipId);
+        $this->assertSame($slip->slip_no, $created->slipNo);
+        $this->assertSame($customer->id, $created->customerId);
+
+        $this->assertDatabaseHas('tenant_debts', [
+            'id' => $created->id,
+            'slip_id' => $slip->id,
+            'customer_id' => $customer->id,
+        ]);
+    }
+
+    public function test_it_rejects_external_debt_with_slip_code_and_customer_code(): void
+    {
+        $tenant = $this->createTenant();
+        $this->actingTenantUser($tenant, ['create_debt']);
+
+        $this->expectException(InvalidTenantRequest::class);
+
+        app(TenantDebtService::class)->createExternalDebt(new TenantDebtCreate(
+            amount: 50000,
+            description: 'Invalid linked debt',
+            slipCode: 'SLIP-001',
+            customerCode: 'TC0001',
+        ));
     }
 
     public function test_it_builds_accounting_overview_and_searches_transactions(): void
@@ -334,5 +404,33 @@ class TenantFinanceServiceTest extends TestCase
         Auth::guard('tenantuser')->login($tenantUser);
 
         return $tenantUser;
+    }
+
+    protected function createCustomer(Tenant $tenant, string $code, string $name): TenantCustomer
+    {
+        return TenantCustomer::query()->create([
+            'tenant_id' => $tenant->id,
+            'code' => $code,
+            'name' => $name,
+            'phone' => '09'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'trust_score' => 0,
+            'is_deleted' => false,
+        ]);
+    }
+
+    protected function createSlip(Tenant $tenant, TenantCustomer $customer, TenantUser $tenantUser, string $slipNo): PawnLoanContractSlip
+    {
+        return PawnLoanContractSlip::query()->create([
+            'tenant_id' => $tenant->id,
+            'slip_no' => $slipNo,
+            'customer_id' => $customer->id,
+            'loan_amount' => 100000,
+            'interest_rate' => 10,
+            'expire_at' => now()->addMonth(),
+            'status' => 'active',
+            'created_by' => $tenantUser->id,
+            'expiry_quota' => 1,
+            'expiry_quota_type' => 'Month',
+        ]);
     }
 }
