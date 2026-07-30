@@ -130,6 +130,7 @@ class InterestFlowService extends BaseTenantService
                 $leftAmount = $request->paymentAmount;
                 $debtAmount = 0.0;
                 $lastPaidPayment = null;
+                $paidInterestRowCount = 0;
 
                 foreach ($payments as $payment) {
                     if ($leftAmount <= 0.0) {
@@ -159,6 +160,7 @@ class InterestFlowService extends BaseTenantService
 
                     $this->recordInterestPaymentAccounting($updatedPayment);
                     $this->logInterestPaymentUpdate($updatedPayment);
+                    $paidInterestRowCount++;
 
                     if ($appliedAmount < $calculatedInterest) {
                         $this->createRemainingInterestDebt($slip, $updatedPayment);
@@ -193,7 +195,7 @@ class InterestFlowService extends BaseTenantService
                 $updatedSlip = $this->loanContractSlipRepository->update($slip, [
                     'last_interest_paid_at' => $currentAt,
                     'last_interest_added_at' => $currentAt,
-                    'expire_at' => $this->calculateExpireDate($currentAt, (int) $slip->expiry_quota, (string) $slip->expiry_quota_type),
+                    'expire_at' => $this->calculateRenewedExpireDate($slip, $currentAt, $paidInterestRowCount),
                     'update_key' => $slip->update_key+1
                 ]);
 
@@ -390,6 +392,27 @@ class InterestFlowService extends BaseTenantService
             'Year' => $date->addYears($quota),
             default => throw new InvalidTenantRequest('Expiry quota type must be Day, Week, Month, or Year.'),
         };
+    }
+
+    protected function calculateRenewedExpireDate(
+        PawnLoanContractSlip $slip,
+        CarbonInterface $currentDate,
+        int $paidInterestRowCount
+    ): CarbonImmutable {
+        $quotaType = ucfirst(strtolower(trim((string) $slip->expiry_quota_type)));
+        $slip->loadMissing('interestType');
+
+        if ($this->resolveInterestIntervalUnit($slip) === 'day' && $quotaType === 'Day') {
+            return CarbonImmutable::parse($slip->expire_at)
+                ->startOfDay()
+                ->addDays($paidInterestRowCount);
+        }
+
+        return $this->calculateExpireDate(
+            $currentDate,
+            (int) $slip->expiry_quota,
+            (string) $slip->expiry_quota_type
+        );
     }
 
     protected function calculateNextScheduleStartDate(CarbonInterface $currentDate, string $quotaType): CarbonImmutable

@@ -252,6 +252,105 @@ class InterestFlowServiceTest extends TestCase
         ]);
     }
 
+    public function test_daily_interest_with_day_quota_extends_expiry_by_paid_interest_row_count(): void
+    {
+        $tenant = $this->createTenant();
+        $this->actingTenantUser($tenant, ['access_all']);
+        $interestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'daily',
+            'name' => 'Daily',
+            'duration_in_days' => 1,
+            'is_default' => true,
+        ]);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-01 09:30:00'));
+        $created = app(ManagementService::class)->create(new LoanContractSlipCreate(
+            customer: new TenantCustomerCreate(
+                name: 'Daily Interest Customer',
+                phone: '09900000104',
+            ),
+            collateralItems: [
+                new PawnCollateralItemCreate(
+                    type: 'Normal',
+                    name: 'Watch',
+                    estimatedValue: 150000,
+                    itemStatus: 'pawned'
+                ),
+            ],
+            loanAmount: 100000,
+            interestRate: 1,
+            interestTypeId: $interestType->id,
+            expiryQuota: 5,
+            expiryQuotaType: 'Day',
+        ));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-03 10:00:00'));
+        $calculation = app(InterestFlowService::class)->calculateInterestBySlipNo($created->slipNo);
+
+        $this->assertCount(3, $calculation->interestBreakdown);
+
+        app(InterestFlowService::class)->payInterestBySlipNo(
+            $created->slipNo,
+            new InterestPaymentAccept(
+                slipUpdateKey: $calculation->slipUpdateKey,
+                paymentAmount: 3000,
+                recordDebt: false,
+                interestBreakdown: $this->toInterestPaymentRequestBreakdown($calculation->interestBreakdown),
+            )
+        );
+
+        $this->assertDatabaseHas('pawn_loan_contract_slips', [
+            'id' => $created->id,
+            'expire_at' => '2026-07-09 00:00:00',
+        ]);
+    }
+
+    public function test_migration_corrects_expiry_when_day_quota_is_shorter_than_interest_duration(): void
+    {
+        $tenant = $this->createTenant();
+        $this->actingTenantUser($tenant, ['access_all']);
+        $interestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'monthly',
+            'name' => 'Monthly',
+            'duration_in_days' => 30,
+            'is_default' => true,
+        ]);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-01 09:30:00'));
+        $created = app(ManagementService::class)->create(new LoanContractSlipCreate(
+            customer: new TenantCustomerCreate(
+                name: 'Short Quota Customer',
+                phone: '09900000105',
+            ),
+            collateralItems: [
+                new PawnCollateralItemCreate(
+                    type: 'Normal',
+                    name: 'Bracelet',
+                    estimatedValue: 150000,
+                    itemStatus: 'pawned'
+                ),
+            ],
+            loanAmount: 100000,
+            interestRate: 1,
+            interestTypeId: $interestType->id,
+            expiryQuota: 5,
+            expiryQuotaType: 'Day',
+        ));
+
+        $migration = require database_path(
+            'migrations/2026_07_30_000001_correct_short_day_quota_slip_expiry_dates.php'
+        );
+        $migration->up();
+
+        $this->assertDatabaseHas('pawn_loan_contract_slips', [
+            'id' => $created->id,
+            'expire_at' => '2026-07-11 00:00:00',
+            'update_key' => 1,
+        ]);
+    }
+
     protected function createTenant(): Tenant
     {
         $platformUser = PlatformUser::query()->create([
