@@ -105,6 +105,7 @@ class LoanContractSlipRepository
     public function expireOverdueActiveSlips(CarbonInterface $currentDate): int
     {
         return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
             ->whereDate('expire_at', '<', $currentDate->toDateString())
