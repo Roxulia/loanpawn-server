@@ -67,6 +67,12 @@ class TenantUserService extends BaseTenantService
     {
         $this->permissionService->authorizeUserCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
+        $request->roleId = $request->roleId ?? $this->tenantRoleService->resolveDefaultRoleIdByName('User');
+        $this->tenantRoleService->ensureStaffAssignableRole($request->roleId, $request->tenantId);
+
+        if ($this->tenantRoleService->isAdminRole($request->roleId, $request->tenantId)) {
+            $this->permissionService->authorizeAdminUserCreate();
+        }
 
         return $this->create($request);
     }
@@ -223,6 +229,18 @@ class TenantUserService extends BaseTenantService
     public function update(TenantUserUpdate $request): TenantUserDetail
     {
         $targetUser = $this->findUserForCurrentTenant($request->userId);
+
+        if ($request->roleId !== null && $request->roleId !== $targetUser->role_id) {
+            $this->tenantRoleService->ensureStaffAssignableRole($request->roleId, $targetUser->tenant_id);
+        }
+
+        if (
+            $this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)
+            || ($request->roleId !== null && $this->tenantRoleService->isAdminRole($request->roleId, $targetUser->tenant_id))
+        ) {
+            $this->permissionService->authorizeAdminUserUpdate();
+        }
+
         $canManageAll = $this->permissionService->resolveUpdateScope($targetUser, $request);
 
         if($targetUser->update_key !== $request->updateKey)
@@ -278,6 +296,11 @@ class TenantUserService extends BaseTenantService
     {
         $this->permissionService->authorizeUserUpdate();
         $targetUser = $this->findUserForCurrentTenant($tenantUserId);
+
+        if ($this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)) {
+            $this->permissionService->authorizeAdminUserUpdate();
+        }
+
         $defaultPassword = $this->resolveTenantDefaultPassword($targetUser->tenant_id);
 
         DB::transaction(function () use ($targetUser, $defaultPassword): void {
@@ -303,6 +326,10 @@ class TenantUserService extends BaseTenantService
     {
         $targetUser = $this->findUserForCurrentTenant($tenantUserId);
 
+        if ($this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)) {
+            $this->permissionService->authorizeAdminPermissionAssignment();
+        }
+
         DB::transaction(function () use ($targetUser, $permissions): void {
             $lockedUser = $this->repository->findByIdWithLock($targetUser->id);
 
@@ -322,6 +349,11 @@ class TenantUserService extends BaseTenantService
     {
         $this->permissionService->authorizeUserDelete();
         $targetUser = $this->findUserForCurrentTenant($userId);
+
+        if ($this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)) {
+            $this->permissionService->authorizeAdminUserDelete();
+        }
+
         $ownerRole = $this->tenantRoleService->resolveDefaultRoleIdByName('Owner');
         if($targetUser->role_id === $ownerRole)
         {

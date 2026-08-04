@@ -6,12 +6,17 @@ use App\Models\CoreModule\TenantRole;
 
 class TenantRoleRepository
 {
-    public function listAccessible(?int $tenantId)
+    public function listAccessible(?int $tenantId, bool $excludeOwner = false)
     {
-        return TenantRole::query()
+        $query = TenantRole::query()
             ->where('is_deleted', false)
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
+
+        if ($excludeOwner) {
+            $query->whereRaw('LOWER(name) NOT LIKE ?', ['%owner%']);
+        }
+
+        return $query->get();
     }
 
     public function findDefaultByName(string $roleName): ?TenantRole
@@ -34,5 +39,13 @@ class TenantRoleRepository
         return TenantRole::query()
             ->where('id', $roleId)
             ->exists();
+    }
+
+    public function findAccessibleById(int $roleId, ?int $tenantId): ?TenantRole
+    {
+        return TenantRole::query()
+            ->where('id', $roleId)
+            ->where('is_deleted', false)
+            ->first();
     }
 }

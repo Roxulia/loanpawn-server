@@ -67,6 +67,33 @@ class TenantRoleControllerTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_it_excludes_owner_roles_from_creatable_options(): void
+    {
+        [$tenant] = $this->tenantUserContext(['create_user']);
+
+        TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Reserved owner role',
+            'is_default' => true,
+        ]);
+        TenantRole::query()->create([
+            'name' => 'Shop Owner Assistant',
+            'description' => 'Owner-containing role',
+            'is_default' => false,
+        ]);
+        TenantRole::query()->create([
+            'name' => 'Admin',
+            'description' => 'Assignable admin role',
+            'is_default' => true,
+        ]);
+
+        $this->tenantGetJson($tenant, '/api/tenant/user-roles?exclude_owner=1')
+            ->assertOk()
+            ->assertJsonMissing(['role_name' => 'Owner'])
+            ->assertJsonMissing(['role_name' => 'Shop Owner Assistant'])
+            ->assertJsonFragment(['role_name' => 'Admin']);
+    }
+
     public function test_it_rejects_user_without_required_permission(): void
     {
         [$tenant] = $this->tenantUserContext([]);

@@ -166,7 +166,9 @@ class TenantUserController extends Controller
             logoutFromAll: (bool) ($validated['logoutFromAll'] ?? false),
         );
 
-        return $this->successResponse(message: $this->responseMessage(MessageCode::TenantUserPasswordReset));
+        $message = $this->responseMessage(MessageCode::TenantUserPasswordReset);
+
+        return $this->successResponse(['message' => $message], $message);
     }
 
     public function show(string $tenantUserCode): JsonResponse

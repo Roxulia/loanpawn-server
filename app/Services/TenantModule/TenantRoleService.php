@@ -3,6 +3,7 @@
 namespace App\Services\TenantModule;
 
 use App\Exceptions\RequiredValueMissing;
+use App\Exceptions\TenantUserAccessDenied;
 use App\Repository\TenantRoleRepository;
 use App\Services\BaseTenantService;
 use App\Support\TenantContext;
@@ -15,11 +16,11 @@ class TenantRoleService extends BaseTenantService
     ) {
     }
 
-    public function listOptions(?int $tenantId = null)
+    public function listOptions(?int $tenantId = null, bool $excludeOwner = false)
     {
         $tenantId = $tenantId ?? $this->resolveOptionalCurrentTenantId();
 
-        return $this->repository->listAccessible($tenantId)
+        return $this->repository->listAccessible($tenantId, $excludeOwner)
             ->map(fn ($role) => [
                 'role_id' => $role->id,
                 'role_name' => $role->name,
@@ -58,6 +59,36 @@ class TenantRoleService extends BaseTenantService
         if (! $this->repository->existsAccessible($roleId, $tenantId)) {
             throw new RequiredValueMissing($this->responseMessage(MessageCode::RoleNotFound));
         }
+    }
+
+    public function ensureStaffAssignableRole(int $roleId, ?int $tenantId = null): void
+    {
+        $role = $this->findAccessibleRole($roleId, $tenantId);
+
+        if (str_contains(mb_strtolower($role->name), 'owner')) {
+            throw new TenantUserAccessDenied();
+        }
+    }
+
+    public function isAdminRole(?int $roleId, ?int $tenantId = null): bool
+    {
+        if ($roleId === null) {
+            return false;
+        }
+
+        return mb_strtolower($this->findAccessibleRole($roleId, $tenantId)->name) === 'admin';
+    }
+
+    protected function findAccessibleRole(int $roleId, ?int $tenantId = null)
+    {
+        $tenantId = $tenantId ?? $this->resolveOptionalCurrentTenantId();
+        $role = $this->repository->findAccessibleById($roleId, $tenantId);
+
+        if ($role === null) {
+            throw new RequiredValueMissing($this->responseMessage(MessageCode::RoleNotFound));
+        }
+
+        return $role;
     }
 
     protected function resolveOptionalCurrentTenantId(): ?int

@@ -60,7 +60,10 @@ class TenantUserDetail extends BaseDataObject
         $detail->createdBy = $user->created_by;
         $detail->roleName = $user->role?->name;
         $detail->permissions = TenantPermissionColumns::effectivePermissions(
-            TenantPermissionColumns::enabledFromModel($user->permission ?? $user->role)
+            array_unique([
+                ...TenantPermissionColumns::enabledFromModel($user->role),
+                ...TenantPermissionColumns::enabledFromModel($user->permission),
+            ])
         );
         $detail->preferLang = $user->prefer_lang ?? 'en';
         $nrc_decomposed = NrcHelper::decomposeNRC($user->nrc);

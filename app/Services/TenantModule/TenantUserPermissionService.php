@@ -150,6 +150,26 @@ class TenantUserPermissionService extends BaseTenantService
         $this->authorizeTenantPermission('delete_user');
     }
 
+    public function authorizeAdminUserCreate(): void
+    {
+        $this->authorizeOwnerAdminPermission('create_admin_user');
+    }
+
+    public function authorizeAdminUserUpdate(): void
+    {
+        $this->authorizeOwnerAdminPermission('update_admin_user');
+    }
+
+    public function authorizeAdminUserDelete(): void
+    {
+        $this->authorizeOwnerAdminPermission('delete_admin_user');
+    }
+
+    public function authorizeAdminPermissionAssignment(): void
+    {
+        $this->authorizeOwnerAdminPermission('assign_admin_permissions');
+    }
+
     public function authorizeCustomerList(): void
     {
         $this->authorizeTenantPermission('list_customer');
@@ -306,6 +326,32 @@ class TenantUserPermissionService extends BaseTenantService
         if (
             $tenantUser instanceof TenantUser
             && $tenantUser->tenant_id === $tenantId
+            && $this->hasPermission($tenantUser, $permission)
+        ) {
+            return;
+        }
+
+        throw new TenantUserAccessDenied();
+    }
+
+    protected function authorizeOwnerAdminPermission(string $permission): void
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+
+        if ($this->isOwningPlatformUser($tenantId)) {
+            return;
+        }
+
+        $tenantUser = Auth::guard('tenantuser')->user();
+
+        if (! $tenantUser instanceof TenantUser || $tenantUser->tenant_id !== $tenantId) {
+            throw new TenantUserAccessDenied();
+        }
+
+        $tenantUser->loadMissing('role');
+
+        if (
+            mb_strtolower((string) $tenantUser->role?->name) === 'owner'
             && $this->hasPermission($tenantUser, $permission)
         ) {
             return;

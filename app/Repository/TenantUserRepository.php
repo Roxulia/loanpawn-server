@@ -103,6 +103,7 @@ class TenantUserRepository
     public function existsByField(string $field, string $value, ?int $ignoreUserId = null): bool
     {
         $query = TenantUser::query()
+            ->where('is_deleted', false)
             ->where($field, $value);
 
         if ($ignoreUserId !== null) {
@@ -117,6 +118,7 @@ class TenantUserRepository
         $query = TenantUser::query()
             ->withoutGlobalScope('tenant')
             ->where('tenant_id', $tenantId)
+            ->where('is_deleted', false)
             ->where($field, $value);
 
         if ($ignoreUserId !== null) {
@@ -137,6 +139,7 @@ class TenantUserRepository
     {
         $lockedUser = TenantUser::query()
             ->whereKey($tenantUser->getKey())
+            ->where('is_deleted', false)
             ->lockForUpdate()
             ->firstOrFail();
 
