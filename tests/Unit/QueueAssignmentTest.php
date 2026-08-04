@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
+use App\Jobs\ExpireInactiveTenantUsersJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\Telegram\SendInternalServerErrorTelegramNotificationJob;
 use App\Mail\PaymentRequestReviewedMail;
@@ -14,6 +15,7 @@ use App\Models\PlatformModule\ManualPaymentRequest;
 use App\Models\PlatformModule\TenantLicense;
 use App\Support\RedisAvailability;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Mockery;
 use Tests\TestCase;
 
@@ -24,6 +26,7 @@ class QueueAssignmentTest extends TestCase
         $this->assertSame('scheduled', (new CheckExpireTenantLicenseJob)->queue);
         $this->assertSame('scheduled', (new CheckExpirePawnLoanContractSlipJob)->queue);
         $this->assertSame('scheduled', (new ResetTenantLicenseMonthlySlipCountJob)->queue);
+        $this->assertSame('scheduled', (new ExpireInactiveTenantUsersJob)->queue);
     }
 
     public function test_scheduled_jobs_use_selected_queue_connection(): void
@@ -44,6 +47,15 @@ class QueueAssignmentTest extends TestCase
         $this->assertSame('redis', (new CheckExpireTenantLicenseJob)->connection);
         $this->assertSame('redis', (new CheckExpirePawnLoanContractSlipJob)->connection);
         $this->assertSame('redis', (new ResetTenantLicenseMonthlySlipCountJob)->connection);
+        $this->assertSame('redis', (new ExpireInactiveTenantUsersJob)->connection);
+    }
+
+    public function test_tenant_user_expiration_job_prevents_overlapping_executions(): void
+    {
+        $middleware = (new ExpireInactiveTenantUsersJob)->middleware();
+
+        $this->assertCount(1, $middleware);
+        $this->assertInstanceOf(WithoutOverlapping::class, $middleware[0]);
     }
 
     public function test_mailables_use_mail_queue(): void

@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Models\CoreModule\TenantUser;
 use App\Exceptions\RequiredValueMissing;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class TenantUserRepository
@@ -144,6 +145,64 @@ class TenantUserRepository
             ->firstOrFail();
 
         return $this->update($lockedUser, $data);
+    }
+
+    public function reactivate(int $tenantId, int $userId): bool
+    {
+        return TenantUser::query()
+            ->withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->whereKey($userId)
+            ->where('is_deleted', false)
+            ->where('status', 'inactive')
+            ->update([
+                'status' => 'active',
+                'updated_at' => now(),
+            ]) > 0;
+    }
+
+    public function findActiveUsersAfterId(int $afterId, int $limit): Collection
+    {
+        return TenantUser::query()
+            ->withoutGlobalScope('tenant')
+            ->where('is_deleted', false)
+            ->where('status', 'active')
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get(['id', 'tenant_id']);
+    }
+
+    public function findActiveUsersByIdsWithLock(array $userIds): Collection
+    {
+        if ($userIds === []) {
+            return new Collection();
+        }
+
+        return TenantUser::query()
+            ->withoutGlobalScope('tenant')
+            ->whereKey($userIds)
+            ->where('is_deleted', false)
+            ->where('status', 'active')
+            ->lockForUpdate()
+            ->get(['id', 'tenant_id']);
+    }
+
+    public function markUsersInactive(array $userIds): int
+    {
+        if ($userIds === []) {
+            return 0;
+        }
+
+        return TenantUser::query()
+            ->withoutGlobalScope('tenant')
+            ->whereKey($userIds)
+            ->where('is_deleted', false)
+            ->where('status', 'active')
+            ->update([
+                'status' => 'inactive',
+                'updated_at' => now(),
+            ]);
     }
 
     public function deleteSessionsForUser(int $userId): void

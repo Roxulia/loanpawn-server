@@ -11,10 +11,12 @@ use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
 use App\Http\Middleware\LogHttpOperation;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\StandardizeJsonResponse;
+use App\Http\Middleware\TrackTenantUserActivity;
 use App\Http\Responses\ApiResponse;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
+use App\Jobs\ExpireInactiveTenantUsersJob;
 use App\Support\InternalServerErrorNotifier;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -55,6 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant-resolve' => ResolveTenant::class,
             'tenant.access' => EnsureTenantUserBelongsToTenant::class,
+            'tenant.activity' => TrackTenantUserActivity::class,
             'tenant.permission' => EnsureTenantPermission::class,
             'tenant.feature' => EnsureTenantFeature::class,
             'platform.tenant.submitted-feature' => EnsurePlatformTenantSubmittedFeature::class,
@@ -67,6 +70,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new CheckExpireTenantLicenseJob())->daily();
         $schedule->job(new CheckExpirePawnLoanContractSlipJob())->dailyAt('23:59');
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob())->monthlyOn(1, '00:00');
+        $schedule->job(new ExpireInactiveTenantUsersJob())->everyFiveMinutes()->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

@@ -16,9 +16,11 @@ use App\Services\AuthLoginAttemptService;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLookupService;
 use App\Support\TenantContext;
+use App\Support\TenantUserActivityCache;
 use App\Support\TenantScopedCacheKeys;
 use Illuminate\Contracts\Cookie\QueueingFactory as CookieFactory;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthService extends BaseTenantService
@@ -32,6 +34,7 @@ class AuthService extends BaseTenantService
         private TenantLookupService $tenantLookupService,
         private CookieFactory $cookieFactory,
         private TenantScopedCacheKeys $cache,
+        private TenantUserActivityCache $activityCache,
         private AuthLoginAttemptService $loginAttemptService,
     ) {}
 
@@ -88,6 +91,7 @@ class AuthService extends BaseTenantService
             'last_login_at' => now(),
             'status' => 'active',
         ])->loadMissing(['role', 'permission']);
+        $this->activityCache->remember($user);
 
         $session = TenantUserAuthSession::fromModel(
             $user,
@@ -127,6 +131,7 @@ class AuthService extends BaseTenantService
         ])->loadMissing(['role', 'permission']);
         $this->flushTenantUserListCache((int) $user->tenant_id);
         Auth::guard(self::GUARD)->logout();
+        $this->activityCache->forget($user);
         $this->cookieFactory->queue($this->forgetAuthCookie());
     }
 
@@ -188,6 +193,7 @@ class AuthService extends BaseTenantService
             'last_login_at' => now(),
             'status' => 'active',
         ])->loadMissing(['role', 'permission']);
+        $this->activityCache->remember($user);
         $this->flushTenantUserListCache($tenantId);
 
         return TenantUserAuthSession::fromModel(
@@ -209,6 +215,64 @@ class AuthService extends BaseTenantService
         Auth::guard('web')->logout();
         Auth::guard('platformuser')->logout();
         Auth::guard('platformadmin')->logout();
+    }
+
+    public function recordAuthenticatedActivity(TenantUser $user): void
+    {
+        if (! in_array($user->status, ['active', 'inactive'], true) || $user->is_deleted) {
+            return;
+        }
+
+        $wasInactive = $user->status === 'inactive';
+        $this->activityCache->remember($user);
+
+        if (! $wasInactive || ! $this->repository->reactivate((int) $user->tenant_id, (int) $user->id)) {
+            return;
+        }
+
+        $user->setAttribute('status', 'active');
+        $this->flushTenantUserListCache((int) $user->tenant_id);
+    }
+
+    public function expireInactiveTenantUsers(): int
+    {
+        $expiredCount = 0;
+        $tenantIds = [];
+        $afterId = 0;
+
+        do {
+            $activeUsers = $this->repository->findActiveUsersAfterId($afterId, 500);
+
+            if ($activeUsers->isEmpty()) {
+                break;
+            }
+
+            $afterId = (int) $activeUsers->last()->id;
+            $candidateIds = $this->activityCache->missingUserIds($activeUsers);
+
+            if ($candidateIds === []) {
+                continue;
+            }
+
+            [$batchCount, $batchTenantIds] = DB::transaction(function () use ($candidateIds): array {
+                $lockedUsers = $this->repository->findActiveUsersByIdsWithLock($candidateIds);
+                $expiredIds = $this->activityCache->missingUserIds($lockedUsers);
+
+                return [
+                    $this->repository->markUsersInactive($expiredIds),
+                    $lockedUsers->whereIn('id', $expiredIds)->pluck('tenant_id')->unique()->all(),
+                ];
+            });
+
+            $expiredCount += $batchCount;
+            $tenantIds = array_merge($tenantIds, $batchTenantIds);
+        } while ($activeUsers->count() === 500);
+
+        foreach (array_unique($tenantIds) as $tenantId) {
+            $this->flushTenantUserListCache((int) $tenantId);
+        }
+
+        return $expiredCount;
     }
 
     protected function flushTenantUserListCache(int $tenantId): void
