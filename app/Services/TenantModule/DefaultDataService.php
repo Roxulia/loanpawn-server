@@ -199,6 +199,11 @@ class DefaultDataService extends BaseTenantService
         );
     }
 
+    public function getInterestTypeById(int $id): ?InterestType
+    {
+        return $this->defaultDataRepository->findInterestByIdForCurrentTenant($id);
+    }
+
     public function createDefaultMaterialType(string $name,string $code):void
     {
         $this->defaultDataRepository->createMaterialType([

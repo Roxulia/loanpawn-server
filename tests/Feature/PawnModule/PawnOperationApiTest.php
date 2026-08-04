@@ -304,7 +304,7 @@ class PawnOperationApiTest extends TestCase
             'loan_amount' => 200000,
             'interest_rate' => 5,
             'interest_type_id' => $interestType->id,
-            'expiry_quota' => 1,
+            'expiry_quota' => 2,
             'expiry_quota_type' => 'Month',
         ];
 
@@ -327,6 +327,67 @@ class PawnOperationApiTest extends TestCase
 
         $this->assertDatabaseCount('pawn_loan_contract_slips', 1);
         $this->assertDatabaseCount('tenant_idempotency_keys', 1);
+    }
+
+    public function test_slip_expiry_must_be_longer_than_interest_duration(): void
+    {
+        [$tenant, $tenantUser] = $this->tenantUserContext();
+        $dailyInterestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'duration-validation-daily',
+            'name' => 'Daily',
+            'duration_in_days' => 1,
+            'is_default' => true,
+        ]);
+        $monthlyInterestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'duration-validation-monthly',
+            'name' => 'Monthly',
+            'duration_in_days' => 30,
+            'is_default' => true,
+        ]);
+
+        Sanctum::actingAs($tenantUser, [], 'tenantuser');
+
+        $payload = [
+            'customer' => [
+                'name' => 'Duration Validation Customer',
+                'phone' => '09900000021',
+            ],
+            'collateral_items' => [
+                [
+                    'type' => 'Normal',
+                    'name' => 'Duration Validation Item',
+                ],
+            ],
+            'loan_amount' => 100000,
+            'interest_rate' => 5,
+            'interest_type_id' => $dailyInterestType->id,
+            'expiry_quota' => 1,
+            'expiry_quota_type' => 'Day',
+        ];
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-21 09:30:00'));
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->postJson('/api/tenant/loan-contract-slips', $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('data.code', 'INVALID_SLIP_EXPIRY_DURATION')
+            ->assertJsonPath(
+                'message',
+                'Expiry duration must be longer than the selected interest duration. Please rechoose the interest type or expiry quota.'
+            );
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-02-04 09:30:00'));
+        $payload['interest_type_id'] = $monthlyInterestType->id;
+        $payload['expiry_quota_type'] = 'Month';
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->postJson('/api/tenant/loan-contract-slips', $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('data.code', 'INVALID_SLIP_EXPIRY_DURATION');
+
+        $this->assertDatabaseCount('pawn_loan_contract_slips', 0);
     }
 
     public function test_idempotency_key_reuse_with_different_payload_is_rejected(): void
@@ -362,7 +423,7 @@ class PawnOperationApiTest extends TestCase
             'loan_amount' => 200000,
             'interest_rate' => 5,
             'interest_type_id' => $interestType->id,
-            'expiry_quota' => 1,
+            'expiry_quota' => 2,
             'expiry_quota_type' => 'Month',
         ];
 

@@ -538,6 +538,7 @@ return [
             'invalid_upload_image' => 'Upload လုပ်ထားသော ပုံ မမှန်ပါ။',
             'stored_file_not_found' => 'သိမ်းထားသော ဖိုင် မတွေ့ပါ။',
             'invalid_tenant_request' => 'Tenant request မမှန်ပါ။',
+            'invalid_slip_expiry_duration' => 'သက်တမ်းကုန်ဆုံးချိန်သည် ရွေးချယ်ထားသော အတိုးကာလထက် ပိုရှည်ရပါမည်။ အတိုးအမျိုးအစား သို့မဟုတ် သက်တမ်းကုန်ဆုံး quota ကို ပြန်လည်ရွေးချယ်ပါ။',
             'feature_not_available_for_plan' => 'လက်ရှိ tenant plan သည် ဤ feature ကို ခွင့်မပြုပါ။',
             'premium_plan_required' => 'လက်ရှိ tenant တွင် premium license ရှိရန် လိုအပ်ပါသည်။',
             'tenant_access_denied' => 'ဤ tenant ကို ဝင်ရောက်ခွင့် မရှိပါ။',

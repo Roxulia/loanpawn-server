@@ -538,6 +538,7 @@ return [
             'invalid_upload_image' => 'Uploaded image is invalid.',
             'stored_file_not_found' => 'Stored file not found.',
             'invalid_tenant_request' => 'Tenant request is invalid.',
+            'invalid_slip_expiry_duration' => 'Expiry duration must be longer than the selected interest duration. Please rechoose the interest type or expiry quota.',
             'feature_not_available_for_plan' => 'Current tenant plan does not allow this feature.',
             'premium_plan_required' => 'Current tenant must have a premium license.',
             'tenant_access_denied' => 'You do not have access to this tenant.',
