@@ -63,6 +63,19 @@ class TenantCustomerService extends BaseTenantService
 
     public function createForCurrentTenant(TenantCustomerCreate $request): TenantCustomerUpsertResult
     {
+        return $this->createOrReuseForCurrentTenant($request, false);
+    }
+
+    public function createCustomer(TenantCustomerCreate $request): TenantCustomerUpsertResult
+    {
+        return $this->createOrReuseForCurrentTenant($request, true);
+    }
+
+    protected function createOrReuseForCurrentTenant(
+        TenantCustomerCreate $request,
+        bool $reuseActiveCustomer,
+    ): TenantCustomerUpsertResult
+    {
         $this->permissionService->authorizeCustomerCreate();
 
         $request->createdBy = $this->resolveCurrentTenantUserId();
@@ -75,7 +88,11 @@ class TenantCustomerService extends BaseTenantService
         );
 
         if ($duplicate !== null) {
-            return TenantCustomerUpsertResult::existing(TenantCustomerDetail::fromModel($duplicate));
+            if ($reuseActiveCustomer) {
+                return TenantCustomerUpsertResult::existing(TenantCustomerDetail::fromModel($duplicate));
+            }
+
+            throw new DuplicateValueFound(null);
         }
 
         $customer = DB::transaction(function () use ($request) {
@@ -117,11 +134,6 @@ class TenantCustomerService extends BaseTenantService
         return TenantCustomerUpsertResult::created(TenantCustomerDetail::fromModel($customer));
     }
 
-    public function createCustomer(TenantCustomerCreate $request): TenantCustomerUpsertResult
-    {
-        return $this->createForCurrentTenant($request);
-    }
-
     public function show(int $customerId): TenantCustomerDetail
     {
         $this->permissionService->authorizeCustomerList();
@@ -159,43 +171,43 @@ class TenantCustomerService extends BaseTenantService
         }
         $data = [];
 
-        if ($request->name !== null) {
+        if ($request->isProvided('name') && $request->name !== null) {
             $data['name'] = $request->name;
         }
 
-        if ($request->email !== null && $request->email !== $customer->email) {
-            if ($this->repository->existsByField('email', $request->email, $customer->id)) {
+        if ($request->isProvided('email') && $request->email !== $customer->email) {
+            if ($request->email !== null && $this->repository->existsByField('email', $request->email, $customer->id)) {
                 throw new DuplicateValueFound('Tenant customer email already exists.');
             }
 
             $data['email'] = $request->email;
         }
 
-        if ($request->nrc !== null && $request->nrc !== $customer->nrc) {
-            if ($this->repository->existsByField('nrc', $request->nrc, $customer->id)) {
+        if ($request->isProvided('nrc') && $request->nrc !== $customer->nrc) {
+            if ($request->nrc !== null && $this->repository->existsByField('nrc', $request->nrc, $customer->id)) {
                 throw new DuplicateValueFound('Tenant customer NRC already exists.');
             }
 
             $data['nrc'] = $request->nrc;
         }
 
-        if ($request->phone !== null && $request->phone !== $customer->phone) {
-            if ($this->repository->existsByField('phone', $request->phone, $customer->id)) {
+        if ($request->isProvided('phone') && $request->phone !== $customer->phone) {
+            if ($request->phone !== null && $this->repository->existsByField('phone', $request->phone, $customer->id)) {
                 throw new DuplicateValueFound('Tenant customer phone already exists.');
             }
 
             $data['phone'] = $request->phone;
         }
 
-        if ($request->address !== null) {
+        if ($request->isProvided('address')) {
             $data['address'] = $request->address;
         }
 
-        if ($request->trustScore !== null) {
+        if ($request->isProvided('trustScore') && $request->trustScore !== null) {
             $data['trust_score'] = $request->trustScore;
         }
 
-        if ($request->note !== null) {
+        if ($request->isProvided('note')) {
             $data['note'] = $request->note;
         }
 
@@ -203,7 +215,7 @@ class TenantCustomerService extends BaseTenantService
             return TenantCustomerDetail::fromModel($customer);
         }
 
-        $data['update_key'] = $customer->updateKey+1;
+        $data['update_key'] = $customer->update_key + 1;
 
         $original = $customer->only(array_keys($data));
 

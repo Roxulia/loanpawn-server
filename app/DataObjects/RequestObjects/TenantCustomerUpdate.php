@@ -17,6 +17,23 @@ class TenantCustomerUpdate extends BaseDataObject
         public ?string $address = null,
         public ?int $trustScore = null,
         public ?string $note = null,
+        public array $providedFields = [],
     ) {
+        if ($this->providedFields === []) {
+            $this->providedFields = array_keys(array_filter([
+                'name' => $this->name,
+                'nrc' => $this->nrc,
+                'email' => $this->email,
+                'phone' => $this->phone,
+                'address' => $this->address,
+                'trustScore' => $this->trustScore,
+                'note' => $this->note,
+            ], fn (mixed $value): bool => $value !== null));
+        }
+    }
+
+    public function isProvided(string $field): bool
+    {
+        return in_array($field, $this->providedFields, true);
     }
 }

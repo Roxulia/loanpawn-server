@@ -261,16 +261,18 @@ class TenantCustomerRepository
             ->first();
     }
 
-    public function findDuplicateForCreate(int $tenantId, ?string $email, ?string $phone,?string $nrc): ?TenantCustomer
+    public function findDuplicateForCreate(int $tenantId, ?string $email, ?string $phone, ?string $nrc): ?TenantCustomer
     {
         if ($email === null && $phone === null && $nrc === null) {
             return null;
         }
 
-        return TenantCustomer::withTrashed()
+        return TenantCustomer::query()
             ->where('tenant_id', $tenantId)
-            ->where(function ($query) use ($email, $phone,$nrc) {
-                if ($nrc !== null){
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->where(function ($query) use ($email, $phone, $nrc) {
+                if ($nrc !== null) {
                     $query->orWhere('nrc', $nrc);
                 }
                 if ($phone !== null) {
@@ -287,7 +289,10 @@ class TenantCustomerRepository
 
     public function existsByField(string $field, string $value, ?int $ignoreCustomerId = null): bool
     {
-        $query = TenantCustomer::withTrashed()
+        $query = TenantCustomer::query()
+            ->where('tenant_id', app(TenantContext::class)->id())
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
             ->where($field, $value);
 
         if ($ignoreCustomerId !== null) {
