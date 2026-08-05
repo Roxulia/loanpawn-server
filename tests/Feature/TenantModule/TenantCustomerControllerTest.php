@@ -68,7 +68,7 @@ class TenantCustomerControllerTest extends TestCase
         ]);
     }
 
-    public function test_it_returns_existing_customer_for_duplicate_create(): void
+    public function test_it_rejects_duplicate_active_customer_create(): void
     {
         [$tenant] = $this->tenantUserContext(['access_all']);
 
@@ -80,12 +80,33 @@ class TenantCustomerControllerTest extends TestCase
             'email' => 'different@example.com',
         ]));
 
-        $duplicate->assertOk()
-            ->assertJsonPath('data.created', false)
-            ->assertJsonPath('data.customer.id', $created->json('data.customer.id'))
-            ->assertJsonPath('data.customer.name', 'Mg Mg');
+        $duplicate->assertConflict()
+            ->assertJsonPath('success', false);
 
         $this->assertDatabaseCount('tenant_customers', 1);
+    }
+
+    public function test_it_creates_new_customer_when_matching_customer_is_deleted(): void
+    {
+        [$tenant] = $this->tenantUserContext(['access_all']);
+
+        $deleted = $this->tenantPostJson($tenant, '/api/tenant/customers', $this->validCustomerPayload())
+            ->assertCreated();
+
+        $this->tenantDeleteJson($tenant, '/api/tenant/customers/'.$deleted->json('data.customer.code'))
+            ->assertOk();
+
+        $created = $this->tenantPostJson($tenant, '/api/tenant/customers', $this->validCustomerPayload())
+            ->assertCreated()
+            ->assertJsonPath('data.created', true);
+
+        $this->assertNotSame($deleted->json('data.customer.id'), $created->json('data.customer.id'));
+        $this->assertDatabaseCount('tenant_customers', 2);
+
+        $this->tenantGetJson($tenant, '/api/tenant/customers')
+            ->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.items.0.id', $created->json('data.customer.id'));
     }
 
     public function test_it_validates_customer_create_payload(): void
@@ -259,6 +280,45 @@ class TenantCustomerControllerTest extends TestCase
                     ],
                 ],
             ]);
+    }
+
+    public function test_it_clears_submitted_nullable_fields_and_preserves_omitted_fields(): void
+    {
+        [$tenant] = $this->tenantUserContext(['access_all']);
+        $created = $this->tenantPostJson($tenant, '/api/tenant/customers', $this->validCustomerPayload())
+            ->assertCreated();
+
+        $response = $this->tenantPutJson($tenant, '/api/tenant/customers/'.$created->json('data.customer.code'), [
+            'email' => null,
+            'phone' => null,
+            'address' => null,
+            'note' => null,
+            'nrc_state' => null,
+            'nrc_township' => null,
+            'nrc_citizen' => null,
+            'nrc_number' => null,
+            'update_key' => $created->json('data.customer.update_key'),
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'Mg Mg')
+            ->assertJsonPath('data.email', null)
+            ->assertJsonPath('data.phone', null)
+            ->assertJsonPath('data.address', null)
+            ->assertJsonPath('data.note', null)
+            ->assertJsonPath('data.nrc', null)
+            ->assertJsonPath('data.update_key', 1);
+
+        $this->assertDatabaseHas('tenant_customers', [
+            'id' => $created->json('data.customer.id'),
+            'name' => 'Mg Mg',
+            'email' => null,
+            'phone' => null,
+            'address' => null,
+            'note' => null,
+            'nrc' => null,
+            'update_key' => 1,
+        ]);
     }
 
     public function test_it_soft_deletes_customer(): void

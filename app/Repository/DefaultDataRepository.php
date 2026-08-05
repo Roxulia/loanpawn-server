@@ -152,6 +152,17 @@ class DefaultDataRepository
         return InterestType::query()->where('code',$code)->first();
     }
 
+    public function findInterestByIdForCurrentTenant(int $id): ?InterestType
+    {
+        return InterestType::query()
+            ->where('id', $id)
+            ->where(function ($query) {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', app(TenantContext::class)->id());
+            })
+            ->first();
+    }
+
     public function codeExists(string $modelClass, string $code): bool
     {
         return $modelClass::query()->where('code', $code)->exists();

@@ -101,7 +101,7 @@ class TenantCustomerController extends Controller
     public function update(Request $request, string $tenantCustomerCode): JsonResponse
     {
         $validator = Validator::make(array_merge($request->all(), ['_nrc' => true]), [
-            'name' => ['nullable', 'string', 'max:120'],
+            'name' => ['sometimes', 'required', 'string', 'max:120'],
             'nrc_state' => ['nullable'],
             'nrc_township' => ['nullable'],
             'nrc_citizen' => ['nullable'],
@@ -130,6 +130,16 @@ class TenantCustomerController extends Controller
         $validated = $validator->validated();
 
         $nrc = NrcHelper::buildNrcFromRequest($request);
+        $providedFields = array_values(array_filter([
+            $request->exists('name') ? 'name' : null,
+            collect(['nrc_state', 'nrc_township', 'nrc_citizen', 'nrc_number'])
+                ->contains(fn (string $field): bool => $request->exists($field)) ? 'nrc' : null,
+            $request->exists('email') ? 'email' : null,
+            $request->exists('phone') ? 'phone' : null,
+            $request->exists('address') ? 'address' : null,
+            $request->exists('trust_score') ? 'trustScore' : null,
+            $request->exists('note') ? 'note' : null,
+        ]));
 
         $customer = $this->tenantCustomerService->update(new TenantCustomerUpdate(
             customerId: $this->tenantCustomerService->resolveIdByCode($tenantCustomerCode),
@@ -142,6 +152,7 @@ class TenantCustomerController extends Controller
             address: $validated['address'] ?? null,
             trustScore: array_key_exists('trust_score', $validated) ? (int) $validated['trust_score'] : null,
             note: $validated['note'] ?? null,
+            providedFields: $providedFields,
         ));
 
         return $this->successResponse($customer->toArray(), $this->responseMessage(MessageCode::TenantCustomerUpdated));

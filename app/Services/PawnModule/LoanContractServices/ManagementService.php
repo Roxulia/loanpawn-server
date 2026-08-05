@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\ResponseObjects\LoanContractSlipDetail;
 use App\Exceptions\InvalidTenantRequest;
+use App\Exceptions\InvalidSlipExpiryDuration;
 use App\Exceptions\TenantAccessDenied;
 use App\Exceptions\TenantNotFound;
 use App\Models\PawnModule\PawnLoanContractSlip;
@@ -16,6 +17,7 @@ use App\Services\PawnModule\InterestFlowService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\CustomerTrustScoreService;
+use App\Services\TenantModule\DefaultDataService;
 use App\Services\TenantModule\TenantAccountingService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantCustomerService;
@@ -41,7 +43,8 @@ class ManagementService extends BaseTenantService
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
         private TenantLicenseService $tenantLicenseService,
-        private CustomerTrustScoreService $customerTrustScoreService
+        private CustomerTrustScoreService $customerTrustScoreService,
+        private DefaultDataService $defaultDataService,
     ) {
     }
 
@@ -50,6 +53,10 @@ class ManagementService extends BaseTenantService
         $this->permissionService->authorizeLoanContractCreate();
         $this->validateCreateRequest($request);
         $tenantId = $this->resolveCurrentTenantId();
+        $createdAt = CarbonImmutable::now();
+        $expiryQuotaType = $this->normalizeExpiryQuotaType($request->expiryQuotaType);
+        $expireAt = $this->interestFlowService->calculateExpireDate($createdAt, $request->expiryQuota, $expiryQuotaType);
+        $this->validateExpiryDuration($request->interestTypeId, $createdAt, $expireAt);
 
         if ($this->tenantLicenseService->checkIfLimitReach('current_month_slip_count', $tenantId)) {
             throw new TenantAccessDenied("Limit Reached");
@@ -65,9 +72,6 @@ class ManagementService extends BaseTenantService
         }
 
         $createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $createdAt = CarbonImmutable::now();
-        $expiryQuotaType = $this->normalizeExpiryQuotaType($request->expiryQuotaType);
-        $expireAt = $this->interestFlowService->calculateExpireDate($createdAt, $request->expiryQuota, $expiryQuotaType);
 
         try {
             $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType) {
@@ -234,6 +238,28 @@ class ManagementService extends BaseTenantService
 
         $this->validateCollateralItems($request->collateralItems);
         $this->normalizeExpiryQuotaType($request->expiryQuotaType);
+    }
+
+    protected function validateExpiryDuration(
+        ?int $interestTypeId,
+        CarbonImmutable $createdAt,
+        CarbonImmutable $expireAt
+    ): void {
+        if ($interestTypeId === null) {
+            throw new InvalidTenantRequest('Interest type is required.');
+        }
+
+        $interestType = $this->defaultDataService->getInterestTypeById($interestTypeId);
+
+        if ($interestType === null) {
+            throw new TenantNotFound('Interest type not found.');
+        }
+
+        $expiryDurationInDays = $createdAt->startOfDay()->diffInDays($expireAt->startOfDay());
+
+        if ($expiryDurationInDays <= (int) $interestType->duration_in_days) {
+            throw new InvalidSlipExpiryDuration();
+        }
     }
 
     protected function loanContractSlipCreateIdempotencyPayload(LoanContractSlipCreate $request): array

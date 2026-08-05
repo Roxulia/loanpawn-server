@@ -17,6 +17,7 @@ class TenantCustomer extends Model
     protected $fillable = [
         'tenant_id',
         'code',
+        'update_key',
         'name',
         'nrc',
         'email',

@@ -121,6 +121,7 @@ enum MessageCode: string
     case ExceptionInvalidUploadImage = 'exception.exception.invalid_upload_image';
     case ExceptionStoredFileNotFound = 'exception.exception.stored_file_not_found';
     case ExceptionInvalidTenantRequest = 'exception.exception.invalid_tenant_request';
+    case ExceptionInvalidSlipExpiryDuration = 'exception.exception.invalid_slip_expiry_duration';
     case ExceptionFeatureNotAvailableForPlan = 'exception.exception.feature_not_available_for_plan';
     case ExceptionPremiumPlanRequired = 'exception.exception.premium_plan_required';
     case ExceptionTenantAccessDenied = 'exception.exception.tenant_access_denied';

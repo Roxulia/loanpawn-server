@@ -67,7 +67,7 @@ class TenantCustomerServiceTest extends TestCase
             phone: '0922222222',
         ));
 
-        $result = app(TenantCustomerService::class)->createForCurrentTenant(new TenantCustomerCreate(
+        $result = app(TenantCustomerService::class)->createCustomer(new TenantCustomerCreate(
             name: 'Duplicate Attempt',
             email: 'different@example.com',
             phone: '0922222222',

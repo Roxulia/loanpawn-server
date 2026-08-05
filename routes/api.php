@@ -49,7 +49,7 @@ Route::prefix('tenant')->group(function () {
             ->middleware('throttle:public-api');
         Route::get('resolve-tenant',[TenantController::class,'resolveTenant'])
             ->middleware('throttle:public-api');
-        Route::middleware(['auth:sanctum', 'tenant.access', 'throttle:tenant-api'])->group(function () {
+        Route::middleware(['auth:sanctum', 'tenant.access', 'tenant.activity', 'throttle:tenant-api'])->group(function () {
             Route::get('me', [TenantAuthController::class, 'me']);
             Route::put('me/change-password', [TenantUserController::class, 'changePassword']);
             Route::put('me/change-language', [LanguageController::class, 'change']);
