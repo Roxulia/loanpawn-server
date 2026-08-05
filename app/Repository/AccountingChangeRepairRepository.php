@@ -14,7 +14,7 @@ class AccountingChangeRepairRepository
             ->where('is_deleted', false)
             ->where('is_paid', true)
             ->where('change_amount', '>', 0)
-            ->select(['id', 'tenant_id', 'payment_amount', 'change_amount'])
+            ->select(['id', 'tenant_id', 'payment_amount', 'change_amount', 'calculated_interest'])
             ->orderBy('id')
             ->chunkById($chunkSize, $callback, 'id');
     }
@@ -65,6 +65,23 @@ class AccountingChangeRepairRepository
 
         $accounting->forceFill([
             'is_deleted' => true,
+            'update_key' => (int) $accounting->update_key + 1,
+        ])->save();
+    }
+
+    public function updateIncomingAmount(int $tenantId, int $accountingId, string $amount): void
+    {
+        $accounting = TenantAccounting::query()
+            ->withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->whereKey($accountingId)
+            ->whereIn('transaction_type', ['incoming', 'income'])
+            ->where('is_deleted', false)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $accounting->forceFill([
+            'amount' => $amount,
             'update_key' => (int) $accounting->update_key + 1,
         ])->save();
     }

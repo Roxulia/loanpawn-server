@@ -42,10 +42,13 @@ class AccountingChangeRepairService
     {
         $this->repository->chunkInterestPayments(self::CHUNK_SIZE, function ($payments) use ($summary, $apply): void {
             foreach ($payments as $payment) {
-                $summary->scanned++;
-                $grossCents = $this->toCents($payment->payment_amount);
+                $summary->recordScanned('interest');
+                $paymentCents = $this->toCents($payment->payment_amount);
                 $changeCents = $this->toCents($payment->change_amount);
-                $expectedNetCents = $grossCents - $changeCents;
+                $calculatedInterestCents = $this->toCents($payment->calculated_interest);
+                $isLegacyNetPayment = $paymentCents === $calculatedInterestCents;
+                $grossCents = $isLegacyNetPayment ? $paymentCents + $changeCents : $paymentCents;
+                $expectedNetCents = $isLegacyNetPayment ? $paymentCents : $paymentCents - $changeCents;
                 $rows = $this->repository->activeAccountingRows(
                     (int) $payment->tenant_id,
                     self::REFERENCE_TYPES['interest'],
@@ -56,16 +59,23 @@ class AccountingChangeRepairService
                 $outgoingCents = $this->sumCents($outgoingRows);
 
                 if ($incomingCents === $grossCents && $outgoingCents === $changeCents) {
-                    $summary->alreadyCorrect++;
+                    $summary->recordAlreadyCorrect('interest');
                     continue;
                 }
 
                 if (
                     $incomingCents === $expectedNetCents
+                    && $incomingRows->count() === 1
                     && $outgoingRows->count() === 1
                     && $outgoingCents === $changeCents
                 ) {
-                    $this->softDeleteIncorrectChange($summary, $apply, 'interest', $payment, (int) $outgoingRows->first()->id);
+                    $this->updateIncorrectIncoming(
+                        $summary,
+                        $apply,
+                        $payment,
+                        (int) $incomingRows->first()->id,
+                        $grossCents,
+                    );
                     continue;
                 }
 
@@ -78,7 +88,7 @@ class AccountingChangeRepairService
     {
         $this->repository->chunkPaidDebts(self::CHUNK_SIZE, function ($debts) use ($summary, $apply): void {
             foreach ($debts as $debt) {
-                $summary->scanned++;
+                $summary->recordScanned('debt');
                 $collectibleCents = $this->toCents($debt->amount);
                 $rows = $this->repository->activeAccountingRows(
                     (int) $debt->tenant_id,
@@ -96,7 +106,7 @@ class AccountingChangeRepairService
                 $outgoingCents = $this->sumCents($outgoingRows);
 
                 if ($incomingCents === $collectibleCents && $outgoingCents === 0) {
-                    $summary->alreadyCorrect++;
+                    $summary->recordAlreadyCorrect('debt');
                     continue;
                 }
 
@@ -104,7 +114,7 @@ class AccountingChangeRepairService
                     $changeCents = $incomingCents - $collectibleCents;
 
                     if ($outgoingCents === $changeCents) {
-                        $summary->alreadyCorrect++;
+                        $summary->recordAlreadyCorrect('debt');
                         continue;
                     }
 
@@ -130,7 +140,7 @@ class AccountingChangeRepairService
     {
         $this->repository->chunkRedemptions(self::CHUNK_SIZE, function ($redemptions) use ($summary, $apply): void {
             foreach ($redemptions as $redemption) {
-                $summary->scanned++;
+                $summary->recordScanned('redemption');
                 $grossCents = $this->toCents($redemption->received_amount);
                 $changeCents = $this->toCents($redemption->change_amount);
                 $expectedNetCents = $grossCents - $changeCents;
@@ -144,7 +154,7 @@ class AccountingChangeRepairService
                 $outgoingCents = $this->sumCents($outgoingRows);
 
                 if ($incomingCents === $grossCents && $outgoingCents === $changeCents) {
-                    $summary->alreadyCorrect++;
+                    $summary->recordAlreadyCorrect('redemption');
                     continue;
                 }
 
@@ -180,7 +190,26 @@ class AccountingChangeRepairService
             $this->invalidateAccountingCaches((int) $record->tenant_id);
         }
 
-        $summary->recordRepair((int) $record->tenant_id);
+        $summary->recordRepair($type, (int) $record->tenant_id);
+    }
+
+    private function updateIncorrectIncoming(
+        AccountingChangeRepairSummary $summary,
+        bool $apply,
+        object $record,
+        int $accountingId,
+        int $grossCents,
+    ): void {
+        if ($apply) {
+            DB::transaction(fn () => $this->repository->updateIncomingAmount(
+                (int) $record->tenant_id,
+                $accountingId,
+                $this->formatCents($grossCents),
+            ));
+            $this->invalidateAccountingCaches((int) $record->tenant_id);
+        }
+
+        $summary->recordRepair('interest', (int) $record->tenant_id);
     }
 
     private function addMissingChange(
@@ -202,7 +231,7 @@ class AccountingChangeRepairService
             $this->invalidateAccountingCaches((int) $record->tenant_id);
         }
 
-        $summary->recordRepair((int) $record->tenant_id);
+        $summary->recordRepair($type, (int) $record->tenant_id);
     }
 
     /** @return array{Collection, Collection} */
