@@ -25,6 +25,10 @@ class AccountingChangeRepairCommandTest extends TestCase
 
         $this->artisan('accounting:repair-change')
             ->expectsOutputToContain('DRY-RUN mode')
+            ->expectsOutputToContain('Interest payments')
+            ->expectsOutputToContain('Debt payments')
+            ->expectsOutputToContain('Redemptions')
+            ->expectsOutputToContain('Affected tenant IDs:')
             ->expectsOutputToContain('Repaired')
             ->assertSuccessful();
 
@@ -35,9 +39,9 @@ class AccountingChangeRepairCommandTest extends TestCase
     {
         [$tenant, $slipId] = $this->tenantAndSlip('repair-interest');
 
-        $bugId = $this->interest($tenant, $slipId, '100.00', '20.00');
-        $this->accounting($tenant, 'InterestPayment', $bugId, 'incoming', '80.00', 'Interest Payment Transaction');
-        $bugOutgoingId = $this->accounting($tenant, 'InterestPayment', $bugId, 'outgoing', '20.00', 'Interest Payment Change Transaction');
+        $bugId = $this->interest($tenant, $slipId, '75.00', '25.00', '75.00');
+        $bugIncomingId = $this->accounting($tenant, 'InterestPayment', $bugId, 'incoming', '75.00', 'Interest Payment Transaction');
+        $bugOutgoingId = $this->accounting($tenant, 'InterestPayment', $bugId, 'outgoing', '25.00', 'Interest Payment Change Transaction');
 
         $correctId = $this->interest($tenant, $slipId, '100.00', '20.00');
         $this->accounting($tenant, PawnInterestPayment::class, $correctId, 'incoming', '100.00', 'Interest Payment Transaction');
@@ -52,7 +56,8 @@ class AccountingChangeRepairCommandTest extends TestCase
 
         $this->artisan('accounting:repair-change', ['--apply' => true])->assertSuccessful();
 
-        $this->assertDatabaseHas('tenant_accountings', ['id' => $bugOutgoingId, 'is_deleted' => true]);
+        $this->assertDatabaseHas('tenant_accountings', ['id' => $bugIncomingId, 'amount' => '100.00', 'is_deleted' => false]);
+        $this->assertDatabaseHas('tenant_accountings', ['id' => $bugOutgoingId, 'amount' => '25.00', 'is_deleted' => false]);
         $this->assertDatabaseHas('tenant_accountings', ['id' => $correctOutgoingId, 'is_deleted' => false]);
         $this->assertDatabaseHas('tenant_accountings', ['id' => $ambiguousOutgoingId, 'is_deleted' => false]);
         $this->assertSame($versionBefore + 1, $cacheKeys->currentVersion('tenant-accounting-list', tenantId: $tenant->id));
@@ -60,7 +65,8 @@ class AccountingChangeRepairCommandTest extends TestCase
         $accountingCount = DB::table('tenant_accountings')->count();
         $this->artisan('accounting:repair-change', ['--apply' => true])->assertSuccessful();
         $this->assertSame($accountingCount, DB::table('tenant_accountings')->count());
-        $this->assertDatabaseHas('tenant_accountings', ['id' => $bugOutgoingId, 'is_deleted' => true]);
+        $this->assertDatabaseHas('tenant_accountings', ['id' => $bugIncomingId, 'amount' => '100.00', 'is_deleted' => false]);
+        $this->assertDatabaseHas('tenant_accountings', ['id' => $bugOutgoingId, 'amount' => '25.00', 'is_deleted' => false]);
     }
 
     public function test_debt_repair_adds_change_only_for_single_gross_payment(): void
@@ -160,14 +166,20 @@ class AccountingChangeRepairCommandTest extends TestCase
         return [$tenant, $slipId];
     }
 
-    private function interest(Tenant $tenant, int $slipId, string $payment, string $change): int
+    private function interest(
+        Tenant $tenant,
+        int $slipId,
+        string $payment,
+        string $change,
+        string $calculatedInterest = '80.00',
+    ): int
     {
         return DB::table('pawn_interest_payments')->insertGetId([
             'tenant_id' => $tenant->id,
             'slip_id' => $slipId,
             'payment_amount' => $payment,
             'change_amount' => $change,
-            'calculated_interest' => '80.00',
+            'calculated_interest' => $calculatedInterest,
             'payment_at' => now(),
             'is_paid' => true,
             'created_at' => now(),

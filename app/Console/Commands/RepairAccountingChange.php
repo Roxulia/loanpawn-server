@@ -26,13 +26,14 @@ class RepairAccountingChange extends Command
 
         $summary = $service->repair($apply);
 
-        $this->table(['Metric', 'Value'], [
-            ['Scanned', $summary->scanned],
-            ['Repaired', $summary->repaired],
-            ['Already correct', $summary->alreadyCorrect],
-            ['Skipped/ambiguous', $summary->skippedAmbiguous],
-            ['Affected tenant IDs', implode(', ', $summary->affectedTenantIdList()) ?: 'none'],
+        $this->table(['Category', 'Scanned', 'Repaired', 'Already correct', 'Skipped/ambiguous'], [
+            $this->categoryRow('Interest payments', $summary->byType['interest']),
+            $this->categoryRow('Debt payments', $summary->byType['debt']),
+            $this->categoryRow('Redemptions', $summary->byType['redemption']),
+            ['Total', $summary->scanned, $summary->repaired, $summary->alreadyCorrect, $summary->skippedAmbiguous],
         ]);
+
+        $this->info('Affected tenant IDs: '.(implode(', ', $summary->affectedTenantIdList()) ?: 'none'));
 
         if ($summary->skippedItems !== []) {
             $this->warn('Skipped records:');
@@ -48,5 +49,20 @@ class RepairAccountingChange extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @param array{scanned: int, repaired: int, already_correct: int, skipped: int} $metrics
+     * @return array{string, int, int, int, int}
+     */
+    private function categoryRow(string $label, array $metrics): array
+    {
+        return [
+            $label,
+            $metrics['scanned'],
+            $metrics['repaired'],
+            $metrics['already_correct'],
+            $metrics['skipped'],
+        ];
     }
 }
