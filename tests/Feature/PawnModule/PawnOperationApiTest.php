@@ -6,6 +6,7 @@ use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\InterestType;
 use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
+use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
@@ -126,12 +127,13 @@ class PawnOperationApiTest extends TestCase
             ->postJson('/api/tenant/redemptions', [
                 'slip_no' => $slipNo,
                 'calculated_total' => 500000,
-                'payment_amount' => 500000,
+                'payment_amount' => 510000,
                 'interests' => $redemptionResult->json('data.interest_payments') ?? [],
                 'debts' => $redemptionResult->json('data.debts') ?? [],
             ])
             ->assertCreated()
-            ->assertJsonPath('data.net_amount', 500000);
+            ->assertJsonPath('data.net_amount', 500000)
+            ->assertJsonPath('data.change_amount', 10000);
 
         $this->assertDatabaseHas('pawn_loan_contract_slips', [
             'tenant_id' => $tenant->id,
@@ -143,6 +145,27 @@ class PawnOperationApiTest extends TestCase
             'name' => 'Laptop',
             'item_category_type_id' => $itemCategoryType->id,
         ]);
+        $this->assertDatabaseHas('tenant_accountings', [
+            'tenant_id' => $tenant->id,
+            'description' => 'Redemption Transaction',
+            'transaction_type' => 'incoming',
+            'amount' => '510000.00',
+            'reference_type' => 'App\\Models\\PawnModule\\PawnRedemption',
+        ]);
+        $this->assertDatabaseHas('tenant_accountings', [
+            'tenant_id' => $tenant->id,
+            'description' => 'Redemption Change Transaction',
+            'transaction_type' => 'outgoing',
+            'amount' => '10000.00',
+            'reference_type' => 'App\\Models\\PawnModule\\PawnRedemption',
+        ]);
+        $this->assertSame(
+            2,
+            TenantAccounting::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('reference_type', 'App\\Models\\PawnModule\\PawnRedemption')
+                ->count()
+        );
     }
 
     public function test_backend_calculates_jewellery_minimum_retail_price_before_insert(): void
