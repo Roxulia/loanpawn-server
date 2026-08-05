@@ -187,7 +187,7 @@ class InterestFlowServiceTest extends TestCase
         $this->assertLessThan(100, $trustScore);
     }
 
-    public function test_it_records_change_amount_and_change_accounting_when_payment_exceeds_due_interest(): void
+    public function test_it_records_gross_incoming_and_outgoing_change_when_payment_exceeds_due_interest(): void
     {
         $tenant = $this->createTenant();
         $tenantUser = $this->actingTenantUser($tenant, ['access_all']);
@@ -239,7 +239,7 @@ class InterestFlowServiceTest extends TestCase
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
             'start_period_at' => '2026-03-28 00:00:00',
-            'payment_amount' => '10000.00',
+            'payment_amount' => '15000.00',
             'change_amount' => '5000.00',
             'is_paid' => true,
         ]);
@@ -248,8 +248,15 @@ class InterestFlowServiceTest extends TestCase
             'description' => 'Interest Payment Change Transaction',
             'transaction_type' => 'outgoing',
             'amount' => '5000.00',
-            'created_by' => $tenantUser->id,
+            'reference_type' => 'App\\Models\\PawnModule\\PawnInterestPayment',
         ]);
+
+        $incomingTotal = (float) DB::table('tenant_accountings')
+            ->where('description', 'Interest Payment Transaction')
+            ->where('transaction_type', 'incoming')
+            ->sum('amount');
+
+        $this->assertSame(25000.0, $incomingTotal);
     }
 
     public function test_daily_interest_with_day_quota_extends_expiry_by_paid_interest_row_count(): void

@@ -137,11 +137,22 @@ class PawnRedemptionService extends BaseTenantService
                 $this->tenantAccountingService->create(new TenantAccountingCreate(
                     description: 'Redemption Transaction',
                     transactionType: 'incoming',
-                    amount: (float) $redemption->net_amount,
+                    amount: (float) $redemption->received_amount,
                     createdBy: $createdBy,
                     referenceId: $redemption->id,
                     referenceType: PawnRedemption::class
                 ));
+
+                if ((float) $redemption->change_amount > 0.0) {
+                    $this->tenantAccountingService->create(new TenantAccountingCreate(
+                        description: 'Redemption Change Transaction',
+                        transactionType: 'outgoing',
+                        amount: (float) $redemption->change_amount,
+                        createdBy: $createdBy,
+                        referenceId: $redemption->id,
+                        referenceType: PawnRedemption::class
+                    ));
+                }
 
                 return $redemption;
             });

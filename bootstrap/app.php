@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ApiException;
+use App\Console\Commands\RepairAccountingChange;
 use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsurePlatformRole;
@@ -37,6 +38,9 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
+    ->withCommands([
+        RepairAccountingChange::class,
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogHttpOperation::class);
         $middleware->append(StandardizeJsonResponse::class);

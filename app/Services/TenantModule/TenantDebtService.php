@@ -407,6 +407,17 @@ class TenantDebtService extends BaseTenantService
                 $this->resolveCurrentTenantUserId()
             );
 
+            $changeAmount = $amountPaid - (float) $updatedDebt->amount;
+
+            if ($changeAmount > 0.0) {
+                $this->tenantAccountingService->createOutgoingForReference(
+                    $updatedDebt,
+                    "Debt Payment Change: {$updatedDebt->description}",
+                    $changeAmount,
+                    $this->resolveCurrentTenantUserId()
+                );
+            }
+
             $this->tenantAuditLogService->log(
                 'tenant_debt.marked_as_paid',
                 TenantDebt::class,
@@ -425,7 +436,7 @@ class TenantDebtService extends BaseTenantService
             $this->recalculateTrustScoreForDebt($updatedDebt);
 
             return array_merge($updatedDebt->toArray(), [
-                'change_amount' => $amountPaid - $debt->amount,
+                'change_amount' => $changeAmount,
             ]);
         });
 

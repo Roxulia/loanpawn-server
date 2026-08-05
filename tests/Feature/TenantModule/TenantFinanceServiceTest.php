@@ -285,6 +285,37 @@ class TenantFinanceServiceTest extends TestCase
         ]);
     }
 
+    public function test_debt_payment_records_gross_incoming_and_outgoing_change(): void
+    {
+        $tenant = $this->createTenant();
+        $tenantUser = $this->actingTenantUser($tenant, ['create_debt', 'update_debt']);
+
+        $created = app(TenantDebtService::class)->createExternalDebt(new TenantDebtCreate(
+            amount: 125000,
+            description: 'Debt paid with change',
+            createdBy: $tenantUser->id,
+        ));
+
+        $result = app(TenantDebtService::class)->markAsPaid($created->id, 130000);
+
+        $this->assertSame(5000.0, $result['change_amount']);
+        $this->assertDatabaseHas('tenant_accountings', [
+            'tenant_id' => $tenant->id,
+            'description' => 'Payment for debt: Debt paid with change',
+            'transaction_type' => 'incoming',
+            'amount' => '130000.00',
+            'reference_id' => $created->id,
+            'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
+        ]);
+        $this->assertDatabaseHas('tenant_accountings', [
+            'tenant_id' => $tenant->id,
+            'transaction_type' => 'outgoing',
+            'amount' => '5000.00',
+            'reference_id' => $created->id,
+            'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
+        ]);
+    }
+
     public function test_it_creates_external_debt_for_slip_code_and_stores_slip_customer(): void
     {
         $tenant = $this->createTenant();

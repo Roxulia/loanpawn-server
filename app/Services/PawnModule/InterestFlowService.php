@@ -131,6 +131,7 @@ class InterestFlowService extends BaseTenantService
                 $debtAmount = 0.0;
                 $lastPaidPayment = null;
                 $paidInterestRowCount = 0;
+                $paidPayments = [];
 
                 foreach ($payments as $payment) {
                     if ($leftAmount <= 0.0) {
@@ -158,8 +159,7 @@ class InterestFlowService extends BaseTenantService
                         'update_key' => $payment->update_key+1
                     ]);
 
-                    $this->recordInterestPaymentAccounting($updatedPayment);
-                    $this->logInterestPaymentUpdate($updatedPayment);
+                    $paidPayments[] = $updatedPayment;
                     $paidInterestRowCount++;
 
                     if ($appliedAmount < $calculatedInterest) {
@@ -181,10 +181,20 @@ class InterestFlowService extends BaseTenantService
 
                 if ($changeAmount > 0.0) {
                     $lastPaidPayment = $this->repository->update($lastPaidPayment, [
+                        'payment_amount' => (float) $lastPaidPayment->payment_amount + $changeAmount,
                         'change_amount' => $changeAmount,
                         'notes' => trim(($lastPaidPayment->notes ? $lastPaidPayment->notes.PHP_EOL : '').'Change amount: '.$changeAmount),
                     ]);
 
+                    $paidPayments[array_key_last($paidPayments)] = $lastPaidPayment;
+                }
+
+                foreach ($paidPayments as $paidPayment) {
+                    $this->recordInterestPaymentAccounting($paidPayment);
+                    $this->logInterestPaymentUpdate($paidPayment);
+                }
+
+                if ($changeAmount > 0.0) {
                     $this->recordInterestPaymentChangeAccounting($lastPaidPayment);
                 }
 
