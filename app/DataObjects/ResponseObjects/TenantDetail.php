@@ -19,6 +19,7 @@ class TenantDetail extends BaseDataObject
     public TenantFeatures $tenant_features;
     public ?TenantBrandingDetail $tenant_branding;
     public ?TenantSettingDetail $tenant_setting;
+    public ?array $tenant_category = null;
 
     public function __construct()
     {
@@ -43,6 +44,11 @@ class TenantDetail extends BaseDataObject
         $detail->tenant_features = $tenantFeatures ?? new TenantFeatures();
         $detail->tenant_branding = $tenantBranding;
         $detail->tenant_setting = $tenantSetting;
+        $detail->tenant_category = $tenant->category ? [
+            'id' => $tenant->category->id,
+            'code' => $tenant->category->code,
+            'name' => $tenant->category->name,
+        ] : null;
 
         return $detail;
     }

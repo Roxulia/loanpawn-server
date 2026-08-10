@@ -14,6 +14,7 @@ class Tenant extends Model
 {
     protected $fillable = [
         'platform_user_id',
+        'category_id',
         'name',
         'tenant_code',
         'plan_type',
@@ -25,6 +26,11 @@ class Tenant extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(PlatformUser::class, 'platform_user_id');
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TenantCategory::class, 'category_id');
     }
 
     public function license(): HasOne

@@ -11,6 +11,8 @@ class TenantRequest extends Model
 {
     protected $fillable = [
         'tenant_id',
+        'requested_category_id',
+        'requested_plan_id',
         'code',
         'platform_user_id',
         'request_type',
@@ -44,6 +46,16 @@ class TenantRequest extends Model
     public function platformUser(): BelongsTo
     {
         return $this->belongsTo(PlatformUser::class);
+    }
+
+    public function requestedCategory(): BelongsTo
+    {
+        return $this->belongsTo(TenantCategory::class, 'requested_category_id');
+    }
+
+    public function requestedPlan(): BelongsTo
+    {
+        return $this->belongsTo(Package::class, 'requested_plan_id');
     }
 
     public function reviewer(): BelongsTo

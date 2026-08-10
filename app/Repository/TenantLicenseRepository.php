@@ -98,12 +98,16 @@ class TenantLicenseRepository
 
                 $license = TenantLicense::query()->lockForUpdate()->findOrFail($transition->tenant_license_id);
                 $license->update([
+                    'plan_id' => $transition->to_plan_id,
                     'plan_type' => $transition->to_plan_type,
                     'status' => 'active',
                     'starts_at' => $transition->starts_at,
                     'expires_at' => $transition->expires_at,
                     'update_key' => $license->update_key + 1,
                 ]);
+                if ($transition->toPlan?->category_id !== null) {
+                    $license->tenant()->update(['category_id' => $transition->toPlan->category_id]);
+                }
                 $transition->update([
                     'status' => 'activated',
                     'activated_at' => $currentDate,

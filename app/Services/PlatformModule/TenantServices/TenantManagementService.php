@@ -88,6 +88,7 @@ class TenantManagementService extends BaseTenantService
         ) {
             $tenant = $this->repository->create([
                 'platform_user_id' => $platformUserId,
+                'category_id' => $request->categoryId,
                 'name' => $request->name,
                 'tenant_code' => $tenantCode,
                 'subdomain' => $request->subdomain,
@@ -218,15 +219,32 @@ class TenantManagementService extends BaseTenantService
 
     protected function resolvePlanType(TenantCreate $request): string
     {
+        if ($request->planId !== null) {
+            $plan = $this->tenantLicenseService->findPlan($request->planId);
+            $request->categoryId ??= (int) $plan->category_id;
+            return $plan->code;
+        }
+
+        if (! $request->createdByAdmin && $request->categoryId !== null) {
+            $plan = $this->tenantLicenseService->trialPlanForCategory($request->categoryId);
+            $request->planId = $plan->id;
+            return $plan->code;
+        }
+
         if (! $request->createdByAdmin) {
-            return 'trial';
+            $plan = $this->tenantLicenseService->defaultTrialPlan();
+            $request->categoryId = $plan->category_id;
+            $request->planId = $plan->id;
+            return $plan->code;
         }
 
         if ($request->planType == null) {
             throw new RequiredValueMissing($this->responseMessage(MessageCode::PlanTypeRequired));
         }
-
-        return $request->planType;
+        $plan = $this->tenantLicenseService->findPlanByCode($request->planType);
+        $request->planId = $plan->id;
+        $request->categoryId = $plan->category_id;
+        return $plan->code;
     }
 
     protected function resolveStatus(TenantCreate $request): string

@@ -78,7 +78,7 @@ class TenantServiceTest extends TestCase
 
         $this->assertSame('trial', $tenant->license->plan_type);
         $this->assertSame('active', $tenant->license->status);
-        $this->assertSame('2026-07-16 09:00:00', $tenant->license->expires_at?->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-08-16 09:00:00', $tenant->license->expires_at?->format('Y-m-d H:i:s'));
 
         Carbon::setTestNow();
     }

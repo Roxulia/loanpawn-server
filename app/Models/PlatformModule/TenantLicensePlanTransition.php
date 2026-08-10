@@ -10,6 +10,8 @@ class TenantLicensePlanTransition extends Model
     protected $fillable = [
         'tenant_license_id',
         'tenant_request_id',
+        'from_plan_id',
+        'to_plan_id',
         'from_plan_type',
         'to_plan_type',
         'starts_at',
@@ -37,6 +39,16 @@ class TenantLicensePlanTransition extends Model
     public function tenantRequest(): BelongsTo
     {
         return $this->belongsTo(TenantRequest::class);
+    }
+
+    public function fromPlan(): BelongsTo
+    {
+        return $this->belongsTo(Package::class, 'from_plan_id');
+    }
+
+    public function toPlan(): BelongsTo
+    {
+        return $this->belongsTo(Package::class, 'to_plan_id');
     }
 
     public function approver(): BelongsTo

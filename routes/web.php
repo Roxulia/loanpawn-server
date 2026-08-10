@@ -12,6 +12,7 @@ use App\Http\Controllers\PlatformModule\Admin\AdminPaymentQrController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPlanManagementController;
 use App\Http\Controllers\PlatformModule\AuthController;
 use App\Http\Controllers\PlatformModule\LanguageController;
 use App\Http\Controllers\PlatformModule\Web\BillingManagementController;
@@ -41,6 +42,14 @@ Route::name('admin.')->group(function () {
         ->group(function () {
             Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
             Route::get('/tenants', [AdminTenantManagementController::class, 'index'])->name('tenants.index');
+            Route::post('/tenants/{tenant}/plan', [AdminTenantManagementController::class, 'changePlan'])->name('tenants.plan.update');
+            Route::get('/plans', [AdminPlanManagementController::class, 'index'])->name('plans.index');
+            Route::post('/plans/categories', [AdminPlanManagementController::class, 'storeCategory'])->name('plans.categories.store');
+            Route::put('/plans/categories/{category}', [AdminPlanManagementController::class, 'updateCategory'])->name('plans.categories.update');
+            Route::delete('/plans/categories/{category}', [AdminPlanManagementController::class, 'destroyCategory'])->name('plans.categories.destroy');
+            Route::post('/plans', [AdminPlanManagementController::class, 'storePlan'])->name('plans.store');
+            Route::put('/plans/{plan}', [AdminPlanManagementController::class, 'updatePlan'])->name('plans.update');
+            Route::delete('/plans/{plan}', [AdminPlanManagementController::class, 'destroyPlan'])->name('plans.destroy');
             Route::resource('platform-users', AdminPlatformUserController::class)
                 ->parameters(['platform-users' => 'platformUser'])
                 ->except(['show']);

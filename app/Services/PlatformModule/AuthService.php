@@ -218,6 +218,21 @@ class AuthService
         });
     }
 
+    public function loginVerifiedRegistrationUser(string $email): PlatformUser
+    {
+        $user = $this->resolveAccount($email, false);
+
+        if (! $user instanceof PlatformUser || $user->status !== 'active' || $user->email_verified_at === null) {
+            throw new LoginNotAllowed;
+        }
+
+        Auth::guard('platformadmin')->logout();
+        Auth::guard('platformuser')->login($user);
+        $this->applyUserLocale($user->prefer_lang ?? config('app.locale'));
+
+        return $user;
+    }
+
     public function verifyOTP(string $email, string $otp, bool $isAdmin): void
     {
         $this->resolveAccount($email, $isAdmin);

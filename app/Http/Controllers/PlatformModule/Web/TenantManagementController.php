@@ -18,6 +18,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Services\PlatformModule\PackageService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class TenantManagementController extends Controller
 {
@@ -27,6 +30,7 @@ class TenantManagementController extends Controller
         private TenantRequestService $tenantRequestService,
         private TenantSsoService $tenantSsoService,
         private TenantLicenseService $tenantLicenseService,
+        private PackageService $packageService,
     ) {
     }
 
@@ -42,7 +46,11 @@ class TenantManagementController extends Controller
 
     public function create(): View
     {
-        return view('platform.tenants.create');
+        return view('platform.tenants.create', [
+            'categories' => $this->packageService->activeCategoriesWithPlans(),
+            'createdTenant' => session('created_tenant'),
+            'ownerEmail' => Auth::guard('platformuser')->user()?->email,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -53,23 +61,47 @@ class TenantManagementController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
+            'category_id' => ['required', 'integer', Rule::exists('tenant_categories', 'id')->where('is_active', true)->where('is_deleted', false)],
+            'plan_id' => ['required', 'integer', 'exists:packages,id'],
+            'duration_months' => ['nullable', 'integer', 'in:1,3,6,12'],
         ], [], __('validation.attributes'));
 
-        $this->tenantManagementService->createTenant(new TenantCreate(
-            name: $validated['name'],
-            code: null,
-            subdomain: null,
-            createdByAdmin: false,
-            planType: null,
-            address: $validated['address'] ?? null,
-            phone: $validated['phone'] ?? null,
-            city: $validated['city'] ?? null,
-            country: $validated['country'] ?? null,
-        ));
+        $selectedPlan = $this->packageService->findActiveById((int) $validated['plan_id']);
+        if ((int) $selectedPlan->category_id !== (int) $validated['category_id']) {
+            return back()->withInput()->withErrors(['plan_id' => 'Select a plan belonging to the chosen category.']);
+        }
+        if (! $selectedPlan->is_trial && empty($validated['duration_months'])) {
+            return back()->withInput()->withErrors(['duration_months' => 'Choose a paid plan duration.']);
+        }
+
+        [$tenant, $tenantRequest] = DB::transaction(function () use ($validated, $selectedPlan): array {
+            $trialPlan = $this->packageService->trialForCategory((int) $validated['category_id']);
+            $tenant = $this->tenantManagementService->createTenant(new TenantCreate(
+                name: $validated['name'], code: null, subdomain: null, createdByAdmin: false,
+                planType: $trialPlan->code,
+                address: $validated['address'] ?? null, phone: $validated['phone'] ?? null,
+                city: $validated['city'] ?? null, country: $validated['country'] ?? null,
+                categoryId: (int) $validated['category_id'], planId: $trialPlan->id,
+            ));
+
+            $tenantRequest = null;
+            if (! $selectedPlan->is_trial) {
+                $tenantRequest = $this->tenantRequestService->createRequest(new TenantRequestCreate(
+                    tenantId: $tenant->id, requestType: 'plan_change', requestedPlanType: $selectedPlan->code,
+                    extensionMonths: (int) $validated['duration_months'], requestedPlanId: $selectedPlan->id,
+                    requestedCategoryId: $selectedPlan->category_id, resetLicenseTermOnApproval: true,
+                ));
+            }
+            return [$tenant, $tenantRequest];
+        });
 
         return redirect()
-            ->route('platform.tenants.index')
-            ->with('status', $this->responseMessage(MessageCode::PlatformTenantCreated, ['name' => $validated['name']]));
+            ->route('platform.tenants.create')
+            ->with('created_tenant', [
+                'id' => $tenant->id, 'name' => $tenant->name, 'code' => $tenant->tenant_code,
+                'email' => Auth::guard('platformuser')->user()?->email,
+                'selected_plan' => $selectedPlan->name, 'payment_request_id' => $tenantRequest?->id,
+            ]);
     }
 
     public function edit(int $tenant): View
@@ -165,7 +197,7 @@ class TenantManagementController extends Controller
         try {
             $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
 
-            if ($ownedTenant->license?->plan_type === 'trial') {
+            if ($ownedTenant->license?->plan?->is_trial || $ownedTenant->license?->plan_type === 'trial') {
                 return redirect()
                     ->route('platform.tenants.edit', $tenant)
                     ->with('status', $this->responseMessage(MessageCode::PlatformTrialUpgradeRequired));

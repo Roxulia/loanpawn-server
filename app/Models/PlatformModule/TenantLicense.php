@@ -11,6 +11,7 @@ class TenantLicense extends Model
 {
     protected $fillable = [
         'tenant_id',
+        'plan_id',
         'license_key',
         'plan_type',
         'status',
@@ -38,6 +39,11 @@ class TenantLicense extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(Package::class, 'plan_id');
     }
 
     public function approver(): BelongsTo
