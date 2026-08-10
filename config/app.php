@@ -85,6 +85,8 @@ return [
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
+    'disallowed_subdomains' => array_values(array_filter(array_map('trim', explode(',', env('APP_DISALLOWED_SUBDOMAINS', ''))))),
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

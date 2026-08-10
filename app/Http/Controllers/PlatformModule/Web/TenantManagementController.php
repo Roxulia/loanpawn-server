@@ -121,6 +121,10 @@ class TenantManagementController extends Controller
         $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
         $canManageBranding = $this->tenantLicenseService->tenantHasFeature($tenant, 'branding_management');
         $canManageSubdomain = $this->tenantLicenseService->tenantHasFeature($tenant, 'subdomain_available');
+        $disallowedSubdomains = array_map(
+            static fn (mixed $subdomain): string => strtolower(trim((string) $subdomain)),
+            (array) config('app.disallowed_subdomains', []),
+        );
 
         $validated = $request->validate([
             'update_key' => ['required', 'integer', 'min:0'],
@@ -130,6 +134,7 @@ class TenantManagementController extends Controller
                 'string',
                 'max:25',
                 'regex:/^[a-z0-9](?:[a-z0-9-]{0,23}[a-z0-9])?$/',
+                Rule::notIn($disallowedSubdomains),
                 Rule::unique('tenants', 'subdomain')->ignore($tenant),
             ],
             'address' => ['nullable', 'string', 'max:100'],
