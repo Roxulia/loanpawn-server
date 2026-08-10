@@ -2,11 +2,14 @@
 
 use App\Http\Controllers\LocaleSetterController;
 use App\Http\Controllers\PlatformModule\Admin\AdminBillingManagementController;
+use App\Http\Controllers\PlatformModule\Admin\AdminCurrencyController;
 use App\Http\Controllers\PlatformModule\Admin\AdminDashboardController;
+use App\Http\Controllers\PlatformModule\Admin\AdminExchangeRateController;
+use App\Http\Controllers\PlatformModule\Admin\AdminExchangeRatePairController;
 use App\Http\Controllers\PlatformModule\Admin\AdminIssuedTicketController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
-use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentQrController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
 use App\Http\Controllers\PlatformModule\AuthController;
@@ -43,6 +46,12 @@ Route::name('admin.')->group(function () {
                 ->except(['show']);
             Route::get('/billing', [AdminBillingManagementController::class, 'index'])->name('billing.index');
             Route::get('/package-flags', [AdminPackageFlagController::class, 'index'])->name('package-flags.index');
+            Route::resource('currencies', AdminCurrencyController::class)->only(['index', 'store', 'update', 'destroy']);
+            Route::resource('exchange-pairs', AdminExchangeRatePairController::class)->only(['index', 'store', 'update', 'destroy']);
+            Route::get('exchange-rates', [AdminExchangeRateController::class, 'index'])->name('exchange-rates.index');
+            Route::post('exchange-rates', [AdminExchangeRateController::class, 'store'])->name('exchange-rates.store');
+            Route::post('exchange-rates/{entry}/correct', [AdminExchangeRateController::class, 'correct'])->name('exchange-rates.correct');
+            Route::post('exchange-rates/{entry}/void', [AdminExchangeRateController::class, 'void'])->name('exchange-rates.void');
             Route::put('/package-flags', [AdminPackageFlagController::class, 'update'])->name('package-flags.update');
             Route::post('/package-flags/plans', [AdminPackageFlagController::class, 'updatePlans'])->name('package-flags.plans.update');
             Route::post('/package-flags/features', [AdminPackageFlagController::class, 'storeFeature'])->name('package-flags.features.store');

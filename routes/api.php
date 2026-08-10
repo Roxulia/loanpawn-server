@@ -1,27 +1,30 @@
 <?php
 
-use App\Http\Controllers\PlatformModule\LicenseController;
-use App\Http\Controllers\PlatformModule\TenantController;
-use App\Http\Controllers\PlatformModule\TelegramWebhookController;
 use App\Http\Controllers\PawnModule\CollateralItemController;
 use App\Http\Controllers\PawnModule\InterestPaymentController;
 use App\Http\Controllers\PawnModule\LoanContractSlipController;
 use App\Http\Controllers\PawnModule\PawnRedemptionController;
 use App\Http\Controllers\PawnModule\SlipDocumentController;
+use App\Http\Controllers\PlatformModule\LicenseController;
+use App\Http\Controllers\PlatformModule\TelegramWebhookController;
+use App\Http\Controllers\PlatformModule\TenantController;
 use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
+use App\Http\Controllers\TenantModule\DefaultDataController;
+use App\Http\Controllers\TenantModule\LanguageController;
 use App\Http\Controllers\TenantModule\OnlineSyncController;
 use App\Http\Controllers\TenantModule\TenantAccountingController;
 use App\Http\Controllers\TenantModule\TenantBrandingController;
 use App\Http\Controllers\TenantModule\TenantCapitalController;
+use App\Http\Controllers\TenantModule\TenantCurrencyController;
 use App\Http\Controllers\TenantModule\TenantCustomerController;
 use App\Http\Controllers\TenantModule\TenantDashboardController;
 use App\Http\Controllers\TenantModule\TenantDebtController;
+use App\Http\Controllers\TenantModule\TenantExchangeRateController;
+use App\Http\Controllers\TenantModule\TenantExchangeRatePairController;
 use App\Http\Controllers\TenantModule\TenantExpenseController;
-use App\Http\Controllers\TenantModule\TenantSettingsController;
 use App\Http\Controllers\TenantModule\TenantRoleController;
+use App\Http\Controllers\TenantModule\TenantSettingsController;
 use App\Http\Controllers\TenantModule\TenantUserController;
-use App\Http\Controllers\TenantModule\DefaultDataController;
-use App\Http\Controllers\TenantModule\LanguageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -47,7 +50,7 @@ Route::prefix('tenant')->group(function () {
     Route::middleware('tenant-resolve')->group(function () {
         Route::post('login/subdomain-spa', [TenantAuthController::class, 'loginSubdomainSpa'])
             ->middleware('throttle:public-api');
-        Route::get('resolve-tenant',[TenantController::class,'resolveTenant'])
+        Route::get('resolve-tenant', [TenantController::class, 'resolveTenant'])
             ->middleware('throttle:public-api');
         Route::middleware(['auth:sanctum', 'tenant.access', 'tenant.activity', 'throttle:tenant-api'])->group(function () {
             Route::get('me', [TenantAuthController::class, 'me']);
@@ -177,6 +180,32 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_accounting');
                 });
 
+            Route::middleware('tenant.feature:currency_exchange_management')->group(function () {
+                Route::prefix('currencies')->controller(TenantCurrencyController::class)->group(function () {
+                    Route::get('/', 'index')->middleware('tenant.permission:list_currency');
+                    Route::post('/', 'store')->middleware('tenant.permission:create_currency');
+                    Route::get('{code}', 'show')->middleware('tenant.permission:list_currency');
+                    Route::put('{code}', 'update')->middleware('tenant.permission:update_currency');
+                    Route::delete('{code}', 'destroy')->middleware('tenant.permission:delete_currency');
+                });
+                Route::prefix('exchange-pairs')->controller(TenantExchangeRatePairController::class)->group(function () {
+                    Route::get('/', 'index')->middleware('tenant.permission:list_exchange_pair');
+                    Route::post('/', 'store')->middleware('tenant.permission:create_exchange_pair');
+                    Route::get('{code}', 'show')->middleware('tenant.permission:list_exchange_pair');
+                    Route::put('{code}', 'update')->middleware('tenant.permission:update_exchange_pair');
+                    Route::delete('{code}', 'destroy')->middleware('tenant.permission:delete_exchange_pair');
+                });
+                Route::prefix('exchange-rates')->controller(TenantExchangeRateController::class)->group(function () {
+                    Route::get('/', 'index')->middleware('tenant.permission:list_exchange_rate');
+                    Route::post('/', 'store')->middleware('tenant.permission:create_exchange_rate');
+                    Route::get('daily', 'daily')->middleware('tenant.permission:list_exchange_rate');
+                    Route::get('resolve', 'resolve')->middleware('tenant.permission:list_exchange_rate');
+                    Route::get('{code}', 'show')->middleware('tenant.permission:list_exchange_rate');
+                    Route::post('{code}/correct', 'correct')->middleware('tenant.permission:correct_exchange_rate');
+                    Route::post('{code}/void', 'void')->middleware('tenant.permission:void_exchange_rate');
+                });
+            });
+
             Route::prefix('expenses')
                 ->middleware('tenant.feature:expense_management')
                 ->group(function () {
@@ -263,7 +292,7 @@ Route::prefix('tenant')->group(function () {
                 });
             Route::prefix('expense-types')
                 ->middleware('tenant.permission:create_expense,update_expense,manage_slip_document')
-                ->group(function(){
+                ->group(function () {
                     Route::get('/', [DefaultDataController::class, 'getExpenseTypes']);
                     Route::get('paginated', [DefaultDataController::class, 'getPaginatedExpenseTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantExpenseType'])
@@ -273,7 +302,7 @@ Route::prefix('tenant')->group(function () {
                 });
             Route::prefix('interest-types')
                 ->middleware('tenant.permission:create_loan_contract,update_loan_contract,manage_slip_document')
-                ->group(function(){
+                ->group(function () {
                     Route::get('/', [DefaultDataController::class, 'getInterestTypes']);
                     Route::get('paginated', [DefaultDataController::class, 'getPaginatedInterestTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantInterestType'])
@@ -283,7 +312,7 @@ Route::prefix('tenant')->group(function () {
                 });
             Route::prefix('material-types')
                 ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
-                ->group(function(){
+                ->group(function () {
                     Route::get('/', [DefaultDataController::class, 'getMaterialTypes']);
                     Route::get('paginated', [DefaultDataController::class, 'getPaginatedMaterialTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantMaterialType'])
@@ -293,7 +322,7 @@ Route::prefix('tenant')->group(function () {
                 });
             Route::prefix('item-category-types')
                 ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
-                ->group(function(){
+                ->group(function () {
                     Route::get('/', [DefaultDataController::class, 'getItemCategoryTypes']);
                     Route::get('paginated', [DefaultDataController::class, 'getPaginatedItemCategoryTypes']);
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantItemCategoryType'])
@@ -302,7 +331,7 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.feature:master_data_management');
                 });
             Route::prefix('user-roles')
-                ->group(function(){
+                ->group(function () {
                     Route::get('/', [TenantRoleController::class, 'index'])
                         ->middleware('tenant.permission:create_user,update_user_admin,update_user_all');
                 });

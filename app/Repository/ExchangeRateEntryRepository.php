@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Repository;
+
+use App\Models\CoreModule\ExchangeRateEntry;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
+
+class ExchangeRateEntryRepository
+{
+    public function visibleToTenant(int $tenantId, int $perPage = 50): LengthAwarePaginator
+    {
+        return ExchangeRateEntry::query()->with('pair.baseCurrency', 'pair.quoteCurrency')->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))->latest('observed_at')->paginate($perPage);
+    }
+
+    public function platform(int $perPage = 50): LengthAwarePaginator
+    {
+        return ExchangeRateEntry::query()->with('pair.baseCurrency', 'pair.quoteCurrency')->whereNull('tenant_id')->latest('observed_at')->paginate($perPage);
+    }
+
+    public function findVisible(string $code, ?int $tenantId): ?ExchangeRateEntry
+    {
+        return ExchangeRateEntry::query()->with('pair.baseCurrency', 'pair.quoteCurrency')->where('code', $code)->where(fn ($q) => $q->whereNull('tenant_id')->when($tenantId, fn ($q) => $q->orWhere('tenant_id', $tenantId)))->first();
+    }
+
+    public function findOwned(string $code, ?int $tenantId): ?ExchangeRateEntry
+    {
+        return ExchangeRateEntry::query()->with('pair.baseCurrency', 'pair.quoteCurrency')->where('code', $code)->when($tenantId === null, fn ($q) => $q->whereNull('tenant_id'), fn ($q) => $q->where('tenant_id', $tenantId))->first();
+    }
+
+    public function activeForDay(string $scopeKey, int $pairId, string $date): Collection
+    {
+        return ExchangeRateEntry::query()->where('scope_key', $scopeKey)->where('exchange_rate_pair_id', $pairId)->whereDate('effective_date', $date)->where('is_void', false)->orderBy('observed_at')->orderBy('id')->get();
+    }
+
+    public function create(array $data): ExchangeRateEntry
+    {
+        return ExchangeRateEntry::query()->create($data)->load('pair.baseCurrency', 'pair.quoteCurrency');
+    }
+}
