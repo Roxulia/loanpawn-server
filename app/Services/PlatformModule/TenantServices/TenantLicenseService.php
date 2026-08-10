@@ -19,6 +19,7 @@ use App\Services\PlatformModule\PackageService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use App\Models\PlatformModule\Package;
 
 class TenantLicenseService extends BaseTenantService
 {
@@ -35,12 +36,38 @@ class TenantLicenseService extends BaseTenantService
         return $this->getTenantLicense($this->resolveCurrentTenantId());
     }
 
+    public function findPlan(int $planId): Package
+    {
+        return $this->packageService->findActiveById($planId);
+    }
+
+    public function findPlanByCode(string $code): Package
+    {
+        return $this->packageService->findActiveByCode($code);
+    }
+
+    public function trialPlanForCategory(int $categoryId): Package
+    {
+        return $this->packageService->trialForCategory($categoryId);
+    }
+
+    public function defaultTrialPlan(): Package
+    {
+        return $this->packageService->findActiveByCode('trial');
+    }
+
     public function getTenantLicense(int $tenantId): TenantLicense
     {
         $license = $this->repository->findByTenantId($tenantId);
 
         if (! $license) {
             throw new TenantNotFound('Tenant license not found.');
+        }
+
+        if ($license->plan_id === null && $license->plan_type !== '') {
+            $plan = $this->packageService->findByCode($license->plan_type);
+            $license->forceFill(['plan_id' => $plan->id])->saveQuietly();
+            $license->setRelation('plan', $plan);
         }
 
         return $license;
@@ -74,7 +101,7 @@ class TenantLicenseService extends BaseTenantService
     {
         $license = $this->getTenantLicense($tenantId);
 
-        return $this->packageService->planHasFeature($license->plan_type, $featureCode);
+        return $this->packageService->planHasFeature($license->plan?->code ?? $license->plan_type, $featureCode);
     }
 
     public function ensureTenantCanOpenApp(int $tenantId): TenantLicense
@@ -97,7 +124,7 @@ class TenantLicenseService extends BaseTenantService
     {
         $license = $this->getTenantLicense($tenantId);
 
-        if (! $this->packageService->planHasFeature($license->plan_type, $featureCode)) {
+        if (! $this->packageService->planHasFeature($license->plan?->code ?? $license->plan_type, $featureCode)) {
             throw new FeatureNotAvailableForPlan;
         }
 
@@ -108,7 +135,7 @@ class TenantLicenseService extends BaseTenantService
     {
         $license = $this->getCurrentTenantLicense();
 
-        return $this->packageService->featureValue($license->plan_type, $featureCode);
+        return $this->packageService->featureValue($license->plan?->code ?? $license->plan_type, $featureCode);
     }
 
     public function ensureCurrentTenantHasPremiumPlan(): TenantLicense
@@ -134,9 +161,10 @@ class TenantLicenseService extends BaseTenantService
         $activatedAt = $request->status === 'active' ? $issuedAt : null;
         $expiresAt = $request->expireAt
             ? Carbon::parse($request->expireAt)
-            : $issuedAt->copy()->addMonths(3);
+            : $issuedAt->copy()->addMonths(4);
         $license = TenantLicense::query()->create([
             'tenant_id' => $tenantId,
+            'plan_id' => $request->planId,
             'license_key' => $this->generateLicenseKey(),
             'plan_type' => $request->planType,
             'status' => $request->status,
@@ -158,6 +186,14 @@ class TenantLicenseService extends BaseTenantService
     public function applyApprovedTenantRequest(TenantRequest $tenantRequest, int $approvedBy, ?string $adminReviewNote = null): TenantLicense
     {
         $license = $this->getTenantLicense((int) $tenantRequest->tenant_id);
+        if ($tenantRequest->requested_plan_id === null && $tenantRequest->requested_plan_type) {
+            $requestedPlan = $this->packageService->findByCode($tenantRequest->requested_plan_type);
+            $tenantRequest->forceFill([
+                'requested_plan_id' => $requestedPlan->id,
+                'requested_category_id' => $requestedPlan->category_id,
+            ])->saveQuietly();
+            $tenantRequest->setRelation('requestedPlan', $requestedPlan);
+        }
         $oldStatus = $license->status;
         $data = [
             'status' => 'active',
@@ -166,19 +202,35 @@ class TenantLicenseService extends BaseTenantService
             'update_key' => $license->update_key + 1,
         ];
 
-        if ($tenantRequest->request_type === 'extension') {
+        $resetLicenseTerm = (bool) ($tenantRequest->business_info['reset_license_term'] ?? false);
+
+        if ($resetLicenseTerm && $tenantRequest->request_type === 'plan_change') {
+            $data['plan_id'] = $tenantRequest->requested_plan_id;
+            $data['plan_type'] = $tenantRequest->requestedPlan?->code ?? $tenantRequest->requested_plan_type;
+            $data['starts_at'] = now();
+            $data['activated_at'] = now();
+            $data['expires_at'] = now()->addMonths((int) $tenantRequest->extension_months);
+            if ($tenantRequest->requested_category_id !== null) {
+                $tenantRequest->tenant()->update(['category_id' => $tenantRequest->requested_category_id]);
+            }
+        } elseif ($tenantRequest->request_type === 'extension') {
             $baseDate = $license->expires_at ?? now();
             $data['expires_at'] = $baseDate->copy()->addMonths((int) $tenantRequest->extension_months);
         }
 
-        if (
-            $tenantRequest->request_type === 'plan_change'
-            && $license->plan_type === 'premium'
-            && $tenantRequest->requested_plan_type === 'basic'
-        ) {
+        $targetPlan = $tenantRequest->requestedPlan;
+        $isDowngrade = $targetPlan !== null
+            && $license->plan !== null
+            && $targetPlan->rank < $license->plan->rank;
+
+        if (! $resetLicenseTerm && $tenantRequest->request_type === 'plan_change' && $isDowngrade) {
             $this->scheduleDowngrade($license, $tenantRequest, $approvedBy);
-        } elseif ($tenantRequest->request_type === 'plan_change') {
+        } elseif (! $resetLicenseTerm && $tenantRequest->request_type === 'plan_change') {
+            $data['plan_id'] = $tenantRequest->requested_plan_id;
             $data['plan_type'] = $tenantRequest->requested_plan_type;
+            if ($tenantRequest->requested_category_id !== null) {
+                $tenantRequest->tenant()->update(['category_id' => $tenantRequest->requested_category_id]);
+            }
         }
 
         if ($license->starts_at === null) {
@@ -303,7 +355,7 @@ class TenantLicenseService extends BaseTenantService
             return false;
         }
 
-        $package = $this->packageService->findByCode($license->plan_type);
+        $package = $license->plan ?? $this->packageService->findByCode($license->plan_type);
         $maxAllowed = $package->{$packageAttribute};
 
         if ($maxAllowed === null) {
@@ -340,6 +392,8 @@ class TenantLicenseService extends BaseTenantService
         $this->repository->createPlanTransition([
             'tenant_license_id' => $license->id,
             'tenant_request_id' => $tenantRequest->id,
+            'from_plan_id' => $license->plan_id,
+            'to_plan_id' => $tenantRequest->requested_plan_id,
             'from_plan_type' => $license->plan_type,
             'to_plan_type' => $tenantRequest->requested_plan_type,
             'starts_at' => $startsAt,

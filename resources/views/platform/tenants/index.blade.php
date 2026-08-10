@@ -71,6 +71,7 @@
                         <th>{{ __('app.common.view.labels.code') }}</th>
                         <th>{{ __('app.platform.view.subdomain') }}</th>
                         <th>{{ __('app.common.view.labels.plan') }}</th>
+                        <th>Type</th>
                         <th>{{ __('app.platform.view.expiry') }}</th>
                         <th>{{ __('app.common.view.labels.status') }}</th>
                         <th></th>
@@ -83,6 +84,7 @@
                             <td data-label="{{ __('app.common.view.labels.code') }}">{{ $tenant->tenant_code }}</td>
                             <td data-label="{{ __('app.platform.view.subdomain') }}">{{ $tenant->subdomain ?? '-' }}</td>
                             <td data-label="{{ __('app.common.view.labels.plan') }}">{{ $tenant->license?->plan_type ?? 'trial' }}</td>
+                            <td data-label="Type">{{ $tenant->category?->name ?? 'Pawn Shop' }}</td>
                             <td data-label="{{ __('app.platform.view.expiry') }}">{{ $tenant->license?->expires_at?->format('Y-m-d') ?? '-' }}</td>
                             <td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge">{{ $tenant->status }}</span></td>
                             <td data-label="">

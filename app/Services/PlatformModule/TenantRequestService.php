@@ -85,6 +85,9 @@ class TenantRequestService extends BaseTenantService
                 $tenantRequest = $this->repository->create([
                     'code' => $this->tableIdGenerationService->generateForPlatform('tenant_requests', CarbonImmutable::now()),
                     'tenant_id' => $tenant->id,
+                    'requested_category_id' => $request->requestedCategoryId ?? $tenant->category_id,
+                    'requested_plan_id' => $request->requestedPlanId
+                        ?? $this->packageService->findByCode($requestedPlanType)->id,
                     'platform_user_id' => $platformUser->id,
                     'request_type' => $requestType,
                     'requested_plan_type' => $requestedPlanType,
@@ -95,6 +98,7 @@ class TenantRequestService extends BaseTenantService
                     'business_info' => [
                         'tenant_code' => $tenant->tenant_code,
                         'note' => $request->note,
+                        'reset_license_term' => $request->resetLicenseTermOnApproval,
                     ],
                     'request_status' => self::STATUS_WAITING_PAYMENT,
                 ]);
@@ -342,18 +346,32 @@ class TenantRequestService extends BaseTenantService
         $requestType = $this->normalizeRequestType($request->requestType);
 
         if ($requestType === self::TYPE_UPGRADE) {
-            if ($request->requestedPlanType == null || $request->requestedPlanType === 'trial') {
+            if ($request->requestedPlanType == null && $request->requestedPlanId === null) {
                 throw new InvalidTenantRequest($this->responseMessage(MessageCode::InvalidPackageUpgrade));
             }
 
-            $package = $this->packageService->findActiveByCode($request->requestedPlanType);
-            $currentPlanType = $this->tenantLicenseService->getTenantLicense($tenant->id)->plan_type;
+            $package = $request->requestedPlanId !== null
+                ? $this->packageService->findActiveById($request->requestedPlanId)
+                : $this->packageService->findActiveByCode((string) $request->requestedPlanType);
+            if ($package->is_trial || ($request->requestedCategoryId !== null && (int) $package->category_id !== $request->requestedCategoryId)) {
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::InvalidPackageUpgrade));
+            }
+            $request->requestedPlanType = $package->code;
+            $request->requestedPlanId = $package->id;
+            $request->requestedCategoryId = $package->category_id;
+            $currentLicense = $this->tenantLicenseService->getTenantLicense($tenant->id);
+            $currentPlanType = $currentLicense->plan?->code ?? $currentLicense->plan_type;
 
             if ($request->requestedPlanType === $currentPlanType) {
                 throw new InvalidTenantRequest($this->responseMessage(MessageCode::SamePackageUpgrade));
             }
 
-            if ($currentPlanType === 'premium' && $request->requestedPlanType === 'basic') {
+            if ($request->resetLicenseTermOnApproval) {
+                $months = $this->validateExtensionMonths($request->extensionMonths);
+                return [$package->code, $months, $this->discountedPackageCost($package, $months)];
+            }
+
+            if (($package->rank ?? 0) < ($currentLicense->plan?->rank ?? 0)) {
                 return [
                     $request->requestedPlanType,
                     $this->validateExtensionMonths($request->extensionMonths),
@@ -370,9 +388,10 @@ class TenantRequestService extends BaseTenantService
             ];
         }
 
-        $currentPlanType = $this->tenantLicenseService->getTenantLicense($tenant->id)->plan_type;
+        $currentLicense = $this->tenantLicenseService->getTenantLicense($tenant->id);
+        $currentPlanType = $currentLicense->plan?->code ?? $currentLicense->plan_type;
 
-        if ($currentPlanType === 'trial') {
+        if ($currentLicense->plan?->is_trial || $currentPlanType === 'trial') {
             throw new InvalidTenantRequest($this->responseMessage(MessageCode::UnsupportedPackageType));
         }
 

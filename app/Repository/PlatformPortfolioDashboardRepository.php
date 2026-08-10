@@ -66,7 +66,7 @@ class PlatformPortfolioDashboardRepository
 
     public function planBreakdown(int $platformUserId): array
     {
-        return $this->countByColumn($platformUserId, 'tenant_licenses.plan_type', ['trial', 'basic', 'premium'], 'unknown');
+        return $this->countByColumn($platformUserId, 'packages.code', [], 'unknown', true);
     }
 
     public function licenseHealth(int $platformUserId): array
@@ -87,7 +87,7 @@ class PlatformPortfolioDashboardRepository
                     ->where('tenant_licenses.is_deleted', false);
             })
             ->leftJoin('packages', function ($join): void {
-                $join->on('packages.code', '=', 'tenant_licenses.plan_type')
+                $join->on('packages.id', '=', 'tenant_licenses.plan_id')
                     ->where('packages.is_deleted', false);
             })
             ->leftJoin('tenant_contacts', function ($join): void {
@@ -274,13 +274,14 @@ class PlatformPortfolioDashboardRepository
             ->all();
     }
 
-    protected function countByColumn(int $platformUserId, string $column, array $keys, string $fallbackKey): array
+    protected function countByColumn(int $platformUserId, string $column, array $keys, string $fallbackKey, bool $joinPackages = false): array
     {
         $counts = DB::table('tenants')
             ->leftJoin('tenant_licenses', function ($join): void {
                 $join->on('tenant_licenses.tenant_id', '=', 'tenants.id')
                     ->where('tenant_licenses.is_deleted', false);
             })
+            ->when($joinPackages, fn ($query) => $query->leftJoin('packages', 'packages.id', '=', 'tenant_licenses.plan_id'))
             ->where('tenants.platform_user_id', $platformUserId)
             ->where('tenants.is_deleted', false)
             ->selectRaw("COALESCE($column, ?) as grouped_value", [$fallbackKey])

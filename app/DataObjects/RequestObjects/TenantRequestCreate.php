@@ -13,6 +13,9 @@ class TenantRequestCreate extends BaseDataObject
         public ?int $extensionMonths = null,
         public string $currency = 'MMK',
         public ?string $note = null,
+        public ?int $requestedPlanId = null,
+        public ?int $requestedCategoryId = null,
+        public bool $resetLicenseTermOnApproval = false,
     ) {
     }
 }

@@ -6,9 +6,7 @@
 
 @section('content')
     @php
-        $assignmentPackages = collect(['trial', 'basic', 'premium'])
-            ->map(fn ($code) => $packages->firstWhere('code', $code))
-            ->filter();
+        $assignmentPackages = $packages->where('is_deleted', false);
     @endphp
 
     <style>

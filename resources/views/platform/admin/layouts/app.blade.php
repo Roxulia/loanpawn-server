@@ -31,6 +31,11 @@
             'label' => __('app.platform.view.billing_management'),
         ],
         [
+            'route' => 'admin.plans.index',
+            'active' => request()->routeIs('admin.plans.*'),
+            'label' => 'Plan & Tenant Types',
+        ],
+        [
             'route' => 'admin.package-flags.index',
             'active' => request()->routeIs('admin.package-flags.*'),
             'label' => __('app.platform.view.feature_plan_flags'),

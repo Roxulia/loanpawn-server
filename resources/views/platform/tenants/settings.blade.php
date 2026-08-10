@@ -23,8 +23,9 @@
     </style>
 
     @php
-        $currentPlan = $tenant->license?->plan_type ?? 'trial';
-        $canExtendLicense = $currentPlan !== 'trial';
+        $currentPlan = $tenant->license?->plan?->code ?? $tenant->license?->plan_type ?? 'trial';
+        $currentPlanRank = (int) ($tenant->license?->plan?->rank ?? 0);
+        $canExtendLicense = ! ($tenant->license?->plan?->is_trial ?? ($currentPlan === 'trial'));
         $licenseExpiresAt = $tenant->license?->expires_at;
         $upgradeBillingMonths = 1;
 
@@ -176,23 +177,21 @@
                     <label for="requested_plan_type">Requested Plan</label>
                     <select id="requested_plan_type" name="requested_plan_type" required>
                         @foreach ($planOptions as $plan)
-                            <option value="{{ $plan->code }}" data-monthly-price="{{ (float) $plan->price }}">
-                                {{ $plan->name }}
+                            <option value="{{ $plan->code }}" data-monthly-price="{{ (float) $plan->price }}" data-rank="{{ $plan->rank }}">
+                                {{ $plan->category?->name }} — {{ $plan->name }}
                             </option>
                         @endforeach
                     </select>
                 </div>
-                @if ($currentPlan === 'premium')
-                    <div>
-                        <label for="downgrade_extension_months">Basic Renewal Months</label>
+                    <div id="downgrade-term-field" hidden>
+                        <label for="downgrade_extension_months">New plan duration</label>
                         <select id="downgrade_extension_months" name="extension_months">
-                            <option value="">Select term for a Basic downgrade</option>
+                            <option value="">Select term for a scheduled downgrade</option>
                             @foreach (config('pricing.extension_discounts') as $months => $discount)
                                 <option value="{{ $months }}" data-discount="{{ $discount }}">{{ $months }} month{{ $months === 1 ? '' : 's' }}</option>
                             @endforeach
                         </select>
                     </div>
-                @endif
                 <div>
                     <label>Billing Months</label>
                     <input value="{{ $upgradeBillingMonths }} month{{ $upgradeBillingMonths === 1 ? '' : 's' }} until {{ $licenseExpiresAt?->format('Y-m-d') ?? 'license expiry' }}" disabled>
@@ -250,6 +249,7 @@
     <script>
         const upgradeBillingMonths = {{ $upgradeBillingMonths }};
         const currentPlan = @json($currentPlan);
+        const currentPlanRank = {{ $currentPlanRank }};
         const currencyFormatter = new Intl.NumberFormat('en-US', {
             maximumFractionDigits: 0,
         });
@@ -266,7 +266,7 @@
             const selectedOption = planSelect.options[planSelect.selectedIndex];
             const monthlyPrice = Number(selectedOption?.dataset.monthlyPrice || 0);
             const downgradeTerm = document.getElementById('downgrade_extension_months');
-            const isDeferredDowngrade = currentPlan === 'premium' && planSelect.value === 'basic';
+            const isDeferredDowngrade = Number(selectedOption?.dataset.rank || 0) < currentPlanRank;
             const selectedTerm = downgradeTerm?.options[downgradeTerm.selectedIndex];
             const months = isDeferredDowngrade ? Number(selectedTerm?.value || 0) : upgradeBillingMonths;
             const discount = isDeferredDowngrade ? Number(selectedTerm?.dataset.discount || 0) : 0;
@@ -277,6 +277,7 @@
 
             if (downgradeTerm) {
                 downgradeTerm.required = isDeferredDowngrade;
+                document.getElementById('downgrade-term-field').hidden = !isDeferredDowngrade;
             }
         }
 

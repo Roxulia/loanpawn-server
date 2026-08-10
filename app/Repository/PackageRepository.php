@@ -7,6 +7,7 @@ use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\PackageFeature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use App\Models\PlatformModule\TenantCategory;
 
 class PackageRepository
 {
@@ -15,6 +16,7 @@ class PackageRepository
         return Package::query()
             ->where('code', $code)
             ->where('is_active', true)
+            ->where('is_deleted', false)
             ->first();
     }
 
@@ -23,6 +25,44 @@ class PackageRepository
         return Package::query()
             ->where('code', $code)
             ->first();
+    }
+
+    public function findById(int $id): ?Package
+    {
+        return Package::query()->with('category')->find($id);
+    }
+
+    public function findActiveById(int $id): ?Package
+    {
+        return Package::query()
+            ->with('category')
+            ->whereKey($id)
+            ->where('is_active', true)
+            ->where('is_deleted', false)
+            ->first();
+    }
+
+    public function trialForCategory(int $categoryId): ?Package
+    {
+        return Package::query()
+            ->where('category_id', $categoryId)
+            ->where('is_trial', true)
+            ->where('is_active', true)
+            ->where('is_deleted', false)
+            ->first();
+    }
+
+    public function activeCategoriesWithPlans(): Collection
+    {
+        return TenantCategory::query()
+            ->with(['packages' => fn ($query) => $query
+                ->where('is_active', true)
+                ->where('is_deleted', false)
+                ->orderBy('rank')])
+            ->where('is_active', true)
+            ->where('is_deleted', false)
+            ->orderBy('name')
+            ->get();
     }
 
     public function findEnabledFeatureByPackageCode(string $packageCode, string $featureCode): ?PackageFeature
@@ -89,27 +129,31 @@ class PackageRepository
             ->all();
     }
 
-    public function activePaidPackagesExcept(?string $excludedCode = null): Collection
+    public function activePaidPackagesExcept(?string $excludedCode = null, ?int $categoryId = null): Collection
     {
         return Package::query()
             ->where('is_active', true)
-            ->where('code', '<>', 'trial')
+            ->where('is_trial', false)
+            ->where('is_deleted', false)
+            ->when($categoryId, fn ($query) => $query->where('category_id', $categoryId))
             ->when($excludedCode, fn ($query) => $query->where('code', '<>', $excludedCode))
-            ->orderBy('price')
+            ->orderBy('rank')
             ->get();
     }
 
     public function allWithFeatures(): Collection
     {
         return Package::query()
-            ->with(['packageFeatures.feature'])
-            ->orderBy('price')
+            ->with(['category', 'packageFeatures.feature'])
+            ->where('is_deleted', false)
+            ->orderBy('category_id')
+            ->orderBy('rank')
             ->get();
     }
 
     public function allFeatures(): Collection
     {
-        return Feature::query()->orderBy('name')->get();
+        return Feature::query()->where('is_deleted', false)->orderBy('name')->get();
     }
 
     public function updateFlags(array $featureFlags, array $packageFlags, array $mappingFlags): void
