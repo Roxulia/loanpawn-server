@@ -64,8 +64,12 @@ return [
         ],
         'dashboard' => [
             'name' => 'Summary Dashboard',
-            'description' => 'View Detailed Summary in Dashboard'
-        ]
+            'description' => 'View Detailed Summary in Dashboard',
+        ],
+        'currency_exchange_management' => [
+            'name' => 'Currency and exchange-rate management',
+            'description' => 'Manage tenant currencies, exchange pairs, rates, and daily OHLC history.',
+        ],
     ],
 
     'packages' => [
@@ -89,6 +93,7 @@ return [
                 'debt_management',
                 'slip_document_preview',
                 'subdomain_available',
+                'currency_exchange_management',
             ],
         ],
         'basic' => [
@@ -112,6 +117,7 @@ return [
                 'slip_document_preview',
                 'master_data_management',
                 'subdomain_available',
+                'currency_exchange_management',
             ],
         ],
         'premium' => [
@@ -136,6 +142,7 @@ return [
                 'slip_document_layout_management',
                 'master_data_management',
                 'subdomain_available',
+                'currency_exchange_management',
             ],
         ],
     ],

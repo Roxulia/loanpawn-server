@@ -36,6 +36,21 @@
             'label' => __('app.platform.view.feature_plan_flags'),
         ],
         [
+            'route' => 'admin.currencies.index',
+            'active' => request()->routeIs('admin.currencies.*'),
+            'label' => 'Currencies',
+        ],
+        [
+            'route' => 'admin.exchange-pairs.index',
+            'active' => request()->routeIs('admin.exchange-pairs.*'),
+            'label' => 'Exchange Pairs',
+        ],
+        [
+            'route' => 'admin.exchange-rates.index',
+            'active' => request()->routeIs('admin.exchange-rates.*'),
+            'label' => 'Exchange Rates',
+        ],
+        [
             'route' => 'admin.payment-requests.index',
             'active' => request()->routeIs('admin.payment-requests.*'),
             'label' => __('app.billing.view.payment_requests'),
