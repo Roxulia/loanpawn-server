@@ -5,6 +5,7 @@ namespace App\Http\Controllers\TenantModule;
 use App\DataObjects\RequestObjects\StoreCurrencyRequest;
 use App\DataObjects\RequestObjects\UpdateCurrencyRequest;
 use App\DataObjects\ResponseObjects\CurrencyResource;
+use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantCurrencyService;
 use App\Utility\MessageCode;
@@ -19,9 +20,8 @@ class TenantCurrencyController extends Controller
     public function index(Request $request): JsonResponse
     {
         $page = $this->service->list($this->perPage($request));
-        $page->through(fn ($row) => CurrencyResource::fromModel($row)->toArray());
 
-        return $this->successResponse($page);
+        return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
     }
 
     public function show(string $code): JsonResponse

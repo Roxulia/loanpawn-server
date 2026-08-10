@@ -31,7 +31,7 @@ class TenantCurrencyService extends BaseTenantService
     {
         $tenantId = $this->resolveCurrentTenantId();
         $code = strtoupper(trim($request->code));
-        if ($this->repository->findVisible($code, $tenantId)) {
+        if ($this->repository->checkAvaialableCode($code, $tenantId)) {
             throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyCodeAlreadyAvailable));
         }
 

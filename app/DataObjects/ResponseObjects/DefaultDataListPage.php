@@ -17,7 +17,9 @@ class DefaultDataListPage extends BaseDataObject
     {
         $page = new self();
         $page->items = array_map(
-            fn ($item) => method_exists($item, 'toArray') ? $item->toArray() : (array) $item,
+            fn ($item) => is_array($item)
+                ? $item
+                : (is_object($item) && method_exists($item, 'toArray') ? $item->toArray() : (array) $item),
             $paginator->items()
         );
         $page->currentPage = $paginator->currentPage();
