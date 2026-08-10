@@ -22,7 +22,8 @@ class TenantExchangeRateController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $page = $this->service->list($this->perPage($request));
+        $validated = $request->validate(['pair_code' => ['nullable', 'string', 'max:30']]);
+        $page = $this->service->list($this->perPage($request), $validated['pair_code'] ?? null);
         $page->through(fn ($row) => ExchangeRateEntryResource::fromModel($row)->toArray());
 
         return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
@@ -67,6 +68,23 @@ class TenantExchangeRateController extends Controller
         $page->through(fn ($row) => DailyExchangeRateSummaryResource::fromModel($row)->toArray());
 
         return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
+    }
+
+    public function state(Request $request): JsonResponse
+    {
+        $data = $request->validate(['pair_code' => ['required', 'string', 'max:30']]);
+
+        return $this->successResponse($this->service->state($data['pair_code']));
+    }
+
+    public function trend(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'pair_code' => ['required', 'string', 'max:30'],
+            'days' => ['nullable', 'integer', 'in:7,30,90'],
+        ]);
+
+        return $this->successResponse($this->daily->trend($data['pair_code'], (int) ($data['days'] ?? 30)));
     }
 
     public function resolve(Request $request): JsonResponse

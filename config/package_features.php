@@ -70,6 +70,10 @@ return [
             'name' => 'Currency and exchange-rate management',
             'description' => 'Manage tenant currencies, exchange pairs, rates, and daily OHLC history.',
         ],
+        'tenant_timezone_management' => [
+            'name' => 'Tenant timezone management',
+            'description' => 'Configure the tenant business timezone.',
+        ],
     ],
 
     'packages' => [
@@ -143,6 +147,7 @@ return [
                 'master_data_management',
                 'subdomain_available',
                 'currency_exchange_management',
+                'tenant_timezone_management',
             ],
         ],
     ],

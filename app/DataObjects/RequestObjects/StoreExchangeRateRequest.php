@@ -8,8 +8,8 @@ class StoreExchangeRateRequest extends BaseDataObject
 {
     public function __construct(
         public string $pairCode,
-        public string $rate,
-        public ?string $observedAt,
+        public string $buyingRate,
+        public string $sellingRate,
         public ?string $idempotencyKey,
     ) {}
 
@@ -17,8 +17,8 @@ class StoreExchangeRateRequest extends BaseDataObject
     {
         return [
             'pair_code' => ['required', 'string', 'max:30'],
-            'rate' => ['required', 'decimal:0,12', 'gt:0'],
-            'observed_at' => ['nullable', 'date'],
+            'buying_rate' => ['required', 'decimal:0,12', 'gt:0'],
+            'selling_rate' => ['required', 'decimal:0,12', 'gt:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ];
     }
@@ -27,8 +27,8 @@ class StoreExchangeRateRequest extends BaseDataObject
     {
         return new self(
             pairCode: $data['pair_code'],
-            rate: $data['rate'],
-            observedAt: $data['observed_at'] ?? null,
+            buyingRate: $data['buying_rate'],
+            sellingRate: $data['selling_rate'],
             idempotencyKey: $data['idempotency_key'] ?? null,
         );
     }

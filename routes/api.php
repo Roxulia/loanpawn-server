@@ -199,6 +199,8 @@ Route::prefix('tenant')->group(function () {
                     Route::get('/', 'index')->middleware('tenant.permission:list_exchange_rate');
                     Route::post('/', 'store')->middleware('tenant.permission:create_exchange_rate');
                     Route::get('daily', 'daily')->middleware('tenant.permission:list_exchange_rate');
+                    Route::get('state', 'state')->middleware('tenant.permission:list_exchange_rate');
+                    Route::get('trend', 'trend')->middleware('tenant.permission:list_exchange_rate');
                     Route::get('resolve', 'resolve')->middleware('tenant.permission:list_exchange_rate');
                     Route::get('{code}', 'show')->middleware('tenant.permission:list_exchange_rate');
                     Route::post('{code}/correct', 'correct')->middleware('tenant.permission:correct_exchange_rate');
@@ -270,6 +272,12 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
+                Route::get('timezone', [TenantSettingsController::class, 'timezone'])
+                    ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
+                Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])
+                    ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
+                Route::put('timezone', [TenantSettingsController::class, 'updateTimezone'])
+                    ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::post('interest-types', [TenantSettingsController::class, 'createInterestType'])
                     ->middleware('tenant.feature:master_data_management')
                     ->middleware('tenant.permission:manage_slip_document');

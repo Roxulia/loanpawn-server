@@ -51,6 +51,7 @@ return [
         'create_exchange_rate' => 'Allows recording tenant exchange rates.',
         'correct_exchange_rate' => 'Allows correcting tenant exchange rates.',
         'void_exchange_rate' => 'Allows voiding tenant exchange rates.',
+        'manage_tenant_timezone' => 'Allows configuring the tenant business timezone.',
     ],
     'roles' => [
         'Owner' => [
@@ -113,6 +114,7 @@ return [
                 'create_exchange_rate',
                 'correct_exchange_rate',
                 'void_exchange_rate',
+                'manage_tenant_timezone',
             ],
         ],
         'User' => [

@@ -30,7 +30,8 @@ class FinanceDataObjectsTest extends TestCase
         ]);
         $exchangeRateRequest = StoreExchangeRateRequest::fromValidated([
             'pair_code' => 'USD-MMK',
-            'rate' => '3500.125',
+            'buying_rate' => '3500.125',
+            'selling_rate' => '3520.125',
         ]);
 
         $this->assertInstanceOf(BaseDataObject::class, $currencyRequest);
@@ -40,8 +41,8 @@ class FinanceDataObjectsTest extends TestCase
         $this->assertSame('USD-MMK', $exchangeRateRequest->pairCode);
         $this->assertSame([
             'pair_code' => 'USD-MMK',
-            'rate' => '3500.125',
-            'observed_at' => null,
+            'buying_rate' => '3500.125',
+            'selling_rate' => '3520.125',
             'idempotency_key' => null,
         ], $exchangeRateRequest->toArray());
     }
@@ -75,7 +76,8 @@ class FinanceDataObjectsTest extends TestCase
             'id' => 5,
             'tenant_id' => 10,
             'code' => 'RATE-1',
-            'rate' => '3500.000000000000',
+            'buying_rate' => '3500.000000000000',
+            'selling_rate' => '3520.000000000000',
             'effective_date' => CarbonImmutable::parse('2026-08-10'),
             'observed_at' => CarbonImmutable::parse('2026-08-10 09:00:00'),
             'source' => 'TENANT',
@@ -87,7 +89,8 @@ class FinanceDataObjectsTest extends TestCase
 
         $this->assertSame('USD/MMK', $response['pair']['display_code']);
         $this->assertSame('USD', $response['pair']['base_currency']['code']);
-        $this->assertSame('3500.000000000000', $response['rate']);
+        $this->assertSame('3500.000000000000', $response['buying_rate']);
+        $this->assertSame('3520.000000000000', $response['selling_rate']);
         $this->assertTrue($response['can_correct']);
         $this->assertTrue($response['can_void']);
     }

@@ -8,10 +8,13 @@ use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Models\CoreModule\ExchangeRateEntry;
+use App\DataObjects\ResponseObjects\ExchangeRateEntryResource;
 use App\Repository\ExchangeRateEntryRepository;
 use App\Repository\ExchangeRatePairRepository;
 use App\Services\BaseTenantService;
 use App\Services\ExchangeRate\ExchangeRateCorrectionService;
+use App\Services\ExchangeRate\ExchangeRateActionPolicy;
+use App\Services\ExchangeRate\ExchangeRateBusinessClock;
 use App\Services\ExchangeRate\ExchangeRateEntryWriter;
 use App\Services\ExchangeRate\ExchangeRateResolverService;
 use App\Utility\MessageCode;
@@ -20,11 +23,14 @@ use Illuminate\Support\Facades\Auth;
 
 class TenantExchangeRateService extends BaseTenantService
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private ExchangeRateResolverService $resolver) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private ExchangeRateResolverService $resolver, private ExchangeRateActionPolicy $actions, private ExchangeRateBusinessClock $clock) {}
 
-    public function list(int $perPage = 50): LengthAwarePaginator
+    public function list(int $perPage = 50, ?string $pairCode = null): LengthAwarePaginator
     {
-        return $this->entries->visibleToTenant($this->resolveCurrentTenantId(), $perPage);
+        $page = $this->entries->visibleToTenant($this->resolveCurrentTenantId(), $perPage, $pairCode);
+        $page->through(fn (ExchangeRateEntry $entry) => $this->actions->apply($entry));
+
+        return $page;
     }
 
     public function show(string $code): ExchangeRateEntry
@@ -47,12 +53,31 @@ class TenantExchangeRateService extends BaseTenantService
     {
         $entry = $this->owned($code);
 
-        return $this->corrections->correct($entry, $request->rate, $request->reason, Auth::guard('tenantuser')->id(), null);
+        $this->actions->assertCorrectable($entry);
+
+        return $this->corrections->correct($entry, $request->buyingRate, $request->sellingRate, $request->reason, Auth::guard('tenantuser')->id(), null);
     }
 
     public function void(string $code, VoidExchangeRateRequest $request): void
     {
-        $this->corrections->void($this->owned($code), $request->reason, Auth::guard('tenantuser')->id(), null);
+        $entry = $this->owned($code);
+        $this->actions->assertVoidable($entry);
+        $this->corrections->void($entry, $request->reason, Auth::guard('tenantuser')->id(), null);
+    }
+
+    public function state(string $pairCode): array
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $pair = $this->pairs->findVisible($pairCode, $tenantId) ?? throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceExchangePairNotFound));
+        $businessNow = $this->clock->now($tenantId);
+        $latest = $this->entries->latestActiveForDay("tenant:{$tenantId}", $pair->id, $businessNow->toDateString());
+
+        return [
+            'business_date' => $businessNow->toDateString(),
+            'timezone' => $businessNow->timezoneName,
+            'opening_required' => $latest === null,
+            'latest_entry' => $latest ? ExchangeRateEntryResource::fromModel($this->actions->apply($latest))->toArray() : null,
+        ];
     }
 
     public function resolve(string $pairCode, string $date): ?ExchangeRateEntry

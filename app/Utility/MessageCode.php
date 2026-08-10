@@ -165,6 +165,7 @@ enum MessageCode: string
     case SubdomainDuplicate = 'exception.exception.subdomain_duplicate';
     case RoleNotFound = 'exception.exception.role_not_found';
     case FinanceRateEntryAlreadyVoid = 'finance.exception.rate_entry_already_void';
+    case FinanceExchangeRateActionWindowClosed = 'finance.exception.exchange_rate_action_window_closed';
     case FinanceDefaultCurrencyCodeExists = 'finance.exception.default_currency_code_exists';
     case FinanceAdminCurrencyRequiresDefault = 'finance.exception.admin_currency_requires_default';
     case FinanceCurrencyAlreadyUpdated = 'finance.exception.currency_already_updated';
