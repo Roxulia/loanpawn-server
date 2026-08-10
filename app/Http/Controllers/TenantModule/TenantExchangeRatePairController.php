@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers\TenantModule;
 
+use App\DataObjects\RequestObjects\StoreExchangeRatePairRequest;
+use App\DataObjects\RequestObjects\UpdateExchangeRatePairRequest;
+use App\DataObjects\ResponseObjects\ExchangeRatePairResource;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\StoreExchangeRatePairRequest;
-use App\Http\Requests\Finance\UpdateExchangeRatePairRequest;
-use App\Http\Resources\Finance\ExchangeRatePairResource;
 use App\Services\TenantModule\TenantExchangeRatePairService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class TenantExchangeRatePairController extends Controller
 {
@@ -17,31 +19,39 @@ class TenantExchangeRatePairController extends Controller
     public function index(Request $request): JsonResponse
     {
         $page = $this->service->list($this->perPage($request));
-        $page->through(fn ($row) => ExchangeRatePairResource::make($row)->resolve());
+        $page->through(fn ($row) => ExchangeRatePairResource::fromModel($row)->toArray());
 
         return $this->successResponse($page);
     }
 
     public function show(string $code): JsonResponse
     {
-        return $this->successResponse(ExchangeRatePairResource::make($this->service->show($code))->resolve());
+        return $this->successResponse(ExchangeRatePairResource::fromModel($this->service->show($code))->toArray());
     }
 
-    public function store(StoreExchangeRatePairRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        return $this->successResponse(ExchangeRatePairResource::make($this->service->create($request->validated()))->resolve(), 'Exchange pair created successfully.', 201);
+        $exchangeRatePairRequest = StoreExchangeRatePairRequest::fromValidated(
+            Validator::make($request->all(), StoreExchangeRatePairRequest::rules())->validate()
+        );
+
+        return $this->successResponse(ExchangeRatePairResource::fromModel($this->service->create($exchangeRatePairRequest))->toArray(), $this->responseMessage(MessageCode::FinanceTenantExchangePairCreated), 201);
     }
 
-    public function update(UpdateExchangeRatePairRequest $request, string $code): JsonResponse
+    public function update(Request $request, string $code): JsonResponse
     {
-        return $this->successResponse(ExchangeRatePairResource::make($this->service->update($code, $request->validated()))->resolve(), 'Exchange pair updated successfully.');
+        $exchangeRatePairRequest = UpdateExchangeRatePairRequest::fromValidated(
+            Validator::make($request->all(), UpdateExchangeRatePairRequest::rules())->validate()
+        );
+
+        return $this->successResponse(ExchangeRatePairResource::fromModel($this->service->update($code, $exchangeRatePairRequest))->toArray(), $this->responseMessage(MessageCode::FinanceTenantExchangePairUpdated));
     }
 
     public function destroy(string $code): JsonResponse
     {
         $this->service->delete($code);
 
-        return $this->successResponse(message: 'Exchange pair deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::FinanceTenantExchangePairDeleted));
     }
 
     private function perPage(Request $request): int

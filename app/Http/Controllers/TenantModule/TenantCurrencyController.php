@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers\TenantModule;
 
+use App\DataObjects\RequestObjects\StoreCurrencyRequest;
+use App\DataObjects\RequestObjects\UpdateCurrencyRequest;
+use App\DataObjects\ResponseObjects\CurrencyResource;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\StoreCurrencyRequest;
-use App\Http\Requests\Finance\UpdateCurrencyRequest;
-use App\Http\Resources\Finance\CurrencyResource;
 use App\Services\TenantModule\TenantCurrencyService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class TenantCurrencyController extends Controller
 {
@@ -17,31 +19,39 @@ class TenantCurrencyController extends Controller
     public function index(Request $request): JsonResponse
     {
         $page = $this->service->list($this->perPage($request));
-        $page->through(fn ($row) => CurrencyResource::make($row)->resolve());
+        $page->through(fn ($row) => CurrencyResource::fromModel($row)->toArray());
 
         return $this->successResponse($page);
     }
 
     public function show(string $code): JsonResponse
     {
-        return $this->successResponse(CurrencyResource::make($this->service->show($code))->resolve());
+        return $this->successResponse(CurrencyResource::fromModel($this->service->show($code))->toArray());
     }
 
-    public function store(StoreCurrencyRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        return $this->successResponse(CurrencyResource::make($this->service->create($request->validated()))->resolve(), 'Currency created successfully.', 201);
+        $currencyRequest = StoreCurrencyRequest::fromValidated(
+            Validator::make($request->all(), StoreCurrencyRequest::rules())->validate()
+        );
+
+        return $this->successResponse(CurrencyResource::fromModel($this->service->create($currencyRequest))->toArray(), $this->responseMessage(MessageCode::FinanceTenantCurrencyCreated), 201);
     }
 
-    public function update(UpdateCurrencyRequest $request, string $code): JsonResponse
+    public function update(Request $request, string $code): JsonResponse
     {
-        return $this->successResponse(CurrencyResource::make($this->service->update($code, $request->validated()))->resolve(), 'Currency updated successfully.');
+        $currencyRequest = UpdateCurrencyRequest::fromValidated(
+            Validator::make($request->all(), UpdateCurrencyRequest::rules())->validate()
+        );
+
+        return $this->successResponse(CurrencyResource::fromModel($this->service->update($code, $currencyRequest))->toArray(), $this->responseMessage(MessageCode::FinanceTenantCurrencyUpdated));
     }
 
     public function destroy(string $code): JsonResponse
     {
         $this->service->delete($code);
 
-        return $this->successResponse(message: 'Currency deleted successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::FinanceTenantCurrencyDeleted));
     }
 
     private function perPage(Request $request): int

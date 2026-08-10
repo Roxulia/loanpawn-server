@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers\PlatformModule\Admin;
 
+use App\DataObjects\RequestObjects\CorrectExchangeRateRequest;
+use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
+use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\CorrectExchangeRateRequest;
-use App\Http\Requests\Finance\StoreExchangeRateRequest;
-use App\Http\Requests\Finance\VoidExchangeRateRequest;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Services\PlatformModule\AdminDailyExchangeRateService;
 use App\Services\PlatformModule\AdminExchangeRatePairService;
 use App\Services\PlatformModule\AdminExchangeRateService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 class AdminExchangeRateController extends Controller
@@ -22,24 +25,33 @@ class AdminExchangeRateController extends Controller
         return view('platform.admin.exchange-rates.index', ['rates' => $this->service->list(), 'pairs' => $this->pairs->list(100), 'dailySummaries' => $this->daily->list()]);
     }
 
-    public function store(StoreExchangeRateRequest $request): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
-        $this->service->create($request->validated());
+        $exchangeRateRequest = StoreExchangeRateRequest::fromValidated(
+            Validator::make($request->all(), StoreExchangeRateRequest::rules())->validate()
+        );
+        $this->service->create($exchangeRateRequest);
 
-        return back()->with('status', 'Platform exchange rate recorded.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformExchangeRateRecorded));
     }
 
-    public function correct(CorrectExchangeRateRequest $request, ExchangeRateEntry $entry): RedirectResponse
+    public function correct(Request $request, ExchangeRateEntry $entry): RedirectResponse
     {
-        $this->service->correct($entry, $request->validated('rate'), $request->validated('reason'));
+        $correctionRequest = CorrectExchangeRateRequest::fromValidated(
+            Validator::make($request->all(), CorrectExchangeRateRequest::rules())->validate()
+        );
+        $this->service->correct($entry, $correctionRequest);
 
-        return back()->with('status', 'Platform exchange rate corrected.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformExchangeRateCorrected));
     }
 
-    public function void(VoidExchangeRateRequest $request, ExchangeRateEntry $entry): RedirectResponse
+    public function void(Request $request, ExchangeRateEntry $entry): RedirectResponse
     {
-        $this->service->void($entry, $request->validated('reason'));
+        $voidRequest = VoidExchangeRateRequest::fromValidated(
+            Validator::make($request->all(), VoidExchangeRateRequest::rules())->validate()
+        );
+        $this->service->void($entry, $voidRequest);
 
-        return back()->with('status', 'Platform exchange rate voided.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformExchangeRateVoided));
     }
 }

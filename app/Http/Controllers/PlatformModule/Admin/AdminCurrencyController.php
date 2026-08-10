@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\PlatformModule\Admin;
 
+use App\DataObjects\RequestObjects\StoreCurrencyRequest;
+use App\DataObjects\RequestObjects\UpdateCurrencyRequest;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\StoreCurrencyRequest;
-use App\Http\Requests\Finance\UpdateCurrencyRequest;
 use App\Models\CoreModule\Currency;
 use App\Services\PlatformModule\AdminCurrencyService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 class AdminCurrencyController extends Controller
@@ -19,24 +22,30 @@ class AdminCurrencyController extends Controller
         return view('platform.admin.currencies.index', ['currencies' => $this->service->list()]);
     }
 
-    public function store(StoreCurrencyRequest $request): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
-        $this->service->create($request->validated());
+        $currencyRequest = StoreCurrencyRequest::fromValidated(
+            Validator::make($request->all(), StoreCurrencyRequest::rules())->validate()
+        );
+        $this->service->create($currencyRequest);
 
-        return back()->with('status', 'Default currency created.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformCurrencyCreated));
     }
 
-    public function update(UpdateCurrencyRequest $request, Currency $currency): RedirectResponse
+    public function update(Request $request, Currency $currency): RedirectResponse
     {
-        $this->service->update($currency, $request->validated());
+        $currencyRequest = UpdateCurrencyRequest::fromValidated(
+            Validator::make($request->all(), UpdateCurrencyRequest::rules())->validate()
+        );
+        $this->service->update($currency, $currencyRequest);
 
-        return back()->with('status', 'Default currency updated.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformCurrencyUpdated));
     }
 
     public function destroy(Currency $currency): RedirectResponse
     {
         $this->service->delete($currency);
 
-        return back()->with('status', 'Default currency deleted.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformCurrencyDeleted));
     }
 }
