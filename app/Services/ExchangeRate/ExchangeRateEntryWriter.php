@@ -11,9 +11,9 @@ use Illuminate\Support\Str;
 
 class ExchangeRateEntryWriter
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateSummaryService $summaries) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateSummaryService $summaries, private ExchangeRateBusinessClock $clock) {}
 
-    public function create(ExchangeRatePair $pair, array $data, ?int $tenantId, ?int $tenantUserId, ?int $adminId): ExchangeRateEntry
+    public function create(ExchangeRatePair $pair, array $data, ?int $tenantId, ?int $tenantUserId, ?int $adminId, ?CarbonImmutable $observedAt = null): ExchangeRateEntry
     {
         $scopeKey = $tenantId ? "tenant:{$tenantId}" : 'platform';
         if (! empty($data['idempotency_key'])) {
@@ -22,10 +22,11 @@ class ExchangeRateEntryWriter
                 return $existing->load('pair.baseCurrency', 'pair.quoteCurrency');
             }
         }
-        $observedAt = CarbonImmutable::parse($data['observed_at'] ?? now());
+        $observedAt ??= $this->clock->now($tenantId);
 
         return DB::transaction(function () use ($pair, $data, $tenantId, $tenantUserId, $adminId, $scopeKey, $observedAt) {
-            $entry = $this->entries->create(['code' => 'RATE-'.Str::upper((string) Str::ulid()), 'tenant_id' => $tenantId, 'scope_key' => $scopeKey, 'exchange_rate_pair_id' => $pair->id, 'rate' => $data['rate'], 'effective_date' => $observedAt->toDateString(), 'observed_at' => $observedAt, 'source' => $tenantId ? 'TENANT' : 'PLATFORM', 'idempotency_key' => $data['idempotency_key'] ?? null, 'created_by_tenant_user_id' => $tenantUserId, 'created_by_platform_admin_id' => $adminId]);
+            ExchangeRatePair::query()->whereKey($pair->id)->lockForUpdate()->firstOrFail();
+            $entry = $this->entries->create(['code' => 'RATE-'.Str::upper((string) Str::ulid()), 'tenant_id' => $tenantId, 'scope_key' => $scopeKey, 'exchange_rate_pair_id' => $pair->id, 'buying_rate' => $data['buying_rate'], 'selling_rate' => $data['selling_rate'], 'effective_date' => $observedAt->toDateString(), 'observed_at' => $observedAt->utc(), 'source' => $tenantId ? 'TENANT' : 'PLATFORM', 'idempotency_key' => $data['idempotency_key'] ?? null, 'created_by_tenant_user_id' => $tenantUserId, 'created_by_platform_admin_id' => $adminId]);
             $this->summaries->rebuild($scopeKey, $tenantId, $pair->id, $observedAt->toDateString());
 
             return $entry;

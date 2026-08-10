@@ -3,6 +3,7 @@
 namespace App\Services\PlatformModule\TenantServices;
 
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
+use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
 use App\Repository\TenantSettingRepository;
@@ -48,6 +49,25 @@ class TenantSettingService extends BaseTenantService
         return $this->getTenantDefaultUserPassword($this->resolveCurrentTenantId()) ?? '12345678';
     }
 
+    public function getCurrentTenantTimezone(): TenantSetting
+    {
+        return $this->getSetting($this->resolveCurrentTenantId(), 'timezone');
+    }
+
+    public function updateCurrentTenantTimezone(TenantTimezoneUpdate $request): TenantSetting
+    {
+        $setting = $this->getCurrentTenantTimezone();
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return $this->repository->update($setting, [
+            'value' => $request->timezone,
+            'category' => 'tenant',
+            'update_key' => $setting->update_key + 1,
+        ]);
+    }
+
     public function updateCurrentTenantDefaultUserPassword(TenantDefaultUserPasswordUpdate $request): TenantSetting
     {
         $setting = $this->getSetting($this->resolveCurrentTenantId(), 'default_tenant_user_password');
@@ -84,7 +104,11 @@ class TenantSettingService extends BaseTenantService
             $tenantId,
             $code,
             [
-                'value' => $code === 'default_tenant_user_password' ? '12345678' : null,
+                'value' => match ($code) {
+                    'default_tenant_user_password' => '12345678',
+                    'timezone' => 'Asia/Yangon',
+                    default => null,
+                },
                 'category' => 'tenant',
             ],
         );

@@ -14,6 +14,7 @@ class TenantSetting extends Model
         'key',
         'value',
         'category',
+        'update_key',
     ];
 
     protected function casts(): array

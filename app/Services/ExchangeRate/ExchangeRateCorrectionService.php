@@ -14,16 +14,16 @@ class ExchangeRateCorrectionService
 {
     public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateCorrectionRepository $corrections, private ExchangeRateEntryWriter $writer, private ExchangeRateSummaryService $summaries, private Messages $messages) {}
 
-    public function correct(ExchangeRateEntry $entry, string $rate, string $reason, ?int $tenantUserId, ?int $adminId): ExchangeRateEntry
+    public function correct(ExchangeRateEntry $entry, string $buyingRate, string $sellingRate, string $reason, ?int $tenantUserId, ?int $adminId): ExchangeRateEntry
     {
         if ($entry->is_void) {
             throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::FinanceRateEntryAlreadyVoid));
         }
 
-        return DB::transaction(function () use ($entry, $rate, $reason, $tenantUserId, $adminId) {
+        return DB::transaction(function () use ($entry, $buyingRate, $sellingRate, $reason, $tenantUserId, $adminId) {
             $locked = ExchangeRateEntry::query()->lockForUpdate()->findOrFail($entry->id);
             $this->voidLocked($locked, $reason, $tenantUserId, $adminId);
-            $replacement = $this->writer->create($locked->pair, ['rate' => $rate, 'observed_at' => $locked->observed_at], $locked->tenant_id, $tenantUserId, $adminId);
+            $replacement = $this->writer->create($locked->pair, ['buying_rate' => $buyingRate, 'selling_rate' => $sellingRate], $locked->tenant_id, $tenantUserId, $adminId, $locked->observed_at->toImmutable());
             $this->corrections->create(['original_entry_id' => $locked->id, 'replacement_entry_id' => $replacement->id, 'tenant_id' => $locked->tenant_id, 'scope_key' => $locked->scope_key, 'action' => 'CORRECT', 'reason' => $reason, 'corrected_by_tenant_user_id' => $tenantUserId, 'corrected_by_platform_admin_id' => $adminId]);
 
             return $replacement;

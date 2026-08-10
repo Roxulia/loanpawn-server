@@ -10,6 +10,7 @@ use App\Models\CoreModule\ExchangeRateEntry;
 use App\Repository\ExchangeRateEntryRepository;
 use App\Repository\ExchangeRatePairRepository;
 use App\Services\ExchangeRate\ExchangeRateCorrectionService;
+use App\Services\ExchangeRate\ExchangeRateActionPolicy;
 use App\Services\ExchangeRate\ExchangeRateEntryWriter;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -18,11 +19,14 @@ use Illuminate\Support\Facades\Auth;
 
 class AdminExchangeRateService
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private Messages $messages) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private Messages $messages, private ExchangeRateActionPolicy $actions) {}
 
     public function list(int $perPage = 50): LengthAwarePaginator
     {
-        return $this->entries->platform($perPage);
+        $page = $this->entries->platform($perPage);
+        $page->through(fn (ExchangeRateEntry $entry) => $this->actions->apply($entry));
+
+        return $page;
     }
 
     public function create(StoreExchangeRateRequest $request): ExchangeRateEntry
@@ -38,13 +42,15 @@ class AdminExchangeRateService
     public function correct(ExchangeRateEntry $entry, CorrectExchangeRateRequest $request): ExchangeRateEntry
     {
         $this->assertPlatform($entry);
+        $this->actions->assertCorrectable($entry);
 
-        return $this->corrections->correct($entry, $request->rate, $request->reason, null, Auth::guard('platformadmin')->id());
+        return $this->corrections->correct($entry, $request->buyingRate, $request->sellingRate, $request->reason, null, Auth::guard('platformadmin')->id());
     }
 
     public function void(ExchangeRateEntry $entry, VoidExchangeRateRequest $request): void
     {
         $this->assertPlatform($entry);
+        $this->actions->assertVoidable($entry);
         $this->corrections->void($entry, $request->reason, null, Auth::guard('platformadmin')->id());
     }
 

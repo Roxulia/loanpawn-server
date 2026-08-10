@@ -331,6 +331,7 @@ return [
         ],
         'exception' => [
             'rate_entry_already_void' => 'This rate entry is already void.',
+            'exchange_rate_action_window_closed' => 'This exchange-rate observation can no longer be changed.',
             'default_currency_code_exists' => 'This default currency code already exists.',
             'admin_currency_requires_default' => 'Admin currency management only accepts default currencies.',
             'currency_already_updated' => 'This currency was already updated. Refresh and try again.',

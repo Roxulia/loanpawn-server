@@ -20,6 +20,6 @@ class ExchangeRateSummaryService
         }
         $first = $entries->first();
         $last = $entries->last();
-        $this->summaries->upsert($identity, ['tenant_id' => $tenantId, 'open_rate' => $first->rate, 'high_rate' => $entries->max('rate'), 'low_rate' => $entries->min('rate'), 'close_rate' => $last->rate, 'entry_count' => $entries->count(), 'first_entry_id' => $first->id, 'last_entry_id' => $last->id, 'calculated_at' => now()]);
+        $this->summaries->upsert($identity, ['tenant_id' => $tenantId, 'buying_open' => $first->buying_rate, 'buying_high' => $entries->max('buying_rate'), 'buying_low' => $entries->min('buying_rate'), 'buying_close' => $last->buying_rate, 'selling_open' => $first->selling_rate, 'selling_high' => $entries->max('selling_rate'), 'selling_low' => $entries->min('selling_rate'), 'selling_close' => $last->selling_rate, 'entry_count' => $entries->count(), 'first_entry_id' => $first->id, 'last_entry_id' => $last->id, 'calculated_at' => now()]);
     }
 }

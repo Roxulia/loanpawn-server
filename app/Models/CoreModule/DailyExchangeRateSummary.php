@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DailyExchangeRateSummary extends Model
 {
-    protected $fillable = ['tenant_id', 'scope_key', 'exchange_rate_pair_id', 'rate_date', 'open_rate', 'high_rate', 'low_rate', 'close_rate', 'entry_count', 'first_entry_id', 'last_entry_id', 'calculated_at'];
+    protected $fillable = ['tenant_id', 'scope_key', 'exchange_rate_pair_id', 'rate_date', 'buying_open', 'buying_high', 'buying_low', 'buying_close', 'selling_open', 'selling_high', 'selling_low', 'selling_close', 'entry_count', 'first_entry_id', 'last_entry_id', 'calculated_at'];
 
     protected function casts(): array
     {
-        return ['rate_date' => 'date', 'open_rate' => 'decimal:12', 'high_rate' => 'decimal:12', 'low_rate' => 'decimal:12', 'close_rate' => 'decimal:12', 'entry_count' => 'integer', 'calculated_at' => 'datetime'];
+        return ['rate_date' => 'date', 'buying_open' => 'decimal:12', 'buying_high' => 'decimal:12', 'buying_low' => 'decimal:12', 'buying_close' => 'decimal:12', 'selling_open' => 'decimal:12', 'selling_high' => 'decimal:12', 'selling_low' => 'decimal:12', 'selling_close' => 'decimal:12', 'entry_count' => 'integer', 'calculated_at' => 'datetime'];
     }
 
     public function pair(): BelongsTo
