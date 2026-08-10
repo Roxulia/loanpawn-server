@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers\TenantModule;
 
+use App\DataObjects\RequestObjects\CorrectExchangeRateRequest;
+use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
+use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
+use App\DataObjects\ResponseObjects\DailyExchangeRateSummaryResource;
+use App\DataObjects\ResponseObjects\ExchangeRateEntryResource;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\CorrectExchangeRateRequest;
-use App\Http\Requests\Finance\StoreExchangeRateRequest;
-use App\Http\Requests\Finance\VoidExchangeRateRequest;
-use App\Http\Resources\Finance\DailyExchangeRateSummaryResource;
-use App\Http\Resources\Finance\ExchangeRateEntryResource;
 use App\Services\TenantModule\TenantDailyExchangeRateService;
 use App\Services\TenantModule\TenantExchangeRateService;
+use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class TenantExchangeRateController extends Controller
 {
@@ -20,37 +22,48 @@ class TenantExchangeRateController extends Controller
     public function index(Request $request): JsonResponse
     {
         $page = $this->service->list($this->perPage($request));
-        $page->through(fn ($row) => ExchangeRateEntryResource::make($row)->resolve());
+        $page->through(fn ($row) => ExchangeRateEntryResource::fromModel($row)->toArray());
 
         return $this->successResponse($page);
     }
 
     public function show(string $code): JsonResponse
     {
-        return $this->successResponse(ExchangeRateEntryResource::make($this->service->show($code))->resolve());
+        return $this->successResponse(ExchangeRateEntryResource::fromModel($this->service->show($code))->toArray());
     }
 
-    public function store(StoreExchangeRateRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        return $this->successResponse(ExchangeRateEntryResource::make($this->service->create($request->validated()))->resolve(), 'Exchange rate recorded successfully.', 201);
+        $exchangeRateRequest = StoreExchangeRateRequest::fromValidated(
+            Validator::make($request->all(), StoreExchangeRateRequest::rules())->validate()
+        );
+
+        return $this->successResponse(ExchangeRateEntryResource::fromModel($this->service->create($exchangeRateRequest))->toArray(), $this->responseMessage(MessageCode::FinanceTenantExchangeRateRecorded), 201);
     }
 
-    public function correct(CorrectExchangeRateRequest $request, string $code): JsonResponse
+    public function correct(Request $request, string $code): JsonResponse
     {
-        return $this->successResponse(ExchangeRateEntryResource::make($this->service->correct($code, $request->validated('rate'), $request->validated('reason')))->resolve(), 'Exchange rate corrected successfully.');
+        $correctionRequest = CorrectExchangeRateRequest::fromValidated(
+            Validator::make($request->all(), CorrectExchangeRateRequest::rules())->validate()
+        );
+
+        return $this->successResponse(ExchangeRateEntryResource::fromModel($this->service->correct($code, $correctionRequest))->toArray(), $this->responseMessage(MessageCode::FinanceTenantExchangeRateCorrected));
     }
 
-    public function void(VoidExchangeRateRequest $request, string $code): JsonResponse
+    public function void(Request $request, string $code): JsonResponse
     {
-        $this->service->void($code, $request->validated('reason'));
+        $voidRequest = VoidExchangeRateRequest::fromValidated(
+            Validator::make($request->all(), VoidExchangeRateRequest::rules())->validate()
+        );
+        $this->service->void($code, $voidRequest);
 
-        return $this->successResponse(message: 'Exchange rate voided successfully.');
+        return $this->successResponse(message: $this->responseMessage(MessageCode::FinanceTenantExchangeRateVoided));
     }
 
     public function daily(Request $request): JsonResponse
     {
         $page = $this->daily->list($this->perPage($request));
-        $page->through(fn ($row) => DailyExchangeRateSummaryResource::make($row)->resolve());
+        $page->through(fn ($row) => DailyExchangeRateSummaryResource::fromModel($row)->toArray());
 
         return $this->successResponse($page);
     }
@@ -60,7 +73,10 @@ class TenantExchangeRateController extends Controller
         $data = $request->validate(['pair_code' => ['required', 'string'], 'date' => ['required', 'date']]);
         $entry = $this->service->resolve($data['pair_code'], $data['date']);
 
-        return $this->successResponse($entry ? ExchangeRateEntryResource::make($entry)->resolve() : null, $entry ? 'Exchange rate resolved.' : 'Exchange rate unavailable.');
+        return $this->successResponse(
+            $entry ? ExchangeRateEntryResource::fromModel($entry)->toArray() : null,
+            $this->responseMessage($entry ? MessageCode::FinanceTenantExchangeRateResolved : MessageCode::FinanceTenantExchangeRateUnavailable)
+        );
     }
 
     private function perPage(Request $request): int

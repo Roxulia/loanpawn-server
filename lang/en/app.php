@@ -316,6 +316,48 @@ return [
         ],
     ],
 
+    'finance' => [
+        'response' => [
+            'platform' => [
+                'currency' => ['created' => 'Default currency created.', 'updated' => 'Default currency updated.', 'deleted' => 'Default currency deleted.'],
+                'exchange_pair' => ['created' => 'Default exchange pair created.', 'updated' => 'Default exchange pair updated.', 'deleted' => 'Default exchange pair deleted.'],
+                'exchange_rate' => ['recorded' => 'Platform exchange rate recorded.', 'corrected' => 'Platform exchange rate corrected.', 'voided' => 'Platform exchange rate voided.'],
+            ],
+            'tenant' => [
+                'currency' => ['created' => 'Currency created successfully.', 'updated' => 'Currency updated successfully.', 'deleted' => 'Currency deleted successfully.'],
+                'exchange_pair' => ['created' => 'Exchange pair created successfully.', 'updated' => 'Exchange pair updated successfully.', 'deleted' => 'Exchange pair deleted successfully.'],
+                'exchange_rate' => ['recorded' => 'Exchange rate recorded successfully.', 'corrected' => 'Exchange rate corrected successfully.', 'voided' => 'Exchange rate voided successfully.', 'resolved' => 'Exchange rate resolved.', 'unavailable' => 'Exchange rate unavailable.'],
+            ],
+        ],
+        'exception' => [
+            'rate_entry_already_void' => 'This rate entry is already void.',
+            'default_currency_code_exists' => 'This default currency code already exists.',
+            'admin_currency_requires_default' => 'Admin currency management only accepts default currencies.',
+            'currency_already_updated' => 'This currency was already updated. Refresh and try again.',
+            'currency_code_locked_by_pair' => 'A currency code cannot change after it is used by an exchange pair.',
+            'default_currency_required' => 'Only default currencies are managed here.',
+            'currency_used_by_pair' => 'Delete exchange pairs that use this currency first.',
+            'default_exchange_pair_exists' => 'This default exchange pair already exists.',
+            'default_exchange_pair_required' => 'Only default pairs are managed here.',
+            'exchange_pair_already_updated' => 'This exchange pair was already updated. Refresh and try again.',
+            'exchange_pair_direction_locked' => 'Pair direction cannot change after a rate has been entered.',
+            'distinct_active_default_currencies_required' => 'Choose two different active default currencies.',
+            'active_default_exchange_pair_required' => 'Choose an active default exchange pair.',
+            'platform_exchange_rate_required' => 'Only platform rates are managed here.',
+            'currency_not_found' => 'Currency not found.',
+            'currency_code_already_available' => 'This currency code is already available.',
+            'tenant_currency_modification_denied' => 'Only tenant-created currencies can be changed.',
+            'exchange_pair_not_found' => 'Exchange pair not found.',
+            'exchange_pair_already_available' => 'This exchange pair is already available.',
+            'tenant_exchange_pair_modification_denied' => 'Only tenant-created exchange pairs can be changed.',
+            'visible_active_currencies_required' => 'Both currencies must be active and visible to this tenant.',
+            'distinct_pair_currencies_required' => 'Base and quote currencies must be different.',
+            'exchange_rate_not_found' => 'Exchange rate not found.',
+            'active_visible_exchange_pair_required' => 'Choose an active visible exchange pair.',
+            'tenant_exchange_rate_modification_denied' => 'Only tenant-created rate entries can be changed.',
+        ],
+    ],
+
     'billing' => [
         'response' => [
             'payment_request' => [

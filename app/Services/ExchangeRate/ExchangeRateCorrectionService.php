@@ -6,16 +6,18 @@ use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Repository\ExchangeRateCorrectionRepository;
 use App\Repository\ExchangeRateEntryRepository;
+use App\Utility\MessageCode;
+use App\Utility\Messages;
 use Illuminate\Support\Facades\DB;
 
 class ExchangeRateCorrectionService
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateCorrectionRepository $corrections, private ExchangeRateEntryWriter $writer, private ExchangeRateSummaryService $summaries) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateCorrectionRepository $corrections, private ExchangeRateEntryWriter $writer, private ExchangeRateSummaryService $summaries, private Messages $messages) {}
 
     public function correct(ExchangeRateEntry $entry, string $rate, string $reason, ?int $tenantUserId, ?int $adminId): ExchangeRateEntry
     {
         if ($entry->is_void) {
-            throw new InvalidTenantRequest('This rate entry is already void.');
+            throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::FinanceRateEntryAlreadyVoid));
         }
 
         return DB::transaction(function () use ($entry, $rate, $reason, $tenantUserId, $adminId) {
@@ -31,7 +33,7 @@ class ExchangeRateCorrectionService
     public function void(ExchangeRateEntry $entry, string $reason, ?int $tenantUserId, ?int $adminId): void
     {
         if ($entry->is_void) {
-            throw new InvalidTenantRequest('This rate entry is already void.');
+            throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::FinanceRateEntryAlreadyVoid));
         }
         DB::transaction(function () use ($entry, $reason, $tenantUserId, $adminId) {
             $locked = ExchangeRateEntry::query()->lockForUpdate()->findOrFail($entry->id);

@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\PlatformModule\Admin;
 
+use App\DataObjects\RequestObjects\StoreExchangeRatePairRequest;
+use App\DataObjects\RequestObjects\UpdateExchangeRatePairRequest;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\StoreExchangeRatePairRequest;
-use App\Http\Requests\Finance\UpdateExchangeRatePairRequest;
 use App\Models\CoreModule\ExchangeRatePair;
 use App\Services\PlatformModule\AdminCurrencyService;
 use App\Services\PlatformModule\AdminExchangeRatePairService;
+use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 class AdminExchangeRatePairController extends Controller
@@ -20,24 +23,30 @@ class AdminExchangeRatePairController extends Controller
         return view('platform.admin.exchange-pairs.index', ['pairs' => $this->service->list(), 'currencies' => $this->currencies->list(100)]);
     }
 
-    public function store(StoreExchangeRatePairRequest $request): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
-        $this->service->create($request->validated());
+        $exchangeRatePairRequest = StoreExchangeRatePairRequest::fromValidated(
+            Validator::make($request->all(), StoreExchangeRatePairRequest::rules())->validate()
+        );
+        $this->service->create($exchangeRatePairRequest);
 
-        return back()->with('status', 'Default exchange pair created.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformExchangePairCreated));
     }
 
-    public function update(UpdateExchangeRatePairRequest $request, ExchangeRatePair $exchangePair): RedirectResponse
+    public function update(Request $request, ExchangeRatePair $exchangePair): RedirectResponse
     {
-        $this->service->update($exchangePair, $request->validated());
+        $exchangeRatePairRequest = UpdateExchangeRatePairRequest::fromValidated(
+            Validator::make($request->all(), UpdateExchangeRatePairRequest::rules())->validate()
+        );
+        $this->service->update($exchangePair, $exchangeRatePairRequest);
 
-        return back()->with('status', 'Default exchange pair updated.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformExchangePairUpdated));
     }
 
     public function destroy(ExchangeRatePair $exchangePair): RedirectResponse
     {
         $this->service->delete($exchangePair);
 
-        return back()->with('status', 'Default exchange pair deleted.');
+        return back()->with('status', $this->responseMessage(MessageCode::FinancePlatformExchangePairDeleted));
     }
 }
