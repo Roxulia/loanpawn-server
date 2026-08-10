@@ -26,6 +26,67 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/robots.txt', function () {
+    $privatePaths = [
+        '/admin',
+        '/api',
+        '/billing',
+        '/customer-service',
+        '/dashboard',
+        '/settings',
+        '/tenants',
+    ];
+    $searchAgents = [
+        'OAI-SearchBot',
+        'ChatGPT-User',
+        'PerplexityBot',
+        'Perplexity-User',
+        '*',
+    ];
+    $lines = [];
+
+    foreach ($searchAgents as $agent) {
+        $lines[] = "User-agent: {$agent}";
+        $lines[] = 'Allow: /';
+
+        foreach ($privatePaths as $path) {
+            $lines[] = "Disallow: {$path}";
+        }
+
+        $lines[] = '';
+    }
+
+    foreach (['GPTBot', 'CCBot'] as $trainingAgent) {
+        $lines[] = "User-agent: {$trainingAgent}";
+        $lines[] = 'Disallow: /';
+        $lines[] = '';
+    }
+
+    $lines[] = 'Sitemap: ' . rtrim((string) config('app.url'), '/') . '/sitemap.xml';
+
+    return response(implode("\n", $lines) . "\n", 200)
+        ->header('Content-Type', 'text/plain; charset=UTF-8');
+})->name('seo.robots');
+
+Route::get('/sitemap.xml', function () {
+    $canonicalUrl = htmlspecialchars(
+        rtrim((string) config('app.url'), '/') . '/',
+        ENT_XML1 | ENT_QUOTES,
+        'UTF-8'
+    );
+    $xml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>{$canonicalUrl}</loc>
+    </url>
+</urlset>
+XML;
+
+    return response($xml, 200)
+        ->header('Content-Type', 'application/xml; charset=UTF-8');
+})->name('seo.sitemap');
+
 Route::get('/locale/{locale}', [LocaleSetterController::class, 'setLocale'])->name('locale.set');
 
 Route::name('admin.')->group(function () {
