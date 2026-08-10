@@ -39,6 +39,6 @@ class ExchangeRatePairRepository
 
     public function create(array $data): ExchangeRatePair
     {
-        return ExchangeRatePair::query()->create($data)->load(['baseCurrency', 'quoteCurrency']);
+        return ExchangeRatePair::query()->create($data)->load(['baseCurrency', 'quoteCurrency'])->refresh();
     }
 }

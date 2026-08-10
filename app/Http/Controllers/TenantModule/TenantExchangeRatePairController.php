@@ -4,6 +4,7 @@ namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\StoreExchangeRatePairRequest;
 use App\DataObjects\RequestObjects\UpdateExchangeRatePairRequest;
+use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\DataObjects\ResponseObjects\ExchangeRatePairResource;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantExchangeRatePairService;
@@ -19,9 +20,9 @@ class TenantExchangeRatePairController extends Controller
     public function index(Request $request): JsonResponse
     {
         $page = $this->service->list($this->perPage($request));
-        $page->through(fn ($row) => ExchangeRatePairResource::fromModel($row)->toArray());
+        $page->through(fn ($row) => ExchangeRatePairResource::fromModel($row));
 
-        return $this->successResponse($page);
+        return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
     }
 
     public function show(string $code): JsonResponse

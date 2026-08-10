@@ -35,6 +35,6 @@ class ExchangeRateEntryRepository
 
     public function create(array $data): ExchangeRateEntry
     {
-        return ExchangeRateEntry::query()->create($data)->load('pair.baseCurrency', 'pair.quoteCurrency');
+        return ExchangeRateEntry::query()->create($data)->load('pair.baseCurrency', 'pair.quoteCurrency')->refresh();
     }
 }

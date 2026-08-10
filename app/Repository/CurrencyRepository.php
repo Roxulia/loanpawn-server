@@ -13,6 +13,11 @@ class CurrencyRepository
         return Currency::query()->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))->orderBy('code')->paginate($perPage);
     }
 
+    public function checkAvaialableCode(string $code, ?int $tenantId): bool
+    {
+        return Currency::query()->where('code', strtoupper($code))->where('tenant_id', $tenantId)->where('is_active', true)->exists();
+    }
+
     public function activeVisibleToTenant(int $tenantId): Collection
     {
         return Currency::query()->where('is_active', true)->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))->orderBy('code')->get();
@@ -35,6 +40,6 @@ class CurrencyRepository
 
     public function create(array $data): Currency
     {
-        return Currency::query()->create($data);
+        return Currency::query()->create($data)->refresh();
     }
 }

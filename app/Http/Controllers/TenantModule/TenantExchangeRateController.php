@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\CorrectExchangeRateRequest;
 use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
 use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
 use App\DataObjects\ResponseObjects\DailyExchangeRateSummaryResource;
+use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\DataObjects\ResponseObjects\ExchangeRateEntryResource;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantDailyExchangeRateService;
@@ -24,7 +25,7 @@ class TenantExchangeRateController extends Controller
         $page = $this->service->list($this->perPage($request));
         $page->through(fn ($row) => ExchangeRateEntryResource::fromModel($row)->toArray());
 
-        return $this->successResponse($page);
+        return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
     }
 
     public function show(string $code): JsonResponse
@@ -65,7 +66,7 @@ class TenantExchangeRateController extends Controller
         $page = $this->daily->list($this->perPage($request));
         $page->through(fn ($row) => DailyExchangeRateSummaryResource::fromModel($row)->toArray());
 
-        return $this->successResponse($page);
+        return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
     }
 
     public function resolve(Request $request): JsonResponse

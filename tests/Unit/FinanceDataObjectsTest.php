@@ -6,12 +6,14 @@ use App\DataObjects\BaseDataObject;
 use App\DataObjects\RequestObjects\StoreCurrencyRequest;
 use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
 use App\DataObjects\ResponseObjects\CurrencyResource;
+use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\DataObjects\ResponseObjects\ExchangeRateEntryResource;
 use App\DataObjects\ResponseObjects\ExchangeRatePairResource;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Models\CoreModule\ExchangeRatePair;
 use Carbon\CarbonImmutable;
+use Illuminate\Pagination\LengthAwarePaginator;
 use ReflectionMethod;
 use Tests\TestCase;
 
@@ -88,6 +90,21 @@ class FinanceDataObjectsTest extends TestCase
         $this->assertSame('3500.000000000000', $response['rate']);
         $this->assertTrue($response['can_correct']);
         $this->assertTrue($response['can_void']);
+    }
+
+    public function test_default_data_list_page_accepts_transformed_array_items(): void
+    {
+        $paginator = new LengthAwarePaginator(
+            items: [['id' => 1, 'display_code' => 'USD/MMK']],
+            total: 1,
+            perPage: 50,
+            currentPage: 1,
+        );
+
+        $response = DefaultDataListPage::fromPaginator($paginator)->toArray();
+
+        $this->assertSame([['id' => 1, 'display_code' => 'USD/MMK']], $response['items']);
+        $this->assertSame(1, $response['total']);
     }
 
     private function currency(int $id, string $code, string $name, ?int $tenantId): Currency
