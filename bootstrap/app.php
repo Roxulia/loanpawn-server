@@ -6,6 +6,7 @@ use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsurePlatformRole;
 use App\Http\Middleware\EnsurePlatformTenantSubmittedFeature;
+use App\Http\Middleware\EnsureTenantAnyFeature;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
@@ -65,6 +66,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.activity' => TrackTenantUserActivity::class,
             'tenant.permission' => EnsureTenantPermission::class,
             'tenant.feature' => EnsureTenantFeature::class,
+            'tenant.any-feature' => EnsureTenantAnyFeature::class,
             'platform.tenant.submitted-feature' => EnsurePlatformTenantSubmittedFeature::class,
             'platform.role' => EnsurePlatformRole::class,
             'admin.password.changed' => EnsureAdminPasswordChanged::class,

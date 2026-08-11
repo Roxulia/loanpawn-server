@@ -60,7 +60,11 @@ return [
         ],
         'master_data_management' => [
             'name' => 'Master data management',
-            'description' => 'Create and remove tenant material, interest, and expense types.',
+            'description' => 'Manage tenant material, interest, expense, and financial account types.',
+        ],
+        'accounting_type_management' => [
+            'name' => 'Accounting type management',
+            'description' => 'Manage tenant-owned financial account types.',
         ],
         'dashboard' => [
             'name' => 'Summary Dashboard',

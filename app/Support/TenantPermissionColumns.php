@@ -12,6 +12,7 @@ class TenantPermissionColumns
         'list_capital' => ['update_capital', 'delete_capital'],
         'list_debt' => ['update_debt', 'delete_debt'],
         'list_loan_contract' => ['delete_loan_contract'],
+        'list_financial_account_type' => ['update_financial_account_type', 'delete_financial_account_type'],
     ];
 
     public static function all(): array

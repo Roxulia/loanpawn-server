@@ -40,6 +40,18 @@ class PackageFlagAndPlanTransitionTest extends TestCase
         $this->assertTrue($service->planHasFeature('premium', 'master_data_management'));
     }
 
+    public function test_accounting_type_management_is_enabled_for_budgeting_plans_only(): void
+    {
+        $service = app(PackageService::class);
+
+        $this->assertFalse($service->planHasFeature('trial', 'accounting_type_management'));
+        $this->assertFalse($service->planHasFeature('basic', 'accounting_type_management'));
+        $this->assertFalse($service->planHasFeature('premium', 'accounting_type_management'));
+        $this->assertTrue($service->planHasFeature('budgeting-trial', 'accounting_type_management'));
+        $this->assertTrue($service->planHasFeature('budgeting-basic', 'accounting_type_management'));
+        $this->assertTrue($service->planHasFeature('budgeting-premium', 'accounting_type_management'));
+    }
+
     public function test_existing_license_keeps_enabled_features_when_plan_sales_are_disabled(): void
     {
         Package::query()->where('code', 'basic')->update(['is_active' => false]);

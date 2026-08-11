@@ -94,6 +94,7 @@ class PackageSeeder extends Seeder
                             'expense_management',
                             'capital_management',
                             'debt_management',
+                            'accounting_type_management',
                         ], true),
                         'value' => null,
                     ]

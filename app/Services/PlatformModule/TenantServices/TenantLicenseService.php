@@ -120,6 +120,21 @@ class TenantLicenseService extends BaseTenantService
         return $this->ensureTenantHasFeature($this->resolveCurrentTenantId(), $featureCode);
     }
 
+    public function ensureCurrentTenantHasAnyFeature(array $featureCodes): TenantLicense
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $license = $this->getTenantLicense($tenantId);
+        $planCode = $license->plan?->code ?? $license->plan_type;
+
+        foreach (array_unique(array_filter($featureCodes)) as $featureCode) {
+            if ($this->packageService->planHasFeature($planCode, $featureCode)) {
+                return $license;
+            }
+        }
+
+        throw new FeatureNotAvailableForPlan;
+    }
+
     public function ensureTenantHasFeature(int $tenantId, string $featureCode): TenantLicense
     {
         $license = $this->getTenantLicense($tenantId);

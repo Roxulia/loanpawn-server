@@ -325,6 +325,7 @@ return [
             ],
             'tenant' => [
                 'currency' => ['created' => 'ငွေကြေးကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ။', 'updated' => 'ငွေကြေးကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'ငွေကြေးကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'],
+                'financial_account_type' => ['created' => 'Financial account type ဖန်တီးပြီးပါပြီ။', 'updated' => 'Financial account type ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'Financial account type ဖျက်ပြီးပါပြီ။'],
                 'exchange_pair' => ['created' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ။', 'updated' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'],
                 'exchange_rate' => ['recorded' => 'ငွေလဲနှုန်းကို အောင်မြင်စွာ မှတ်တမ်းတင်ပြီးပါပြီ။', 'corrected' => 'ငွေလဲနှုန်းကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'voided' => 'ငွေလဲနှုန်းကို အောင်မြင်စွာ ပယ်ဖျက်ပြီးပါပြီ။', 'resolved' => 'ငွေလဲနှုန်းကို ရှာဖွေတွေ့ရှိပါပြီ။', 'unavailable' => 'ငွေလဲနှုန်း မရရှိနိုင်ပါ။'],
             ],
@@ -348,6 +349,9 @@ return [
             'currency_not_found' => 'ငွေကြေးကို ရှာမတွေ့ပါ။',
             'currency_code_already_available' => 'ဤငွေကြေးကုဒ် ရှိပြီးသား ဖြစ်ပါသည်။',
             'tenant_currency_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေကြေးများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
+            'financial_account_type_already_updated' => 'ဤ financial account type ကို ပြင်ဆင်ပြီးသား ဖြစ်ပါသည်။ ပြန်လည်ဖွင့်ပြီး ထပ်မံကြိုးစားပါ။',
+            'financial_account_type_code_already_available' => 'ဤ financial account type code ကို အသုံးပြုပြီးသား ဖြစ်ပါသည်။',
+            'tenant_financial_account_type_modification_denied' => 'ဤ Tenant ပိုင် financial account type များကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
             'exchange_pair_not_found' => 'ငွေလဲလှယ်မှုအတွဲကို ရှာမတွေ့ပါ။',
             'exchange_pair_already_available' => 'ဤငွေလဲလှယ်မှုအတွဲ ရှိပြီးသား ဖြစ်ပါသည်။',
             'tenant_exchange_pair_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေလဲလှယ်မှုအတွဲများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
