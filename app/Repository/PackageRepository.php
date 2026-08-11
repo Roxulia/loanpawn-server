@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Models\PlatformModule\Feature;
 use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\PackageFeature;
+use App\Models\PlatformModule\TenantCategory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Models\PlatformModule\TenantCategory;
@@ -177,14 +178,19 @@ class PackageRepository
         array $packageFlags,
         array $maxSlipPerMonth = [],
         array $maxStaffCount = [],
-    ): void
-    {
-        DB::transaction(function () use ($packageFlags, $maxSlipPerMonth, $maxStaffCount): void {
+        array $maxAccountCount = [],
+        array $maxCurrencyTypeCount = [],
+        array $maxExchangePairCount = [],
+    ): void {
+        DB::transaction(function () use ($packageFlags, $maxSlipPerMonth, $maxStaffCount, $maxAccountCount, $maxCurrencyTypeCount, $maxExchangePairCount): void {
             foreach ($packageFlags as $packageId => $isActive) {
                 Package::query()->whereKey($packageId)->update([
                     'is_active' => $isActive,
                     'max_slip_per_month' => $this->nullableIntegerValue($maxSlipPerMonth, $packageId),
                     'max_staff_count' => $this->nullableIntegerValue($maxStaffCount, $packageId),
+                    'max_account_count' => $this->nullableIntegerValue($maxAccountCount, $packageId),
+                    'max_currency_type_count' => $this->nullableIntegerValue($maxCurrencyTypeCount, $packageId),
+                    'max_exchange_pair_count' => $this->nullableIntegerValue($maxExchangePairCount, $packageId),
                 ]);
             }
         });

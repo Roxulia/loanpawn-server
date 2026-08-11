@@ -64,10 +64,6 @@ class AdminPlanManagementController extends Controller
         }
 
         $category->delete();
-        return back()->with('status', 'Unused category deleted.');
-    }
-
-    public function storePlan(Request $request): RedirectResponse
     {
         $validated = $this->validatePlan($request);
         $category = TenantCategory::query()->where('is_deleted', false)->findOrFail($validated['category_id']);
@@ -130,6 +126,9 @@ class AdminPlanManagementController extends Controller
             'rank' => ['required', 'integer', 'min:0'],
             'max_slip_per_month' => ['nullable', 'integer', 'min:0'],
             'max_staff_count' => ['nullable', 'integer', 'min:0'],
+            'max_account_count' => ['nullable', 'integer', 'min:1'],
+            'max_currency_type_count' => ['nullable', 'integer', 'min:0'],
+            'max_exchange_pair_count' => ['nullable', 'integer', 'min:0'],
             'is_trial' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);

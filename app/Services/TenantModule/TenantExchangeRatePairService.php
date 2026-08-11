@@ -10,13 +10,19 @@ use App\Models\CoreModule\ExchangeRatePair;
 use App\Repository\CurrencyRepository;
 use App\Repository\ExchangeRatePairRepository;
 use App\Services\BaseTenantService;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Utility\MessageCode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TenantExchangeRatePairService extends BaseTenantService
 {
-    public function __construct(private ExchangeRatePairRepository $pairs, private CurrencyRepository $currencies) {}
+    public function __construct(
+        private ExchangeRatePairRepository $pairs,
+        private CurrencyRepository $currencies,
+        private TenantLicenseService $tenantLicenseService,
+    ) {}
 
     public function list(int $perPage = 50): LengthAwarePaginator
     {
@@ -36,7 +42,16 @@ class TenantExchangeRatePairService extends BaseTenantService
             throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceExchangePairAlreadyAvailable));
         }
 
-        return $this->pairs->create(['tenant_id' => $tenantId, 'scope_key' => "tenant:{$tenantId}", 'code' => "{$base->code}-{$quote->code}", 'base_currency_id' => $base->id, 'quote_currency_id' => $quote->id, 'is_default' => false, 'is_active' => true, 'created_by_tenant_user_id' => Auth::guard('tenantuser')->id()]);
+        return DB::transaction(function () use ($tenantId, $base, $quote): ExchangeRatePair {
+            if ($this->tenantLicenseService->checkIfLimitReach('current_exchange_pair_count', $tenantId, true)) {
+                throw new TenantAccessDenied($this->responseMessage(MessageCode::FinanceResourceLimitReached));
+            }
+
+            $pair = $this->pairs->create(['tenant_id' => $tenantId, 'scope_key' => "tenant:{$tenantId}", 'code' => "{$base->code}-{$quote->code}", 'base_currency_id' => $base->id, 'quote_currency_id' => $quote->id, 'is_default' => false, 'is_active' => true, 'created_by_tenant_user_id' => Auth::guard('tenantuser')->id()]);
+            $this->tenantLicenseService->incrementExchangePairCount($tenantId);
+
+            return $pair;
+        });
     }
 
     public function update(string $code, UpdateExchangeRatePairRequest $request): ExchangeRatePair
@@ -67,7 +82,12 @@ class TenantExchangeRatePairService extends BaseTenantService
 
     public function delete(string $code): void
     {
-        $this->owned($code, $this->resolveCurrentTenantId())->delete();
+        $tenantId = $this->resolveCurrentTenantId();
+
+        DB::transaction(function () use ($code, $tenantId): void {
+            $this->owned($code, $tenantId)->delete();
+            $this->tenantLicenseService->decrementExchangePairCount($tenantId);
+        });
     }
 
     private function owned(string $code, int $tenantId): ExchangeRatePair

@@ -63,6 +63,9 @@ enum MessageCode: string
     case FinanceTenantCurrencyCreated = 'finance.response.tenant.currency.created';
     case FinanceTenantCurrencyUpdated = 'finance.response.tenant.currency.updated';
     case FinanceTenantCurrencyDeleted = 'finance.response.tenant.currency.deleted';
+    case FinanceTenantFinancialAccountTypeCreated = 'finance.response.tenant.financial_account_type.created';
+    case FinanceTenantFinancialAccountTypeUpdated = 'finance.response.tenant.financial_account_type.updated';
+    case FinanceTenantFinancialAccountTypeDeleted = 'finance.response.tenant.financial_account_type.deleted';
     case FinanceTenantExchangePairCreated = 'finance.response.tenant.exchange_pair.created';
     case FinanceTenantExchangePairUpdated = 'finance.response.tenant.exchange_pair.updated';
     case FinanceTenantExchangePairDeleted = 'finance.response.tenant.exchange_pair.deleted';
@@ -182,11 +185,15 @@ enum MessageCode: string
     case FinanceCurrencyNotFound = 'finance.exception.currency_not_found';
     case FinanceCurrencyCodeAlreadyAvailable = 'finance.exception.currency_code_already_available';
     case FinanceTenantCurrencyModificationDenied = 'finance.exception.tenant_currency_modification_denied';
+    case FinanceFinancialAccountTypeAlreadyUpdated = 'finance.exception.financial_account_type_already_updated';
+    case FinanceFinancialAccountTypeCodeAlreadyAvailable = 'finance.exception.financial_account_type_code_already_available';
+    case FinanceTenantFinancialAccountTypeModificationDenied = 'finance.exception.tenant_financial_account_type_modification_denied';
     case FinanceExchangePairNotFound = 'finance.exception.exchange_pair_not_found';
     case FinanceExchangePairAlreadyAvailable = 'finance.exception.exchange_pair_already_available';
     case FinanceTenantExchangePairModificationDenied = 'finance.exception.tenant_exchange_pair_modification_denied';
     case FinanceVisibleActiveCurrenciesRequired = 'finance.exception.visible_active_currencies_required';
     case FinanceDistinctPairCurrenciesRequired = 'finance.exception.distinct_pair_currencies_required';
+    case FinanceResourceLimitReached = 'finance.exception.resource_limit_reached';
     case FinanceExchangeRateNotFound = 'finance.exception.exchange_rate_not_found';
     case FinanceActiveVisibleExchangePairRequired = 'finance.exception.active_visible_exchange_pair_required';
     case FinanceTenantExchangeRateModificationDenied = 'finance.exception.tenant_exchange_rate_modification_denied';

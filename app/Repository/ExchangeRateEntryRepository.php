@@ -38,6 +38,15 @@ class ExchangeRateEntryRepository
         return ExchangeRateEntry::query()->where('scope_key', $scopeKey)->where('exchange_rate_pair_id', $pairId)->whereDate('effective_date', $date)->where('is_void', false)->latest('observed_at')->latest('id')->first();
     }
 
+    public function summaryTargetsBetween(string $fromDate, string $toDate): Collection
+    {
+        return ExchangeRateEntry::query()
+            ->select(['tenant_id', 'scope_key', 'exchange_rate_pair_id', 'effective_date'])
+            ->whereBetween('effective_date', [$fromDate, $toDate])
+            ->distinct()
+            ->get();
+    }
+
     public function create(array $data): ExchangeRateEntry
     {
         return ExchangeRateEntry::query()->create($data)->load('pair.baseCurrency', 'pair.quoteCurrency')->refresh();

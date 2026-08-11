@@ -8,8 +8,10 @@ use App\Http\Controllers\PawnModule\SlipDocumentController;
 use App\Http\Controllers\PlatformModule\LicenseController;
 use App\Http\Controllers\PlatformModule\TelegramWebhookController;
 use App\Http\Controllers\PlatformModule\TenantController;
+use App\Http\Controllers\TenantModule\Accounting\MultiAccountManagement as MultiAccountManagementController;
 use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
+use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
 use App\Http\Controllers\TenantModule\LanguageController;
 use App\Http\Controllers\TenantModule\OnlineSyncController;
 use App\Http\Controllers\TenantModule\TenantAccountingController;
@@ -180,6 +182,27 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_accounting');
                 });
 
+            Route::prefix('financial-account-types')
+                ->controller(FinancialAccountTypeController::class)
+                ->middleware('tenant.feature:accounting_management')
+                ->group(function () {
+                    Route::get('/', 'index')->middleware('tenant.permission:list_financial_account_type');
+                    Route::post('/', 'store')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:create_financial_account_type']);
+                    Route::put('{code}', 'update')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:update_financial_account_type']);
+                    Route::delete('{code}', 'destroy')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:delete_financial_account_type']);
+                });
+
+            Route::prefix('financial-accounts')
+                ->controller(MultiAccountManagementController::class)
+                ->middleware('tenant.feature:multi_account_management')
+                ->group(function () {
+                    Route::get('/', 'index')->middleware('tenant.permission:list_financial_account');
+                    Route::post('/', 'store')->middleware('tenant.permission:create_financial_account');
+                    Route::get('{accountCode}', 'show')->middleware('tenant.permission:list_financial_account');
+                    Route::put('{accountCode}', 'update')->middleware('tenant.permission:update_financial_account');
+                    Route::delete('{accountCode}', 'destroy')->middleware('tenant.permission:delete_financial_account');
+                });
+
             Route::middleware('tenant.feature:currency_exchange_management')->group(function () {
                 Route::prefix('currencies')->controller(TenantCurrencyController::class)->group(function () {
                     Route::get('/', 'index')->middleware('tenant.permission:list_currency');
@@ -272,24 +295,16 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
+                Route::get('currencies', [TenantSettingsController::class, 'currencyPreferences'])
+                    ->middleware(['tenant.feature:currency_exchange_management', 'tenant.permission:list_currency']);
+                Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])
+                    ->middleware(['tenant.feature:currency_exchange_management', 'tenant.permission:update_currency']);
                 Route::get('timezone', [TenantSettingsController::class, 'timezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::put('timezone', [TenantSettingsController::class, 'updateTimezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
-                Route::post('interest-types', [TenantSettingsController::class, 'createInterestType'])
-                    ->middleware('tenant.feature:master_data_management')
-                    ->middleware('tenant.permission:manage_slip_document');
-                Route::post('expense-types', [TenantSettingsController::class, 'createExpenseType'])
-                    ->middleware('tenant.feature:master_data_management')
-                    ->middleware('tenant.permission:manage_slip_document');
-                Route::post('material-types', [TenantSettingsController::class, 'createMaterialType'])
-                    ->middleware('tenant.feature:master_data_management')
-                    ->middleware('tenant.permission:manage_slip_document');
-                Route::post('item-category-types', [TenantSettingsController::class, 'createItemCategoryType'])
-                    ->middleware('tenant.feature:master_data_management')
-                    ->middleware('tenant.permission:manage_slip_document');
             });
 
             Route::prefix('slip-documents')
@@ -299,44 +314,48 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_loan_contract');
                 });
             Route::prefix('expense-types')
-                ->middleware('tenant.permission:create_expense,update_expense,manage_slip_document')
                 ->group(function () {
-                    Route::get('/', [DefaultDataController::class, 'getExpenseTypes']);
-                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedExpenseTypes']);
+                    Route::get('/', [DefaultDataController::class, 'getExpenseTypes'])
+                        ->middleware('tenant.permission:list_expense_type');
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedExpenseTypes'])
+                        ->middleware('tenant.permission:list_expense_type');
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantExpenseType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:create_expense_type']);
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantExpenseType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:delete_expense_type']);
                 });
             Route::prefix('interest-types')
-                ->middleware('tenant.permission:create_loan_contract,update_loan_contract,manage_slip_document')
                 ->group(function () {
-                    Route::get('/', [DefaultDataController::class, 'getInterestTypes']);
-                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedInterestTypes']);
+                    Route::get('/', [DefaultDataController::class, 'getInterestTypes'])
+                        ->middleware('tenant.permission:list_interest_type');
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedInterestTypes'])
+                        ->middleware('tenant.permission:list_interest_type');
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantInterestType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:create_interest_type']);
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantInterestType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:delete_interest_type']);
                 });
             Route::prefix('material-types')
-                ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
                 ->group(function () {
-                    Route::get('/', [DefaultDataController::class, 'getMaterialTypes']);
-                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedMaterialTypes']);
+                    Route::get('/', [DefaultDataController::class, 'getMaterialTypes'])
+                        ->middleware('tenant.permission:list_material_type');
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedMaterialTypes'])
+                        ->middleware('tenant.permission:list_material_type');
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantMaterialType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:create_material_type']);
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantMaterialType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:delete_material_type']);
                 });
             Route::prefix('item-category-types')
-                ->middleware('tenant.permission:create_collateral,update_collateral,manage_slip_document')
                 ->group(function () {
-                    Route::get('/', [DefaultDataController::class, 'getItemCategoryTypes']);
-                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedItemCategoryTypes']);
+                    Route::get('/', [DefaultDataController::class, 'getItemCategoryTypes'])
+                        ->middleware('tenant.permission:list_item_category_type');
+                    Route::get('paginated', [DefaultDataController::class, 'getPaginatedItemCategoryTypes'])
+                        ->middleware('tenant.permission:list_item_category_type');
                     Route::post('/', [DefaultDataController::class, 'createCurrentTenantItemCategoryType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:create_item_category_type']);
                     Route::delete('/{code}', [DefaultDataController::class, 'deleteCurrentTenantItemCategoryType'])
-                        ->middleware('tenant.feature:master_data_management');
+                        ->middleware(['tenant.feature:master_data_management', 'tenant.permission:delete_item_category_type']);
                 });
             Route::prefix('user-roles')
                 ->group(function () {

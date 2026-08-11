@@ -47,7 +47,12 @@
                     <tr>
                         <td>{{ $plan->name }}<br><small>{{ $plan->code }}{{ $plan->is_trial ? ' · Trial' : '' }}</small></td>
                         <td>{{ $plan->rank }}</td><td>{{ number_format((float)$plan->price) }} MMK</td>
-                        <td>{{ $plan->max_slip_per_month ?? '∞' }} slips / {{ $plan->max_staff_count ?? '∞' }} staff</td>
+
+                        <td>
+                            {{ $plan->max_slip_per_month ?? '∞' }} slips / {{ $plan->max_staff_count ?? '∞' }} staff<br>
+                            {{ $plan->max_account_count ?? '∞' }} accounts / {{ $plan->max_currency_type_count ?? '∞' }} currencies / {{ $plan->max_exchange_pair_count ?? '∞' }} pairs
+                        </td>
+
                         <td><span class="badge">{{ $plan->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td><button type="button" class="button secondary" data-edit-plan="plan-dialog-{{ $plan->id }}">Edit</button></td>
                     </tr>

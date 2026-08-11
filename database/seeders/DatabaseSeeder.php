@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             ExchangeRatePairSeeder::class,
             PackageSeeder::class,
             ExpenseTypeSeeder::class,
+            FinancialAccountTypeSeeder::class,
             MaterialTypeSeeder::class,
             ItemCategoryTypeSeeder::class,
             InterestTypeSeeder::class,

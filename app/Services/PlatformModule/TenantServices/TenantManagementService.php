@@ -17,6 +17,7 @@ use App\Services\BaseTenantService;
 use App\Services\PlatformModule\AuthService;
 use App\Services\PlatformModule\PlatformUserService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Services\TenantModule\TenantUserService;
 use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
@@ -31,15 +32,26 @@ class TenantManagementService extends BaseTenantService
      * Create a new class instance.
      */
     private TenantRepository $repository;
+
     private PlatformUserService $platformUserService;
+
     private TenantUserService $tenantUserService;
+
     private TenantLookupService $tenantLookupService;
+
     private TenantContactService $tenantContactService;
+
     private TenantBrandingService $tenantBrandingService;
+
     private TenantLicenseService $tenantLicenseService;
+
     private AuthService $authService;
+
     private TenantSettingService $tenantSettingService;
+
     private TableIdGenerationService $tableIdGenerationService;
+
+    private MultiAccountManagement $multiAccountManagement;
 
     public function __construct(
         TenantRepository $repository,
@@ -52,8 +64,8 @@ class TenantManagementService extends BaseTenantService
         AuthService $authService,
         TenantSettingService $tenantSettingService,
         TableIdGenerationService $tableIdGenerationService,
-    )
-    {
+        MultiAccountManagement $multiAccountManagement,
+    ) {
         $this->repository = $repository;
         $this->platformUserService = $platformUserService;
         $this->tenantUserService = $tenantUserService;
@@ -64,9 +76,10 @@ class TenantManagementService extends BaseTenantService
         $this->authService = $authService;
         $this->tenantSettingService = $tenantSettingService;
         $this->tableIdGenerationService = $tableIdGenerationService;
+        $this->multiAccountManagement = $multiAccountManagement;
     }
 
-    public function createTenant(TenantCreate $request) : Tenant
+    public function createTenant(TenantCreate $request): Tenant
     {
         $platformUser = $this->resolvePlatformUser($request);
         $platformUserId = $platformUser->id;
@@ -121,7 +134,7 @@ class TenantManagementService extends BaseTenantService
                 'reason' => 'Tenant license created',
             ]);
 
-            $this->tenantUserService->createOwner(new TenantUserCreate(
+            $owner = $this->tenantUserService->createOwner(new TenantUserCreate(
                 tenantId: $tenant->id,
                 name: $platformUser->name,
                 nrc: 'OWNER-'.$tenant->id,
@@ -129,6 +142,8 @@ class TenantManagementService extends BaseTenantService
                 password: $platformUser->password,
                 email: $platformUser->email,
             ));
+
+            $this->multiAccountManagement->createDefaultForTenant($tenant->id, $owner->id);
 
             $this->tenantContactService->createContact($request, $tenant->id);
             $this->tenantSettingService->createDefaultTenantSettings($tenant->id);
@@ -178,9 +193,8 @@ class TenantManagementService extends BaseTenantService
         if ($tenant->platform_user_id !== $platformUser->id) {
             throw new TenantAccessDenied($this->responseMessage(MessageCode::NotTenantOwner));
         }
-        if($tenant->update_key !== $request->updateKey)
-        {
-            throw new AlreadyUpdatedException("This Tenant is already updated.Please refresh");
+        if ($tenant->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This Tenant is already updated.Please refresh');
         }
 
         $tenantData = $this->buildTenantUpdateData($tenant, $request);
@@ -205,7 +219,8 @@ class TenantManagementService extends BaseTenantService
     protected function resolvePlatformUser(TenantCreate $request): PlatformUser
     {
         if (! $request->createdByAdmin) {
-            $platformUser = $this->authService->getCurrentUser("platformuser");
+            $platformUser = $this->authService->getCurrentUser('platformuser');
+
             return $platformUser;
         }
 
@@ -214,6 +229,7 @@ class TenantManagementService extends BaseTenantService
         }
 
         $platformUser = $this->platformUserService->findById($request->platformUserId);
+
         return $platformUser;
     }
 
@@ -262,7 +278,8 @@ class TenantManagementService extends BaseTenantService
 
     protected function requireAuthenticatedAdminId(): int
     {
-        $platformAdmin = $this->authService->getCurrentUser("platformadmin");
+        $platformAdmin = $this->authService->getCurrentUser('platformadmin');
+
         return $platformAdmin->id;
     }
 
@@ -337,7 +354,7 @@ class TenantManagementService extends BaseTenantService
     protected function buildTenantUpdateData(Tenant $tenant, TenantUpdate $request): array
     {
         $data = [];
-        $data['update_key'] = $tenant->update_key+1;
+        $data['update_key'] = $tenant->update_key + 1;
         if ($request->name !== null) {
             $data['name'] = $request->name;
         }
@@ -418,6 +435,4 @@ class TenantManagementService extends BaseTenantService
     {
         return "tenant-list:version:owner:{$platformUserId}";
     }
-
-
 }

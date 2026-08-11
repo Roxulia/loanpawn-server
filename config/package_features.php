@@ -60,7 +60,15 @@ return [
         ],
         'master_data_management' => [
             'name' => 'Master data management',
-            'description' => 'Create and remove tenant material, interest, and expense types.',
+            'description' => 'Manage tenant material, interest, expense, and financial account types.',
+        ],
+        'accounting_type_management' => [
+            'name' => 'Accounting type management',
+            'description' => 'Manage tenant-owned financial account types.',
+        ],
+        'multi_account_management' => [
+            'name' => 'Multi-account management',
+            'description' => 'Create, update, and manage multiple tenant financial accounts.',
         ],
         'dashboard' => [
             'name' => 'Summary Dashboard',
@@ -83,6 +91,9 @@ return [
             'price' => 0,
             'max_slip_per_month' => 30,
             'max_staff_count' => 2,
+            'max_account_count' => 1,
+            'max_currency_type_count' => 3,
+            'max_exchange_pair_count' => 2,
             'is_active' => true,
             'features' => [
                 'tenant_user_management',
@@ -98,6 +109,7 @@ return [
                 'slip_document_preview',
                 'subdomain_available',
                 'currency_exchange_management',
+                'multi_account_management',
             ],
         ],
         'basic' => [
@@ -106,6 +118,9 @@ return [
             'price' => 50000,
             'max_slip_per_month' => 300,
             'max_staff_count' => 5,
+            'max_account_count' => 5,
+            'max_currency_type_count' => 10,
+            'max_exchange_pair_count' => 10,
             'is_active' => true,
             'features' => [
                 'tenant_user_management',
@@ -122,6 +137,7 @@ return [
                 'master_data_management',
                 'subdomain_available',
                 'currency_exchange_management',
+                'multi_account_management',
             ],
         ],
         'premium' => [
@@ -130,6 +146,9 @@ return [
             'price' => 100000,
             'max_slip_per_month' => null,
             'max_staff_count' => null,
+            'max_account_count' => null,
+            'max_currency_type_count' => null,
+            'max_exchange_pair_count' => null,
             'is_active' => true,
             'features' => [
                 'tenant_user_management',
@@ -148,7 +167,50 @@ return [
                 'subdomain_available',
                 'currency_exchange_management',
                 'tenant_timezone_management',
+                'multi_account_management',
             ],
+        ],
+    ],
+
+    'budgeting_packages' => [
+        'budgeting-trial' => [
+            'name' => 'Budgeting Trial',
+            'description' => 'Trial package for evaluating budgeting and accounting features.',
+            'price' => 0,
+            'rank' => 0,
+            'is_trial' => true,
+            'is_active' => true,
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
+            'max_account_count' => 1,
+            'max_currency_type_count' => 3,
+            'max_exchange_pair_count' => 2,
+        ],
+        'budgeting-basic' => [
+            'name' => 'Budgeting Basic',
+            'description' => 'Basic package for budgeting and accounting workflows.',
+            'price' => 0,
+            'rank' => 100,
+            'is_trial' => false,
+            'is_active' => false,
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
+            'max_account_count' => 5,
+            'max_currency_type_count' => 10,
+            'max_exchange_pair_count' => 10,
+        ],
+        'budgeting-premium' => [
+            'name' => 'Budgeting Premium',
+            'description' => 'Premium package for unrestricted budgeting and accounting workflows.',
+            'price' => 0,
+            'rank' => 200,
+            'is_trial' => false,
+            'is_active' => false,
+            'max_slip_per_month' => null,
+            'max_staff_count' => null,
+            'max_account_count' => null,
+            'max_currency_type_count' => null,
+            'max_exchange_pair_count' => null,
         ],
     ],
 ];
