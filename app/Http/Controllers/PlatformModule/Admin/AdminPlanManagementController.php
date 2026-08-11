@@ -60,10 +60,12 @@ class AdminPlanManagementController extends Controller
     {
         if ($category->tenants()->exists() || $category->packages()->exists()) {
             $category->update(['is_active' => false, 'is_deleted' => true, 'update_key' => $category->update_key + 1]);
+
             return back()->with('status', 'Referenced category archived.');
         }
 
         $category->delete();
+
         return back()->with('status', 'Unused category deleted.');
     }
 
@@ -101,6 +103,7 @@ class AdminPlanManagementController extends Controller
         }
 
         $plan->update($validated + ['update_key' => $plan->update_key + 1]);
+
         return back()->with('status', 'Plan updated.');
     }
 
@@ -112,10 +115,12 @@ class AdminPlanManagementController extends Controller
 
         if ($plan->licenses()->exists() || $plan->requestedBy()->exists() || $plan->incomingTransitions()->exists()) {
             $plan->update(['is_active' => false, 'is_deleted' => true, 'update_key' => $plan->update_key + 1]);
+
             return back()->with('status', 'Referenced plan archived.');
         }
 
         $plan->delete();
+
         return back()->with('status', 'Unused plan deleted.');
     }
 
@@ -130,6 +135,9 @@ class AdminPlanManagementController extends Controller
             'rank' => ['required', 'integer', 'min:0'],
             'max_slip_per_month' => ['nullable', 'integer', 'min:0'],
             'max_staff_count' => ['nullable', 'integer', 'min:0'],
+            'max_account_count' => ['nullable', 'integer', 'min:0'],
+            'max_currency_type_count' => ['nullable', 'integer', 'min:0'],
+            'max_exchange_pair_count' => ['nullable', 'integer', 'min:0'],
             'is_trial' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
@@ -152,6 +160,7 @@ class AdminPlanManagementController extends Controller
         if ($plan?->is_trial && (! (bool) $data['is_trial'] || ! (bool) $data['is_active']) && $category->is_active) {
             return 'An active category must retain an active trial plan.';
         }
+
         return null;
     }
 }

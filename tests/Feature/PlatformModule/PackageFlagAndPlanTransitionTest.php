@@ -71,16 +71,43 @@ class PackageFlagAndPlanTransitionTest extends TestCase
             'code' => 'trial',
             'max_slip_per_month' => 30,
             'max_staff_count' => 2,
+            'max_account_count' => 1,
+            'max_currency_type_count' => 3,
+            'max_exchange_pair_count' => 2,
         ]);
         $this->assertDatabaseHas('packages', [
             'code' => 'basic',
             'max_slip_per_month' => 300,
             'max_staff_count' => 5,
+            'max_account_count' => 5,
+            'max_currency_type_count' => 10,
+            'max_exchange_pair_count' => 10,
         ]);
         $this->assertDatabaseHas('packages', [
             'code' => 'premium',
             'max_slip_per_month' => null,
             'max_staff_count' => null,
+            'max_account_count' => null,
+            'max_currency_type_count' => null,
+            'max_exchange_pair_count' => null,
+        ]);
+        $this->assertDatabaseHas('packages', [
+            'code' => 'budgeting-trial',
+            'max_account_count' => 1,
+            'max_currency_type_count' => 3,
+            'max_exchange_pair_count' => 2,
+        ]);
+        $this->assertDatabaseHas('packages', [
+            'code' => 'budgeting-basic',
+            'max_account_count' => 5,
+            'max_currency_type_count' => 10,
+            'max_exchange_pair_count' => 10,
+        ]);
+        $this->assertDatabaseHas('packages', [
+            'code' => 'budgeting-premium',
+            'max_account_count' => null,
+            'max_currency_type_count' => null,
+            'max_exchange_pair_count' => null,
         ]);
     }
 
@@ -148,6 +175,9 @@ class PackageFlagAndPlanTransitionTest extends TestCase
                 'packages' => [$package->id => 0],
                 'max_slip_per_month' => [$package->id => 250],
                 'max_staff_count' => [$package->id => 4],
+                'max_account_count' => [$package->id => 8],
+                'max_currency_type_count' => [$package->id => 12],
+                'max_exchange_pair_count' => [$package->id => 15],
             ])
             ->assertRedirect(route('admin.package-flags.index'));
 
@@ -156,6 +186,9 @@ class PackageFlagAndPlanTransitionTest extends TestCase
             'is_active' => false,
             'max_slip_per_month' => 250,
             'max_staff_count' => 4,
+            'max_account_count' => 8,
+            'max_currency_type_count' => 12,
+            'max_exchange_pair_count' => 15,
         ]);
     }
 
@@ -169,6 +202,9 @@ class PackageFlagAndPlanTransitionTest extends TestCase
                 'packages' => [$package->id => 1],
                 'max_slip_per_month' => [$package->id => null],
                 'max_staff_count' => [$package->id => ''],
+                'max_account_count' => [$package->id => null],
+                'max_currency_type_count' => [$package->id => ''],
+                'max_exchange_pair_count' => [$package->id => null],
             ])
             ->assertRedirect(route('admin.package-flags.index'));
 
@@ -177,6 +213,9 @@ class PackageFlagAndPlanTransitionTest extends TestCase
             'is_active' => true,
             'max_slip_per_month' => null,
             'max_staff_count' => null,
+            'max_account_count' => null,
+            'max_currency_type_count' => null,
+            'max_exchange_pair_count' => null,
         ]);
     }
 

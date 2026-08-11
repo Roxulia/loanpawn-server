@@ -211,6 +211,9 @@ class TenantLicenseServiceTest extends TestCase
 
         $this->assertSame(0, $license->refresh()->current_month_slip_count);
         $this->assertSame(0, $license->current_staff_count);
+        $this->assertSame(0, $license->current_account_count);
+        $this->assertSame(0, $license->current_currency_type_count);
+        $this->assertSame(0, $license->current_exchange_pair_count);
     }
 
     public function test_monthly_slip_count_reset_updates_all_licenses_without_staff_count(): void
@@ -305,6 +308,9 @@ class TenantLicenseServiceTest extends TestCase
             'price' => 1000,
             'max_slip_per_month' => 2,
             'max_staff_count' => 3,
+            'max_account_count' => 1,
+            'max_currency_type_count' => 3,
+            'max_exchange_pair_count' => 2,
             'is_active' => false,
         ]);
         TenantLicense::query()->create([
@@ -315,6 +321,9 @@ class TenantLicenseServiceTest extends TestCase
             'expires_at' => now()->addMonth(),
             'current_month_slip_count' => 1,
             'current_staff_count' => 3,
+            'current_account_count' => 1,
+            'current_currency_type_count' => 2,
+            'current_exchange_pair_count' => 2,
         ]);
         app(TenantContext::class)->set($tenant);
 
@@ -322,6 +331,9 @@ class TenantLicenseServiceTest extends TestCase
 
         $this->assertFalse($service->checkIfLimitReach('current_month_slip_count'));
         $this->assertTrue($service->checkIfLimitReach('current_staff_count'));
+        $this->assertTrue($service->checkIfLimitReach('current_account_count'));
+        $this->assertFalse($service->checkIfLimitReach('current_currency_type_count'));
+        $this->assertTrue($service->checkIfLimitReach('current_exchange_pair_count'));
     }
 
     public function test_license_limit_check_allows_unlimited_package_values(): void
@@ -340,6 +352,9 @@ class TenantLicenseServiceTest extends TestCase
             'price' => 1000,
             'max_slip_per_month' => null,
             'max_staff_count' => null,
+            'max_account_count' => null,
+            'max_currency_type_count' => null,
+            'max_exchange_pair_count' => null,
             'is_active' => true,
         ]);
         TenantLicense::query()->create([
@@ -350,6 +365,9 @@ class TenantLicenseServiceTest extends TestCase
             'expires_at' => now()->addMonth(),
             'current_month_slip_count' => 1000,
             'current_staff_count' => 100,
+            'current_account_count' => 100,
+            'current_currency_type_count' => 100,
+            'current_exchange_pair_count' => 100,
         ]);
         app(TenantContext::class)->set($tenant);
 
@@ -357,6 +375,45 @@ class TenantLicenseServiceTest extends TestCase
 
         $this->assertFalse($service->checkIfLimitReach('current_month_slip_count'));
         $this->assertFalse($service->checkIfLimitReach('current_staff_count'));
+        $this->assertFalse($service->checkIfLimitReach('current_account_count'));
+        $this->assertFalse($service->checkIfLimitReach('current_currency_type_count'));
+        $this->assertFalse($service->checkIfLimitReach('current_exchange_pair_count'));
+    }
+
+    public function test_finance_resource_counters_increment_decrement_and_stop_at_zero(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Finance Counter Owner',
+            'email' => 'finance-counter-owner@example.com',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+        $tenant = $this->createTenant($platformUser, 'finance-counter-tenant');
+        $license = TenantLicense::query()->create([
+            'tenant_id' => $tenant->id,
+            'license_key' => 'FINCOUNTLICENSE1',
+            'plan_type' => 'basic',
+            'status' => 'active',
+            'expires_at' => now()->addMonth(),
+        ]);
+        app(TenantContext::class)->set($tenant);
+        $service = app(TenantLicenseService::class);
+
+        $service->incrementAccountCount();
+        $service->incrementCurrencyTypeCount();
+        $service->incrementExchangePairCount();
+        $service->decrementAccountCount();
+        $service->decrementAccountCount();
+        $service->decrementCurrencyTypeCount();
+        $service->decrementCurrencyTypeCount();
+        $service->decrementExchangePairCount();
+        $service->decrementExchangePairCount();
+
+        $license->refresh();
+        $this->assertSame(0, $license->current_account_count);
+        $this->assertSame(0, $license->current_currency_type_count);
+        $this->assertSame(0, $license->current_exchange_pair_count);
     }
 
     protected function createTenant(PlatformUser $platformUser, string $code): Tenant

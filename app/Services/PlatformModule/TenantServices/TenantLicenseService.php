@@ -10,6 +10,7 @@ use App\Exceptions\PremiumPlanRequired;
 use App\Exceptions\TenantNotFound;
 use App\Mail\TenantLicenseExpiringMail;
 use App\Models\PlatformModule\LicenseStatusLog;
+use App\Models\PlatformModule\Package;
 use App\Models\PlatformModule\TenantLicense;
 use App\Models\PlatformModule\TenantRequest;
 use App\Repository\TenantLicenseRepository;
@@ -19,7 +20,6 @@ use App\Services\PlatformModule\PackageService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use App\Models\PlatformModule\Package;
 
 class TenantLicenseService extends BaseTenantService
 {
@@ -299,7 +299,7 @@ class TenantLicenseService extends BaseTenantService
 
         $license->update(
             [
-                'current_month_slip_count' => $license->current_month_slip_count + 1
+                'current_month_slip_count' => $license->current_month_slip_count + 1,
             ]
         );
     }
@@ -316,10 +316,11 @@ class TenantLicenseService extends BaseTenantService
 
         $license->update(
             [
-                'current_staff_count' => $license->current_staff_count + 1
+                'current_staff_count' => $license->current_staff_count + 1,
             ]
         );
     }
+
     public function decrementCurrentMonthSlipCount(?int $tenantId = null): void
     {
         $license = $tenantId === null
@@ -332,7 +333,7 @@ class TenantLicenseService extends BaseTenantService
 
         $license->update(
             [
-                'current_month_slip_count' => $license->current_month_slip_count - 1
+                'current_month_slip_count' => $license->current_month_slip_count - 1,
             ]
         );
     }
@@ -349,22 +350,56 @@ class TenantLicenseService extends BaseTenantService
 
         $license->update(
             [
-                'current_staff_count' => $license->current_staff_count - 1
+                'current_staff_count' => $license->current_staff_count - 1,
             ]
         );
     }
 
-    public function checkIfLimitReach(string $attribute, ?int $tenantId = null): bool
+    public function incrementAccountCount(?int $tenantId = null): void
+    {
+        $this->incrementCounter('current_account_count', $tenantId);
+    }
+
+    public function decrementAccountCount(?int $tenantId = null): void
+    {
+        $this->decrementCounter('current_account_count', $tenantId);
+    }
+
+    public function incrementCurrencyTypeCount(?int $tenantId = null): void
+    {
+        $this->incrementCounter('current_currency_type_count', $tenantId);
+    }
+
+    public function decrementCurrencyTypeCount(?int $tenantId = null): void
+    {
+        $this->decrementCounter('current_currency_type_count', $tenantId);
+    }
+
+    public function incrementExchangePairCount(?int $tenantId = null): void
+    {
+        $this->incrementCounter('current_exchange_pair_count', $tenantId);
+    }
+
+    public function decrementExchangePairCount(?int $tenantId = null): void
+    {
+        $this->decrementCounter('current_exchange_pair_count', $tenantId);
+    }
+
+    public function checkIfLimitReach(string $attribute, ?int $tenantId = null, bool $lockForUpdate = false): bool
     {
         $packageAttribute = match ($attribute) {
             'current_month_slip_count' => 'max_slip_per_month',
             'current_staff_count' => 'max_staff_count',
+            'current_account_count' => 'max_account_count',
+            'current_currency_type_count' => 'max_currency_type_count',
+            'current_exchange_pair_count' => 'max_exchange_pair_count',
             default => throw new InvalidTenantRequest('Unsupported license limit attribute.'),
         };
 
-        $license = $tenantId === null
-            ? $this->repository->findByTenantId($this->resolveCurrentTenantId())
-            : $this->repository->findByTenantId($tenantId);
+        $resolvedTenantId = $tenantId ?? $this->resolveCurrentTenantId();
+        $license = $lockForUpdate
+            ? $this->repository->findByTenantIdForUpdate($resolvedTenantId)
+            : $this->repository->findByTenantId($resolvedTenantId);
 
         if ($license === null) {
             return false;
@@ -378,6 +413,16 @@ class TenantLicenseService extends BaseTenantService
         }
 
         return ((int) $license->{$attribute} + 1) > (int) $maxAllowed;
+    }
+
+    private function incrementCounter(string $attribute, ?int $tenantId = null): void
+    {
+        $this->repository->incrementCounter($tenantId ?? $this->resolveCurrentTenantId(), $attribute);
+    }
+
+    private function decrementCounter(string $attribute, ?int $tenantId = null): void
+    {
+        $this->repository->decrementCounter($tenantId ?? $this->resolveCurrentTenantId(), $attribute);
     }
 
     public function ensureTenantHasNoScheduledPlanTransition(int $tenantId): void

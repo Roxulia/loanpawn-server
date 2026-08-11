@@ -18,12 +18,21 @@ class TenantLicenseRepository
         //
     }
 
-    public function findByTenantId(int $tenantId) : ?TenantLicense
+    public function findByTenantId(int $tenantId): ?TenantLicense
     {
         $res = TenantLicense::query()
             ->where('tenant_id', $tenantId)
             ->first();
+
         return $res;
+    }
+
+    public function findByTenantIdForUpdate(int $tenantId): ?TenantLicense
+    {
+        return TenantLicense::query()
+            ->where('tenant_id', $tenantId)
+            ->lockForUpdate()
+            ->first();
     }
 
     public function findByLicenseKey(string $licenseKey): ?TenantLicense
@@ -34,7 +43,7 @@ class TenantLicenseRepository
             ->first();
     }
 
-    public function isLicenseExisted(string $licenseKey) : bool
+    public function isLicenseExisted(string $licenseKey): bool
     {
         return TenantLicense::query()->where('license_key', $licenseKey)->exists();
     }
@@ -62,6 +71,21 @@ class TenantLicenseRepository
         return TenantLicense::query()->update([
             'current_month_slip_count' => 0,
         ]);
+    }
+
+    public function incrementCounter(int $tenantId, string $attribute): void
+    {
+        TenantLicense::query()
+            ->where('tenant_id', $tenantId)
+            ->increment($attribute);
+    }
+
+    public function decrementCounter(int $tenantId, string $attribute): void
+    {
+        TenantLicense::query()
+            ->where('tenant_id', $tenantId)
+            ->where($attribute, '>', 0)
+            ->decrement($attribute);
     }
 
     public function createPlanTransition(array $data): TenantLicensePlanTransition

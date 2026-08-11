@@ -228,6 +228,21 @@
                                 >
                                 @error('max_staff_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
                             </div>
+                            <div>
+                                <label for="max_account_count_{{ $package->id }}">Max accounts</label>
+                                <input id="max_account_count_{{ $package->id }}" type="number" min="0" name="max_account_count[{{ $package->id }}]" value="{{ old('max_account_count.'.$package->id, $package->max_account_count) }}" placeholder="Unlimited">
+                                @error('max_account_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
+                            <div>
+                                <label for="max_currency_type_count_{{ $package->id }}">Max currency types</label>
+                                <input id="max_currency_type_count_{{ $package->id }}" type="number" min="0" name="max_currency_type_count[{{ $package->id }}]" value="{{ old('max_currency_type_count.'.$package->id, $package->max_currency_type_count) }}" placeholder="Unlimited">
+                                @error('max_currency_type_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
+                            <div>
+                                <label for="max_exchange_pair_count_{{ $package->id }}">Max exchange pairs</label>
+                                <input id="max_exchange_pair_count_{{ $package->id }}" type="number" min="0" name="max_exchange_pair_count[{{ $package->id }}]" value="{{ old('max_exchange_pair_count.'.$package->id, $package->max_exchange_pair_count) }}" placeholder="Unlimited">
+                                @error('max_exchange_pair_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
                             <label class="switch" aria-label="{{ $package->name }} status">
                                 <input type="hidden" name="packages[{{ $package->id }}]" value="0">
                                 <input type="checkbox" name="packages[{{ $package->id }}]" value="1" @checked($package->is_active)>

@@ -193,6 +193,7 @@ enum MessageCode: string
     case FinanceTenantExchangePairModificationDenied = 'finance.exception.tenant_exchange_pair_modification_denied';
     case FinanceVisibleActiveCurrenciesRequired = 'finance.exception.visible_active_currencies_required';
     case FinanceDistinctPairCurrenciesRequired = 'finance.exception.distinct_pair_currencies_required';
+    case FinanceResourceLimitReached = 'finance.exception.resource_limit_reached';
     case FinanceExchangeRateNotFound = 'finance.exception.exchange_rate_not_found';
     case FinanceActiveVisibleExchangePairRequired = 'finance.exception.active_visible_exchange_pair_required';
     case FinanceTenantExchangeRateModificationDenied = 'finance.exception.tenant_exchange_rate_modification_denied';

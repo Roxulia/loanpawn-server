@@ -123,9 +123,18 @@ class PackageService
         array $packageFlags,
         array $maxSlipPerMonth = [],
         array $maxStaffCount = [],
-    ): void
-    {
-        $this->repository->updatePlanFlags($packageFlags, $maxSlipPerMonth, $maxStaffCount);
+        array $maxAccountCount = [],
+        array $maxCurrencyTypeCount = [],
+        array $maxExchangePairCount = [],
+    ): void {
+        $this->repository->updatePlanFlags(
+            $packageFlags,
+            $maxSlipPerMonth,
+            $maxStaffCount,
+            $maxAccountCount,
+            $maxCurrencyTypeCount,
+            $maxExchangePairCount,
+        );
     }
 
     public function createFeature(array $data): void

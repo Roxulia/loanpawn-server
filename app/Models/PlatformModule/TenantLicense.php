@@ -22,6 +22,9 @@ class TenantLicense extends Model
         'notes',
         'current_month_slip_count',
         'current_staff_count',
+        'current_account_count',
+        'current_currency_type_count',
+        'current_exchange_pair_count',
         'update_key',
     ];
 
@@ -33,6 +36,9 @@ class TenantLicense extends Model
             'activated_at' => 'datetime',
             'current_month_slip_count' => 'integer',
             'current_staff_count' => 'integer',
+            'current_account_count' => 'integer',
+            'current_currency_type_count' => 'integer',
+            'current_exchange_pair_count' => 'integer',
         ];
     }
 

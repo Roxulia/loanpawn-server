@@ -357,6 +357,7 @@ return [
             'tenant_exchange_pair_modification_denied' => 'Only tenant-created exchange pairs can be changed.',
             'visible_active_currencies_required' => 'Both currencies must be active and visible to this tenant.',
             'distinct_pair_currencies_required' => 'Base and quote currencies must be different.',
+            'resource_limit_reached' => 'Your plan resource limit has been reached.',
             'exchange_rate_not_found' => 'Exchange rate not found.',
             'active_visible_exchange_pair_required' => 'Choose an active visible exchange pair.',
             'tenant_exchange_rate_modification_denied' => 'Only tenant-created rate entries can be changed.',

@@ -39,12 +39,17 @@ class PackageSeeder extends Seeder
                 [
                     'name' => $packageDefinition['name'],
                     'category_id' => $pawnCategory->id,
-                    'rank' => match ($code) { 'trial' => 0, 'basic' => 100, default => 200 },
+                    'rank' => match ($code) {
+                        'trial' => 0, 'basic' => 100, default => 200
+                    },
                     'is_trial' => $code === 'trial',
                     'description' => $packageDefinition['description'] ?? null,
                     'price' => $packageDefinition['price'],
                     'max_slip_per_month' => $packageDefinition['max_slip_per_month'] ?? null,
                     'max_staff_count' => $packageDefinition['max_staff_count'] ?? null,
+                    'max_account_count' => $packageDefinition['max_account_count'] ?? null,
+                    'max_currency_type_count' => $packageDefinition['max_currency_type_count'] ?? null,
+                    'max_exchange_pair_count' => $packageDefinition['max_exchange_pair_count'] ?? null,
                     'is_active' => $packageDefinition['is_active'],
                 ]
             );
@@ -65,23 +70,22 @@ class PackageSeeder extends Seeder
             }
         }
 
-        foreach ([
-            'budgeting-trial' => ['name' => 'Budgeting Trial', 'rank' => 0, 'trial' => true, 'active' => true],
-            'budgeting-basic' => ['name' => 'Budgeting Basic', 'rank' => 100, 'trial' => false, 'active' => false],
-            'budgeting-premium' => ['name' => 'Budgeting Premium', 'rank' => 200, 'trial' => false, 'active' => false],
-        ] as $code => $definition) {
+        foreach (config('package_features.budgeting_packages') as $code => $definition) {
             $package = Package::query()->updateOrCreate(
                 ['code' => $code],
                 [
                     'category_id' => $budgetingCategory->id,
                     'rank' => $definition['rank'],
-                    'is_trial' => $definition['trial'],
+                    'is_trial' => $definition['is_trial'],
                     'name' => $definition['name'],
-                    'description' => 'Budgeting plan with accounting-only features.',
-                    'price' => 0,
-                    'max_slip_per_month' => null,
-                    'max_staff_count' => null,
-                    'is_active' => $definition['active'],
+                    'description' => $definition['description'] ?? null,
+                    'price' => $definition['price'],
+                    'max_slip_per_month' => $definition['max_slip_per_month'] ?? null,
+                    'max_staff_count' => $definition['max_staff_count'] ?? null,
+                    'max_account_count' => $definition['max_account_count'] ?? null,
+                    'max_currency_type_count' => $definition['max_currency_type_count'] ?? null,
+                    'max_exchange_pair_count' => $definition['max_exchange_pair_count'] ?? null,
+                    'is_active' => $definition['is_active'],
                 ]
             );
 

@@ -9,13 +9,18 @@ use App\Exceptions\TenantAccessDenied;
 use App\Models\CoreModule\Currency;
 use App\Repository\CurrencyRepository;
 use App\Services\BaseTenantService;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Utility\MessageCode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TenantCurrencyService extends BaseTenantService
 {
-    public function __construct(private CurrencyRepository $repository) {}
+    public function __construct(
+        private CurrencyRepository $repository,
+        private TenantLicenseService $tenantLicenseService,
+    ) {}
 
     public function list(int $perPage = 50): LengthAwarePaginator
     {
@@ -35,7 +40,16 @@ class TenantCurrencyService extends BaseTenantService
             throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyCodeAlreadyAvailable));
         }
 
-        return $this->repository->create($this->payload($request, $tenantId, $code) + ['created_by_tenant_user_id' => Auth::guard('tenantuser')->id()]);
+        return DB::transaction(function () use ($request, $tenantId, $code): Currency {
+            if ($this->tenantLicenseService->checkIfLimitReach('current_currency_type_count', $tenantId, true)) {
+                throw new TenantAccessDenied($this->responseMessage(MessageCode::FinanceResourceLimitReached));
+            }
+
+            $currency = $this->repository->create($this->payload($request, $tenantId, $code) + ['created_by_tenant_user_id' => Auth::guard('tenantuser')->id()]);
+            $this->tenantLicenseService->incrementCurrencyTypeCount($tenantId);
+
+            return $currency;
+        });
     }
 
     public function update(string $code, UpdateCurrencyRequest $request): Currency
@@ -59,11 +73,16 @@ class TenantCurrencyService extends BaseTenantService
 
     public function delete(string $code): void
     {
-        $currency = $this->owned($code, $this->resolveCurrentTenantId());
-        if ($currency->basePairs()->exists() || $currency->quotePairs()->exists()) {
-            throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyUsedByPair));
-        }
-        $currency->delete();
+        $tenantId = $this->resolveCurrentTenantId();
+
+        DB::transaction(function () use ($code, $tenantId): void {
+            $currency = $this->owned($code, $tenantId);
+            if ($currency->basePairs()->exists() || $currency->quotePairs()->exists()) {
+                throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyUsedByPair));
+            }
+            $currency->delete();
+            $this->tenantLicenseService->decrementCurrencyTypeCount($tenantId);
+        });
     }
 
     private function owned(string $code, int $tenantId): Currency

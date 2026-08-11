@@ -3,8 +3,8 @@
 namespace App\Models\PlatformModule;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Package extends Model
@@ -19,6 +19,9 @@ class Package extends Model
         'price',
         'max_slip_per_month',
         'max_staff_count',
+        'max_account_count',
+        'max_currency_type_count',
+        'max_exchange_pair_count',
         'is_active',
         'is_deleted',
         'update_key',
@@ -30,6 +33,9 @@ class Package extends Model
             'price' => 'decimal:2',
             'max_slip_per_month' => 'integer',
             'max_staff_count' => 'integer',
+            'max_account_count' => 'integer',
+            'max_currency_type_count' => 'integer',
+            'max_exchange_pair_count' => 'integer',
             'is_active' => 'boolean',
             'is_trial' => 'boolean',
             'rank' => 'integer',

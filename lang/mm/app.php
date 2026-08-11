@@ -357,6 +357,7 @@ return [
             'tenant_exchange_pair_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေလဲလှယ်မှုအတွဲများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
             'visible_active_currencies_required' => 'ငွေကြေးနှစ်ခုလုံးသည် အသုံးပြုနိုင်ပြီး ဤ Tenant တွင် မြင်တွေ့နိုင်ရပါမည်။',
             'distinct_pair_currencies_required' => 'အခြေခံငွေကြေးနှင့် နှိုင်းယှဉ်ငွေကြေးသည် မတူညီရပါမည်။',
+            'resource_limit_reached' => 'သင့် Plan ၏ အသုံးပြုနိုင်သည့် အရေအတွက် ကန့်သတ်ချက် ပြည့်သွားပါပြီ။',
             'exchange_rate_not_found' => 'ငွေလဲနှုန်းကို ရှာမတွေ့ပါ။',
             'active_visible_exchange_pair_required' => 'အသုံးပြုနိုင်ပြီး မြင်တွေ့နိုင်သော ငွေလဲလှယ်မှုအတွဲကို ရွေးချယ်ပါ။',
             'tenant_exchange_rate_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေလဲနှုန်းမှတ်တမ်းများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
