@@ -7,13 +7,18 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class DailyExchangeRateSummaryRepository
 {
-    public function upsert(array $identity, array $values): DailyExchangeRateSummary
+    public function find(array $identity): ?DailyExchangeRateSummary
     {
-        $summary = DailyExchangeRateSummary::query()
+        return DailyExchangeRateSummary::query()
             ->where('scope_key', $identity['scope_key'])
             ->where('exchange_rate_pair_id', $identity['exchange_rate_pair_id'])
             ->whereDate('rate_date', $identity['rate_date'])
             ->first();
+    }
+
+    public function upsert(array $identity, array $values): DailyExchangeRateSummary
+    {
+        $summary = $this->find($identity);
 
         if ($summary) {
             $summary->update($values);

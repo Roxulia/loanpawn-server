@@ -1,7 +1,7 @@
 <?php
 
-use App\Exceptions\ApiException;
 use App\Console\Commands\RepairAccountingChange;
+use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsurePlatformRole;
@@ -16,8 +16,9 @@ use App\Http\Middleware\TrackTenantUserActivity;
 use App\Http\Responses\ApiResponse;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
-use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
+use App\Jobs\RefreshDailyExchangeRateSummariesJob;
+use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Support\InternalServerErrorNotifier;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -75,6 +76,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new CheckExpirePawnLoanContractSlipJob())->dailyAt('23:59');
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob())->monthlyOn(1, '00:00');
         $schedule->job(new ExpireInactiveTenantUsersJob())->everyFiveMinutes()->withoutOverlapping();
+        $schedule->job(new RefreshDailyExchangeRateSummariesJob())->hourly()->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

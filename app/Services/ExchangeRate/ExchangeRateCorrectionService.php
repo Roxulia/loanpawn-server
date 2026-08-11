@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class ExchangeRateCorrectionService
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateCorrectionRepository $corrections, private ExchangeRateEntryWriter $writer, private ExchangeRateSummaryService $summaries, private Messages $messages) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRateCorrectionRepository $corrections, private ExchangeRateEntryWriter $writer, private Messages $messages) {}
 
     public function correct(ExchangeRateEntry $entry, string $buyingRate, string $sellingRate, string $reason, ?int $tenantUserId, ?int $adminId): ExchangeRateEntry
     {
@@ -45,6 +45,5 @@ class ExchangeRateCorrectionService
     private function voidLocked(ExchangeRateEntry $entry, string $reason, ?int $tenantUserId, ?int $adminId): void
     {
         $entry->update(['is_void' => true, 'voided_at' => now(), 'void_reason' => $reason, 'voided_by_tenant_user_id' => $tenantUserId, 'voided_by_platform_admin_id' => $adminId]);
-        $this->summaries->rebuild($entry->scope_key, $entry->tenant_id, $entry->exchange_rate_pair_id, $entry->effective_date->toDateString());
     }
 }
