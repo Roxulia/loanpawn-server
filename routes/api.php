@@ -293,6 +293,10 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
+                Route::get('currencies', [TenantSettingsController::class, 'currencyPreferences'])
+                    ->middleware(['tenant.feature:currency_exchange_management', 'tenant.permission:list_currency']);
+                Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])
+                    ->middleware(['tenant.feature:currency_exchange_management', 'tenant.permission:update_currency']);
                 Route::get('timezone', [TenantSettingsController::class, 'timezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])

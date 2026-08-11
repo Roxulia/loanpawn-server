@@ -5,6 +5,7 @@ namespace App\Http\Controllers\TenantModule;
 use App\DataObjects\RequestObjects\DefaultDataCreate;
 use App\DataObjects\RequestObjects\TenantBrandingUpdate;
 use App\DataObjects\RequestObjects\TenantContactUpdate;
+use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
 use App\DataObjects\RequestObjects\TenantSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
@@ -27,8 +28,7 @@ class TenantSettingsController extends Controller
         private TenantContactService $tenantContactService,
         private DefaultDataService $defaultDataService,
         private TenantSettingsService $tenantSettingsService,
-    ) {
-    }
+    ) {}
 
     public function show(): JsonResponse
     {
@@ -139,6 +139,23 @@ class TenantSettingsController extends Controller
         );
 
         return $this->successResponse($setting->toArray());
+    }
+
+    public function currencyPreferences(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingService->getCurrentTenantCurrencyPreferences()->toArray());
+    }
+
+    public function updateCurrencyPreferences(Request $request): JsonResponse
+    {
+        $data = TenantCurrencySettingsUpdate::fromValidated(
+            Validator::make($request->all(), TenantCurrencySettingsUpdate::rules())->validate()
+        );
+
+        return $this->successResponse(
+            $this->tenantSettingService->updateCurrentTenantCurrencyPreferences($data)->toArray(),
+            $this->responseMessage(\App\Utility\MessageCode::FinanceTenantCurrencyUpdated),
+        );
     }
 
     public function timezone(): JsonResponse
@@ -275,5 +292,4 @@ class TenantSettingsController extends Controller
             updateKey: (int) ($data['update_key'] ?? 0),
         );
     }
-
 }

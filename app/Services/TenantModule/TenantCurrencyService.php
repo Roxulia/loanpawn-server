@@ -32,6 +32,23 @@ class TenantCurrencyService extends BaseTenantService
         return $this->repository->findVisible($code, $this->resolveCurrentTenantId()) ?? throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyNotFound));
     }
 
+    public function findActiveVisibleForTenant(int $tenantId, int $currencyId): Currency
+    {
+        return $this->repository->findActiveVisibleById($currencyId, $tenantId)
+            ?? throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyNotFound));
+    }
+
+    public function findActiveVisibleByCodeForTenant(int $tenantId, string $code): Currency
+    {
+        $currency = $this->repository->findVisible($code, $tenantId);
+
+        if (! $currency || ! $currency->is_active) {
+            throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyNotFound));
+        }
+
+        return $currency;
+    }
+
     public function create(StoreCurrencyRequest $request): Currency
     {
         $tenantId = $this->resolveCurrentTenantId();
