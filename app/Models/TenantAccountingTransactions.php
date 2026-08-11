@@ -6,5 +6,5 @@ use Illuminate\Database\Eloquent\Model;
 
 class TenantAccountingTransactions extends Model
 {
-    //
+    protected $table = 'tenant_accounting_transactions';
 }

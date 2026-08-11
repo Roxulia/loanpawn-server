@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\FinancialAccountTransactionType;
-use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\Tenant;
 use Illuminate\Database\Eloquent\Model;
@@ -49,6 +48,6 @@ class FinancialAccountTransaction extends Model
 
     public function relatedTransaction(): BelongsTo
     {
-        return $this->belongsTo(TenantAccounting::class, 'related_transaction_id');
+        return $this->belongsTo(TenantAccountingTransactions::class, 'related_transaction_id');
     }
 }
