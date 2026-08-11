@@ -9,12 +9,15 @@ use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
+use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\PlatformModule\TenantLicense;
 use Database\Seeders\PackageSeeder;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -253,10 +256,16 @@ class PawnOperationApiTest extends TestCase
         $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
             ->putJson("/api/tenant/expenses/{$expenseId}", [
                 'description' => 'Office rent April',
-                'amount' => 550000,
             ])
             ->assertOk()
-            ->assertJsonPath('data.amount', '550000.00');
+            ->assertJsonPath('data.amount', '500000.00');
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->putJson("/api/tenant/expenses/{$expenseId}", [
+                'amount' => 550000,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonStructure(['data' => ['errors' => ['amount']]]);
 
         $debt = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
             ->postJson('/api/tenant/debts', [
@@ -292,6 +301,117 @@ class PawnOperationApiTest extends TestCase
         $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
             ->deleteJson('/api/tenant/accounting/1')
             ->assertNotFound();
+    }
+
+    public function test_tenant_user_can_attach_replace_remove_and_view_expense_reference_image(): void
+    {
+        Storage::fake('local');
+        [$tenant, $tenantUser] = $this->tenantUserContext();
+        Sanctum::actingAs($tenantUser, [], 'tenantuser');
+
+        $created = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->post('/api/tenant/expenses', [
+                'description' => 'Receipt-backed expense',
+                'amount' => 1000,
+                'image_reference' => UploadedFile::fake()->image('receipt.jpg'),
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.has_image_reference', true);
+
+        $expenseCode = $created->json('data.code');
+        $expenseId = $created->json('data.id');
+        $storedPath = \App\Models\CoreModule\TenantExpense::query()->findOrFail($expenseId)->image_reference;
+        Storage::disk('local')->assertExists($storedPath);
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->getJson("/api/tenant/expenses/{$expenseCode}")
+            ->assertOk()
+            ->assertJsonPath('data.has_image_reference', true)
+            ->assertJsonPath('data.creator_name', 'API User')
+            ->assertJsonStructure(['data' => ['image_reference_url', 'image_reference_url_expires_at']])
+            ->assertJsonMissingPath('data.image_reference');
+
+        $replacement = UploadedFile::fake()->image('replacement.png');
+        $updated = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->post("/api/tenant/expenses/{$expenseCode}", [
+                '_method' => 'PUT',
+                'description' => 'Updated receipt-backed expense',
+                'update_key' => 0,
+                'image_reference' => $replacement,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.amount', '1000.00');
+
+        Storage::disk('local')->assertMissing($storedPath);
+        $replacementPath = \App\Models\CoreModule\TenantExpense::query()->findOrFail($expenseId)->image_reference;
+        Storage::disk('local')->assertExists($replacementPath);
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->post("/api/tenant/expenses/{$expenseCode}", [
+                '_method' => 'PUT',
+                'update_key' => $updated->json('data.update_key'),
+                'remove_image_reference' => '1',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.has_image_reference', false);
+
+        Storage::disk('local')->assertMissing($replacementPath);
+    }
+
+    public function test_tenant_user_can_create_slip_with_private_collateral_reference_image(): void
+    {
+        Storage::fake('local');
+        [$tenant, $tenantUser] = $this->tenantUserContext();
+        $interestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'image-monthly',
+            'name' => 'Image Monthly',
+            'duration_in_days' => 30,
+            'is_default' => true,
+        ]);
+        Sanctum::actingAs($tenantUser, [], 'tenantuser');
+
+        $created = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->withHeader('Idempotency-Key', 'slip-with-collateral-image')
+            ->post('/api/tenant/loan-contract-slips', [
+                'customer' => [
+                    'name' => 'Image Customer',
+                    'phone' => '09900000002',
+                ],
+                'collateral_items' => [[
+                    'type' => 'Normal',
+                    'name' => 'Camera-backed laptop',
+                    'estimated_value' => 900000,
+                    'quantity' => 1,
+                    'minimum_retail_price' => 1000000,
+                    'image_reference' => UploadedFile::fake()->image('collateral.webp'),
+                ]],
+                'loan_amount' => 500000,
+                'interest_rate' => 5,
+                'interest_type_id' => $interestType->id,
+                'expiry_quota' => 3,
+                'expiry_quota_type' => 'Month',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.image_url', null)
+            ->assertJsonPath('data.items.0.has_image_reference', true);
+
+        $slipNo = $created->json('data.slip_no');
+        $item = PawnCollateralItem::query()->where('loan_contract_id', $created->json('data.id'))->firstOrFail();
+        Storage::disk('local')->assertExists($item->image_url);
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->getJson("/api/tenant/collateral-items/{$item->code}")
+            ->assertOk()
+            ->assertJsonPath('data.has_image_reference', true)
+            ->assertJsonStructure(['data' => ['image_url', 'image_url_expires_at']])
+            ->assertJsonMissing(['image_url' => $item->image_url]);
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->deleteJson("/api/tenant/loan-contract-slips/{$slipNo}")
+            ->assertOk();
+
+        Storage::disk('local')->assertExists($item->image_url);
     }
 
     public function test_loan_contract_create_replays_same_idempotency_key_without_duplicate_slip(): void

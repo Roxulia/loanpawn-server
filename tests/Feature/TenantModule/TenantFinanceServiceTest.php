@@ -73,17 +73,16 @@ class TenantFinanceServiceTest extends TestCase
             code: $created->code,
             updateKey: $created->updateKey,
             description: 'Office rent April',
-            amount: 550000,
         ));
 
         $this->assertSame('Office rent April', $updated->description);
-        $this->assertSame('550000.00', $updated->amount);
+        $this->assertSame('500000.00', $updated->amount);
 
         $this->assertDatabaseHas('tenant_accountings', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantExpense',
             'description' => 'Office rent April',
-            'amount' => '550000.00',
+            'amount' => '500000.00',
         ]);
 
         $list = app(TenantExpenseService::class)->list();

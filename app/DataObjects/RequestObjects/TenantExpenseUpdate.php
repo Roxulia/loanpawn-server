@@ -3,6 +3,7 @@
 namespace App\DataObjects\RequestObjects;
 
 use App\DataObjects\BaseDataObject;
+use Illuminate\Http\UploadedFile;
 
 class TenantExpenseUpdate extends BaseDataObject
 {
@@ -11,8 +12,10 @@ class TenantExpenseUpdate extends BaseDataObject
         public string $code,
         public int $updateKey,
         public ?string $description = null,
-        public ?float $amount = null,
         public ?int $expenseTypeId = null,
+        public bool $hasExpenseTypeId = false,
+        public ?UploadedFile $imageReference = null,
+        public bool $removeImageReference = false,
     ) {
     }
 }

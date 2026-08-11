@@ -396,7 +396,6 @@ class OnlineSyncService extends BaseTenantService
                     'description' => 'description',
                     'item_description' => 'description',
                     'brand_name' => 'brand_name',
-                    'image_url' => 'image_url',
                     'estimated_value' => 'estimated_value',
                     'material_type_id' => 'material_type_id',
                     'item_category_type_id' => 'item_category_type_id',
@@ -437,7 +436,6 @@ class OnlineSyncService extends BaseTenantService
                     'item_name' => 'name',
                     'item_description' => 'description',
                     'brand_name' => 'brand_name',
-                    'image_url' => 'image_url',
                     'estimated_value' => 'estimated_value',
                     'item_category_type_id' => 'item_category_type_id',
                     'item_status' => 'item_status',
@@ -448,7 +446,6 @@ class OnlineSyncService extends BaseTenantService
                 'model' => PawnCollateralItem::class,
                 'fields' => [
                     'name' => 'name',
-                    'image_url' => 'image_url',
                     'material_type_id' => 'material_type_id',
                     'kyat' => 'kyat',
                     'pal' => 'pal',

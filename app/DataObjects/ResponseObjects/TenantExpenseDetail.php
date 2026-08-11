@@ -17,12 +17,14 @@ class TenantExpenseDetail extends BaseDataObject
     public ?string $expenseTypeCode;
     public ?string $expenseTypeName;
     public ?int $createdBy;
+    public ?string $creatorName;
+    public bool $hasImageReference;
     public ?string $createdAt;
     public ?string $updatedAt;
 
-    public static function fromModel(TenantExpense $expense): self
+    public static function fromModel(TenantExpense $expense): static
     {
-        $detail = new self();
+        $detail = new static();
         $detail->id = $expense->id;
         $detail->tenantId = $expense->tenant_id;
         $detail->code = $expense->code;
@@ -33,6 +35,8 @@ class TenantExpenseDetail extends BaseDataObject
         $detail->expenseTypeCode = $expense->expenseType?->code;
         $detail->expenseTypeName = $expense->expenseType?->name;
         $detail->createdBy = $expense->created_by;
+        $detail->creatorName = $expense->creator?->name;
+        $detail->hasImageReference = filled($expense->image_reference);
         $detail->createdAt = $expense->created_at?->toISOString();
         $detail->updatedAt = $expense->updated_at?->toISOString();
 

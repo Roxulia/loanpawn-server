@@ -184,6 +184,8 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_expense');
                     Route::post('/', [TenantExpenseController::class, 'store'])
                         ->middleware('tenant.permission:create_expense');
+                    Route::get('{expenseCode}', [TenantExpenseController::class, 'show'])
+                        ->middleware('tenant.permission:list_expense');
                     Route::put('{expenseCode}', [TenantExpenseController::class, 'update'])
                         ->middleware('tenant.permission:update_expense');
                     Route::delete('{expenseCode}', [TenantExpenseController::class, 'destroy'])

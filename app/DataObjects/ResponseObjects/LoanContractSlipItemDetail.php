@@ -15,6 +15,7 @@ class LoanContractSlipItemDetail extends BaseDataObject
     public ?string $description;
     public ?string $brandName;
     public ?string $imageUrl;
+    public bool $hasImageReference;
     public string $estimatedValue;
     public ?int $materialTypeId;
     public ?string $materialTypeName;
@@ -41,7 +42,8 @@ class LoanContractSlipItemDetail extends BaseDataObject
         $detail->name = $item->name;
         $detail->description = $item->description;
         $detail->brandName = $item->brand_name;
-        $detail->imageUrl = $item->image_url;
+        $detail->imageUrl = null;
+        $detail->hasImageReference = filled($item->image_url);
         $detail->estimatedValue = (string) $item->estimated_value;
         $detail->materialTypeId = $item->material_type_id;
         $detail->materialTypeName = $item->materialType?->name;

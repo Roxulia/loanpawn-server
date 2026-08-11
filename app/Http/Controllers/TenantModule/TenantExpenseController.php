@@ -51,6 +51,7 @@ class TenantExpenseController extends Controller
             amount: (float) $validated['amount'],
             expenseTypeId: $validated['expense_type_id'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
+            imageReference: $validated['image_reference'] ?? null,
         ));
 
         return $this->successResponse($expense->toArray(), $this->responseMessage(MessageCode::TenantExpenseCreated), 201);
@@ -70,11 +71,18 @@ class TenantExpenseController extends Controller
             code: $expenseCode,
             updateKey: $validated['update_key'] ?? 0,
             description: $validated['description'] ?? null,
-            amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
             expenseTypeId: $validated['expense_type_id'] ?? null,
+            hasExpenseTypeId: array_key_exists('expense_type_id', $validated),
+            imageReference: $validated['image_reference'] ?? null,
+            removeImageReference: (bool) ($validated['remove_image_reference'] ?? false),
         ));
 
         return $this->successResponse($expense->toArray(), $this->responseMessage(MessageCode::TenantExpenseUpdated));
+    }
+
+    public function show(string $expenseCode): JsonResponse
+    {
+        return $this->successResponse($this->expenseService->detail($expenseCode)->toArray());
     }
 
     public function destroy(string $expenseCode): JsonResponse
@@ -86,13 +94,22 @@ class TenantExpenseController extends Controller
 
     protected function rules(bool $isCreate = true): array
     {
-        return [
+        $rules = [
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
-            'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
+            'amount' => $isCreate
+                ? ['required', 'numeric', 'min:0.01']
+                : ['prohibited'],
             'expense_type_id' => ['nullable', 'integer'],
             'update_key' => ['nullable', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'image_reference' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ];
+
+        if (! $isCreate) {
+            $rules['remove_image_reference'] = ['nullable', 'boolean', 'prohibits:image_reference'];
+        }
+
+        return $rules;
     }
 
 }

@@ -16,6 +16,7 @@ class TenantExpense extends Model
         'description',
         'amount',
         'expense_type_id',
+        'image_reference',
         'created_by',
     ];
 

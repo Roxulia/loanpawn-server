@@ -221,6 +221,7 @@ tenant_debts
 tenant_expenses
 - id : bigint, PK
 - tenant_id : unsignedBigInteger, FK -> client_tenants.id [tenant prefix rule; not yet declared in migration]
+- image_reference : varchar(255), nullable [private expense reference image path]
 - created_at : timestamp, nullable
 - updated_at : timestamp, nullable
 

@@ -13,6 +13,7 @@ class CollateralItemListItem extends BaseDataObject
     public string $name;
     public ?string $description;
     public ?string $imageUrl;
+    public bool $hasImageReference;
     public string $itemStatus;
     public ?string $createdAt;
 
@@ -25,7 +26,8 @@ class CollateralItemListItem extends BaseDataObject
         $detail->itemType = (string) $row->type;
         $detail->name = (string) $row->name;
         $detail->description = $row->description;
-        $detail->imageUrl = $row->image_url;
+        $detail->imageUrl = null;
+        $detail->hasImageReference = filled($row->image_url);
         $detail->itemStatus = (string) $row->item_status;
         $detail->createdAt = $row->created_at?->toISOString();
 

@@ -487,6 +487,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/LoanContractCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoanContractMultipartCreateRequest'
       responses:
         '201':
           description: Loan contract slip created
@@ -737,6 +740,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ExpenseWriteRequest'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ExpenseWriteRequest'
+                - type: object
+                  properties:
+                    image_reference:
+                      type: string
+                      format: binary
       responses:
         '201':
           description: Expense created
@@ -746,9 +758,22 @@ paths:
                 $ref: '#/components/schemas/ExpenseResponse'
 
   /tenant/expenses/{expenseCode}:
+    get:
+      tags: [Expenses]
+      summary: Get expense details with a five-minute reference image URL
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/ExpenseCode'
+      responses:
+        '200':
+          description: Expense details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseDetailResponse'
     put:
       tags: [Expenses]
-      summary: Update expense
+      summary: Update expense metadata or reference image; amount is immutable
       parameters:
         - $ref: '#/components/parameters/TenantCode'
         - $ref: '#/components/parameters/ExpenseCode'
@@ -758,6 +783,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ExpenseUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExpenseMultipartUpdateRequest'
       responses:
         '200':
           description: Expense updated
@@ -1688,6 +1716,12 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Expense'
+    ExpenseDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiObjectResponse'
+      properties:
+        data:
+          $ref: '#/components/schemas/ExpenseDetail'
     DebtResponse:
       allOf:
         - $ref: '#/components/schemas/ApiObjectResponse'
@@ -1756,6 +1790,11 @@ components:
           type: string
         update_key:
           type: integer
+        creator_name:
+          type: string
+          nullable: true
+        has_image_reference:
+          type: boolean
       additionalProperties: true
     Customer:
       type: object
@@ -1803,6 +1842,17 @@ components:
           type: string
         quantity:
           type: integer
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Five-minute temporary URL; populated only by the collateral detail endpoint.
+        image_url_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        has_image_reference:
+          type: boolean
       additionalProperties: true
     LoanContractSlip:
       type: object
@@ -1974,10 +2024,6 @@ components:
           type: string
           nullable: true
           maxLength: 80
-        image_url:
-          type: string
-          nullable: true
-          maxLength: 255
         estimated_value:
           type: number
           minimum: 0
@@ -2039,6 +2085,24 @@ components:
         created_by:
           type: integer
           nullable: true
+    CollateralItemMultipartCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/CollateralItemCreateRequest'
+        - type: object
+          properties:
+            image_reference:
+              type: string
+              format: binary
+    LoanContractMultipartCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/LoanContractCreateRequest'
+        - type: object
+          properties:
+            collateral_items:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/CollateralItemMultipartCreateRequest'
     InterestPaymentRequest:
       type: object
       required: [slip_update_key, payment_amount, interest_breakdown]
@@ -2107,14 +2171,51 @@ components:
           type: integer
           nullable: true
     ExpenseUpdateRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        expense_type_id:
+          type: integer
+          nullable: true
+        update_key:
+          type: integer
+          minimum: 0
+        remove_image_reference:
+          type: boolean
+      additionalProperties: false
+    ExpenseMultipartUpdateRequest:
+      type: object
+      properties:
+        _method:
+          type: string
+          enum: [PUT]
+        description:
+          type: string
+        expense_type_id:
+          type: integer
+          nullable: true
+        update_key:
+          type: integer
+          minimum: 0
+        remove_image_reference:
+          type: boolean
+        image_reference:
+          type: string
+          format: binary
+    ExpenseDetail:
       allOf:
-        - $ref: '#/components/schemas/ExpenseWriteRequest'
+        - $ref: '#/components/schemas/Expense'
         - type: object
           properties:
-            update_key:
-              type: integer
-              minimum: 0
-      required: []
+            image_reference_url:
+              type: string
+              format: uri
+              nullable: true
+            image_reference_url_expires_at:
+              type: string
+              format: date-time
+              nullable: true
     DebtWriteRequest:
       type: object
       required: [description, amount]

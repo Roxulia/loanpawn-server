@@ -3,6 +3,7 @@
 namespace App\DataObjects\RequestObjects;
 
 use App\DataObjects\BaseDataObject;
+use Illuminate\Http\UploadedFile;
 
 class PawnCollateralItemCreate extends BaseDataObject
 {
@@ -11,7 +12,7 @@ class PawnCollateralItemCreate extends BaseDataObject
         public string $name,
         public ?string $description = null,
         public ?string $brandName = null,
-        public ?string $imageUrl = null,
+        public ?UploadedFile $imageReference = null,
         public float $estimatedValue = 0,
         public ?int $materialTypeId = null,
         public float $materialPricePerKyat = 0,
@@ -24,6 +25,8 @@ class PawnCollateralItemCreate extends BaseDataObject
         public ?array $gemstoneDetails = null,
         public int $quantity = 1,
         public float $minimumRetailPrice = 0,
+        public ?string $code = null,
+        public ?string $storedImagePath = null,
     ) {
     }
 }

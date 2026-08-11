@@ -6,6 +6,7 @@ use App\Exceptions\InvalidUploadFile;
 use App\Exceptions\StoredFileNotFound;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Http\UploadedFile;
+use DateTimeInterface;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -68,6 +69,32 @@ class FileStorageUtility
         $this->ensureStoredFileExists($path, $disk);
 
         return $this->filesystemFactory->disk($disk)->url($path);
+    }
+
+    public function getTemporaryFileUrl(
+        string $path,
+        DateTimeInterface $expiration,
+        string $disk = 'local'
+    ): string {
+        $this->ensureStoredFileExists($path, $disk);
+
+        return $this->filesystemFactory->disk($disk)->temporaryUrl($path, $expiration);
+    }
+
+    public function deleteFile(?string $path, string $disk = 'public'): void
+    {
+        if ($path === null || trim($path) === '') {
+            return;
+        }
+
+        $this->filesystemFactory->disk($disk)->delete($path);
+    }
+
+    public function fileExists(?string $path, string $disk = 'public'): bool
+    {
+        return $path !== null
+            && trim($path) !== ''
+            && $this->filesystemFactory->disk($disk)->exists($path);
     }
 
     protected function storeFile(

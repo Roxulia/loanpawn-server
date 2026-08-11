@@ -16,6 +16,8 @@ class PawnCollateralItemDetail extends BaseDataObject
     public ?string $description;
     public ?string $brandName;
     public ?string $imageUrl;
+    public ?string $imageUrlExpiresAt;
+    public bool $hasImageReference;
     public string $estimatedValue;
     public ?int $materialTypeId;
     public ?string $materialTypeName;
@@ -34,7 +36,11 @@ class PawnCollateralItemDetail extends BaseDataObject
     public ?string $updatedAt;
     public int $updateKey;
 
-    public static function fromModel(PawnCollateralItem $item): self
+    public static function fromModel(
+        PawnCollateralItem $item,
+        ?string $temporaryImageUrl = null,
+        ?string $imageUrlExpiresAt = null,
+    ): self
     {
         $detail = new self();
         $detail->id = $item->id;
@@ -45,7 +51,9 @@ class PawnCollateralItemDetail extends BaseDataObject
         $detail->name = $item->name;
         $detail->description = $item->description;
         $detail->brandName = $item->brand_name;
-        $detail->imageUrl = $item->image_url;
+        $detail->imageUrl = $temporaryImageUrl;
+        $detail->imageUrlExpiresAt = $imageUrlExpiresAt;
+        $detail->hasImageReference = filled($item->image_url);
         $detail->estimatedValue = (string) $item->estimated_value;
         $detail->materialTypeId = $item->material_type_id;
         $detail->materialTypeName = $item->materialType?->name;

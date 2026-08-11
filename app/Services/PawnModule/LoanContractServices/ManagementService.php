@@ -74,9 +74,11 @@ class ManagementService extends BaseTenantService
         $createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
 
         try {
-            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType) {
+            $slipNo = $this->tableIdGenerationService->generate('pawn_loan_contract_slips', $createdAt->startOfDay());
+            $this->collateralItemService->prepareImagesForCreate($request->collateralItems, $tenantId, $slipNo);
+
+            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType, $slipNo) {
                 $customerId = $this->tenantCustomerService->createCustomer($request->customer)->customer->id;
-                $slipNo = $this->tableIdGenerationService->generate('pawn_loan_contract_slips', $createdAt->startOfDay());
 
                 $slip = $this->repository->create([
                     'tenant_id' => $tenantId,
@@ -141,6 +143,8 @@ class ManagementService extends BaseTenantService
 
             return $detail;
         } catch (Throwable $exception) {
+            $this->collateralItemService->cleanupPreparedImages($request->collateralItems);
+
             if ($idempotencyRecord !== null) {
                 $this->tenantIdempotencyService->markFailed($idempotencyRecord);
             }
@@ -266,7 +270,10 @@ class ManagementService extends BaseTenantService
     {
         return [
             'customer' => $request->customer,
-            'collateral_items' => $request->collateralItems,
+            'collateral_items' => array_map(
+                fn (PawnCollateralItemCreate $item): array => $this->collateralItemIdempotencyPayload($item),
+                $request->collateralItems,
+            ),
             'loan_amount' => $request->loanAmount,
             'interest_rate' => $request->interestRate,
             'interest_type_id' => $request->interestTypeId,
@@ -275,6 +282,21 @@ class ManagementService extends BaseTenantService
             'expiry_quota_type' => $this->normalizeExpiryQuotaType($request->expiryQuotaType),
             'created_by' => $request->createdBy,
         ];
+    }
+
+    protected function collateralItemIdempotencyPayload(PawnCollateralItemCreate $item): array
+    {
+        $payload = get_object_vars($item);
+        unset(
+            $payload['imageReference'],
+            $payload['storedImagePath'],
+            $payload['code'],
+        );
+        $payload['image_reference_sha256'] = $item->imageReference === null
+            ? null
+            : hash_file('sha256', $item->imageReference->getRealPath());
+
+        return $payload;
     }
 
     protected function normalizeExpiryQuotaType(string $quotaType): string

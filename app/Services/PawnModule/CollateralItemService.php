@@ -16,20 +16,25 @@ use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\TenantUserPermissionService;
 use App\Support\TenantScopedCacheKeys;
+use App\Utility\FileStorageUtility;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class CollateralItemService extends BaseTenantService
 {
     protected const COLLATERAL_ITEM_LIST_CACHE_TTL_SECONDS = 600;
     protected const ALLOWED_TYPES = ['Jewellery', 'Normal'];
+    protected const IMAGE_STORAGE_DISK = 'local';
+    protected const IMAGE_URL_TTL_MINUTES = 5;
 
     public function __construct(
         private CollateralItemRepository $repository,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
+        private FileStorageUtility $fileStorageUtility,
     ) {
     }
 
@@ -54,7 +59,15 @@ class CollateralItemService extends BaseTenantService
         $this->permissionService->authorizeCollateralCreate();
         $this->validateCreateRequest($request);
 
-        $item = DB::transaction(fn () => $this->repository->create($this->buildPayload($request)));
+        $this->prepareImagesForCreate([$request], $this->resolveCurrentTenantId(), 'standalone');
+
+        try {
+            $item = DB::transaction(fn () => $this->repository->create($this->buildPayload($request)));
+        } catch (Throwable $exception) {
+            $this->cleanupPreparedImages([$request]);
+
+            throw $exception;
+        }
         $this->flushCollateralItemListCache();
 
         return PawnCollateralItemDetail::fromModel($item);
@@ -81,18 +94,64 @@ class CollateralItemService extends BaseTenantService
         $this->flushCollateralItemListCache();
     }
 
+    /**
+     * @param array<int, PawnCollateralItemCreate> $items
+     */
+    public function prepareImagesForCreate(array $items, int $tenantId, string $slipReference): void
+    {
+        try {
+            foreach ($items as $item) {
+                if (! $item instanceof PawnCollateralItemCreate) {
+                    throw new InvalidTenantRequest('Collateral items must be PawnCollateralItemCreate.');
+                }
+
+                $item->code ??= $this->tableIdGenerationService->generateForTenant(
+                    $tenantId,
+                    'pawn_collateral_items',
+                    CarbonImmutable::now(),
+                );
+
+                if ($item->imageReference !== null) {
+                    $item->storedImagePath = $this->fileStorageUtility->uploadImage(
+                        $item->imageReference,
+                        $this->imageDirectory($tenantId, $slipReference, $item->code),
+                        self::IMAGE_STORAGE_DISK,
+                        'collateral_reference',
+                    );
+                }
+            }
+        } catch (Throwable $exception) {
+            $this->cleanupPreparedImages($items);
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param array<int, PawnCollateralItemCreate> $items
+     */
+    public function cleanupPreparedImages(array $items): void
+    {
+        foreach ($items as $item) {
+            if ($item instanceof PawnCollateralItemCreate) {
+                $this->fileStorageUtility->deleteFile($item->storedImagePath, self::IMAGE_STORAGE_DISK);
+                $item->storedImagePath = null;
+            }
+        }
+    }
+
     public function show(int $itemId): PawnCollateralItemDetail
     {
         $this->permissionService->authorizeCollateralList();
 
-        return PawnCollateralItemDetail::fromModel($this->findById($itemId));
+        return $this->detailWithTemporaryImage($this->findById($itemId));
     }
 
     public function showByCode(string $code): PawnCollateralItemDetail
     {
         $this->permissionService->authorizeCollateralList();
 
-        return PawnCollateralItemDetail::fromModel($this->findByCode($code));
+        return $this->detailWithTemporaryImage($this->findByCode($code));
     }
 
     public function update(PawnCollateralItemUpdate $request): PawnCollateralItemDetail
@@ -115,7 +174,6 @@ class CollateralItemService extends BaseTenantService
             'name' => 'name',
             'description' => 'description',
             'brandName' => 'brand_name',
-            'imageUrl' => 'image_url',
             'estimatedValue' => 'estimated_value',
             'materialTypeId' => 'material_type_id',
             'itemCategoryTypeId' => 'item_category_type_id',
@@ -241,13 +299,14 @@ class CollateralItemService extends BaseTenantService
     {
         return [
             'tenant_id' => $this->resolveCurrentTenantId(),
-            'code' => $this->tableIdGenerationService->generate('pawn_collateral_items', CarbonImmutable::now()),
+            'code' => $request->code
+                ?? $this->tableIdGenerationService->generate('pawn_collateral_items', CarbonImmutable::now()),
             'loan_contract_id' => null,
             'type' => $this->normalizeType($request->type),
             'name' => trim($request->name),
             'description' => $request->description,
             'brand_name' => $request->brandName,
-            'image_url' => $request->imageUrl,
+            'image_url' => $request->storedImagePath,
             'estimated_value' => $request->estimatedValue,
             'material_type_id' => $request->materialTypeId,
             'item_category_type_id' => $request->itemCategoryTypeId,
@@ -272,6 +331,27 @@ class CollateralItemService extends BaseTenantService
         $weightInKyat = $request->kyat + ($request->pal / 16) + ($request->yway / 128);
 
         return (float) round($request->materialPricePerKyat * $weightInKyat * $request->quantity);
+    }
+
+    protected function detailWithTemporaryImage(PawnCollateralItem $item): PawnCollateralItemDetail
+    {
+        if (! $this->fileStorageUtility->fileExists($item->image_url, self::IMAGE_STORAGE_DISK)) {
+            return PawnCollateralItemDetail::fromModel($item);
+        }
+
+        $expiration = now()->addMinutes(self::IMAGE_URL_TTL_MINUTES);
+        $temporaryUrl = $this->fileStorageUtility->getTemporaryFileUrl(
+            $item->image_url,
+            $expiration,
+            self::IMAGE_STORAGE_DISK,
+        );
+
+        return PawnCollateralItemDetail::fromModel($item, $temporaryUrl, $expiration->toISOString());
+    }
+
+    protected function imageDirectory(int $tenantId, string $slipReference, string $itemCode): string
+    {
+        return "tenant-collateral/{$tenantId}/slips/{$slipReference}/{$itemCode}";
     }
 
     protected function normalizeType(string $type): string

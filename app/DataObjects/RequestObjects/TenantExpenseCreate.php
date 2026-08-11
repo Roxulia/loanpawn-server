@@ -3,6 +3,7 @@
 namespace App\DataObjects\RequestObjects;
 
 use App\DataObjects\BaseDataObject;
+use Illuminate\Http\UploadedFile;
 
 class TenantExpenseCreate extends BaseDataObject
 {
@@ -13,6 +14,7 @@ class TenantExpenseCreate extends BaseDataObject
         public ?int $tenantId = null,
         public ?int $createdBy = null,
         public ?string $idempotencyKey = null,
+        public ?UploadedFile $imageReference = null,
     ) {
     }
 }
