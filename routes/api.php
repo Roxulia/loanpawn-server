@@ -8,6 +8,7 @@ use App\Http\Controllers\PawnModule\SlipDocumentController;
 use App\Http\Controllers\PlatformModule\LicenseController;
 use App\Http\Controllers\PlatformModule\TelegramWebhookController;
 use App\Http\Controllers\PlatformModule\TenantController;
+use App\Http\Controllers\TenantModule\Accounting\MultiAccountManagement as MultiAccountManagementController;
 use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
 use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
@@ -189,6 +190,17 @@ Route::prefix('tenant')->group(function () {
                     Route::post('/', 'store')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:create_financial_account_type']);
                     Route::put('{code}', 'update')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:update_financial_account_type']);
                     Route::delete('{code}', 'destroy')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:delete_financial_account_type']);
+                });
+
+            Route::prefix('financial-accounts')
+                ->controller(MultiAccountManagementController::class)
+                ->middleware('tenant.feature:multi_account_management')
+                ->group(function () {
+                    Route::get('/', 'index')->middleware('tenant.permission:list_financial_account');
+                    Route::post('/', 'store')->middleware('tenant.permission:create_financial_account');
+                    Route::get('{accountCode}', 'show')->middleware('tenant.permission:list_financial_account');
+                    Route::put('{accountCode}', 'update')->middleware('tenant.permission:update_financial_account');
+                    Route::delete('{accountCode}', 'destroy')->middleware('tenant.permission:delete_financial_account');
                 });
 
             Route::middleware('tenant.feature:currency_exchange_management')->group(function () {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\FinancialAccountTransactionType;
 use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\Tenant;
@@ -27,6 +28,7 @@ class FinancialAccountTransaction extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'transaction_type' => FinancialAccountTransactionType::class,
         ];
     }
 

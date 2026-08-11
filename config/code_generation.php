@@ -14,5 +14,6 @@ return [
         'tenant_expenses' => 'EX',
         'tenant_requests' => 'TR',
         'tenant_users' => 'TU',
+        'financial_accounts' => 'FA',
     ],
 ];

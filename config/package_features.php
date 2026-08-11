@@ -66,6 +66,10 @@ return [
             'name' => 'Accounting type management',
             'description' => 'Manage tenant-owned financial account types.',
         ],
+        'multi_account_management' => [
+            'name' => 'Multi-account management',
+            'description' => 'Create, update, and manage multiple tenant financial accounts.',
+        ],
         'dashboard' => [
             'name' => 'Summary Dashboard',
             'description' => 'View Detailed Summary in Dashboard',
@@ -105,6 +109,7 @@ return [
                 'slip_document_preview',
                 'subdomain_available',
                 'currency_exchange_management',
+                'multi_account_management',
             ],
         ],
         'basic' => [
@@ -132,6 +137,7 @@ return [
                 'master_data_management',
                 'subdomain_available',
                 'currency_exchange_management',
+                'multi_account_management',
             ],
         ],
         'premium' => [
@@ -161,6 +167,7 @@ return [
                 'subdomain_available',
                 'currency_exchange_management',
                 'tenant_timezone_management',
+                'multi_account_management',
             ],
         ],
     ],

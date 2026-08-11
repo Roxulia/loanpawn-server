@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\EnsureDefaultFinancialAccounts;
 use App\Console\Commands\RepairAccountingChange;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         RepairAccountingChange::class,
+        EnsureDefaultFinancialAccounts::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogHttpOperation::class);
@@ -74,11 +76,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
-        $schedule->job(new CheckExpireTenantLicenseJob())->daily();
-        $schedule->job(new CheckExpirePawnLoanContractSlipJob())->dailyAt('23:59');
-        $schedule->job(new ResetTenantLicenseMonthlySlipCountJob())->monthlyOn(1, '00:00');
-        $schedule->job(new ExpireInactiveTenantUsersJob())->everyFiveMinutes()->withoutOverlapping();
-        $schedule->job(new RefreshDailyExchangeRateSummariesJob())->hourly()->withoutOverlapping();
+        $schedule->job(new CheckExpireTenantLicenseJob)->daily();
+        $schedule->job(new CheckExpirePawnLoanContractSlipJob)->dailyAt('23:59');
+        $schedule->job(new ResetTenantLicenseMonthlySlipCountJob)->monthlyOn(1, '00:00');
+        $schedule->job(new ExpireInactiveTenantUsersJob)->everyFiveMinutes()->withoutOverlapping();
+        $schedule->job(new RefreshDailyExchangeRateSummariesJob)->hourly()->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

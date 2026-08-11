@@ -230,7 +230,7 @@
                             </div>
                             <div>
                                 <label for="max_account_count_{{ $package->id }}">Max accounts</label>
-                                <input id="max_account_count_{{ $package->id }}" type="number" min="0" name="max_account_count[{{ $package->id }}]" value="{{ old('max_account_count.'.$package->id, $package->max_account_count) }}" placeholder="Unlimited">
+                                <input id="max_account_count_{{ $package->id }}" type="number" min="1" name="max_account_count[{{ $package->id }}]" value="{{ old('max_account_count.'.$package->id, $package->max_account_count) }}" placeholder="Unlimited">
                                 @error('max_account_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
                             </div>
                             <div>
