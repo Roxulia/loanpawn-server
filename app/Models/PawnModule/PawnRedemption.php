@@ -3,6 +3,7 @@
 namespace App\Models\PawnModule;
 
 use App\Models\CoreModule\TenantUser;
+use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ class PawnRedemption extends Model
         'tenant_id',
         'slip_number',
         'slip_id',
+        'account_id',
         'gross_amount',
         'net_amount',
         'interest_amount',
@@ -40,6 +42,11 @@ class PawnRedemption extends Model
     public function slip(): BelongsTo
     {
         return $this->belongsTo(PawnLoanContractSlip::class, 'slip_id');
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(FinancialAccount::class, 'account_id');
     }
 
     public function creator(): BelongsTo

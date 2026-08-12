@@ -10,11 +10,14 @@ use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantDebt;
+use App\Models\FinancialAccount;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\TenantDebtRepository;
 use App\Services\BaseTenantService;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Support\TenantScopedCacheKeys;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
@@ -37,7 +40,9 @@ class TenantDebtService extends BaseTenantService
         private TenantIdempotencyService $tenantIdempotencyService,
         private CustomerTrustScoreService $customerTrustScoreService,
         private LookUpService $slipLookUpService,
-        private TenantCustomerService $tenantCustomerService
+        private TenantCustomerService $tenantCustomerService,
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
     ) {}
 
     public function list(int $perPage = 15): TenantDebtListPage
@@ -145,26 +150,39 @@ class TenantDebtService extends BaseTenantService
         ?int $customerId,
         string $operationType
     ): TenantDebt {
-        $debt = DB::transaction(function () use ($request, $slip, $customerId, $operationType) {
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->createdAccountId);
+
+        $debt = DB::transaction(function () use ($request, $slip, $customerId, $operationType, $financialAccount) {
             $debt = $this->repository->create([
                 'tenant_id' => $request->tenantId,
                 'code' => $this->tableIdGenerationService->generate('tenant_debts', CarbonImmutable::now()),
+                'created_account_id' => $financialAccount->id,
                 'slip_id' => $slip === null ? null : $slip->getKey(),
                 'customer_id' => $customerId,
                 'amount' => $request->amount,
                 'description' => $request->description,
                 'tag' => $request->tag,
-                'is_paid' => $request->isPaid,
-                'accepted_by' => $request->acceptedBy,
+                'is_paid' => false,
+                'accepted_by' => null,
                 'created_by' => $request->createdBy,
             ]);
 
-            $this->tenantAccountingService->recordDebtCreation(
+            $accountingTransaction = $this->tenantAccountingService->recordDebtCreation(
                 $debt,
                 $debt->description,
                 (float) $debt->amount,
                 $operationType === 'internal',
+                $financialAccount->currency,
                 $debt->created_by
+            );
+            $this->financialAccountTransactionService->recordDebtCreation(
+                $financialAccount,
+                (float) $debt->amount,
+                $debt->code,
+                TenantDebt::class,
+                $debt->description,
+                $debt->created_by,
+                $accountingTransaction->id,
             );
 
             $this->tenantAuditLogService->log(
@@ -198,13 +216,12 @@ class TenantDebtService extends BaseTenantService
     {
         return [
             'amount' => $request->amount,
+            'created_account_id' => $request->createdAccountId,
             'description' => $request->description,
             'slip_id' => $request->slipId,
             'slip_code' => $request->slipCode,
             'customer_code' => $request->customerCode,
             'tag' => $request->tag,
-            'is_paid' => $request->isPaid,
-            'accepted_by' => $request->acceptedBy,
             'created_by' => $request->createdBy,
         ];
     }
@@ -213,6 +230,7 @@ class TenantDebtService extends BaseTenantService
     {
         $this->permissionService->authorizeDebtUpdate();
         $debt = $this->findDebtForCurrentTenant($request->debtId);
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->createdAccountId);
         $data = [];
         if ($debt->update_key !== $request->updateKey) {
             throw new AlreadyUpdatedException('This item is already Updated.Please refresh');
@@ -234,13 +252,7 @@ class TenantDebtService extends BaseTenantService
             $data['tag'] = $request->tag;
         }
 
-        if ($request->isPaid !== null) {
-            $data['is_paid'] = $request->isPaid;
-        }
-
-        if ($request->acceptedBy !== null) {
-            $data['accepted_by'] = $request->acceptedBy;
-        }
+        $data['created_account_id'] = $financialAccount->id;
 
         if ($data === []) {
             return TenantDebtDetail::fromModel($debt);
@@ -250,13 +262,14 @@ class TenantDebtService extends BaseTenantService
 
         $originalCustomerId = $debt->customer_id ?? $debt->slip?->customer_id;
 
-        $updatedDebt = DB::transaction(function () use ($debt, $data, $original) {
+        $updatedDebt = DB::transaction(function () use ($debt, $data, $original, $financialAccount) {
             $updatedDebt = $this->repository->updateWithLock($debt, $data);
 
             $this->tenantAccountingService->syncDebt(
                 $updatedDebt,
                 $updatedDebt->description,
                 (float) $updatedDebt->amount,
+                $financialAccount->currency,
             );
 
             $this->tenantAuditLogService->log(
@@ -366,10 +379,25 @@ class TenantDebtService extends BaseTenantService
         return $this->repository->findUnpaidBySlipIdWithLock($slipId);
     }
 
-    public function markAsPaid(int $debtId, float $amountPaid): array
+    /** @return Collection<int, TenantDebt> */
+    public function getUnpaidDebtsForSlipCurrency(int $slipId, int $currencyId, bool $lockRows = false): Collection
+    {
+        return $lockRows
+            ? $this->repository->findUnpaidBySlipIdAndCurrencyWithLock($slipId, $currencyId)
+            : $this->repository->findUnpaidBySlipIdAndCurrency($slipId, $currencyId);
+    }
+
+    /** @return Collection<int, TenantDebt> */
+    public function getUnpaidDebtsForSlipExceptCurrency(int $slipId, int $currencyId): Collection
+    {
+        return $this->repository->findUnpaidBySlipIdExceptCurrency($slipId, $currencyId);
+    }
+
+    public function markAsPaid(int $debtId, float $amountPaid, int $acceptAccountId): array
     {
         $this->permissionService->authorizeDebtUpdate();
-        $updatedDebt = DB::transaction(function () use ($debtId, $amountPaid) {
+        $acceptAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($acceptAccountId);
+        $updatedDebt = DB::transaction(function () use ($debtId, $amountPaid, $acceptAccount) {
             $debt = $this->repository->findByIdWithLock($debtId);
 
             if ($debt === null) {
@@ -380,30 +408,60 @@ class TenantDebtService extends BaseTenantService
                 throw new \App\Exceptions\InvalidTenantRequest('Debt is already Paid.');
             }
 
+            if ($debt->created_account_id === null || $debt->createdAccount === null) {
+                throw new InvalidTenantRequest('Debt creation account is required before this debt can be paid.');
+            }
+
+            if ((int) $debt->createdAccount->currency_id !== (int) $acceptAccount->currency_id) {
+                throw new InvalidTenantRequest('Debt creation and acceptance accounts must use the same currency.');
+            }
+
             if ($amountPaid < $debt->amount) {
                 throw new \App\Exceptions\InvalidTenantRequest('Amount paid is less than the debt amount.');
             }
 
             $updatedDebt = $this->repository->update($debt, [
                 'is_paid' => true,
+                'accept_account_id' => $acceptAccount->id,
                 'accepted_by' => $this->resolveCurrentTenantUserId(),
             ]);
 
-            $this->tenantAccountingService->recordDebtPayment(
+            $accountingTransaction = $this->tenantAccountingService->recordDebtPayment(
                 $updatedDebt,
                 "Payment for debt: {$updatedDebt->description}",
                 (float) $amountPaid,
+                $acceptAccount->currency,
                 $this->resolveCurrentTenantUserId()
+            );
+            $this->financialAccountTransactionService->recordDebtPayment(
+                $acceptAccount,
+                (float) $amountPaid,
+                $updatedDebt->code,
+                TenantDebt::class,
+                "Payment for debt: {$updatedDebt->description}",
+                $this->resolveCurrentTenantUserId(),
+                $accountingTransaction->id,
             );
 
             $changeAmount = $amountPaid - (float) $updatedDebt->amount;
 
             if ($changeAmount > 0.0) {
-                $this->tenantAccountingService->recordDebtPaymentChange(
+                $accountingTransaction = $this->tenantAccountingService->recordDebtPaymentChange(
                     $updatedDebt,
                     "Debt Payment Change: {$updatedDebt->description}",
                     $changeAmount,
+                    $acceptAccount->currency,
                     $this->resolveCurrentTenantUserId()
+                );
+                $this->financialAccountTransactionService->recordAdjustment(
+                    $acceptAccount,
+                    $changeAmount,
+                    'credit',
+                    $updatedDebt->code,
+                    TenantDebt::class,
+                    "Debt Payment Change: {$updatedDebt->description}",
+                    $this->resolveCurrentTenantUserId(),
+                    $accountingTransaction->id,
                 );
             }
 
@@ -434,13 +492,21 @@ class TenantDebtService extends BaseTenantService
         return $updatedDebt;
     }
 
-    public function markAsPaidWithoutAccounting(TenantDebt $debt, ?int $acceptedBy = null): TenantDebt
+    public function markAsPaidWithoutAccounting(TenantDebt $debt, FinancialAccount $acceptAccount, ?int $acceptedBy = null): TenantDebt
     {
-        $updatedDebt = DB::transaction(function () use ($debt, $acceptedBy): TenantDebt {
+        $updatedDebt = DB::transaction(function () use ($debt, $acceptAccount, $acceptedBy): TenantDebt {
             $debt = $this->repository->findByIdWithLock($debt->id);
 
             if ($debt === null) {
                 throw new TenantNotFound('Tenant debt not found.');
+            }
+
+            if ($debt->created_account_id === null || $debt->createdAccount === null) {
+                throw new InvalidTenantRequest('Debt creation account is required before this debt can be paid.');
+            }
+
+            if ((int) $debt->createdAccount->currency_id !== (int) $acceptAccount->currency_id) {
+                throw new InvalidTenantRequest('Debt creation and acceptance accounts must use the same currency.');
             }
 
             $before = [
@@ -450,6 +516,7 @@ class TenantDebtService extends BaseTenantService
 
             $updatedDebt = $this->repository->update($debt, [
                 'is_paid' => true,
+                'accept_account_id' => $acceptAccount->id,
                 'accepted_by' => $acceptedBy,
             ]);
 

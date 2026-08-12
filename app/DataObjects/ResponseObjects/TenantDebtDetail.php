@@ -8,30 +8,52 @@ use App\Models\CoreModule\TenantDebt;
 class TenantDebtDetail extends BaseDataObject
 {
     public int $id;
+
     public int $tenantId;
+
     public string $code;
+
     public int $updateKey;
+
+    public ?int $createdAccountId;
+
+    public ?int $acceptAccountId;
+
     public ?int $slipId;
+
     public ?string $slipNo;
+
     public ?int $customerId;
+
     public ?string $customerCode;
+
     public ?string $customerName;
+
     public string $amount;
+
     public string $description;
+
     public ?string $tag;
+
     public bool $isPaid;
+
     public ?int $acceptedBy;
+
     public ?int $createdBy;
+
     public ?string $createdAt;
+
     public ?string $updatedAt;
 
     public static function fromModel(TenantDebt $debt): self
     {
-        $detail = new self();
+        $detail = new self;
         $detail->id = $debt->id;
         $detail->tenantId = $debt->tenant_id;
         $detail->code = $debt->code;
         $detail->updateKey = (int) $debt->update_key;
+        $detail->createdAccountId = $debt->created_account_id;
+        $detail->acceptAccountId = $debt->accept_account_id;
         $detail->slipId = $debt->slip_id;
         $detail->slipNo = $debt->slip?->slip_no;
         $detail->customerId = $debt->customer_id;

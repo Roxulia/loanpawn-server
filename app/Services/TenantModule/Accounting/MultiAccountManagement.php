@@ -40,6 +40,21 @@ class MultiAccountManagement extends BaseTenantService
         return FinancialAccountResource::fromModel($this->findCurrentTenantAccount($accountCode));
     }
 
+    public function findActiveCurrentTenantAccount(int $accountId): FinancialAccount
+    {
+        $account = $this->repository->findActiveById($this->resolveCurrentTenantId(), $accountId);
+
+        if (! $account) {
+            throw new TenantAccessDenied('Active financial account not found for the current tenant.');
+        }
+
+        if ($account->currency === null || ! $account->currency->is_active) {
+            throw new InvalidTenantRequest('The selected financial account must have an active currency.');
+        }
+
+        return $account;
+    }
+
     public function create(StoreFinancialAccountRequest $request): FinancialAccountResource
     {
         $tenantId = $this->resolveCurrentTenantId();

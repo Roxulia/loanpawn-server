@@ -16,6 +16,8 @@ use App\Services\PawnModule\CollateralItemService;
 use App\Services\PawnModule\InterestFlowService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\DefaultDataService;
 use App\Services\TenantModule\TenantAccountingTransactionService;
@@ -45,6 +47,8 @@ class ManagementService extends BaseTenantService
         private TenantLicenseService $tenantLicenseService,
         private CustomerTrustScoreService $customerTrustScoreService,
         private DefaultDataService $defaultDataService,
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
     ) {}
 
     public function create(LoanContractSlipCreate $request): LoanContractSlipDetail
@@ -60,6 +64,7 @@ class ManagementService extends BaseTenantService
         if ($this->tenantLicenseService->checkIfLimitReach('current_month_slip_count', $tenantId)) {
             throw new TenantAccessDenied('Limit Reached');
         }
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'loan_contract_slip.create',
             $request->idempotencyKey,
@@ -76,13 +81,14 @@ class ManagementService extends BaseTenantService
             $slipNo = $this->tableIdGenerationService->generate('pawn_loan_contract_slips', $createdAt->startOfDay());
             $this->collateralItemService->prepareImagesForCreate($request->collateralItems, $tenantId, $slipNo);
 
-            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType, $slipNo) {
+            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType, $slipNo, $financialAccount) {
                 $customerId = $this->tenantCustomerService->createCustomer($request->customer)->customer->id;
 
                 $slip = $this->repository->create([
                     'tenant_id' => $tenantId,
                     'slip_no' => $slipNo,
                     'customer_id' => $customerId,
+                    'account_id' => $financialAccount->id,
                     'loan_amount' => $request->loanAmount,
                     'interest_rate' => $request->interestRate,
                     'interest_type_id' => $request->interestTypeId,
@@ -100,11 +106,21 @@ class ManagementService extends BaseTenantService
                 $this->collateralItemService->createForSlip($slip, $request->collateralItems);
                 $this->interestFlowService->createInitialSchedule($slip, $createdBy);
                 $this->tenantLicenseService->incrementCurrentMonthSlipCount($tenantId);
-                $this->tenantAccountingService->recordLoanCreation(
+                $accountingTransaction = $this->tenantAccountingService->recordLoanCreation(
                     $slip,
                     'Loan Contract Transaction',
                     $request->loanAmount,
+                    $financialAccount->currency,
                     $createdBy
+                );
+                $this->financialAccountTransactionService->recordPawnLoanCreation(
+                    $financialAccount,
+                    $request->loanAmount,
+                    $slip->slip_no,
+                    PawnLoanContractSlip::class,
+                    'Loan Contract Transaction',
+                    $createdBy,
+                    $accountingTransaction->id,
                 );
 
                 $this->tenantAuditLogService->log(
@@ -274,6 +290,7 @@ class ManagementService extends BaseTenantService
                 $request->collateralItems,
             ),
             'loan_amount' => $request->loanAmount,
+            'account_id' => $request->accountId,
             'interest_rate' => $request->interestRate,
             'interest_type_id' => $request->interestTypeId,
             'notes' => $request->notes,

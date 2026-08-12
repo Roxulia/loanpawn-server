@@ -8,27 +8,43 @@ use App\Models\CoreModule\TenantExpense;
 class TenantExpenseDetail extends BaseDataObject
 {
     public int $id;
+
     public int $tenantId;
+
     public string $code;
+
     public int $updateKey;
+
+    public ?int $accountId;
+
     public string $description;
+
     public string $amount;
+
     public ?int $expenseTypeId;
+
     public ?string $expenseTypeCode;
+
     public ?string $expenseTypeName;
+
     public ?int $createdBy;
+
     public ?string $creatorName;
+
     public bool $hasImageReference;
+
     public ?string $createdAt;
+
     public ?string $updatedAt;
 
     public static function fromModel(TenantExpense $expense): static
     {
-        $detail = new static();
+        $detail = new static;
         $detail->id = $expense->id;
         $detail->tenantId = $expense->tenant_id;
         $detail->code = $expense->code;
         $detail->updateKey = (int) $expense->update_key;
+        $detail->accountId = $expense->account_id;
         $detail->description = $expense->description;
         $detail->amount = (string) $expense->amount;
         $detail->expenseTypeId = $expense->expense_type_id;

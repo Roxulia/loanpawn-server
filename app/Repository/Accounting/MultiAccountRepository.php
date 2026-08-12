@@ -39,6 +39,17 @@ class MultiAccountRepository
             ->first();
     }
 
+    public function findActiveById(int $tenantId, int $accountId): ?FinancialAccount
+    {
+        return FinancialAccount::query()
+            ->with(['accountType', 'currency'])
+            ->where('tenant_id', $tenantId)
+            ->whereKey($accountId)
+            ->where('is_deleted', false)
+            ->where('is_active', true)
+            ->first();
+    }
+
     public function findByCodeForUpdate(int $tenantId, string $accountCode): ?FinancialAccount
     {
         return FinancialAccount::query()

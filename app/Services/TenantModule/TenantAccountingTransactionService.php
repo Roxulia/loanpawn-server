@@ -207,44 +207,44 @@ class TenantAccountingTransactionService extends BaseTenantService
         return $accounting;
     }
 
-    public function recordLoanCreation(PawnLoanContractSlip $loanContractSlip, string $description, float $amount, ?int $createdBy = null, ?Currency $currency = null, ?float $exchangeRate = null): TenantAccountingTransactions
+    public function recordLoanCreation(PawnLoanContractSlip $loanContractSlip, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
     {
         return $this->recordOperation($loanContractSlip, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy, $currency, $exchangeRate);
     }
 
-    public function recordCapitalCreation(TenantCapital $capital, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordCapitalCreation(TenantCapital $capital, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($capital, $description, 'incoming', AccountingCategory::Equity, $amount, $createdBy);
+        return $this->recordOperation($capital, $description, 'incoming', AccountingCategory::Equity, $amount, $createdBy, $currency);
     }
 
-    public function recordExpenseCreation(TenantExpense $expense, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordExpenseCreation(TenantExpense $expense, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($expense, $description, 'outgoing', AccountingCategory::Expense, $amount, $createdBy);
+        return $this->recordOperation($expense, $description, 'outgoing', AccountingCategory::Expense, $amount, $createdBy, $currency);
     }
 
-    public function recordDebtCreation(TenantDebt $debt, string $description, float $amount, bool $isInternal, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordDebtCreation(TenantDebt $debt, string $description, float $amount, bool $isInternal, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($debt, $description, $isInternal ? 'internal' : 'outgoing', $isInternal ? AccountingCategory::Internal : AccountingCategory::Asset, $amount, $createdBy);
+        return $this->recordOperation($debt, $description, $isInternal ? 'internal' : 'outgoing', $isInternal ? AccountingCategory::Internal : AccountingCategory::Asset, $amount, $createdBy, $currency);
     }
 
-    public function recordLoanRedemption(PawnRedemption $redemption, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordLoanRedemption(PawnRedemption $redemption, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($redemption, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy);
+        return $this->recordOperation($redemption, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy, $currency);
     }
 
-    public function recordRedemptionChange(PawnRedemption $redemption, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordRedemptionChange(PawnRedemption $redemption, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($redemption, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy);
+        return $this->recordOperation($redemption, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy, $currency);
     }
 
-    public function recordInterestPayment(PawnInterestPayment $payment, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordInterestPayment(PawnInterestPayment $payment, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($payment, $description, 'incoming', AccountingCategory::Revenue, $amount, $createdBy);
+        return $this->recordOperation($payment, $description, 'incoming', AccountingCategory::Revenue, $amount, $createdBy, $currency);
     }
 
-    public function recordInterestPaymentChange(PawnInterestPayment $payment, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordInterestPaymentChange(PawnInterestPayment $payment, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($payment, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy);
+        return $this->recordOperation($payment, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy, $currency);
     }
 
     public function recordDebtPaymentForReference(Model $reference, string $description, float $amount, AccountingCategory $category, ?int $createdBy = null): TenantAccountingTransactions
@@ -252,14 +252,14 @@ class TenantAccountingTransactionService extends BaseTenantService
         return $this->recordOperation($reference, $description, 'incoming', $category, $amount, $createdBy);
     }
 
-    public function recordDebtPayment(TenantDebt $debt, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordDebtPayment(TenantDebt $debt, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($debt, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy);
+        return $this->recordOperation($debt, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy, $currency);
     }
 
-    public function recordDebtPaymentChange(TenantDebt $debt, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function recordDebtPaymentChange(TenantDebt $debt, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($debt, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy);
+        return $this->recordOperation($debt, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy, $currency);
     }
 
     public function createIncomingForReference(Model $reference, string $description, float $amount, AccountingCategory $category, ?int $createdBy = null): TenantAccountingTransactions
@@ -282,19 +282,19 @@ class TenantAccountingTransactionService extends BaseTenantService
         $this->syncForReference($reference, $description, 'outgoing', $amount, $category);
     }
 
-    public function syncExpense(TenantExpense $expense, string $description, float $amount): void
+    public function syncExpense(TenantExpense $expense, string $description, float $amount, Currency $currency): void
     {
-        $this->syncForReference($expense, $description, 'outgoing', $amount, AccountingCategory::Expense);
+        $this->syncForReference($expense, $description, 'outgoing', $amount, AccountingCategory::Expense, $currency);
     }
 
-    public function syncCapital(TenantCapital $capital, string $description, float $amount): void
+    public function syncCapital(TenantCapital $capital, string $description, float $amount, Currency $currency): void
     {
-        $this->syncForReference($capital, $description, 'incoming', $amount, AccountingCategory::Equity);
+        $this->syncForReference($capital, $description, 'incoming', $amount, AccountingCategory::Equity, $currency);
     }
 
-    public function syncDebt(TenantDebt $debt, string $description, float $amount): void
+    public function syncDebt(TenantDebt $debt, string $description, float $amount, Currency $currency): void
     {
-        $this->syncForReference($debt, $description, 'outgoing', $amount, AccountingCategory::Asset);
+        $this->syncForReference($debt, $description, 'outgoing', $amount, AccountingCategory::Asset, $currency);
     }
 
     public function syncIncomingForReference(Model $reference, string $description, float $amount, AccountingCategory $category): void
@@ -341,20 +341,21 @@ class TenantAccountingTransactionService extends BaseTenantService
         ));
     }
 
-    private function syncForReference(Model $reference, string $description, string $direction, float $amount, AccountingCategory $category): void
+    private function syncForReference(Model $reference, string $description, string $direction, float $amount, AccountingCategory $category, ?Currency $currency = null): void
     {
-        DB::transaction(function () use ($reference, $description, $direction, $amount, $category): void {
+        DB::transaction(function () use ($reference, $description, $direction, $amount, $category, $currency): void {
             $accounting = $this->repository->findByReferenceWithLock($reference);
 
             if ($accounting === null) {
-                $this->recordOperation($reference, $description, $direction, $category, $amount, null);
+                $this->recordOperation($reference, $description, $direction, $category, $amount, null, $currency);
 
                 return;
             }
 
             $financialChange = $accounting->transaction_direction !== $direction
                 || $accounting->accounting_category !== $category
-                || abs((float) $accounting->amount - $amount) > 0.00005;
+                || abs((float) $accounting->amount - $amount) > 0.00005
+                || $accounting->currency_id !== $currency?->getKey();
 
             if ($financialChange) {
                 $this->accountingDayService->assertDayEditable($accounting->accountingDay);
@@ -367,6 +368,7 @@ class TenantAccountingTransactionService extends BaseTenantService
                 'transaction_direction' => $direction,
                 'accounting_category' => $category,
                 'amount' => $amount,
+                'currency_id' => $currency?->getKey(),
             ]);
         });
 

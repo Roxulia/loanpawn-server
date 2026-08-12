@@ -13,6 +13,8 @@ use App\Models\CoreModule\TenantExpense;
 use App\Repository\TenantExpenseRepository;
 use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Support\TenantScopedCacheKeys;
 use App\Utility\FileStorageUtility;
 use Carbon\CarbonImmutable;
@@ -38,6 +40,8 @@ class TenantExpenseService extends BaseTenantService
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
         private FileStorageUtility $fileStorageUtility,
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
     ) {}
 
     public function list(int $perPage = 15): TenantExpenseListPage
@@ -58,6 +62,7 @@ class TenantExpenseService extends BaseTenantService
         $this->permissionService->authorizeExpenseCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_expense.create',
@@ -82,10 +87,11 @@ class TenantExpenseService extends BaseTenantService
                 );
             }
 
-            $expense = DB::transaction(function () use ($request, $code, $imageReference) {
+            $expense = DB::transaction(function () use ($request, $code, $imageReference, $financialAccount) {
                 $expense = $this->repository->create([
                     'tenant_id' => $request->tenantId,
                     'code' => $code,
+                    'account_id' => $financialAccount->id,
                     'description' => $request->description,
                     'amount' => $request->amount,
                     'expense_type_id' => $request->expenseTypeId,
@@ -93,11 +99,21 @@ class TenantExpenseService extends BaseTenantService
                     'created_by' => $request->createdBy,
                 ]);
 
-                $this->tenantAccountingService->recordExpenseCreation(
+                $accountingTransaction = $this->tenantAccountingService->recordExpenseCreation(
                     $expense,
                     $expense->description,
                     (float) $expense->amount,
+                    $financialAccount->currency,
                     $expense->created_by
+                );
+                $this->financialAccountTransactionService->recordExpensePayment(
+                    $financialAccount,
+                    (float) $expense->amount,
+                    $expense->code,
+                    TenantExpense::class,
+                    $expense->description,
+                    $expense->created_by,
+                    $accountingTransaction->id,
                 );
 
                 $this->tenantAuditLogService->log(
@@ -148,6 +164,7 @@ class TenantExpenseService extends BaseTenantService
     {
         $this->permissionService->authorizeExpenseUpdate();
         $expense = $this->findExpenseForCurrentTenant($request->expenseId);
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
         $data = [];
 
         if ($request->updateKey !== $expense->update_key) {
@@ -161,6 +178,8 @@ class TenantExpenseService extends BaseTenantService
         if ($request->hasExpenseTypeId) {
             $data['expense_type_id'] = $request->expenseTypeId;
         }
+
+        $data['account_id'] = $financialAccount->id;
 
         $oldImageReference = $expense->image_reference;
         $newImageReference = null;
@@ -187,13 +206,14 @@ class TenantExpenseService extends BaseTenantService
         $original['has_image_reference'] = filled($oldImageReference);
 
         try {
-            $updatedExpense = DB::transaction(function () use ($expense, $data, $original, $auditFields) {
+            $updatedExpense = DB::transaction(function () use ($expense, $data, $original, $auditFields, $financialAccount) {
                 $updatedExpense = $this->repository->updateWithLock($expense, $data);
 
                 $this->tenantAccountingService->syncExpense(
                     $updatedExpense,
                     $updatedExpense->description,
                     (float) $updatedExpense->amount,
+                    $financialAccount->currency,
                 );
 
                 $after = $updatedExpense->only($auditFields);
@@ -329,6 +349,7 @@ class TenantExpenseService extends BaseTenantService
         return [
             'description' => $request->description,
             'amount' => $request->amount,
+            'account_id' => $request->accountId,
             'expense_type_id' => $request->expenseTypeId,
             'created_by' => $request->createdBy,
             'image_reference_sha256' => $request->imageReference === null

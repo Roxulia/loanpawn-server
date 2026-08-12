@@ -12,11 +12,14 @@ use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
+use App\Models\FinancialAccount;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\LoanContractSlipRepository;
 use App\Repository\PawnInterestPaymentRepository;
 use App\Services\BaseTenantService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
@@ -39,6 +42,8 @@ class InterestFlowService extends BaseTenantService
         private TenantAuditLogService $tenantAuditLogService,
         private TenantIdempotencyService $tenantIdempotencyService,
         private CustomerTrustScoreService $customerTrustScoreService,
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
     ) {}
 
     public function getInterestPaymentHistory(int $perPage = 15): InterestPaymentHistoryListPage
@@ -56,6 +61,9 @@ class InterestFlowService extends BaseTenantService
     public function calculateInterestBySlipNo(string $slipNo): InterestCalculationResult
     {
         $slip = $this->resolveActiveSlipBySlipNo($slipNo);
+        if ($slip->account_id === null) {
+            throw new InvalidTenantRequest('Loan creation account is required before interest can be calculated.');
+        }
         $currentAt = CarbonImmutable::now();
         $currentDate = $currentAt->startOfDay();
         $payments = $this->dueUnpaidPayments($slip, $currentDate);
@@ -66,6 +74,7 @@ class InterestFlowService extends BaseTenantService
         return InterestCalculationResult::fromValues(
             slipNo: $slip->slip_no,
             slipUpdateKey: $slip->update_key,
+            accountId: (int) $slip->account_id,
             currentDate: $currentDate->toDateString(),
             interestBreakdown: $interestBreakdown,
         );
@@ -79,6 +88,8 @@ class InterestFlowService extends BaseTenantService
         if ($request->paymentAmount <= 0) {
             throw new InvalidTenantRequest('Payment amount must be greater than zero.');
         }
+
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->acceptAccountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'interest_payment.pay',
@@ -94,7 +105,7 @@ class InterestFlowService extends BaseTenantService
         $currentDate = $currentAt->startOfDay();
 
         try {
-            $result = DB::transaction(function () use ($slipNo, $request, $currentAt, $currentDate): array {
+            $result = DB::transaction(function () use ($slipNo, $request, $currentAt, $currentDate, $financialAccount): array {
                 $slip = $this->resolveActiveSlipBySlipNoWithLock($slipNo);
                 if ($slip->update_key !== $request->slipUpdateKey) {
                     throw new AlreadyUpdatedException('This Slip is already updated by others.Please refresh');
@@ -104,6 +115,7 @@ class InterestFlowService extends BaseTenantService
                 if ($payments->isEmpty()) {
                     throw new InvalidTenantRequest('No unpaid interest payment found for this slip.');
                 }
+                $this->assertPaymentsUseCurrency($payments, (int) $financialAccount->currency_id);
                 $requestedBreakdownById = collect($request->interestBreakdown)->keyBy('id');
 
                 if ($payments->count() !== $requestedBreakdownById->count()) {
@@ -149,6 +161,7 @@ class InterestFlowService extends BaseTenantService
 
                     $updatedPayment = $this->repository->update($payment, [
                         'is_paid' => true,
+                        'accept_account_id' => $financialAccount->id,
                         'created_by' => $this->resolveCurrentTenantUserId(),
                         'payment_at' => $currentAt,
                         'payment_amount' => $appliedAmount,
@@ -187,12 +200,12 @@ class InterestFlowService extends BaseTenantService
                 }
 
                 foreach ($paidPayments as $paidPayment) {
-                    $this->recordInterestPaymentAccounting($paidPayment);
+                    $this->recordInterestPaymentAccounting($paidPayment, $financialAccount);
                     $this->logInterestPaymentUpdate($paidPayment);
                 }
 
                 if ($changeAmount > 0.0) {
-                    $this->recordInterestPaymentChangeAccounting($lastPaidPayment);
+                    $this->recordInterestPaymentChangeAccounting($lastPaidPayment, $financialAccount);
                 }
 
                 foreach ($this->repository->findPaymentsAfterPaymentWithLock($slip->id, $lastPaidPayment) as $futurePayment) {
@@ -248,10 +261,17 @@ class InterestFlowService extends BaseTenantService
 
     public function acceptInterestUntilNow(PawnLoanContractSlip $slip, bool $isRedemptionProcess = false): void
     {
-        DB::transaction(function () use ($slip, $isRedemptionProcess): void {
+        if ($slip->account_id === null) {
+            throw new InvalidTenantRequest('A financial account is required before interest can be accepted.');
+        }
+
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount((int) $slip->account_id);
+
+        DB::transaction(function () use ($slip, $isRedemptionProcess, $financialAccount): void {
             $this->loanContractSlipRepository->findByIdWithLock($slip->id);
             $paymentAt = CarbonImmutable::now();
             $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
+            $this->assertPaymentsUseCurrency($payments, (int) $financialAccount->currency_id);
 
             foreach ($payments as $payment) {
                 if ($payment->is_paid) {
@@ -260,13 +280,14 @@ class InterestFlowService extends BaseTenantService
 
                 $payment = $this->repository->update($payment, [
                     'is_paid' => true,
+                    'accept_account_id' => $financialAccount->id,
                     'created_by' => $this->resolveCurrentTenantUserId(),
                     'payment_at' => $paymentAt,
                     'payment_amount' => (float) $payment->calculated_interest,
                     'change_amount' => 0,
                 ]);
 
-                $this->recordInterestPaymentAccounting($payment);
+                $this->recordInterestPaymentAccounting($payment, $financialAccount);
                 $this->logInterestPaymentUpdate($payment);
             }
 
@@ -334,12 +355,13 @@ class InterestFlowService extends BaseTenantService
             ->all();
     }
 
-    public function settleForRedemption(PawnLoanContractSlip $slip, CarbonImmutable $paymentDate, ?int $createdBy = null, array $interests = []): void
+    public function settleForRedemption(PawnLoanContractSlip $slip, CarbonImmutable $paymentDate, FinancialAccount $acceptAccount, ?int $createdBy = null, array $interests = []): void
     {
-        DB::transaction(function () use ($slip, $paymentDate, $createdBy, $interests): void {
+        DB::transaction(function () use ($slip, $paymentDate, $acceptAccount, $createdBy, $interests): void {
             $this->loanContractSlipRepository->findByIdWithLock($slip->id);
             $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentDate->toDateString());
             $requestedBreakdownById = collect($interests)->keyBy('id');
+            $this->assertPaymentsUseCurrency($payments, (int) $acceptAccount->currency_id);
 
             if ($payments->count() !== $requestedBreakdownById->count()) {
                 throw new AlreadyUpdatedException('This Slip is already updated by others. Please refresh.');
@@ -358,6 +380,7 @@ class InterestFlowService extends BaseTenantService
 
                 $this->repository->update($payment, [
                     'is_paid' => true,
+                    'accept_account_id' => $acceptAccount->id,
                     'created_by' => $createdBy,
                     'payment_at' => $paymentDate,
                     'payment_amount' => (float) $payment->calculated_interest,
@@ -453,6 +476,7 @@ class InterestFlowService extends BaseTenantService
             $payment = $this->repository->create([
                 'tenant_id' => $tenantId,
                 'slip_id' => $slip->id,
+                'created_account_id' => $slip->account_id,
                 'payment_amount' => 0,
                 'change_amount' => 0,
                 'calculated_interest' => $interestAmount,
@@ -506,6 +530,7 @@ class InterestFlowService extends BaseTenantService
             $payment = $this->repository->create([
                 'tenant_id' => $tenantId,
                 'slip_id' => $slip->id,
+                'created_account_id' => $slip->account_id,
                 'payment_amount' => 0,
                 'change_amount' => 0,
                 'calculated_interest' => $interestAmount,
@@ -567,6 +592,7 @@ class InterestFlowService extends BaseTenantService
         $this->tenantDebtService->createInternalDebt(new TenantDebtCreate(
             amount: $remainingInterest,
             description: 'Remaining interest from payment ID: '.$payment->id,
+            createdAccountId: (int) $payment->created_account_id,
             slipId: $slip->id,
             tag: 'InterestPayment',
             createdBy: $this->resolveCurrentTenantUserId(),
@@ -575,31 +601,52 @@ class InterestFlowService extends BaseTenantService
         return $remainingInterest;
     }
 
-    protected function recordInterestPaymentAccounting(PawnInterestPayment $payment): void
+    protected function recordInterestPaymentAccounting(PawnInterestPayment $payment, FinancialAccount $financialAccount): void
     {
         if ((float) $payment->payment_amount <= 0.0) {
             return;
         }
 
-        $this->tenantAccountingService->recordInterestPayment(
+        $accountingTransaction = $this->tenantAccountingService->recordInterestPayment(
             $payment,
             'Interest Payment Transaction',
             (float) $payment->payment_amount,
+            $financialAccount->currency,
             $payment->created_by,
+        );
+        $this->financialAccountTransactionService->recordPawnInterestPayment(
+            $financialAccount,
+            (float) $payment->payment_amount,
+            (string) $payment->id,
+            PawnInterestPayment::class,
+            'Interest Payment Transaction',
+            $payment->created_by,
+            $accountingTransaction->id,
         );
     }
 
-    protected function recordInterestPaymentChangeAccounting(PawnInterestPayment $payment): void
+    protected function recordInterestPaymentChangeAccounting(PawnInterestPayment $payment, FinancialAccount $financialAccount): void
     {
         if ((float) $payment->change_amount <= 0.0) {
             return;
         }
 
-        $this->tenantAccountingService->recordInterestPaymentChange(
+        $accountingTransaction = $this->tenantAccountingService->recordInterestPaymentChange(
             $payment,
             'Interest Payment Change Transaction',
             (float) $payment->change_amount,
+            $financialAccount->currency,
             $payment->created_by,
+        );
+        $this->financialAccountTransactionService->recordAdjustment(
+            $financialAccount,
+            (float) $payment->change_amount,
+            'credit',
+            (string) $payment->id,
+            PawnInterestPayment::class,
+            'Interest Payment Change Transaction',
+            $payment->created_by,
+            $accountingTransaction->id,
         );
     }
 
@@ -637,9 +684,26 @@ class InterestFlowService extends BaseTenantService
             'slip_no' => $slipNo,
             'slip_update_key' => $request->slipUpdateKey,
             'payment_amount' => $request->paymentAmount,
+            'accept_account_id' => $request->acceptAccountId,
             'record_debt' => $request->recordDebt,
             'interest_breakdown' => $request->interestBreakdown,
         ];
+    }
+
+    /**
+     * @param  Collection<int, PawnInterestPayment>  $payments
+     */
+    protected function assertPaymentsUseCurrency(Collection $payments, int $currencyId): void
+    {
+        foreach ($payments as $payment) {
+            if ($payment->created_account_id === null || $payment->createdAccount === null) {
+                throw new InvalidTenantRequest('Interest payment creation account is missing.');
+            }
+
+            if ((int) $payment->createdAccount->currency_id !== $currencyId) {
+                throw new InvalidTenantRequest('Interest payment accounts must use the same currency.');
+            }
+        }
     }
 
     protected function resolveInterestIntervalUnit(PawnLoanContractSlip $slip): string

@@ -20,8 +20,7 @@ class LoanContractSlipController extends Controller
     public function __construct(
         private LookUpService $lookUpService,
         private ManagementService $managementService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -42,7 +41,7 @@ class LoanContractSlipController extends Controller
     {
         $input = array_merge($request->all(), [
             'idempotency_key' => $request->header('Idempotency-Key'),
-            '_nrc' => true
+            '_nrc' => true,
         ]);
 
         $validator = Validator::make($input, [
@@ -51,7 +50,7 @@ class LoanContractSlipController extends Controller
             'customer.nrc_state' => ['nullable'],
             'customer.nrc_township' => ['nullable'],
             'customer.nrc_citizen' => ['nullable'],
-            'customer.nrc_number' => ['nullable','min:6','max:6'],
+            'customer.nrc_number' => ['nullable', 'min:6', 'max:6'],
             'customer._nrc' => [
                 new NrcRules(
                     data_get($input, 'customer.nrc_state'),
@@ -84,6 +83,7 @@ class LoanContractSlipController extends Controller
             'collateral_items.*.quantity' => ['nullable', 'integer', 'min:1'],
             'collateral_items.*.minimum_retail_price' => ['nullable', 'numeric', 'min:0'],
             'loan_amount' => ['required', 'numeric', 'min:0.01'],
+            'account_id' => ['required', 'integer', 'min:1'],
             'interest_rate' => ['required', 'numeric', 'min:0.01'],
             'interest_type_id' => ['required', 'integer'],
             'notes' => ['nullable', 'string'],
@@ -116,6 +116,7 @@ class LoanContractSlipController extends Controller
             ),
             loanAmount: (float) $validated['loan_amount'],
             interestRate: (float) $validated['interest_rate'],
+            accountId: (int) $validated['account_id'],
             interestTypeId: (int) $validated['interest_type_id'],
             notes: $validated['notes'] ?? null,
             expiryQuota: (int) $validated['expiry_quota'],
@@ -161,5 +162,4 @@ class LoanContractSlipController extends Controller
             minimumRetailPrice: (float) ($item['minimum_retail_price'] ?? 0),
         );
     }
-
 }
