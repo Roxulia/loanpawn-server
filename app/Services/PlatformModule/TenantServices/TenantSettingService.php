@@ -75,9 +75,10 @@ class TenantSettingService extends BaseTenantService
         foreach ($this->repository->allTenantIds() as $tenantId) {
             $summary['tenants_checked']++;
             $setting = $this->repository->currencyPreferences((int) $tenantId);
+            $mmk = $this->tenantCurrencyService->findActiveVisibleByCodeForTenant((int) $tenantId, 'MMK');
             $status = $setting === null
                 ? 'created'
-                : ($setting->default_currency_id === null || $setting->reporting_currency_id === null ? 'updated' : 'unchanged');
+                : ((int) $setting->default_currency_id !== (int) $mmk->id || $setting->reporting_currency_id === null ? 'updated' : 'unchanged');
             $summary[$status]++;
 
             if (! $dryRun && $status !== 'unchanged') {
@@ -91,11 +92,11 @@ class TenantSettingService extends BaseTenantService
     private function ensureCurrencyPreferencesForTenant(int $tenantId): TenantSetting
     {
         $setting = $this->repository->currencyPreferences($tenantId);
-        if ($setting?->default_currency_id !== null && $setting->reporting_currency_id !== null) {
+        $mmk = $this->tenantCurrencyService->findActiveVisibleByCodeForTenant($tenantId, 'MMK');
+
+        if ($setting?->default_currency_id === $mmk->id && $setting->reporting_currency_id !== null) {
             return $setting;
         }
-
-        $mmk = $this->tenantCurrencyService->findActiveVisibleByCodeForTenant($tenantId, 'MMK');
 
         if ($setting === null) {
             $setting = $this->repository->firstOrCreate($tenantId, 'currency_preferences', [
@@ -105,7 +106,7 @@ class TenantSettingService extends BaseTenantService
             ]);
         } else {
             $setting = $this->repository->update($setting, [
-                'default_currency_id' => $setting->default_currency_id ?? $mmk->id,
+                'default_currency_id' => $mmk->id,
                 'reporting_currency_id' => $setting->reporting_currency_id ?? $mmk->id,
                 'category' => 'finance',
                 'update_key' => $setting->update_key + 1,

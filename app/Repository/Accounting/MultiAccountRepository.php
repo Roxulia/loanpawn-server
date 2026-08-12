@@ -144,6 +144,7 @@ class MultiAccountRepository
                     ->from('financial_accounts')
                     ->whereColumn('financial_accounts.tenant_id', 'tenants.id')
                     ->where('financial_accounts.is_deleted', false)
+                    ->where('financial_accounts.is_active', true)
                     ->where('financial_accounts.is_default', true);
             })
             ->orderBy('id')

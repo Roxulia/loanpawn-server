@@ -170,6 +170,13 @@ class MultiAccountManagement extends BaseTenantService
         return DB::transaction(function () use ($tenantId, $createdBy): FinancialAccount {
             $existing = $this->repository->defaultAccount($tenantId);
             if ($existing) {
+                if (! $existing->is_active) {
+                    return $this->repository->update($existing, [
+                        'is_active' => true,
+                        'update_key' => $existing->update_key + 1,
+                    ]);
+                }
+
                 return $existing;
             }
 
@@ -187,7 +194,7 @@ class MultiAccountManagement extends BaseTenantService
             }
 
             $type = $this->repository->findVisibleAccountType($tenantId, 'cash');
-            $currency = $this->repository->findVisibleCurrency($tenantId, (string) config('finance.default_currency', 'MMK'));
+            $currency = $this->repository->findVisibleCurrency($tenantId, 'MMK');
             if (! $type || ! $currency) {
                 throw new InvalidTenantRequest('Cash account type and default currency are required to create the tenant account.');
             }
