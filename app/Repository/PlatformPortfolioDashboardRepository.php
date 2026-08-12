@@ -181,17 +181,18 @@ class PlatformPortfolioDashboardRepository
     {
 
         $nameExpression = "COALESCE(
-            NULLIF(tenant_accountings.reference_type, ''),
-            NULLIF(tenant_accountings.description, ''),
+            NULLIF(tenant_accounting_transactions.reference_type, ''),
+            NULLIF(tenant_accounting_transactions.description, ''),
             'Unspecified'
         )";
-        return DB::table('tenant_accountings')
-            ->join('tenants', 'tenants.id', '=', 'tenant_accountings.tenant_id')
+
+        return DB::table('tenant_accounting_transactions')
+            ->join('tenants', 'tenants.id', '=', 'tenant_accounting_transactions.tenant_id')
             ->where('tenants.platform_user_id', $platformUserId)
             ->where('tenants.is_deleted', false)
-            ->where('tenant_accountings.is_deleted', false)
-            ->where('tenant_accountings.transaction_type', $transactionType)
-            ->whereBetween('tenant_accountings.created_at', [$startDate, $endDate])
+            ->where('tenant_accounting_transactions.is_deleted', false)
+            ->where('tenant_accounting_transactions.transaction_direction', $transactionType)
+            ->whereBetween('tenant_accounting_transactions.business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->selectRaw("$nameExpression as name")
             ->selectRaw('SUM(amount) as total')
             ->selectRaw('COUNT(*) as transaction_count')
@@ -300,15 +301,15 @@ class PlatformPortfolioDashboardRepository
 
     protected function accountingTotalsByTenant(array $tenantIds, Carbon $startDate, Carbon $endDate): Collection
     {
-        return DB::table('tenant_accountings')
+        return DB::table('tenant_accounting_transactions')
             ->whereIn('tenant_id', $tenantIds)
             ->where('is_deleted', false)
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->select('tenant_id')
-            ->selectRaw("SUM(CASE WHEN transaction_type = 'incoming' THEN amount ELSE 0 END) as income")
-            ->selectRaw("SUM(CASE WHEN transaction_type = 'outgoing' THEN amount ELSE 0 END) as expense")
-            ->selectRaw("SUM(CASE WHEN transaction_type = 'incoming' THEN 1 ELSE 0 END) as incoming_count")
-            ->selectRaw("SUM(CASE WHEN transaction_type = 'outgoing' THEN 1 ELSE 0 END) as outgoing_count")
+            ->selectRaw("SUM(CASE WHEN transaction_direction = 'incoming' THEN amount ELSE 0 END) as income")
+            ->selectRaw("SUM(CASE WHEN transaction_direction = 'outgoing' THEN amount ELSE 0 END) as expense")
+            ->selectRaw("SUM(CASE WHEN transaction_direction = 'incoming' THEN 1 ELSE 0 END) as incoming_count")
+            ->selectRaw("SUM(CASE WHEN transaction_direction = 'outgoing' THEN 1 ELSE 0 END) as outgoing_count")
             ->groupBy('tenant_id')
             ->get()
             ->mapWithKeys(fn ($row) => [

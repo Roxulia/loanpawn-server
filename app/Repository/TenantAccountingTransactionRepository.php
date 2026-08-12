@@ -7,6 +7,7 @@ use App\Models\TenantAccountingTransactions;
 use App\Support\AccountingReferenceMapper;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 class TenantAccountingTransactionRepository
@@ -35,14 +36,14 @@ class TenantAccountingTransactionRepository
         return $query->paginate($perPage);
     }
 
-    public function listIncomingTransactions(int $perPage = 15): LengthAwarePaginator
+    public function listIncomingTransactions(string $businessDate, int $perPage = 15): LengthAwarePaginator
     {
-        return $this->listByDirection('incoming', $perPage);
+        return $this->listByDirection('incoming', $businessDate, $perPage);
     }
 
-    public function listOutgoingTransactions(int $perPage = 15): LengthAwarePaginator
+    public function listOutgoingTransactions(string $businessDate, int $perPage = 15): LengthAwarePaginator
     {
-        return $this->listByDirection('outgoing', $perPage);
+        return $this->listByDirection('outgoing', $businessDate, $perPage);
     }
 
     public function create(array $data): TenantAccountingTransactions
@@ -95,6 +96,16 @@ class TenantAccountingTransactionRepository
         return $this->referenceQuery($reference)->lockForUpdate()->first();
     }
 
+    public function findAllByReferenceWithLock(Model $reference): Collection
+    {
+        return $this->referenceQuery($reference)->lockForUpdate()->get();
+    }
+
+    public function findAllByReference(Model $reference): Collection
+    {
+        return $this->referenceQuery($reference)->get();
+    }
+
     public function paginateAccountingLedger(Carbon $startDate, Carbon $endDate, int $perPage = 15): LengthAwarePaginator
     {
         return $this->ledgerQuery($startDate, $endDate)->paginate($perPage);
@@ -109,7 +120,7 @@ class TenantAccountingTransactionRepository
     {
         return (float) TenantAccountingTransactions::query()
             ->where('is_deleted', false)
-            ->where('occurred_at', '<', $startDate->copy()->startOfDay())
+            ->whereDate('business_date', '<', $startDate->toDateString())
             ->selectRaw("COALESCE(SUM(CASE
                 WHEN transaction_direction = 'incoming' THEN COALESCE(reporting_amount, amount)
                 WHEN transaction_direction = 'outgoing' THEN -COALESCE(reporting_amount, amount)
@@ -128,7 +139,7 @@ class TenantAccountingTransactionRepository
 
         $previousRows = TenantAccountingTransactions::query()
             ->where('is_deleted', false)
-            ->where('occurred_at', '>=', $startDate->copy()->startOfDay())
+            ->whereDate('business_date', '>=', $startDate->toDateString())
             ->orderBy('occurred_at')
             ->orderBy('id')
             ->limit($offset)
@@ -189,17 +200,17 @@ class TenantAccountingTransactionRepository
         return (float) TenantAccountingTransactions::query()
             ->where('is_deleted', false)
             ->where('transaction_direction', $transactionDirection)
-            ->whereBetween('occurred_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->selectRaw('COALESCE(SUM(COALESCE(reporting_amount, amount)), 0) as total')
             ->value('total');
     }
 
-    private function listByDirection(string $direction, int $perPage): LengthAwarePaginator
+    private function listByDirection(string $direction, string $businessDate, int $perPage): LengthAwarePaginator
     {
         return TenantAccountingTransactions::query()
             ->where('is_deleted', false)
             ->where('transaction_direction', $direction)
-            ->whereDate('occurred_at', Carbon::today())
+            ->whereDate('business_date', $businessDate)
             ->orderByDesc('occurred_at')
             ->orderByDesc('id')
             ->paginate($perPage);
@@ -208,6 +219,8 @@ class TenantAccountingTransactionRepository
     private function referenceQuery(Model $reference)
     {
         return TenantAccountingTransactions::query()
+            ->with('accountingDay')
+            ->where('is_deleted', false)
             ->where('reference_type', $reference::class)
             ->where('reference_id', $reference->getKey());
     }
@@ -216,7 +229,7 @@ class TenantAccountingTransactionRepository
     {
         return TenantAccountingTransactions::query()
             ->where('is_deleted', false)
-            ->whereBetween('occurred_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->orderBy('occurred_at')
             ->orderBy('id');
     }

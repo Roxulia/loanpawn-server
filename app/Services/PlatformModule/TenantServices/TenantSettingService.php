@@ -10,6 +10,7 @@ use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
 use App\Repository\TenantSettingRepository;
 use App\Services\BaseTenantService;
+use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantCurrencyService;
 
 class TenantSettingService extends BaseTenantService
@@ -20,6 +21,7 @@ class TenantSettingService extends BaseTenantService
     public function __construct(
         private TenantSettingRepository $repository,
         private TenantCurrencyService $tenantCurrencyService,
+        private TenantAccountingDayService $accountingDayService,
     ) {}
 
     public function createDefaultTenantSettings(int $tenantId): void
@@ -132,6 +134,7 @@ class TenantSettingService extends BaseTenantService
 
     public function updateCurrentTenantTimezone(TenantTimezoneUpdate $request): TenantSetting
     {
+        $this->accountingDayService->assertTimezoneChangeAllowed();
         $setting = $this->getCurrentTenantTimezone();
         if ((int) $setting->update_key !== $request->updateKey) {
             throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');

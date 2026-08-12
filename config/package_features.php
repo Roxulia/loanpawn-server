@@ -82,6 +82,10 @@ return [
             'name' => 'Tenant timezone management',
             'description' => 'Configure the tenant business timezone.',
         ],
+        'automatic_open_close' => [
+            'name' => 'Automatic accounting day open and close',
+            'description' => 'Configure weekly accounting day opening and closing schedules.',
+        ],
     ],
 
     'packages' => [
@@ -167,6 +171,7 @@ return [
                 'subdomain_available',
                 'currency_exchange_management',
                 'tenant_timezone_management',
+                'automatic_open_close',
                 'multi_account_management',
             ],
         ],

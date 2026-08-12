@@ -5,7 +5,6 @@ namespace Tests\Feature\TenantModule;
 use App\DataObjects\RequestObjects\DashboardTimeFilter;
 use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
-use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantCapital;
 use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantDebt;
@@ -18,6 +17,7 @@ use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PawnModule\PawnRedemption;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
+use App\Models\TenantAccountingTransactions;
 use App\Services\TenantModule\TenantDashboardService;
 use App\Support\TenantContext;
 use Carbon\Carbon;
@@ -68,32 +68,40 @@ class TenantDashboardServiceTest extends TestCase
             'amount' => 5000000,
             'created_at' => '2026-06-12 08:00:00',
         ]);
-        TenantAccounting::query()->create([
+        TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
             'description' => 'Capital insertion',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
+            'accounting_category' => 'equity',
             'amount' => 5000000,
             'reference_id' => $capital->id,
             'reference_type' => TenantCapital::class,
+            'business_date' => '2026-06-12',
+            'occurred_at' => '2026-06-12 08:00:00',
             'created_at' => '2026-06-12 08:00:00',
         ]);
-        TenantAccounting::query()->create([
+        TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
             'description' => 'Loan slip payment',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
+            'accounting_category' => 'asset',
             'amount' => 1200000,
             'reference_id' => $overdueSlip->id,
             'reference_type' => PawnLoanContractSlip::class,
+            'business_date' => '2026-06-13',
+            'occurred_at' => '2026-06-13 08:00:00',
             'created_at' => '2026-06-13 08:00:00',
         ]);
-        $previousIncome = TenantAccounting::query()->create([
+        TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
             'description' => 'Previous income',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
+            'accounting_category' => 'revenue',
             'amount' => 3000000,
+            'business_date' => '2026-05-30',
+            'occurred_at' => '2026-05-30 08:00:00',
+            'created_at' => '2026-05-30 08:00:00',
         ]);
-        $previousIncome->created_at = Carbon::parse('2026-05-30 08:00:00');
-        $previousIncome->save();
         $expense = TenantExpense::query()->create([
             'tenant_id' => $tenant->id,
             'code' => 'EXP-DASH',
@@ -101,13 +109,16 @@ class TenantDashboardServiceTest extends TestCase
             'description' => 'Rent',
             'created_at' => '2026-06-13 08:00:00',
         ]);
-        TenantAccounting::query()->create([
+        TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
             'description' => 'Rent',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
+            'accounting_category' => 'expense',
             'amount' => 1000000,
             'reference_id' => $expense->id,
             'reference_type' => TenantExpense::class,
+            'business_date' => '2026-06-13',
+            'occurred_at' => '2026-06-13 08:00:00',
             'created_at' => '2026-06-13 08:00:00',
         ]);
         $debt = TenantDebt::query()->create([
@@ -120,13 +131,16 @@ class TenantDashboardServiceTest extends TestCase
         ]);
         $debt->created_at = Carbon::parse('2026-06-01 09:00:00');
         $debt->save();
-        TenantAccounting::query()->create([
+        TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
             'description' => 'Debt payment',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
+            'accounting_category' => 'liability',
             'amount' => 50000,
             'reference_id' => $debt->id,
             'reference_type' => TenantDebt::class,
+            'business_date' => '2026-06-12',
+            'occurred_at' => '2026-06-12 08:00:00',
             'created_at' => '2026-06-12 08:00:00',
         ]);
         $interestPayment = PawnInterestPayment::query()->create([
@@ -137,13 +151,16 @@ class TenantDashboardServiceTest extends TestCase
             'payment_at' => '2026-06-12 00:00:00',
             'is_paid' => true,
         ]);
-        TenantAccounting::query()->create([
+        TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
             'description' => 'Interest payment',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
+            'accounting_category' => 'revenue',
             'amount' => 300000,
             'reference_id' => $interestPayment->id,
             'reference_type' => PawnInterestPayment::class,
+            'business_date' => '2026-06-12',
+            'occurred_at' => '2026-06-12 08:00:00',
             'created_at' => '2026-06-12 08:00:00',
         ]);
         PawnRedemption::query()->create([

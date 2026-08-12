@@ -6,10 +6,15 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\ResponseObjects\TenantDebtDetail;
 use App\DataObjects\ResponseObjects\TenantDebtListPage;
+use App\Enums\AccountingCategory;
+use App\Exceptions\AlreadyUpdatedException;
+use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantDebt;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\TenantDebtRepository;
 use App\Services\BaseTenantService;
+use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\TableIdGenerationService;
 use App\Support\TenantScopedCacheKeys;
 use Carbon\CarbonImmutable;
@@ -17,11 +22,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Exceptions\AlreadyUpdatedException;
-use App\Services\PawnModule\LoanContractServices\LookUpService;
 use Throwable;
-use App\Exceptions\InvalidTenantRequest;
-use App\Models\PawnModule\PawnLoanContractSlip;
 
 class TenantDebtService extends BaseTenantService
 {
@@ -29,7 +30,7 @@ class TenantDebtService extends BaseTenantService
 
     public function __construct(
         private TenantDebtRepository $repository,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
@@ -38,8 +39,7 @@ class TenantDebtService extends BaseTenantService
         private CustomerTrustScoreService $customerTrustScoreService,
         private LookUpService $slipLookUpService,
         private TenantCustomerService $tenantCustomerService
-    ) {
-    }
+    ) {}
 
     public function list(int $perPage = 15): TenantDebtListPage
     {
@@ -147,55 +147,55 @@ class TenantDebtService extends BaseTenantService
         string $operationType
     ): TenantDebt {
         $debt = DB::transaction(function () use ($request, $slip, $customerId, $operationType) {
-                $debt = $this->repository->create([
-                    'tenant_id' => $request->tenantId,
-                    'code' => $this->tableIdGenerationService->generate('tenant_debts', CarbonImmutable::now()),
-                    'slip_id' => $slip === null ? null : $slip->getKey(),
-                    'customer_id' => $customerId,
-                    'amount' => $request->amount,
-                    'description' => $request->description,
-                    'tag' => $request->tag,
-                    'is_paid' => $request->isPaid,
-                    'accepted_by' => $request->acceptedBy,
-                    'created_by' => $request->createdBy,
-                ]);
+            $debt = $this->repository->create([
+                'tenant_id' => $request->tenantId,
+                'code' => $this->tableIdGenerationService->generate('tenant_debts', CarbonImmutable::now()),
+                'slip_id' => $slip === null ? null : $slip->getKey(),
+                'customer_id' => $customerId,
+                'amount' => $request->amount,
+                'description' => $request->description,
+                'tag' => $request->tag,
+                'is_paid' => $request->isPaid,
+                'accepted_by' => $request->acceptedBy,
+                'created_by' => $request->createdBy,
+            ]);
 
-                if ($operationType === 'internal') {
-                    $this->tenantAccountingService->createInternalTransfer(
-                        $debt,
-                        $debt->description,
-                        (float) $debt->amount,
-                        $debt->created_by
-                    );
-                } else {
-                    $this->tenantAccountingService->createOutgoingForReference(
-                        $debt,
-                        $debt->description,
-                        (float) $debt->amount,
-                        $debt->created_by
-                    );
-                }
-
-
-                $this->tenantAuditLogService->log(
-                    'tenant_debt.created',
-                    TenantDebt::class,
-                    $debt->id,
-                    [
-                        'debt' => $debt->only([
-                            'slip_id',
-                            'customer_id',
-                            'amount',
-                            'description',
-                            'tag',
-                            'is_paid',
-                            'accepted_by',
-                        ]),
-                    ]
+            if ($operationType === 'internal') {
+                $this->tenantAccountingService->createInternalTransfer(
+                    $debt,
+                    $debt->description,
+                    (float) $debt->amount,
+                    $debt->created_by
                 );
+            } else {
+                $this->tenantAccountingService->createOutgoingForReference(
+                    $debt,
+                    $debt->description,
+                    (float) $debt->amount,
+                    AccountingCategory::Asset,
+                    $debt->created_by
+                );
+            }
 
-                return $debt;
-            });
+            $this->tenantAuditLogService->log(
+                'tenant_debt.created',
+                TenantDebt::class,
+                $debt->id,
+                [
+                    'debt' => $debt->only([
+                        'slip_id',
+                        'customer_id',
+                        'amount',
+                        'description',
+                        'tag',
+                        'is_paid',
+                        'accepted_by',
+                    ]),
+                ]
+            );
+
+            return $debt;
+        });
 
         $this->recalculateTrustScoreForDebt($debt);
 
@@ -224,9 +224,8 @@ class TenantDebtService extends BaseTenantService
         $this->permissionService->authorizeDebtUpdate();
         $debt = $this->findDebtForCurrentTenant($request->debtId);
         $data = [];
-        if($debt->update_key !== $request->updateKey)
-        {
-            throw new AlreadyUpdatedException("This item is already Updated.Please refresh");
+        if ($debt->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This item is already Updated.Please refresh');
         }
 
         if ($request->amount !== null) {
@@ -256,7 +255,7 @@ class TenantDebtService extends BaseTenantService
         if ($data === []) {
             return TenantDebtDetail::fromModel($debt);
         }
-        $data['update_key'] = $debt->updateKey+1;
+        $data['update_key'] = $debt->updateKey + 1;
         $original = $debt->only(array_keys($data));
 
         $originalCustomerId = $debt->customer_id ?? $debt->slip?->customer_id;
@@ -267,7 +266,8 @@ class TenantDebtService extends BaseTenantService
             $this->tenantAccountingService->syncOutgoingForReference(
                 $updatedDebt,
                 $updatedDebt->description,
-                (float) $updatedDebt->amount
+                (float) $updatedDebt->amount,
+                AccountingCategory::Asset,
             );
 
             $this->tenantAuditLogService->log(
@@ -377,7 +377,7 @@ class TenantDebtService extends BaseTenantService
         return $this->repository->findUnpaidBySlipIdWithLock($slipId);
     }
 
-    public function markAsPaid(int $debtId,float $amountPaid) : array
+    public function markAsPaid(int $debtId, float $amountPaid): array
     {
         $this->permissionService->authorizeDebtUpdate();
         $updatedDebt = DB::transaction(function () use ($debtId, $amountPaid) {
@@ -404,6 +404,7 @@ class TenantDebtService extends BaseTenantService
                 $updatedDebt,
                 "Payment for debt: {$updatedDebt->description}",
                 (float) $amountPaid,
+                AccountingCategory::Asset,
                 $this->resolveCurrentTenantUserId()
             );
 
@@ -414,6 +415,7 @@ class TenantDebtService extends BaseTenantService
                     $updatedDebt,
                     "Debt Payment Change: {$updatedDebt->description}",
                     $changeAmount,
+                    AccountingCategory::Asset,
                     $this->resolveCurrentTenantUserId()
                 );
             }

@@ -15,6 +15,7 @@ use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
 use App\Http\Controllers\TenantModule\LanguageController;
 use App\Http\Controllers\TenantModule\OnlineSyncController;
 use App\Http\Controllers\TenantModule\TenantAccountingController;
+use App\Http\Controllers\TenantModule\TenantAccountingDayController;
 use App\Http\Controllers\TenantModule\TenantBrandingController;
 use App\Http\Controllers\TenantModule\TenantCapitalController;
 use App\Http\Controllers\TenantModule\TenantCurrencyController;
@@ -179,6 +180,25 @@ Route::prefix('tenant')->group(function () {
                     Route::get('ledger', [TenantAccountingController::class, 'getAccountingLedger'])
                         ->middleware('tenant.permission:list_accounting');
                     Route::get('ledger/download', [TenantAccountingController::class, 'downloadAccountingLedger'])
+                        ->middleware('tenant.permission:list_accounting');
+                });
+
+            Route::prefix('accounting-days')
+                ->middleware('tenant.feature:accounting_management')
+                ->group(function () {
+                    Route::get('/', [TenantAccountingDayController::class, 'index'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::get('current', [TenantAccountingDayController::class, 'current'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::post('open', [TenantAccountingDayController::class, 'open'])
+                        ->middleware('tenant.permission:open_accounting_day');
+                    Route::post('close', [TenantAccountingDayController::class, 'close'])
+                        ->middleware('tenant.permission:close_accounting_day');
+                    Route::get('schedule', [TenantAccountingDayController::class, 'schedule'])
+                        ->middleware(['tenant.feature:automatic_open_close', 'tenant.permission:open_accounting_day', 'tenant.permission:close_accounting_day']);
+                    Route::put('schedule', [TenantAccountingDayController::class, 'updateSchedule'])
+                        ->middleware(['tenant.feature:automatic_open_close', 'tenant.permission:open_accounting_day', 'tenant.permission:close_accounting_day']);
+                    Route::get('{businessDate}/summary', [TenantAccountingDayController::class, 'show'])
                         ->middleware('tenant.permission:list_accounting');
                 });
 

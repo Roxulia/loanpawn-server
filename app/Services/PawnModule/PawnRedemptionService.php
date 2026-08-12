@@ -8,6 +8,8 @@ use App\DataObjects\ResponseObjects\InterestPaymentHistoryItem;
 use App\DataObjects\ResponseObjects\PawnRedemptionDetail;
 use App\DataObjects\ResponseObjects\PawnRedemptionListPage;
 use App\DataObjects\ResponseObjects\PawnRedemptionResult;
+use App\Enums\AccountingCategory;
+use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantDebt;
@@ -17,7 +19,7 @@ use App\Repository\PawnRedemptionRepository;
 use App\Services\BaseTenantService;
 use App\Services\PawnModule\LoanContractServices\LookUpService as LoanContractLookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService as LoanContractManagementService;
-use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\TenantIdempotencyService;
@@ -27,7 +29,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Exceptions\AlreadyUpdatedException;
 use Throwable;
 
 class PawnRedemptionService extends BaseTenantService
@@ -41,13 +42,12 @@ class PawnRedemptionService extends BaseTenantService
         private CollateralItemService $collateralItemService,
         private InterestFlowService $interestFlowService,
         private TenantDebtService $tenantDebtService,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TenantIdempotencyService $tenantIdempotencyService,
-    ) {
-    }
+    ) {}
 
     public function list(int $perPage = 15, ?CarbonImmutable $startDate = null, ?CarbonImmutable $endDate = null): PawnRedemptionListPage
     {
@@ -55,8 +55,8 @@ class PawnRedemptionService extends BaseTenantService
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('pawn-redemption-list');
         $cacheKey = $this->tenantScopedCacheKeys->paginatedListKey('pawn-redemption-list', $version, $page, $perPage)
-            . ':start-date:' . ($startDate?->toDateString() ?? 'any')
-            . ':end-date:' . ($endDate?->toDateString() ?? 'any');
+            .':start-date:'.($startDate?->toDateString() ?? 'any')
+            .':end-date:'.($endDate?->toDateString() ?? 'any');
 
         return Cache::remember(
             $cacheKey,
@@ -115,8 +115,8 @@ class PawnRedemptionService extends BaseTenantService
                     'created_by' => $createdBy,
                 ]);
 
-                $this->interestFlowService->settleForRedemption($slip, $redemptionDate, $createdBy,$request->interests);
-                $this->settleDebtForRedemption($slip,$request->debts, $createdBy);
+                $this->interestFlowService->settleForRedemption($slip, $redemptionDate, $createdBy, $request->interests);
+                $this->settleDebtForRedemption($slip, $request->debts, $createdBy);
                 $this->loanContractManagementService->changeStatus($slip, 'redeemed');
                 $this->collateralItemService->redeemProcess($slip);
 
@@ -141,7 +141,7 @@ class PawnRedemptionService extends BaseTenantService
                     createdBy: $createdBy,
                     referenceId: $redemption->id,
                     referenceType: PawnRedemption::class
-                ));
+                ), AccountingCategory::Asset);
 
                 if ((float) $redemption->change_amount > 0.0) {
                     $this->tenantAccountingService->create(new TenantAccountingCreate(
@@ -151,7 +151,7 @@ class PawnRedemptionService extends BaseTenantService
                         createdBy: $createdBy,
                         referenceId: $redemption->id,
                         referenceType: PawnRedemption::class
-                    ));
+                    ), AccountingCategory::Asset);
                 }
 
                 return $redemption;
@@ -274,7 +274,7 @@ class PawnRedemptionService extends BaseTenantService
         }
     }
 
-    protected function settleDebtForRedemption(PawnLoanContractSlip $slip,array $debts, ?int $createdBy): void
+    protected function settleDebtForRedemption(PawnLoanContractSlip $slip, array $debts, ?int $createdBy): void
     {
         $existingDebts = $this->tenantDebtService->getUnpaidDebtsForSlipWithLock($slip->id);
         $requestedBreakdownById = collect($debts)->keyBy('id');
@@ -289,8 +289,7 @@ class PawnRedemptionService extends BaseTenantService
                 throw new AlreadyUpdatedException('This Slip is already updated by others. Please refresh.');
             }
         }
-        foreach ($existingDebts as $debt)
-        {
+        foreach ($existingDebts as $debt) {
             $this->tenantDebtService->markAsPaidWithoutAccounting($debt, $createdBy);
         }
 

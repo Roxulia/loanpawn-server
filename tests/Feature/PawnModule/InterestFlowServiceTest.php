@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\PawnModule;
 
-use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\RequestObjects\InterestPaymentAccept;
+use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\DataObjects\ResponseObjects\InterestBreakDown;
@@ -160,21 +160,21 @@ class InterestFlowServiceTest extends TestCase
         ]);
 
         $this->assertDatabaseCount('pawn_interest_payments', 5);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'description' => 'Interest Payment Transaction',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
             'amount' => '10000.00',
             'created_by' => $tenantUser->id,
         ]);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'description' => 'Interest Payment Transaction',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
             'amount' => '5000.00',
             'created_by' => $tenantUser->id,
         ]);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'description' => 'Remaining interest from payment ID: 2',
-            'transaction_type' => 'internal',
+            'transaction_direction' => 'internal',
             'amount' => '5000.00',
             'created_by' => $tenantUser->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
@@ -244,16 +244,16 @@ class InterestFlowServiceTest extends TestCase
             'is_paid' => true,
         ]);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'description' => 'Interest Payment Change Transaction',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
             'amount' => '5000.00',
             'reference_type' => 'App\\Models\\PawnModule\\PawnInterestPayment',
         ]);
 
-        $incomingTotal = (float) DB::table('tenant_accountings')
+        $incomingTotal = (float) DB::table('tenant_accounting_transactions')
             ->where('description', 'Interest Payment Transaction')
-            ->where('transaction_type', 'incoming')
+            ->where('transaction_direction', 'incoming')
             ->sum('amount');
 
         $this->assertSame(25000.0, $incomingTotal);

@@ -20,6 +20,7 @@ use App\Http\Responses\ApiResponse;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
+use App\Jobs\ProcessAccountingDaysJob;
 use App\Jobs\RefreshDailyExchangeRateSummariesJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Support\InternalServerErrorNotifier;
@@ -83,6 +84,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob)->monthlyOn(1, '00:00');
         $schedule->job(new ExpireInactiveTenantUsersJob)->everyFiveMinutes()->withoutOverlapping();
         $schedule->job(new RefreshDailyExchangeRateSummariesJob)->hourly()->withoutOverlapping();
+        $schedule->job(new ProcessAccountingDaysJob)->everyFifteenMinutes()->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

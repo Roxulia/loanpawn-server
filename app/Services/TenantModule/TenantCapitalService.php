@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantCapitalCreate;
 use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\DataObjects\ResponseObjects\TenantCapitalDetail;
 use App\DataObjects\ResponseObjects\TenantCapitalListPage;
+use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantCapital;
@@ -25,14 +26,13 @@ class TenantCapitalService extends BaseTenantService
 
     public function __construct(
         private TenantCapitalRepository $repository,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
-    ) {
-    }
+    ) {}
 
     public function list(int $perPage = 15): TenantCapitalListPage
     {
@@ -77,6 +77,7 @@ class TenantCapitalService extends BaseTenantService
                     $capital,
                     $capital->description,
                     (float) $capital->amount,
+                    AccountingCategory::Equity,
                     $capital->created_by
                 );
 
@@ -152,7 +153,8 @@ class TenantCapitalService extends BaseTenantService
             $this->tenantAccountingService->syncIncomingForReference(
                 $updatedCapital,
                 $updatedCapital->description,
-                (float) $updatedCapital->amount
+                (float) $updatedCapital->amount,
+                AccountingCategory::Equity,
             );
 
             $this->tenantAuditLogService->log(

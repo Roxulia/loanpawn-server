@@ -13,6 +13,8 @@ class TenantAccountingTransactions extends TenantAccounting
 
     protected $fillable = [
         'tenant_id',
+        'accounting_day_id',
+        'business_date',
         'transaction_direction',
         'accounting_category',
         'amount',
@@ -33,6 +35,7 @@ class TenantAccountingTransactions extends TenantAccounting
     {
         return [
             'accounting_category' => AccountingCategory::class,
+            'business_date' => 'date',
             'amount' => 'decimal:4',
             'reporting_amount' => 'decimal:4',
             'exchange_rate' => 'decimal:10',
@@ -46,6 +49,11 @@ class TenantAccountingTransactions extends TenantAccounting
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
+    }
+
+    public function accountingDay(): BelongsTo
+    {
+        return $this->belongsTo(TenantAccountingDay::class, 'accounting_day_id');
     }
 
     public function getTransactionTypeAttribute(): ?string

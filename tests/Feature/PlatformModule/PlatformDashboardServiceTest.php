@@ -264,11 +264,14 @@ class PlatformDashboardServiceTest extends TestCase
 
     protected function accounting(Tenant $tenant, string $type, float $amount, string $description, Carbon $createdAt): void
     {
-        DB::table('tenant_accountings')->insert([
+        DB::table('tenant_accounting_transactions')->insert([
             'tenant_id' => $tenant->id,
             'description' => $description,
-            'transaction_type' => $type,
+            'transaction_direction' => $type,
+            'accounting_category' => $type === 'incoming' ? 'revenue' : 'expense',
             'amount' => $amount,
+            'business_date' => $createdAt->toDateString(),
+            'occurred_at' => $createdAt,
             'created_at' => $createdAt,
             'updated_at' => $createdAt,
         ]);

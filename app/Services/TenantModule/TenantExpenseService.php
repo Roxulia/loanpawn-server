@@ -7,6 +7,7 @@ use App\DataObjects\RequestObjects\TenantExpenseUpdate;
 use App\DataObjects\ResponseObjects\TenantExpenseDetail;
 use App\DataObjects\ResponseObjects\TenantExpenseFullDetail;
 use App\DataObjects\ResponseObjects\TenantExpenseListPage;
+use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantExpense;
@@ -24,20 +25,21 @@ use Throwable;
 class TenantExpenseService extends BaseTenantService
 {
     protected const TENANT_EXPENSE_LIST_CACHE_TTL_SECONDS = 600;
+
     protected const IMAGE_STORAGE_DISK = 'local';
+
     protected const IMAGE_URL_TTL_MINUTES = 5;
 
     public function __construct(
         private TenantExpenseRepository $repository,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
         private FileStorageUtility $fileStorageUtility,
-    ) {
-    }
+    ) {}
 
     public function list(int $perPage = 15): TenantExpenseListPage
     {
@@ -96,6 +98,7 @@ class TenantExpenseService extends BaseTenantService
                     $expense,
                     $expense->description,
                     (float) $expense->amount,
+                    AccountingCategory::Expense,
                     $expense->created_by
                 );
 
@@ -149,9 +152,8 @@ class TenantExpenseService extends BaseTenantService
         $expense = $this->findExpenseForCurrentTenant($request->expenseId);
         $data = [];
 
-        if($request->updateKey !== $expense->update_key)
-        {
-            throw new AlreadyUpdatedException("This item is already updated.Please Refresh");
+        if ($request->updateKey !== $expense->update_key) {
+            throw new AlreadyUpdatedException('This item is already updated.Please Refresh');
         }
 
         if ($request->description !== null) {
@@ -193,7 +195,8 @@ class TenantExpenseService extends BaseTenantService
                 $this->tenantAccountingService->syncOutgoingForReference(
                     $updatedExpense,
                     $updatedExpense->description,
-                    (float) $updatedExpense->amount
+                    (float) $updatedExpense->amount,
+                    AccountingCategory::Expense,
                 );
 
                 $after = $updatedExpense->only($auditFields);

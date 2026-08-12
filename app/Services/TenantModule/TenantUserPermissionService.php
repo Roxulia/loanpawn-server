@@ -20,8 +20,7 @@ class TenantUserPermissionService extends BaseTenantService
     public function __construct(
         private TenantLookupService $tenantLookupService,
         private TenantUserPermissionRepository $tenantUserPermissionRepository,
-    ) {
-    }
+    ) {}
 
     public function authorizeManagement(): void
     {
@@ -31,7 +30,7 @@ class TenantUserPermissionService extends BaseTenantService
             return;
         }
 
-        throw new TenantUserAccessDenied();
+        throw new TenantUserAccessDenied;
     }
 
     public function authorizePermission(string $permission): void
@@ -50,7 +49,7 @@ class TenantUserPermissionService extends BaseTenantService
         $tenantUser = Auth::guard('tenantuser')->user();
 
         if (! $tenantUser instanceof TenantUser || $tenantUser->tenant_id !== $tenantId) {
-            throw new TenantUserAccessDenied();
+            throw new TenantUserAccessDenied;
         }
 
         foreach ($permissions as $permission) {
@@ -59,7 +58,7 @@ class TenantUserPermissionService extends BaseTenantService
             }
         }
 
-        throw new TenantUserAccessDenied();
+        throw new TenantUserAccessDenied;
     }
 
     public function resolveUpdateScope(TenantUser $targetUser, TenantUserUpdate $request): bool
@@ -215,6 +214,16 @@ class TenantUserPermissionService extends BaseTenantService
         $this->authorizeTenantPermission('list_accounting');
     }
 
+    public function authorizeAccountingDayOpen(): void
+    {
+        $this->authorizeTenantPermission('open_accounting_day');
+    }
+
+    public function authorizeAccountingDayClose(): void
+    {
+        $this->authorizeTenantPermission('close_accounting_day');
+    }
+
     public function authorizeDashboardRead(): void
     {
         $this->authorizeTenantPermission('dashboard');
@@ -331,7 +340,7 @@ class TenantUserPermissionService extends BaseTenantService
             return;
         }
 
-        throw new TenantUserAccessDenied();
+        throw new TenantUserAccessDenied;
     }
 
     protected function authorizeOwnerAdminPermission(string $permission): void
@@ -345,7 +354,7 @@ class TenantUserPermissionService extends BaseTenantService
         $tenantUser = Auth::guard('tenantuser')->user();
 
         if (! $tenantUser instanceof TenantUser || $tenantUser->tenant_id !== $tenantId) {
-            throw new TenantUserAccessDenied();
+            throw new TenantUserAccessDenied;
         }
 
         $tenantUser->loadMissing('role');
@@ -357,7 +366,7 @@ class TenantUserPermissionService extends BaseTenantService
             return;
         }
 
-        throw new TenantUserAccessDenied();
+        throw new TenantUserAccessDenied;
     }
 
     protected function isOwningPlatformUser(int $tenantId): bool
@@ -409,7 +418,7 @@ class TenantUserPermissionService extends BaseTenantService
         $updater = Auth::guard('tenantuser')->user();
 
         if (! $updater instanceof TenantUser || $updater->tenant_id !== $tenantId) {
-            throw new TenantUserAccessDenied();
+            throw new TenantUserAccessDenied;
         }
 
         if ($this->hasPermission($updater, 'access_all')) {

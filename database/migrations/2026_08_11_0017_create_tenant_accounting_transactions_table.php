@@ -76,9 +76,8 @@ return new class extends Migration
              * Examples:
              * App\Models\PawnModule\PawnInterestPayment
              * App\Models\CoreModule\TenantExpense
-             */
+            */
             $table->nullableMorphs('reference');
-            $table->unsignedBigInteger('reference_id')->nullable();
 
             /*
              * Actual business transaction date/time.
@@ -147,7 +146,7 @@ return new class extends Migration
             );
 
             $table->index(
-                ['tenant_id', 'transaction_type'],
+                ['tenant_id', 'transaction_direction'],
                 'tat_tenant_type_idx'
             );
 

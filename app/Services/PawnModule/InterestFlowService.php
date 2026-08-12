@@ -9,15 +9,17 @@ use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\DataObjects\ResponseObjects\InterestCalculationResult;
 use App\DataObjects\ResponseObjects\InterestPaymentHistoryItem;
 use App\DataObjects\ResponseObjects\InterestPaymentHistoryListPage;
+use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
+use App\Exceptions\TenantNotFound;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\LoanContractSlipRepository;
 use App\Repository\PawnInterestPaymentRepository;
 use App\Services\BaseTenantService;
 use App\Services\TenantModule\CustomerTrustScoreService;
-use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\TenantIdempotencyService;
@@ -26,7 +28,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Exceptions\TenantNotFound;
 use Throwable;
 
 class InterestFlowService extends BaseTenantService
@@ -34,13 +35,12 @@ class InterestFlowService extends BaseTenantService
     public function __construct(
         private LoanContractSlipRepository $loanContractSlipRepository,
         private PawnInterestPaymentRepository $repository,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantDebtService $tenantDebtService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantIdempotencyService $tenantIdempotencyService,
         private CustomerTrustScoreService $customerTrustScoreService,
-    ) {
-    }
+    ) {}
 
     public function getInterestPaymentHistory(int $perPage = 15): InterestPaymentHistoryListPage
     {
@@ -48,7 +48,6 @@ class InterestFlowService extends BaseTenantService
             $this->repository->history($perPage)
         );
     }
-
 
     public function lastAccruedInterestPayment(int $slipId): ?PawnInterestPayment
     {
@@ -98,9 +97,8 @@ class InterestFlowService extends BaseTenantService
         try {
             $result = DB::transaction(function () use ($slipNo, $request, $currentAt, $currentDate): array {
                 $slip = $this->resolveActiveSlipBySlipNoWithLock($slipNo);
-                if($slip->update_key !== $request->slipUpdateKey)
-                {
-                    throw new AlreadyUpdatedException("This Slip is already updated by others.Please refresh");
+                if ($slip->update_key !== $request->slipUpdateKey) {
+                    throw new AlreadyUpdatedException('This Slip is already updated by others.Please refresh');
                 }
                 $payments = $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $currentDate->toDateString());
 
@@ -156,7 +154,7 @@ class InterestFlowService extends BaseTenantService
                         'payment_at' => $currentAt,
                         'payment_amount' => $appliedAmount,
                         'change_amount' => $changeAmount,
-                        'update_key' => $payment->update_key+1
+                        'update_key' => $payment->update_key + 1,
                     ]);
 
                     $paidPayments[] = $updatedPayment;
@@ -206,7 +204,7 @@ class InterestFlowService extends BaseTenantService
                     'last_interest_paid_at' => $currentAt,
                     'last_interest_added_at' => $currentAt,
                     'expire_at' => $this->calculateRenewedExpireDate($slip, $currentAt, $paidInterestRowCount),
-                    'update_key' => $slip->update_key+1
+                    'update_key' => $slip->update_key + 1,
                 ]);
 
                 $nextScheduleStart = $this->calculateNextScheduleStartDate($currentDate, (string) $slip->expiry_quota_type);
@@ -277,7 +275,7 @@ class InterestFlowService extends BaseTenantService
                 return;
             }
 
-                $futurePayments = $this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
+            $futurePayments = $this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
 
             foreach ($futurePayments as $payment) {
                 $this->repository->delete($payment);
@@ -337,9 +335,9 @@ class InterestFlowService extends BaseTenantService
             ->all();
     }
 
-    public function settleForRedemption(PawnLoanContractSlip $slip, CarbonImmutable $paymentDate, ?int $createdBy = null,array $interests=[]): void
+    public function settleForRedemption(PawnLoanContractSlip $slip, CarbonImmutable $paymentDate, ?int $createdBy = null, array $interests = []): void
     {
-        DB::transaction(function () use ($slip, $paymentDate, $createdBy,$interests): void {
+        DB::transaction(function () use ($slip, $paymentDate, $createdBy, $interests): void {
             $this->loanContractSlipRepository->findByIdWithLock($slip->id);
             $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentDate->toDateString());
             $requestedBreakdownById = collect($interests)->keyBy('id');
@@ -365,7 +363,7 @@ class InterestFlowService extends BaseTenantService
                     'payment_at' => $paymentDate,
                     'payment_amount' => (float) $payment->calculated_interest,
                     'change_amount' => 0,
-                    'update_key' => $payment->update_key+1
+                    'update_key' => $payment->update_key + 1,
                 ]);
             }
 
@@ -540,7 +538,6 @@ class InterestFlowService extends BaseTenantService
         }
     }
 
-
     protected function resolveAccrualStartDate(PawnInterestPayment $lastPayment): CarbonImmutable
     {
         $latestDate = collect([
@@ -574,7 +571,7 @@ class InterestFlowService extends BaseTenantService
             slipId: $slip->id,
             tag: 'InterestPayment',
             createdBy: $this->resolveCurrentTenantUserId(),
-        ));
+        ), AccountingCategory::Revenue);
 
         return $remainingInterest;
     }
@@ -592,7 +589,7 @@ class InterestFlowService extends BaseTenantService
             createdBy: $payment->created_by,
             referenceId: $payment->id,
             referenceType: PawnInterestPayment::class
-        ));
+        ), AccountingCategory::Revenue);
     }
 
     protected function recordInterestPaymentChangeAccounting(PawnInterestPayment $payment): void
@@ -608,7 +605,7 @@ class InterestFlowService extends BaseTenantService
             createdBy: $payment->created_by,
             referenceId: $payment->id,
             referenceType: PawnInterestPayment::class
-        ));
+        ), AccountingCategory::Asset);
     }
 
     protected function logInterestPaymentUpdate(PawnInterestPayment $payment): void
@@ -628,7 +625,7 @@ class InterestFlowService extends BaseTenantService
     }
 
     /**
-     * @param array<int, array<string, mixed>> $interestBreakdown
+     * @param  array<int, array<string, mixed>>  $interestBreakdown
      */
     protected function calculateTotalInterestAmount(array $interestBreakdown): float
     {

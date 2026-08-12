@@ -10,6 +10,10 @@ use App\DataObjects\ResponseObjects\TenantAccountingOverview;
 use App\Enums\AccountingCategory;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exports\TenantAccountingLedgerExport;
+use App\Models\CoreModule\Currency;
+use App\Models\CoreModule\TenantUser;
+use App\Models\PawnModule\PawnInterestPayment;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\TenantAccountingTransactions;
 use App\Repository\TenantAccountingTransactionRepository;
 use App\Services\BaseTenantService;
@@ -33,6 +37,7 @@ class TenantAccountingTransactionService extends BaseTenantService
         private TenantAccountingTransactionRepository $repository,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
+        private TenantAccountingDayService $accountingDayService,
     ) {}
 
     public function overview(): TenantAccountingOverview
@@ -41,10 +46,10 @@ class TenantAccountingTransactionService extends BaseTenantService
         $version = $this->tenantScopedCacheKeys->currentVersion('tenant-accounting-transaction-overview');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->listKey('tenant-accounting-transaction-overview', $version),
+            $this->tenantScopedCacheKeys->listKey('tenant-accounting-transaction-overview', $version).':month:'.substr($this->accountingDayService->currentBusinessDate(), 0, 7),
             now()->addSeconds(self::LIST_CACHE_TTL_SECONDS),
             function (): TenantAccountingOverview {
-                $today = Carbon::today();
+                $today = Carbon::parse($this->accountingDayService->currentBusinessDate());
                 $monthIncoming = $this->repository->transactionTotalBetween('incoming', $today->copy()->startOfMonth(), $today->copy()->endOfMonth());
                 $monthOutgoing = $this->repository->transactionTotalBetween('outgoing', $today->copy()->startOfMonth(), $today->copy()->endOfMonth());
                 $largestFlow = max($monthIncoming, $monthOutgoing, 1);
@@ -113,12 +118,12 @@ class TenantAccountingTransactionService extends BaseTenantService
 
     public function listIncomingTransactions(int $perPage = 15): TenantAccountingListPage
     {
-        return $this->rememberList('tenant-accounting-transaction-incoming-list', $perPage, fn () => $this->repository->listIncomingTransactions($perPage));
+        return $this->rememberList('tenant-accounting-transaction-incoming-list', $perPage, fn () => $this->repository->listIncomingTransactions($this->accountingDayService->currentBusinessDate(), $perPage));
     }
 
     public function listOutgoingTransactions(int $perPage = 15): TenantAccountingListPage
     {
-        return $this->rememberList('tenant-accounting-transaction-outgoing-list', $perPage, fn () => $this->repository->listOutgoingTransactions($perPage));
+        return $this->rememberList('tenant-accounting-transaction-outgoing-list', $perPage, fn () => $this->repository->listOutgoingTransactions($this->accountingDayService->currentBusinessDate(), $perPage));
     }
 
     public function list(int $perPage = 15, ?string $search = null): TenantAccountingListPage
@@ -142,17 +147,89 @@ class TenantAccountingTransactionService extends BaseTenantService
 
     public function create(TenantAccountingCreate $request, AccountingCategory $accountingCategory): TenantAccountingDetail
     {
-        $tenantId = $request->tenantId ?? $this->resolveCurrentTenantId();
+        $tenantId = $this->resolveCurrentTenantId();
+        $accounting = DB::transaction(function () use ($request, $accountingCategory, $tenantId): TenantAccountingTransactions {
+            $day = $this->accountingDayService->ensureOpenForTransaction($request->createdBy);
+
+            return $this->repository->create([
+                'tenant_id' => $tenantId,
+                'accounting_day_id' => $day->id,
+                'business_date' => $day->business_date,
+                'description' => $request->description,
+                'transaction_direction' => $request->transactionType,
+                'accounting_category' => $accountingCategory,
+                'amount' => $request->amount,
+                'occurred_at' => now(),
+                'created_by' => $request->createdBy,
+                'reference_id' => $request->referenceId,
+                'reference_type' => $request->referenceType,
+            ]);
+        });
+
+        $this->flushListCache($tenantId);
+
+        return TenantAccountingDetail::fromModel($accounting);
+    }
+
+    public function recordLoanCreation(PawnLoanContractSlip $loanContractSlip, string $description, float $amount, float $exchangeRate, Currency $currency, TenantUser $createdBy): TenantAccountingTransactions
+    {
+        $tenantId = $this->resolveCurrentTenantId();
         $accounting = $this->repository->create([
             'tenant_id' => $tenantId,
-            'description' => $request->description,
-            'transaction_direction' => $request->transactionType,
-            'accounting_category' => $accountingCategory,
-            'amount' => $request->amount,
+            'description' => $description,
+            'transaction_direction' => 'outgoing',
+            'accounting_category' => AccountingCategory::Asset,
+            'currency_id' => $currency->getKey(),
+            'exchange_rate' => $exchangeRate,
+            'amount' => $amount,
             'occurred_at' => now(),
-            'created_by' => $request->createdBy,
-            'reference_id' => $request->referenceId,
-            'reference_type' => $request->referenceType,
+            'created_by' => $createdBy->getKey(),
+            'reference_id' => $loanContractSlip->getKey(),
+            'reference_type' => $loanContractSlip::class,
+        ]);
+
+        $this->flushListCache($tenantId);
+
+        return TenantAccountingDetail::fromModel($accounting);
+    }
+
+    public function recordLoanRedemption(PawnLoanContractSlip $loanContractSlip, string $description, float $amount, float $exchangeRate, Currency $currency, TenantUser $createdBy): TenantAccountingTransactions
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $accounting = $this->repository->create([
+            'tenant_id' => $tenantId,
+            'description' => $description,
+            'transaction_direction' => 'incoming',
+            'accounting_category' => AccountingCategory::Asset,
+            'currency_id' => $currency->getKey(),
+            'exchange_rate' => $exchangeRate,
+            'amount' => $amount,
+            'occurred_at' => now(),
+            'created_by' => $createdBy->getKey(),
+            'reference_id' => $loanContractSlip->getKey(),
+            'reference_type' => $loanContractSlip::class,
+        ]);
+
+        $this->flushListCache($tenantId);
+
+        return TenantAccountingDetail::fromModel($accounting);
+    }
+
+     public function recordInterestPayment(PawnInterestPayment $pawnInterestPayment, string $description, float $amount,float $exchangeRate, Currency $currency, TenantUser $createdBy): TenantAccountingTransactions
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $accounting = $this->repository->create([
+            'tenant_id' => $tenantId,
+            'description' => $description,
+            'transaction_direction' => 'incoming',
+            'accounting_category' => AccountingCategory::Revenue,
+            'currency_id' => $currency->getKey(),
+            'exchange_rate' => $exchangeRate,
+            'amount' => $amount,
+            'occurred_at' => now(),
+            'created_by' => $createdBy->getKey(),
+            'reference_id' => $pawnInterestPayment->getKey(),
+            'reference_type' => $pawnInterestPayment::class,
         ]);
 
         $this->flushListCache($tenantId);
@@ -195,14 +272,21 @@ class TenantAccountingTransactionService extends BaseTenantService
         $tenantId = null;
 
         DB::transaction(function () use ($reference, &$tenantId): void {
-            $accounting = $this->repository->findByReferenceWithLock($reference);
+            $accountings = $this->repository->findAllByReferenceWithLock($reference);
 
-            if ($accounting === null) {
+            if ($accountings->isEmpty()) {
                 return;
             }
 
-            $tenantId = $accounting->tenant_id;
+            foreach ($accountings as $accounting) {
+            $this->accountingDayService->assertDayEditable($accounting->accountingDay);
+            }
+
+            $tenantId = $accountings->first()->tenant_id;
+
+            foreach ($accountings as $accounting) {
             $this->repository->delete($accounting);
+            }
         });
 
         $this->flushListCache($tenantId);
@@ -210,17 +294,23 @@ class TenantAccountingTransactionService extends BaseTenantService
 
     private function createForReference(Model $reference, string $description, string $direction, float $amount, AccountingCategory $category, ?int $createdBy): TenantAccountingTransactions
     {
-        $accounting = $this->repository->create([
-            'tenant_id' => $this->resolveCurrentTenantId(),
-            'description' => $description,
-            'transaction_direction' => $direction,
-            'accounting_category' => $category,
-            'amount' => $amount,
-            'occurred_at' => now(),
-            'created_by' => $createdBy,
-            'reference_id' => $reference->getKey(),
-            'reference_type' => $reference::class,
-        ]);
+        $accounting = DB::transaction(function () use ($reference, $description, $direction, $amount, $category, $createdBy): TenantAccountingTransactions {
+            $day = $this->accountingDayService->ensureOpenForTransaction($createdBy);
+
+            return $this->repository->create([
+                'tenant_id' => $this->resolveCurrentTenantId(),
+                'accounting_day_id' => $day->id,
+                'business_date' => $day->business_date,
+                'description' => $description,
+                'transaction_direction' => $direction,
+                'accounting_category' => $category,
+                'amount' => $amount,
+                'occurred_at' => now(),
+                'created_by' => $createdBy,
+                'reference_id' => $reference->getKey(),
+                'reference_type' => $reference::class,
+            ]);
+        });
 
         $this->flushListCache();
 
@@ -238,6 +328,16 @@ class TenantAccountingTransactionService extends BaseTenantService
                 return;
             }
 
+            $financialChange = $accounting->transaction_direction !== $direction
+                || $accounting->accounting_category !== $category
+                || abs((float) $accounting->amount - $amount) > 0.00005;
+
+            if ($financialChange) {
+            $this->accountingDayService->assertDayEditable($accounting->accountingDay);
+            } elseif (! $this->accountingDayService->isDayEditable($accounting->accountingDay)) {
+                return;
+            }
+
             $this->repository->update($accounting, [
                 'description' => $description,
                 'transaction_direction' => $direction,
@@ -249,6 +349,15 @@ class TenantAccountingTransactionService extends BaseTenantService
         $this->flushListCache();
     }
 
+    public function assertReferenceFinancialDataEditable(Model $reference): void
+    {
+        $accountings = $this->repository->findAllByReference($reference);
+
+        foreach ($accountings as $accounting) {
+            $this->accountingDayService->assertDayEditable($accounting->accountingDay);
+        }
+    }
+
     private function rememberList(string $namespace, int $perPage, callable $paginator): TenantAccountingListPage
     {
         $this->permissionService->authorizeAccountingList();
@@ -256,7 +365,7 @@ class TenantAccountingTransactionService extends BaseTenantService
         $version = $this->tenantScopedCacheKeys->currentVersion($namespace);
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey($namespace, $version, $page, $perPage),
+            $this->tenantScopedCacheKeys->paginatedListKey($namespace, $version, $page, $perPage).':date:'.$this->accountingDayService->currentBusinessDate(),
             now()->addSeconds(self::LIST_CACHE_TTL_SECONDS),
             fn (): TenantAccountingListPage => TenantAccountingListPage::fromPaginator($paginator()),
         );
