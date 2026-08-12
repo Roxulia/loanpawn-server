@@ -2,25 +2,27 @@
 
 namespace App\Http\Controllers\PlatformModule\Web;
 
+use App\DataObjects\RequestObjects\AccountingDayScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantCreate;
 use App\DataObjects\RequestObjects\TenantRequestCreate;
 use App\DataObjects\RequestObjects\TenantUpdate;
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
+use App\Services\PlatformModule\PackageService;
+use App\Services\PlatformModule\PlatformTenantAccountingDayScheduleService;
 use App\Services\PlatformModule\PlatformTenantPageService;
 use App\Services\PlatformModule\TenantRequestService;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\PlatformModule\TenantServices\TenantManagementService;
 use App\Services\TenantModule\TenantSsoService;
-use App\Services\PlatformModule\TenantServices\TenantLicenseService;
-use App\Exceptions\ApiException;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Services\PlatformModule\PackageService;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 
 class TenantManagementController extends Controller
 {
@@ -31,8 +33,8 @@ class TenantManagementController extends Controller
         private TenantSsoService $tenantSsoService,
         private TenantLicenseService $tenantLicenseService,
         private PackageService $packageService,
-    ) {
-    }
+        private PlatformTenantAccountingDayScheduleService $accountingDayScheduleService,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -92,6 +94,7 @@ class TenantManagementController extends Controller
                     requestedCategoryId: $selectedPlan->category_id, resetLicenseTermOnApproval: true,
                 ));
             }
+
             return [$tenant, $tenantRequest];
         });
 
@@ -108,12 +111,43 @@ class TenantManagementController extends Controller
     {
         $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
 
+        $canManageAccountingSchedule = $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'automatic_open_close');
+
         return view('platform.tenants.settings', [
             'tenant' => $ownedTenant,
             'planOptions' => $this->tenantPageService->activePaidPlansExcept($ownedTenant->license?->plan_type),
             'canManageBranding' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'branding_management'),
             'canManageSubdomain' => $this->tenantLicenseService->tenantHasFeature($ownedTenant->id, 'subdomain_available'),
+            'canManageAccountingSchedule' => $canManageAccountingSchedule,
+            'accountingSchedule' => $canManageAccountingSchedule ? $this->accountingDayScheduleService->schedule($ownedTenant->id)->toArray() : null,
         ]);
+    }
+
+    public function updateAccountingSchedule(Request $request, int $tenant): RedirectResponse
+    {
+        $days = collect($request->input('days', []))->map(function (array $day): array {
+            $day['is_enabled'] = filter_var($day['is_enabled'] ?? false, FILTER_VALIDATE_BOOL);
+
+            return $day;
+        })->all();
+
+        $validated = validator(['days' => $days], [
+            'days' => ['required', 'array', 'size:7'],
+            'days.*.weekday' => ['required', 'integer', 'between:0,6', 'distinct'],
+            'days.*.is_enabled' => ['required', 'boolean'],
+            'days.*.open_time' => ['required', 'date_format:H:i'],
+            'days.*.close_time' => ['required', 'date_format:H:i'],
+        ])->validate();
+
+        foreach ($validated['days'] as $index => $day) {
+            if ($day['close_time'] <= $day['open_time']) {
+                return back()->withErrors(["days.{$index}.close_time" => 'Close time must be after open time.'])->withInput();
+            }
+        }
+
+        $this->accountingDayScheduleService->update($tenant, new AccountingDayScheduleUpdate($validated['days']));
+
+        return redirect()->route('platform.tenants.edit', $tenant)->with('status', 'Accounting day schedule updated successfully.');
     }
 
     public function update(Request $request, int $tenant): RedirectResponse
@@ -168,7 +202,7 @@ class TenantManagementController extends Controller
 
     public function requestPlanChange(Request $request, int $tenant): RedirectResponse
     {
-        try{
+        try {
             $this->tenantPageService->findOwnedTenant($tenant);
 
             $validated = $request->validate([
@@ -189,8 +223,7 @@ class TenantManagementController extends Controller
                 ->route('platform.billing.index')
                 ->with('status', $this->responseMessage(MessageCode::PlatformPlanChangeRequestCreated))
                 ->with('open_payment_tenant_request_id', $tenantRequest->id);
-        }
-        catch (ApiException $exception) {
+        } catch (ApiException $exception) {
             return back()
                 ->withInput()
                 ->with('error', $exception->getMessage());
@@ -224,8 +257,7 @@ class TenantManagementController extends Controller
                 ->route('platform.billing.index')
                 ->with('status', $this->responseMessage(MessageCode::PlatformExtensionRequestCreated))
                 ->with('open_payment_tenant_request_id', $tenantRequest->id);
-        }
-        catch (ApiException $exception) {
+        } catch (ApiException $exception) {
             return back()
                 ->withInput()
                 ->with('error', $exception->getMessage());

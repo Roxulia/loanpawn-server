@@ -10,9 +10,9 @@ use App\Http\Controllers\PlatformModule\Admin\AdminIssuedTicketController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentQrController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPlanManagementController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
-use App\Http\Controllers\PlatformModule\Admin\AdminPlanManagementController;
 use App\Http\Controllers\PlatformModule\AuthController;
 use App\Http\Controllers\PlatformModule\LanguageController;
 use App\Http\Controllers\PlatformModule\Web\BillingManagementController;
@@ -62,15 +62,15 @@ Route::get('/robots.txt', function () {
         $lines[] = '';
     }
 
-    $lines[] = 'Sitemap: ' . rtrim((string) config('app.url'), '/') . '/sitemap.xml';
+    $lines[] = 'Sitemap: '.rtrim((string) config('app.url'), '/').'/sitemap.xml';
 
-    return response(implode("\n", $lines) . "\n", 200)
+    return response(implode("\n", $lines)."\n", 200)
         ->header('Content-Type', 'text/plain; charset=UTF-8');
 })->name('seo.robots');
 
 Route::get('/sitemap.xml', function () {
     $canonicalUrl = htmlspecialchars(
-        rtrim((string) config('app.url'), '/') . '/',
+        rtrim((string) config('app.url'), '/').'/',
         ENT_XML1 | ENT_QUOTES,
         'UTF-8'
     );
@@ -183,6 +183,7 @@ Route::name('platform.')->group(function () {
             Route::put('/{tenant}/settings', 'update')
                 ->middleware('platform.tenant.submitted-feature:subdomain_available,subdomain')
                 ->name('update');
+            Route::put('/{tenant}/accounting-day-schedule', 'updateAccountingSchedule')->name('accounting-day-schedule.update');
             Route::post('/{tenant}/upgrade-request', 'requestPlanChange')->name('upgrade-request');
             Route::post('/{tenant}/extension-request', 'requestLicenseExtension')->name('extension-request');
             Route::post('/{tenant}/open-app', 'openApp')->name('open-app');

@@ -5,7 +5,6 @@ namespace App\Services\PawnModule\LoanContractServices;
 use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\ResponseObjects\LoanContractSlipDetail;
-use App\Enums\AccountingCategory;
 use App\Exceptions\InvalidSlipExpiryDuration;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
@@ -101,11 +100,10 @@ class ManagementService extends BaseTenantService
                 $this->collateralItemService->createForSlip($slip, $request->collateralItems);
                 $this->interestFlowService->createInitialSchedule($slip, $createdBy);
                 $this->tenantLicenseService->incrementCurrentMonthSlipCount($tenantId);
-                $this->tenantAccountingService->createOutgoingForReference(
+                $this->tenantAccountingService->recordLoanCreation(
                     $slip,
                     'Loan Contract Transaction',
                     $request->loanAmount,
-                    AccountingCategory::Asset,
                     $createdBy
                 );
 

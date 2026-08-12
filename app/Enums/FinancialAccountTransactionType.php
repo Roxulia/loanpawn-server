@@ -5,10 +5,10 @@ namespace App\Enums;
 enum FinancialAccountTransactionType: string
 {
     case OpeningBalance = 'OPENING_BALANCE';
-    case PawnLoanDisbursement = 'PAWN_LOAN_DISBURSEMENT';
+    case PawnLoanCreation = 'PAWN_LOAN_CREATION';
     case PawnInterestPayment = 'PAWN_INTEREST_PAYMENT';
     case PawnRedemption = 'PAWN_REDEMPTION';
-    case DebtDisbursement = 'DEBT_DISBURSEMENT';
+    case DebtCreation = 'DEBT_CREATION';
     case DebtPayment = 'DEBT_PAYMENT';
     case BusinessLoanReceipt = 'BUSINESS_LOAN_RECEIPT';
     case BusinessLoanPayment = 'BUSINESS_LOAN_PAYMENT';

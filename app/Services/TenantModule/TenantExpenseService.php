@@ -7,7 +7,6 @@ use App\DataObjects\RequestObjects\TenantExpenseUpdate;
 use App\DataObjects\ResponseObjects\TenantExpenseDetail;
 use App\DataObjects\ResponseObjects\TenantExpenseFullDetail;
 use App\DataObjects\ResponseObjects\TenantExpenseListPage;
-use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantExpense;
@@ -94,11 +93,10 @@ class TenantExpenseService extends BaseTenantService
                     'created_by' => $request->createdBy,
                 ]);
 
-                $this->tenantAccountingService->createOutgoingForReference(
+                $this->tenantAccountingService->recordExpenseCreation(
                     $expense,
                     $expense->description,
                     (float) $expense->amount,
-                    AccountingCategory::Expense,
                     $expense->created_by
                 );
 
@@ -192,11 +190,10 @@ class TenantExpenseService extends BaseTenantService
             $updatedExpense = DB::transaction(function () use ($expense, $data, $original, $auditFields) {
                 $updatedExpense = $this->repository->updateWithLock($expense, $data);
 
-                $this->tenantAccountingService->syncOutgoingForReference(
+                $this->tenantAccountingService->syncExpense(
                     $updatedExpense,
                     $updatedExpense->description,
                     (float) $updatedExpense->amount,
-                    AccountingCategory::Expense,
                 );
 
                 $after = $updatedExpense->only($auditFields);

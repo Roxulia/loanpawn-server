@@ -6,7 +6,6 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\ResponseObjects\TenantDebtDetail;
 use App\DataObjects\ResponseObjects\TenantDebtListPage;
-use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
@@ -160,22 +159,13 @@ class TenantDebtService extends BaseTenantService
                 'created_by' => $request->createdBy,
             ]);
 
-            if ($operationType === 'internal') {
-                $this->tenantAccountingService->createInternalTransfer(
-                    $debt,
-                    $debt->description,
-                    (float) $debt->amount,
-                    $debt->created_by
-                );
-            } else {
-                $this->tenantAccountingService->createOutgoingForReference(
-                    $debt,
-                    $debt->description,
-                    (float) $debt->amount,
-                    AccountingCategory::Asset,
-                    $debt->created_by
-                );
-            }
+            $this->tenantAccountingService->recordDebtCreation(
+                $debt,
+                $debt->description,
+                (float) $debt->amount,
+                $operationType === 'internal',
+                $debt->created_by
+            );
 
             $this->tenantAuditLogService->log(
                 'tenant_debt.created',
@@ -263,11 +253,10 @@ class TenantDebtService extends BaseTenantService
         $updatedDebt = DB::transaction(function () use ($debt, $data, $original) {
             $updatedDebt = $this->repository->updateWithLock($debt, $data);
 
-            $this->tenantAccountingService->syncOutgoingForReference(
+            $this->tenantAccountingService->syncDebt(
                 $updatedDebt,
                 $updatedDebt->description,
                 (float) $updatedDebt->amount,
-                AccountingCategory::Asset,
             );
 
             $this->tenantAuditLogService->log(
@@ -400,22 +389,20 @@ class TenantDebtService extends BaseTenantService
                 'accepted_by' => $this->resolveCurrentTenantUserId(),
             ]);
 
-            $this->tenantAccountingService->recordDebtPaymentForReference(
+            $this->tenantAccountingService->recordDebtPayment(
                 $updatedDebt,
                 "Payment for debt: {$updatedDebt->description}",
                 (float) $amountPaid,
-                AccountingCategory::Asset,
                 $this->resolveCurrentTenantUserId()
             );
 
             $changeAmount = $amountPaid - (float) $updatedDebt->amount;
 
             if ($changeAmount > 0.0) {
-                $this->tenantAccountingService->createOutgoingForReference(
+                $this->tenantAccountingService->recordDebtPaymentChange(
                     $updatedDebt,
                     "Debt Payment Change: {$updatedDebt->description}",
                     $changeAmount,
-                    AccountingCategory::Asset,
                     $this->resolveCurrentTenantUserId()
                 );
             }

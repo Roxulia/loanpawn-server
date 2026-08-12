@@ -6,7 +6,6 @@ use App\DataObjects\RequestObjects\TenantCapitalCreate;
 use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\DataObjects\ResponseObjects\TenantCapitalDetail;
 use App\DataObjects\ResponseObjects\TenantCapitalListPage;
-use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantCapital;
@@ -73,11 +72,10 @@ class TenantCapitalService extends BaseTenantService
                     'created_by' => $request->createdBy,
                 ]);
 
-                $this->tenantAccountingService->createIncomingForReference(
+                $this->tenantAccountingService->recordCapitalCreation(
                     $capital,
                     $capital->description,
                     (float) $capital->amount,
-                    AccountingCategory::Equity,
                     $capital->created_by
                 );
 
@@ -150,11 +148,10 @@ class TenantCapitalService extends BaseTenantService
         $updatedCapital = DB::transaction(function () use ($capital, $data, $original) {
             $updatedCapital = $this->repository->updateWithLock($capital, $data);
 
-            $this->tenantAccountingService->syncIncomingForReference(
+            $this->tenantAccountingService->syncCapital(
                 $updatedCapital,
                 $updatedCapital->description,
                 (float) $updatedCapital->amount,
-                AccountingCategory::Equity,
             );
 
             $this->tenantAuditLogService->log(

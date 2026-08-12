@@ -3,7 +3,6 @@
 namespace App\Services\PawnModule;
 
 use App\DataObjects\RequestObjects\InterestPaymentAccept;
-use App\DataObjects\RequestObjects\TenantAccountingCreate;
 use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\DataObjects\ResponseObjects\InterestCalculationResult;
@@ -582,14 +581,12 @@ class InterestFlowService extends BaseTenantService
             return;
         }
 
-        $this->tenantAccountingService->create(new TenantAccountingCreate(
-            description: 'Interest Payment Transaction',
-            transactionType: 'incoming',
-            amount: (float) $payment->payment_amount,
-            createdBy: $payment->created_by,
-            referenceId: $payment->id,
-            referenceType: PawnInterestPayment::class
-        ), AccountingCategory::Revenue);
+        $this->tenantAccountingService->recordInterestPayment(
+            $payment,
+            'Interest Payment Transaction',
+            (float) $payment->payment_amount,
+            $payment->created_by,
+        );
     }
 
     protected function recordInterestPaymentChangeAccounting(PawnInterestPayment $payment): void
@@ -598,14 +595,12 @@ class InterestFlowService extends BaseTenantService
             return;
         }
 
-        $this->tenantAccountingService->create(new TenantAccountingCreate(
-            description: 'Interest Payment Change Transaction',
-            transactionType: 'outgoing',
-            amount: (float) $payment->change_amount,
-            createdBy: $payment->created_by,
-            referenceId: $payment->id,
-            referenceType: PawnInterestPayment::class
-        ), AccountingCategory::Asset);
+        $this->tenantAccountingService->recordInterestPaymentChange(
+            $payment,
+            'Interest Payment Change Transaction',
+            (float) $payment->change_amount,
+            $payment->created_by,
+        );
     }
 
     protected function logInterestPaymentUpdate(PawnInterestPayment $payment): void

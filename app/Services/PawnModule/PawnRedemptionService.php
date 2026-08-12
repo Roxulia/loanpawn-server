@@ -3,12 +3,10 @@
 namespace App\Services\PawnModule;
 
 use App\DataObjects\RequestObjects\PawnRedemptionCreate;
-use App\DataObjects\RequestObjects\TenantAccountingCreate;
 use App\DataObjects\ResponseObjects\InterestPaymentHistoryItem;
 use App\DataObjects\ResponseObjects\PawnRedemptionDetail;
 use App\DataObjects\ResponseObjects\PawnRedemptionListPage;
 use App\DataObjects\ResponseObjects\PawnRedemptionResult;
-use App\Enums\AccountingCategory;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
@@ -134,24 +132,20 @@ class PawnRedemptionService extends BaseTenantService
                     $createdBy
                 );
 
-                $this->tenantAccountingService->create(new TenantAccountingCreate(
-                    description: 'Redemption Transaction',
-                    transactionType: 'incoming',
-                    amount: (float) $redemption->received_amount,
-                    createdBy: $createdBy,
-                    referenceId: $redemption->id,
-                    referenceType: PawnRedemption::class
-                ), AccountingCategory::Asset);
+                $this->tenantAccountingService->recordLoanRedemption(
+                    $redemption,
+                    'Redemption Transaction',
+                    (float) $redemption->received_amount,
+                    $createdBy,
+                );
 
                 if ((float) $redemption->change_amount > 0.0) {
-                    $this->tenantAccountingService->create(new TenantAccountingCreate(
-                        description: 'Redemption Change Transaction',
-                        transactionType: 'outgoing',
-                        amount: (float) $redemption->change_amount,
-                        createdBy: $createdBy,
-                        referenceId: $redemption->id,
-                        referenceType: PawnRedemption::class
-                    ), AccountingCategory::Asset);
+                    $this->tenantAccountingService->recordRedemptionChange(
+                        $redemption,
+                        'Redemption Change Transaction',
+                        (float) $redemption->change_amount,
+                        $createdBy,
+                    );
                 }
 
                 return $redemption;
