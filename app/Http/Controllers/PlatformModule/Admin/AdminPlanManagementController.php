@@ -64,22 +64,7 @@ class AdminPlanManagementController extends Controller
         }
 
         $category->delete();
-    {
-        $validated = $this->validatePlan($request);
-        $category = TenantCategory::query()->where('is_deleted', false)->findOrFail($validated['category_id']);
-
-        if ($message = $this->planInvariantError($validated, $category)) {
-            return back()->withInput()->with('error', $message);
-        }
-
-        $plan = Package::query()->create($validated);
-        Feature::query()->select('id')->each(fn (Feature $feature) => PackageFeature::query()->create([
-            'package_id' => $plan->id,
-            'feature_id' => $feature->id,
-            'is_enabled' => false,
-        ]));
-
-        return back()->with('status', 'Plan created. Configure its feature assignments below.');
+        return back()->with('status', 'Unused category deleted.');
     }
 
     public function updatePlan(Request $request, Package $plan): RedirectResponse

@@ -26,7 +26,7 @@ return new class extends Migration
              * outgoing
              * internal
              */
-            $table->string('transaction_type', 30);
+            $table->string('transaction_direction', 30);
 
             /*
              * Accounting classification:
@@ -42,18 +42,6 @@ return new class extends Migration
              * classification cannot be determined safely.
              */
             $table->string('accounting_category', 30)->nullable();
-
-            /*
-             * Optional tenant/system defined revenue/expense category.
-             *
-             * Example:
-             * - Pawn Interest
-             * - Salary
-             * - Electricity
-             * - Rent
-             */
-            $table->unsignedBigInteger('accounting_subcategory_id')->nullable();
-
             /*
              * Amount in the transaction's original currency.
              */
@@ -90,6 +78,7 @@ return new class extends Migration
              * App\Models\CoreModule\TenantExpense
              */
             $table->nullableMorphs('reference');
+            $table->unsignedBigInteger('reference_id')->nullable();
 
             /*
              * Actual business transaction date/time.
@@ -130,6 +119,24 @@ return new class extends Migration
             $table->boolean('is_deleted')->default(false);
 
             $table->timestamps();
+
+            $table->foreign('currency_id')
+                ->references('id')
+                ->on('currencies')
+                ->cascadeOnUpdate()
+                ->nullOnDelete();
+
+            $table->foreign('created_by')
+                ->references('id')
+                ->on('tenant_users')
+                ->cascadeOnUpdate()
+                ->nullOnDelete();
+
+            $table->foreign('legacy_accounting_id')
+                ->references('id')
+                ->on('tenant_accountings')
+                ->cascadeOnUpdate()
+                ->nullOnDelete();
 
             /*
              * Indexes

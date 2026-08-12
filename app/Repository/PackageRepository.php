@@ -8,7 +8,6 @@ use App\Models\PlatformModule\PackageFeature;
 use App\Models\PlatformModule\TenantCategory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use App\Models\PlatformModule\TenantCategory;
 
 class PackageRepository
 {

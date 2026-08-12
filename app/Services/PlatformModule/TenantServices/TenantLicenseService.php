@@ -20,7 +20,6 @@ use App\Services\PlatformModule\PackageService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use App\Models\PlatformModule\Package;
 
 class TenantLicenseService extends BaseTenantService
 {
