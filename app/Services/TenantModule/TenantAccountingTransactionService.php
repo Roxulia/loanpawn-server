@@ -272,9 +272,14 @@ class TenantAccountingTransactionService extends BaseTenantService
         return $this->recordOperation($reference, $description, 'outgoing', $category, $amount, $createdBy);
     }
 
-    public function createInternalTransfer(Model $reference, string $description, float $amount, ?int $createdBy = null): TenantAccountingTransactions
+    public function createInternalTransfer(Model $reference, string $description, float $amount, ?int $createdBy = null, ?Currency $currency = null, ?float $exchangeRate = null): TenantAccountingTransactions
     {
-        return $this->recordOperation($reference, $description, 'internal', AccountingCategory::Internal, $amount, $createdBy);
+        return $this->recordOperation($reference, $description, 'internal', AccountingCategory::Internal, $amount, $createdBy, $currency, $exchangeRate);
+    }
+
+    public function recordTransferFee(Model $reference, string $description, float $amount, Currency $currency, ?int $createdBy = null): TenantAccountingTransactions
+    {
+        return $this->recordOperation($reference, $description, 'outgoing', AccountingCategory::Expense, $amount, $createdBy, $currency);
     }
 
     public function syncOutgoingForReference(Model $reference, string $description, float $amount, AccountingCategory $category): void

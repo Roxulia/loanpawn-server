@@ -232,6 +232,9 @@ class TenantDebtService extends BaseTenantService
         $debt = $this->findDebtForCurrentTenant($request->debtId);
         $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->createdAccountId);
         $data = [];
+        if ($debt->is_paid) {
+            throw new InvalidTenantRequest('A paid debt cannot be edited.');
+        }
         if ($debt->update_key !== $request->updateKey) {
             throw new AlreadyUpdatedException('This item is already Updated.Please refresh');
         }
@@ -263,6 +266,7 @@ class TenantDebtService extends BaseTenantService
         $originalCustomerId = $debt->customer_id ?? $debt->slip?->customer_id;
 
         $updatedDebt = DB::transaction(function () use ($debt, $data, $original, $financialAccount) {
+            $this->financialAccountTransactionService->reverseReference($financialAccount, $debt->code, TenantDebt::class, $this->resolveCurrentTenantUserId());
             $updatedDebt = $this->repository->updateWithLock($debt, $data);
 
             $this->tenantAccountingService->syncDebt(
@@ -271,6 +275,7 @@ class TenantDebtService extends BaseTenantService
                 (float) $updatedDebt->amount,
                 $financialAccount->currency,
             );
+            $this->financialAccountTransactionService->recordDebtCreation($financialAccount, (float) $updatedDebt->amount, $updatedDebt->code, TenantDebt::class, $updatedDebt->description, $this->resolveCurrentTenantUserId());
 
             $this->tenantAuditLogService->log(
                 'tenant_debt.updated',
@@ -335,6 +340,10 @@ class TenantDebtService extends BaseTenantService
             );
 
             $this->tenantAccountingService->deleteForReference($debt);
+            $account = $debt->created_account_id === null
+                ? $this->multiAccountManagement->findActiveCurrentTenantAccount()
+                : $this->multiAccountManagement->findCurrentTenantAccountById((int) $debt->created_account_id);
+            $this->financialAccountTransactionService->reverseReference($account, $debt->code, TenantDebt::class, $this->resolveCurrentTenantUserId());
             $this->repository->delete($debt);
             $this->recalculateTrustScoreForDebt($debt);
         });
@@ -393,7 +402,7 @@ class TenantDebtService extends BaseTenantService
         return $this->repository->findUnpaidBySlipIdExceptCurrency($slipId, $currencyId);
     }
 
-    public function markAsPaid(int $debtId, float $amountPaid, int $acceptAccountId): array
+    public function markAsPaid(int $debtId, float $amountPaid, ?int $acceptAccountId = null): array
     {
         $this->permissionService->authorizeDebtUpdate();
         $acceptAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($acceptAccountId);

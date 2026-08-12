@@ -11,7 +11,7 @@ class PawnRedemptionCreate extends BaseDataObject
         public string $slipNo,
         public float $calculatedTotal,
         public float $paymentAmount,
-        public int $accountId,
+        public ?int $accountId,
         public array $debts,
         public array $interests,
         public ?CarbonInterface $redemptionAt = null,

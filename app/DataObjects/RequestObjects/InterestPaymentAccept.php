@@ -13,7 +13,7 @@ class InterestPaymentAccept extends BaseDataObject
     public function __construct(
         public int $slipUpdateKey,
         public float $paymentAmount,
-        public int $acceptAccountId,
+        public ?int $acceptAccountId,
         public bool $recordDebt,
         public array $interestBreakdown,
         public ?string $idempotencyKey = null,

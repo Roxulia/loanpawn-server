@@ -14,7 +14,7 @@ class LoanContractSlipCreate extends BaseDataObject
         public array $collateralItems,
         public float $loanAmount,
         public float $interestRate,
-        public int $accountId,
+        public ?int $accountId,
         public ?int $interestTypeId = null,
         public ?string $notes = null,
         public int $expiryQuota = 0,

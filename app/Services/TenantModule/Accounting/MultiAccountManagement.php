@@ -40,9 +40,12 @@ class MultiAccountManagement extends BaseTenantService
         return FinancialAccountResource::fromModel($this->findCurrentTenantAccount($accountCode));
     }
 
-    public function findActiveCurrentTenantAccount(int $accountId): FinancialAccount
+    public function findActiveCurrentTenantAccount(?int $accountId = null): FinancialAccount
     {
-        $account = $this->repository->findActiveById($this->resolveCurrentTenantId(), $accountId);
+        $tenantId = $this->resolveCurrentTenantId();
+        $account = $accountId === null
+            ? $this->repository->activeDefaultAccount($tenantId)
+            : $this->repository->findActiveById($tenantId, $accountId);
 
         if (! $account) {
             throw new TenantAccessDenied('Active financial account not found for the current tenant.');
@@ -50,6 +53,16 @@ class MultiAccountManagement extends BaseTenantService
 
         if ($account->currency === null || ! $account->currency->is_active) {
             throw new InvalidTenantRequest('The selected financial account must have an active currency.');
+        }
+
+        return $account;
+    }
+
+    public function findCurrentTenantAccountById(int $accountId): FinancialAccount
+    {
+        $account = $this->repository->findById($this->resolveCurrentTenantId(), $accountId);
+        if (! $account) {
+            throw new TenantAccessDenied('Financial account not found for the current tenant.');
         }
 
         return $account;
@@ -78,7 +91,7 @@ class MultiAccountManagement extends BaseTenantService
                 'account_number' => $this->nullableTrim($request->accountNumber),
                 'account_name' => trim($request->accountName),
                 'account_code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'financial_accounts', CarbonImmutable::now()),
-                'balance' => $request->balance,
+                'balance' => 0,
                 'is_active' => true,
                 'is_default' => false,
                 'is_deleted' => false,
@@ -92,7 +105,7 @@ class MultiAccountManagement extends BaseTenantService
             return $account;
         });
 
-        return FinancialAccountResource::fromModel($account->load(['accountType', 'currency']));
+        return FinancialAccountResource::fromModel($this->repository->findById($tenantId, $account->id));
     }
 
     public function update(string $accountCode, UpdateFinancialAccountRequest $request): FinancialAccountResource
@@ -136,6 +149,10 @@ class MultiAccountManagement extends BaseTenantService
             $account = $this->lockedAccount($tenantId, $accountCode);
             if ($account->is_default) {
                 throw new InvalidTenantRequest('The default financial account cannot be deleted. Select another default account first.');
+            }
+
+            if (abs((float) $account->balance) >= 0.00005) {
+                throw new InvalidTenantRequest('A financial account with a non-zero balance cannot be deleted. Transfer or adjust its balance first.');
             }
 
             $this->repository->update($account, [

@@ -207,6 +207,7 @@ class TenantExpenseService extends BaseTenantService
 
         try {
             $updatedExpense = DB::transaction(function () use ($expense, $data, $original, $auditFields, $financialAccount) {
+                $this->financialAccountTransactionService->reverseReference($financialAccount, $expense->code, TenantExpense::class, $this->resolveCurrentTenantUserId());
                 $updatedExpense = $this->repository->updateWithLock($expense, $data);
 
                 $this->tenantAccountingService->syncExpense(
@@ -215,6 +216,7 @@ class TenantExpenseService extends BaseTenantService
                     (float) $updatedExpense->amount,
                     $financialAccount->currency,
                 );
+                $this->financialAccountTransactionService->recordExpensePayment($financialAccount, (float) $updatedExpense->amount, $updatedExpense->code, TenantExpense::class, $updatedExpense->description, $this->resolveCurrentTenantUserId());
 
                 $after = $updatedExpense->only($auditFields);
                 $after['has_image_reference'] = filled($updatedExpense->image_reference);
@@ -304,6 +306,10 @@ class TenantExpenseService extends BaseTenantService
             );
 
             $this->tenantAccountingService->deleteForReference($expense);
+            $account = $expense->account_id === null
+                ? $this->multiAccountManagement->findActiveCurrentTenantAccount()
+                : $this->multiAccountManagement->findCurrentTenantAccountById((int) $expense->account_id);
+            $this->financialAccountTransactionService->reverseReference($account, $expense->code, TenantExpense::class, $this->resolveCurrentTenantUserId());
             $this->repository->delete($expense);
         });
 

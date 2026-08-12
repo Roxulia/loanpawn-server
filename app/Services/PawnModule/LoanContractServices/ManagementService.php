@@ -193,6 +193,10 @@ class ManagementService extends BaseTenantService
             );
 
             $this->tenantAccountingService->deleteForReference($targetSlip);
+            $account = $targetSlip->account_id === null
+                ? $this->multiAccountManagement->findActiveCurrentTenantAccount()
+                : $this->multiAccountManagement->findCurrentTenantAccountById((int) $targetSlip->account_id);
+            $this->financialAccountTransactionService->reverseReference($account, $targetSlip->slip_no, PawnLoanContractSlip::class, $this->resolveCurrentTenantUserId());
             $this->repository->markSlipItemsDeleted($targetSlip);
             $this->repository->delete($targetSlip);
             $this->customerTrustScoreService->recalculateForCustomer((int) $targetSlip->customer_id);

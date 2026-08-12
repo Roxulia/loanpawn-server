@@ -48,7 +48,7 @@ class TenantCapitalController extends Controller
         $capital = $this->capitalService->createForCurrentTenant(new TenantCapitalCreate(
             description: $validated['description'],
             amount: (float) $validated['amount'],
-            accountId: (int) $validated['account_id'],
+            accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
@@ -68,7 +68,7 @@ class TenantCapitalController extends Controller
             capitalId: $this->capitalService->resolveIdByCode($capitalCode),
             code: $capitalCode,
             updateKey: $validated['update_key'] ?? 0,
-            accountId: (int) $validated['account_id'],
+            accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             description: $validated['description'] ?? null,
             amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
         ));
@@ -87,7 +87,7 @@ class TenantCapitalController extends Controller
     {
         return [
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
-            'account_id' => ['required', 'integer', 'min:1'],
+            'account_id' => ['nullable', 'integer', 'min:1'],
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
             'update_key' => ['nullable', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],

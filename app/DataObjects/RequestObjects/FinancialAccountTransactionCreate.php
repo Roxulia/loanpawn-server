@@ -19,5 +19,6 @@ class FinancialAccountTransactionCreate extends BaseDataObject
         public ?string $note = null,
         public ?int $createdBy = null,
         public ?int $relatedTransactionId = null,
+        public ?int $reversedTransactionId = null,
     ) {}
 }

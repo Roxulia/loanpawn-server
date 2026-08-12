@@ -165,6 +165,7 @@ class TenantCapitalService extends BaseTenantService
         $original = $capital->only(array_keys($data));
 
         $updatedCapital = DB::transaction(function () use ($capital, $data, $original, $financialAccount) {
+            $this->financialAccountTransactionService->reverseReference($financialAccount, $capital->code, TenantCapital::class, $this->resolveCurrentTenantUserId());
             $updatedCapital = $this->repository->updateWithLock($capital, $data);
 
             $this->tenantAccountingService->syncCapital(
@@ -173,6 +174,7 @@ class TenantCapitalService extends BaseTenantService
                 (float) $updatedCapital->amount,
                 $financialAccount->currency,
             );
+            $this->financialAccountTransactionService->recordCapitalContribution($financialAccount, (float) $updatedCapital->amount, $updatedCapital->code, TenantCapital::class, $updatedCapital->description, $this->resolveCurrentTenantUserId());
 
             $this->tenantAuditLogService->log(
                 'tenant_capital.updated',
@@ -226,6 +228,10 @@ class TenantCapitalService extends BaseTenantService
             );
 
             $this->tenantAccountingService->deleteForReference($capital);
+            $account = $capital->account_id === null
+                ? $this->multiAccountManagement->findActiveCurrentTenantAccount()
+                : $this->multiAccountManagement->findCurrentTenantAccountById((int) $capital->account_id);
+            $this->financialAccountTransactionService->reverseReference($account, $capital->code, TenantCapital::class, $this->resolveCurrentTenantUserId());
             $this->repository->delete($capital);
         });
 

@@ -48,7 +48,7 @@ class TenantDebtController extends Controller
         $debt = $this->debtService->createExternalDebt(new TenantDebtCreate(
             amount: (float) $validated['amount'],
             description: $validated['description'],
-            createdAccountId: (int) $validated['created_account_id'],
+            createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
             slipCode: $validated['slip_code'] ?? null,
             customerCode: $validated['customer_code'] ?? null,
             tag: $validated['tag'] ?? null,
@@ -71,7 +71,7 @@ class TenantDebtController extends Controller
             debtId: $this->debtService->resolveIdByCode($debtCode),
             code: $debtCode,
             updateKey: $validated['update_key'] ?? 0,
-            createdAccountId: (int) $validated['created_account_id'],
+            createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
             amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
             description: $validated['description'] ?? null,
             slipId: $validated['slip_id'] ?? null,
@@ -92,7 +92,7 @@ class TenantDebtController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount_paid' => ['required', 'numeric', 'min:0.01'],
-            'accept_account_id' => ['required', 'integer', 'min:1'],
+            'accept_account_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         if ($validator->fails()) {
@@ -103,7 +103,7 @@ class TenantDebtController extends Controller
         $debt = $this->debtService->markAsPaid(
             $this->debtService->resolveIdByCode($debtCode),
             (float) $validated['amount_paid'],
-            (int) $validated['accept_account_id'],
+            isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
         );
 
         return $this->successResponse($debt, $this->responseMessage(MessageCode::TenantDebtPaid));
@@ -113,7 +113,7 @@ class TenantDebtController extends Controller
     {
         return [
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
-            'created_account_id' => ['required', 'integer', 'min:1'],
+            'created_account_id' => ['nullable', 'integer', 'min:1'],
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
             'slip_code' => ['nullable'],
             'customer_code' => ['nullable'],

@@ -9,17 +9,26 @@ use App\Models\FinancialAccount;
 use App\Models\FinancialAccountTransaction;
 use App\Repository\Accounting\FinancialAccountTransactionRepository;
 use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use Illuminate\Support\Facades\DB;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class FinancialAccountTransactionServiceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        DB::shouldReceive('transaction')->andReturnUsing(fn (callable $callback) => $callback());
+    }
+
     #[DataProvider('fixedDirectionOperations')]
     public function test_operation_helpers_record_expected_type_and_direction(string $method, FinancialAccountTransactionType $type, string $direction): void
     {
         $account = $this->account();
         $repository = Mockery::mock(FinancialAccountTransactionRepository::class);
+        $this->expectBalancePosting($repository, $account, $direction === 'debit' ? 2500 : -2500);
         $repository->shouldReceive('create')->once()->with(Mockery::on(function (array $data) use ($type, $direction): bool {
             return $data['transaction_type'] === $type->value
                 && $data['direction'] === $direction
@@ -34,6 +43,7 @@ class FinancialAccountTransactionServiceTest extends TestCase
     {
         $account = $this->account();
         $repository = Mockery::mock(FinancialAccountTransactionRepository::class);
+        $this->expectBalancePosting($repository, $account, 5000);
         $repository->shouldReceive('create')->once()->with(Mockery::on(fn (array $data): bool => $data['transaction_type'] === FinancialAccountTransactionType::OpeningBalance->value
             && $data['direction'] === 'debit'
             && $data['note'] === 'Opening balance'))->andReturn(new FinancialAccountTransaction);
@@ -48,6 +58,7 @@ class FinancialAccountTransactionServiceTest extends TestCase
     {
         $account = $this->account();
         $repository = Mockery::mock(FinancialAccountTransactionRepository::class);
+        $this->expectBalancePosting($repository, $account, -2500);
         $repository->shouldReceive('create')->once()->with(Mockery::on(fn (array $data): bool => $data['transaction_type'] === $type->value && $data['direction'] === 'credit'))->andReturn(new FinancialAccountTransaction);
 
         (new FinancialAccountTransactionService($repository))->{$method}($account, 2500, 'credit');
@@ -56,6 +67,7 @@ class FinancialAccountTransactionServiceTest extends TestCase
     public function test_helper_forwards_reference_and_audit_fields(): void
     {
         $repository = Mockery::mock(FinancialAccountTransactionRepository::class);
+        $this->expectBalancePosting($repository, $this->account(), -1000);
         $repository->shouldReceive('create')->once()->with(Mockery::on(fn (array $data): bool => $data['reference_number'] === 'EXP-100'
             && $data['reference_type'] === 'TenantExpense'
             && $data['note'] === 'Office rent'
@@ -127,8 +139,16 @@ class FinancialAccountTransactionServiceTest extends TestCase
             'id' => 91,
             'tenant_id' => 41,
             'is_deleted' => $isDeleted,
+            'balance' => 0,
+            'allow_negative_balance' => true,
         ]);
 
         return $account;
+    }
+
+    private function expectBalancePosting(FinancialAccountTransactionRepository $repository, FinancialAccount $account, float $expectedBalance): void
+    {
+        $repository->shouldReceive('lockAccount')->once()->with(41, 91)->andReturn($account);
+        $repository->shouldReceive('updateBalance')->once()->with($account, $expectedBalance)->andReturn($account);
     }
 }

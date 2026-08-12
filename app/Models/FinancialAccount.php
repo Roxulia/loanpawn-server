@@ -32,7 +32,7 @@ class FinancialAccount extends Model
     {
         return [
             'update_key' => 'integer',
-            'balance' => 'decimal:2',
+            'balance' => 'decimal:4',
             'is_active' => 'boolean',
             'is_default' => 'boolean',
             'is_deleted' => 'boolean',

@@ -48,7 +48,7 @@ class TenantExpenseController extends Controller
         $expense = $this->expenseService->createForCurrentTenant(new TenantExpenseCreate(
             description: $validated['description'],
             amount: (float) $validated['amount'],
-            accountId: (int) $validated['account_id'],
+            accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             expenseTypeId: $validated['expense_type_id'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
             imageReference: $validated['image_reference'] ?? null,
@@ -70,7 +70,7 @@ class TenantExpenseController extends Controller
             expenseId: $this->expenseService->resolveIdByCode($expenseCode),
             code: $expenseCode,
             updateKey: $validated['update_key'] ?? 0,
-            accountId: (int) $validated['account_id'],
+            accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             description: $validated['description'] ?? null,
             expenseTypeId: $validated['expense_type_id'] ?? null,
             hasExpenseTypeId: array_key_exists('expense_type_id', $validated),
@@ -97,7 +97,7 @@ class TenantExpenseController extends Controller
     {
         $rules = [
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
-            'account_id' => ['required', 'integer', 'min:1'],
+            'account_id' => ['nullable', 'integer', 'min:1'],
             'amount' => $isCreate
                 ? ['required', 'numeric', 'min:0.01']
                 : ['prohibited'],

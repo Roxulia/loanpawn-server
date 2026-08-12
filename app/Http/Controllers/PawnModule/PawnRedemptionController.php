@@ -54,7 +54,7 @@ class PawnRedemptionController extends Controller
             'slip_no' => ['required', 'string', 'max:60'],
             'calculated_total' => ['required', 'numeric', 'min:0'],
             'payment_amount' => ['required', 'numeric', 'min:0'],
-            'account_id' => ['required', 'integer', 'min:1'],
+            'account_id' => ['nullable', 'integer', 'min:1'],
             'interests' => ['present', 'array'],
             'interests.*.id' => ['required', 'integer', 'min:1'],
             'interests.*.update_key' => ['required', 'integer', 'min:0'],
@@ -80,7 +80,7 @@ class PawnRedemptionController extends Controller
             slipNo: $validated['slip_no'],
             calculatedTotal: (float) $validated['calculated_total'],
             paymentAmount: (float) $validated['payment_amount'],
-            accountId: (int) $validated['account_id'],
+            accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             debts: array_map(
                 fn (array $debt): object => (object) [
                     'id' => (int) $debt['id'],

@@ -7,6 +7,7 @@ use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\Tenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FinancialAccountTransaction extends Model
 {
@@ -21,12 +22,13 @@ class FinancialAccountTransaction extends Model
         'note',
         'created_by',
         'related_transaction_id',
+        'reversed_transaction_id',
     ];
 
     protected function casts(): array
     {
         return [
-            'amount' => 'decimal:2',
+            'amount' => 'decimal:4',
             'transaction_type' => FinancialAccountTransactionType::class,
         ];
     }
@@ -49,5 +51,15 @@ class FinancialAccountTransaction extends Model
     public function relatedTransaction(): BelongsTo
     {
         return $this->belongsTo(TenantAccountingTransactions::class, 'related_transaction_id');
+    }
+
+    public function reversedTransaction(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reversed_transaction_id');
+    }
+
+    public function reversals(): HasMany
+    {
+        return $this->hasMany(self::class, 'reversed_transaction_id');
     }
 }

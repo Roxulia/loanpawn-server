@@ -2,6 +2,7 @@
 
 use App\Console\Commands\EnsureDefaultFinancialAccounts;
 use App\Console\Commands\EnsureTenantCurrencySettings;
+use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
@@ -47,6 +48,7 @@ return Application::configure(basePath: dirname(__DIR__))
         RepairAccountingChange::class,
         EnsureDefaultFinancialAccounts::class,
         EnsureTenantCurrencySettings::class,
+        ReconcileFinancialAccountBalances::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogHttpOperation::class);
