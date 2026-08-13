@@ -100,6 +100,7 @@ class PackageSeeder extends Seeder
                             'debt_management',
                             'accounting_type_management',
                             'multi_account_management',
+                            'account_transferable',
                         ], true),
                         'value' => null,
                     ]

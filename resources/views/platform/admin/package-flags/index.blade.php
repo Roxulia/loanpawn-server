@@ -190,11 +190,11 @@
         }
     </style>
 
-    <div class="flag-stack">
+    <div class="admin-stack admin-features-page">
         <form method="POST" action="{{ route('admin.package-flags.plans.update') }}" class="panel" data-resettable-form>
             @csrf
             <div class="section-heading">
-                <h2>Plan</h2>
+                <div><p class="admin-section-kicker">Commercial controls</p><h2>Plan availability and limits</h2><p class="flag-description">Control sales availability and operating quotas for each plan.</p></div>
             </div>
             <div class="flag-list">
                 @foreach ($packages as $package)
@@ -260,7 +260,7 @@
 
         <section class="panel">
             <div class="section-heading">
-                <h2>Feature Management</h2>
+                <div><p class="admin-section-kicker">Global controls</p><h2>Feature management</h2><p class="flag-description">Publish or pause capabilities across the platform.</p></div>
                 <button type="button" class="button primary" data-open-dialog="add-feature-dialog">Add Feature</button>
             </div>
 
@@ -292,7 +292,7 @@
         <form method="POST" action="{{ route('admin.package-flags.feature-assignment.update') }}" class="panel" data-resettable-form>
             @csrf
             <div class="section-heading">
-                <h2>Feature Assignment</h2>
+                <div><p class="admin-section-kicker">Entitlements</p><h2>Feature assignment</h2><p class="flag-description">Choose which capabilities are included in each plan.</p></div>
             </div>
 
             <div class="tabs" role="tablist" aria-label="Plan feature assignments">

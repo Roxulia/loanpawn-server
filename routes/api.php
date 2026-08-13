@@ -219,14 +219,14 @@ Route::prefix('tenant')->group(function () {
                 ->group(function () {
                     Route::get('/', 'index')->middleware('tenant.permission:list_financial_account');
                     Route::post('/', 'store')->middleware('tenant.permission:create_financial_account');
-                    Route::get('transfers', [FinancialAccountTransferController::class, 'index'])->middleware('tenant.permission:list_financial_account');
-                    Route::post('transfers', [FinancialAccountTransferController::class, 'store'])->middleware('tenant.permission:transfer_financial_account');
+                    Route::get('transfers', [FinancialAccountTransferController::class, 'index'])->middleware(['tenant.feature:account_transferable', 'tenant.permission:transfer_financial_account']);
+                    Route::post('transfers', [FinancialAccountTransferController::class, 'store'])->middleware(['tenant.feature:account_transferable', 'tenant.permission:transfer_financial_account']);
                     Route::get('{accountCode}', 'show')->middleware('tenant.permission:list_financial_account');
                     Route::put('{accountCode}', 'update')->middleware('tenant.permission:update_financial_account');
                     Route::delete('{accountCode}', 'destroy')->middleware('tenant.permission:delete_financial_account');
                 });
 
-            Route::middleware('tenant.feature:currency_exchange_management')->group(function () {
+            Route::middleware('tenant.feature:currency_management')->group(function () {
                 Route::prefix('currencies')->controller(TenantCurrencyController::class)->group(function () {
                     Route::get('/', 'index')->middleware('tenant.permission:list_currency');
                     Route::post('/', 'store')->middleware('tenant.permission:create_currency');
@@ -234,14 +234,14 @@ Route::prefix('tenant')->group(function () {
                     Route::put('{code}', 'update')->middleware('tenant.permission:update_currency');
                     Route::delete('{code}', 'destroy')->middleware('tenant.permission:delete_currency');
                 });
-                Route::prefix('exchange-pairs')->controller(TenantExchangeRatePairController::class)->group(function () {
+                Route::prefix('exchange-pairs')->controller(TenantExchangeRatePairController::class)->middleware('tenant.feature:exchange_pair_management')->group(function () {
                     Route::get('/', 'index')->middleware('tenant.permission:list_exchange_pair');
                     Route::post('/', 'store')->middleware('tenant.permission:create_exchange_pair');
                     Route::get('{code}', 'show')->middleware('tenant.permission:list_exchange_pair');
                     Route::put('{code}', 'update')->middleware('tenant.permission:update_exchange_pair');
                     Route::delete('{code}', 'destroy')->middleware('tenant.permission:delete_exchange_pair');
                 });
-                Route::prefix('exchange-rates')->controller(TenantExchangeRateController::class)->group(function () {
+                Route::prefix('exchange-rates')->controller(TenantExchangeRateController::class)->middleware(['tenant.feature:exchange_pair_management', 'tenant.feature:daily_rate_assignment'])->group(function () {
                     Route::get('/', 'index')->middleware('tenant.permission:list_exchange_rate');
                     Route::post('/', 'store')->middleware('tenant.permission:create_exchange_rate');
                     Route::get('daily', 'daily')->middleware('tenant.permission:list_exchange_rate');
@@ -319,9 +319,9 @@ Route::prefix('tenant')->group(function () {
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::get('currencies', [TenantSettingsController::class, 'currencyPreferences'])
-                    ->middleware(['tenant.feature:currency_exchange_management', 'tenant.permission:list_currency']);
+                    ->middleware(['tenant.feature:currency_management', 'tenant.permission:list_currency']);
                 Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])
-                    ->middleware(['tenant.feature:currency_exchange_management', 'tenant.permission:update_currency']);
+                    ->middleware(['tenant.feature:currency_management', 'tenant.permission:update_currency']);
                 Route::get('timezone', [TenantSettingsController::class, 'timezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])

@@ -5,10 +5,11 @@
 @section('pageDescription', __('app.billing.view.payment_qr_management_description'))
 
 @section('content')
+    <div class="admin-stack admin-payment-qr-page">
     <section class="grid two">
         <form class="panel" method="POST" action="{{ route('admin.payment-qrs.store') }}" enctype="multipart/form-data">
             @csrf
-            <p class="metric-label">{{ __('app.billing.view.upload_qr') }}</p>
+            <p class="admin-section-kicker">{{ __('app.billing.view.upload_qr') }}</p>
             <div style="margin-top: 12px;">
                 <label for="qr_image">{{ __('app.billing.view.qr_image') }}</label>
                 <input id="qr_image" type="file" name="qr_image" accept="image/*" required>
@@ -20,7 +21,7 @@
         </form>
 
         <section class="panel">
-            <p class="metric-label">{{ __('app.billing.view.active_payment_qr') }}</p>
+            <p class="admin-section-kicker">{{ __('app.billing.view.active_payment_qr') }}</p>
             @if ($activeQr)
                 <div class="payment-qr-active-preview" style="margin-top: 12px;">
                     <img src="{{ route('admin.payment-qrs.image', $activeQr->id) }}" alt="{{ $activeQr->original_name ?? __('app.billing.view.payment_qr') }}">
@@ -45,7 +46,8 @@
         </section>
     </section>
 
-    <section class="panel" style="margin-top: 16px;">
+    <section class="panel">
+        <div class="admin-section-heading"><div><p class="admin-section-kicker">QR history</p><h2>Payment QR catalog</h2><p>Review uploads and choose the QR currently shown to customers.</p></div></div>
         @if ($qrImages->total() === 0)
             <div class="empty-state">
                 <div>
@@ -54,7 +56,7 @@
                 </div>
             </div>
         @else
-            <div class="table-wrap">
+            <div class="table-wrap admin-table--desktop admin-cards--mobile">
                 <table>
                     <thead>
                     <tr>
@@ -103,4 +105,5 @@
             </div>
         @endif
     </section>
+    </div>
 @endsection

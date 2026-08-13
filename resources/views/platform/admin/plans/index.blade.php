@@ -5,9 +5,9 @@
 @section('pageDescription', 'Create tenant categories and manage their ordered license plans.')
 
 @section('content')
-<div class="flag-stack">
+<div class="admin-stack admin-plans-page">
     <section class="panel">
-        <h2>Add tenant category</h2>
+        <div class="admin-section-heading"><div><p class="admin-section-kicker">Tenant structure</p><h2>Add tenant category</h2><p>Create a category that groups related license plans.</p></div></div>
         <form method="POST" action="{{ route('admin.plans.categories.store') }}" class="form-grid">
             @csrf
             <div><label for="category_name">Name</label><input id="category_name" name="name" required></div>
@@ -18,7 +18,7 @@
     </section>
 
     <section class="panel">
-        <h2>Add plan</h2>
+        <div class="admin-section-heading"><div><p class="admin-section-kicker">Plan catalog</p><h2>Add plan</h2><p>Define pricing, ordering, availability, and operating limits.</p></div></div>
         <form method="POST" action="{{ route('admin.plans.store') }}" class="form-grid">
             @csrf
             @include('platform.admin.plans.partials.fields', ['plan' => null])

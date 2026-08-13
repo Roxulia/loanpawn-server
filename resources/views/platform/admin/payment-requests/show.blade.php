@@ -9,9 +9,10 @@
 @endsection
 
 @section('content')
+    <div class="admin-stack admin-payment-review-page">
     <section class="grid two">
         <div class="panel">
-            <p class="metric-label">Payment</p>
+            <p class="admin-section-kicker">Payment evidence</p>
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
@@ -28,7 +29,7 @@
         </div>
 
         <div class="panel">
-            <p class="metric-label">Tenant Request</p>
+            <p class="admin-section-kicker">Requested change</p>
             <div class="table-wrap" style="margin-top: 12px;">
                 <table>
                     <tbody>
@@ -44,8 +45,8 @@
         </div>
     </section>
 
-    <section class="panel" style="margin-top: 16px;">
-        <p class="metric-label">Attachments</p>
+    <section class="panel">
+        <div class="admin-section-heading"><div><p class="admin-section-kicker">Evidence</p><h2>Attachments</h2><p>Files submitted with this payment request.</p></div></div>
         @if ($payment->attachments->isEmpty())
             <p class="muted">No attachments uploaded.</p>
         @else
@@ -77,8 +78,8 @@
     </section>
 
     @if ($payment->tenantRequest?->request_status === 'pending_approval')
-        <section class="grid two" style="margin-top: 16px;">
-            <form class="panel" method="POST" action="{{ route('admin.payment-requests.accept', $payment->id) }}">
+        <section class="grid two admin-decision-grid">
+            <form class="panel admin-decision-card approve" method="POST" action="{{ route('admin.payment-requests.accept', $payment->id) }}">
                 @csrf
                 <label for="accept_note">Accept Note</label>
                 <textarea id="accept_note" name="admin_review_note">{{ old('admin_review_note') }}</textarea>
@@ -88,7 +89,7 @@
                 </div>
             </form>
 
-            <form class="panel" method="POST" action="{{ route('admin.payment-requests.reject', $payment->id) }}">
+            <form class="panel admin-decision-card reject" method="POST" action="{{ route('admin.payment-requests.reject', $payment->id) }}">
                 @csrf
                 <label for="reject_note">Reject Note</label>
                 <textarea id="reject_note" name="admin_review_note">{{ old('admin_review_note') }}</textarea>
@@ -99,4 +100,5 @@
             </form>
         </section>
     @endif
+    </div>
 @endsection
