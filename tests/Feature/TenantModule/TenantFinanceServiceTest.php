@@ -2,13 +2,14 @@
 
 namespace Tests\Feature\TenantModule;
 
+use App\DataObjects\RequestObjects\TenantAccountingCreate;
+use App\DataObjects\RequestObjects\TenantCapitalCreate;
+use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
-use App\DataObjects\RequestObjects\TenantCapitalCreate;
-use App\DataObjects\RequestObjects\TenantCapitalUpdate;
-use App\DataObjects\RequestObjects\TenantAccountingCreate;
+use App\Enums\AccountingCategory;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\TenantCustomer;
@@ -17,10 +18,10 @@ use App\Models\CoreModule\TenantUser;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
-use App\Services\TenantModule\TenantDebtService;
-use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantCapitalService;
 use App\Services\TenantModule\TenantDashboardService;
+use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\TenantExpenseService;
 use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,10 +52,10 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertSame('Office rent', $created->description);
         $this->assertSame($tenantUser->id, $created->createdBy);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Office rent',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
             'amount' => '500000.00',
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantExpense',
@@ -78,7 +79,7 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertSame('Office rent April', $updated->description);
         $this->assertSame('500000.00', $updated->amount);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantExpense',
             'description' => 'Office rent April',
@@ -88,7 +89,7 @@ class TenantFinanceServiceTest extends TestCase
         $list = app(TenantExpenseService::class)->list();
         $this->assertCount(1, $list->items);
 
-        $accountingList = app(TenantAccountingService::class)->list();
+        $accountingList = app(TenantAccountingTransactionService::class)->list();
         $this->assertSame('Expense', $accountingList->items[0]->referenceLabel);
 
         app(TenantExpenseService::class)->delete($created->id);
@@ -96,7 +97,7 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertDatabaseMissing('tenant_expenses', [
             'id' => $created->id,
         ]);
-        $this->assertDatabaseMissing('tenant_accountings', [
+        $this->assertDatabaseMissing('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantExpense',
         ]);
@@ -121,10 +122,10 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertSame('Owner cash injection', $created->description);
         $this->assertSame($tenantUser->id, $created->createdBy);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Owner cash injection',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
             'amount' => '750000.00',
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantCapital',
@@ -152,18 +153,18 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertSame('Owner cash injection April', $updated->description);
         $this->assertSame('850000.00', $updated->amount);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantCapital',
             'description' => 'Owner cash injection April',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
             'amount' => '850000.00',
         ]);
 
         $list = app(TenantCapitalService::class)->list();
         $this->assertCount(1, $list->items);
 
-        $accountingList = app(TenantAccountingService::class)->list();
+        $accountingList = app(TenantAccountingTransactionService::class)->list();
         $this->assertSame('Capital', $accountingList->items[0]->referenceLabel);
 
         app(TenantCapitalService::class)->delete($created->id);
@@ -171,7 +172,7 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertDatabaseMissing('tenant_capitals', [
             'id' => $created->id,
         ]);
-        $this->assertDatabaseMissing('tenant_accountings', [
+        $this->assertDatabaseMissing('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantCapital',
         ]);
@@ -200,10 +201,10 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertNull($created->slipId);
         $this->assertNull($created->customerId);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Emergency cash debt',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
             'amount' => '125000.00',
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
@@ -229,7 +230,7 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertSame('130000.00', $updated->amount);
         $this->assertTrue($updated->isPaid);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
             'description' => 'Emergency cash debt updated',
@@ -239,7 +240,7 @@ class TenantFinanceServiceTest extends TestCase
         $list = app(TenantDebtService::class)->list();
         $this->assertCount(1, $list->items);
 
-        $accountingList = app(TenantAccountingService::class)->list();
+        $accountingList = app(TenantAccountingTransactionService::class)->list();
         $this->assertSame('Debt', $accountingList->items[0]->referenceLabel);
 
         app(TenantDebtService::class)->delete($created->id);
@@ -247,7 +248,7 @@ class TenantFinanceServiceTest extends TestCase
         $this->assertDatabaseMissing('tenant_debts', [
             'id' => $created->id,
         ]);
-        $this->assertDatabaseMissing('tenant_accountings', [
+        $this->assertDatabaseMissing('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
         ]);
@@ -298,17 +299,17 @@ class TenantFinanceServiceTest extends TestCase
         $result = app(TenantDebtService::class)->markAsPaid($created->id, 130000);
 
         $this->assertSame(5000.0, $result['change_amount']);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Payment for debt: Debt paid with change',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
             'amount' => '130000.00',
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
         ]);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
             'amount' => '5000.00',
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\CoreModule\\TenantDebt',
@@ -359,20 +360,20 @@ class TenantFinanceServiceTest extends TestCase
     {
         $tenant = $this->createTenant();
         $tenantUser = $this->actingTenantUser($tenant, ['list_accounting']);
-        $accountingService = app(TenantAccountingService::class);
+        $accountingService = app(TenantAccountingTransactionService::class);
 
         $accountingService->create(new TenantAccountingCreate(
             description: 'Redeem payment',
             transactionType: 'incoming',
             amount: 1000,
             createdBy: $tenantUser->id,
-        ));
+        ), AccountingCategory::Revenue);
         $accountingService->create(new TenantAccountingCreate(
             description: 'Shop expense',
             transactionType: 'outgoing',
             amount: 250,
             createdBy: $tenantUser->id,
-        ));
+        ), AccountingCategory::Expense);
 
         $overview = $accountingService->overview();
         $searchResult = $accountingService->list(15, 'Redeem');

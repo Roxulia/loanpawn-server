@@ -58,12 +58,21 @@ class AdminPackageFlagController extends Controller
             'max_slip_per_month.*' => ['nullable', 'integer', 'min:0'],
             'max_staff_count' => ['nullable', 'array'],
             'max_staff_count.*' => ['nullable', 'integer', 'min:0'],
+            'max_account_count' => ['nullable', 'array'],
+            'max_account_count.*' => ['nullable', 'integer', 'min:1'],
+            'max_currency_type_count' => ['nullable', 'array'],
+            'max_currency_type_count.*' => ['nullable', 'integer', 'min:0'],
+            'max_exchange_pair_count' => ['nullable', 'array'],
+            'max_exchange_pair_count.*' => ['nullable', 'integer', 'min:0'],
         ], [], __('validation.attributes'));
 
         $this->packageService->updatePlanFlags(
             $validated['packages'],
             $validated['max_slip_per_month'] ?? [],
             $validated['max_staff_count'] ?? [],
+            $validated['max_account_count'] ?? [],
+            $validated['max_currency_type_count'] ?? [],
+            $validated['max_exchange_pair_count'] ?? [],
         );
 
         return redirect()

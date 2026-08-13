@@ -13,6 +13,10 @@ class TenantLicenseDetail extends BaseDataObject
     public string $licenseKey;
     public int $updateKey;
     public string $planType;
+    public ?int $planId = null;
+    public ?string $planCode = null;
+    public ?string $planName = null;
+    public ?int $planRank = null;
     public ?string $expiresAt;
     public string $status;
     public int $currentMonthSlipCount = 0;
@@ -31,13 +35,18 @@ class TenantLicenseDetail extends BaseDataObject
         $detail = new self();
         $detail->licenseKey = $license->license_key;
         $detail->updateKey = (int) $license->update_key;
-        $detail->planType = $license->plan_type;
+        $plan = $license->plan;
+        $detail->planId = $plan?->id;
+        $detail->planCode = $plan?->code ?? $license->plan_type;
+        $detail->planName = $plan?->name;
+        $detail->planRank = $plan?->rank;
+        $detail->planType = $detail->planCode;
         $detail->expiresAt = $license->expires_at?->toISOString();
         $detail->status = $license->status;
         $detail->currentMonthSlipCount = (int) $license->current_month_slip_count;
         $detail->currentStaffCount = (int) $license->current_staff_count;
         $transition = $license->scheduledPlanTransition;
-        $detail->nextPlanType = $transition?->to_plan_type;
+        $detail->nextPlanType = $transition?->toPlan?->code ?? $transition?->to_plan_type;
         $detail->nextPlanStartsAt = $transition?->starts_at?->toISOString();
         $detail->nextPlanExpiresAt = $transition?->expires_at?->toISOString();
 

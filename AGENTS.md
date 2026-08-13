@@ -1,3 +1,10 @@
+## Not to do in Codes
+1. make code as clear , easy to understand as possible.
+2. before making new function, search if it is already existed or similar function existed and use that.
+3. class related variables should have easy to understand naming. e.g tenantService for TenantService class.
+4. don't overkill ,verify first.
+5. don't ever try to add or fix something i didn't ask.just prompt as suggestion after task finished.
+6. dont run test if u r not asked to.
 
 ## UI Redesign Workflow
 

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\TenantModule;
 
 use App\Http\Controllers\Controller;
-use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,9 +13,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class TenantAccountingController extends Controller
 {
     public function __construct(
-        private TenantAccountingService $accountingService,
-    ) {
-    }
+        private TenantAccountingTransactionService $accountingService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -59,6 +58,7 @@ class TenantAccountingController extends Controller
 
         try {
             $ledger = $this->accountingService->buildAccountingLedger($startDate, $endDate, (int) ($validated['per_page'] ?? 15));
+
             return $this->successResponse($ledger->toArray());
         } catch (\Exception $e) {
             return $this->errorResponse($this->responseMessage(MessageCode::TenantAccountingLedgerBuildFailed), ['error' => $e->getMessage()], 500);

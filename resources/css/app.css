@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import './landing.css';
 @import './platform-layout.css';
+@import './platform-admin.css';
 @import './platform-dashboard.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';

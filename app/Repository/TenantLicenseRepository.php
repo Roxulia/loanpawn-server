@@ -18,12 +18,21 @@ class TenantLicenseRepository
         //
     }
 
-    public function findByTenantId(int $tenantId) : ?TenantLicense
+    public function findByTenantId(int $tenantId): ?TenantLicense
     {
         $res = TenantLicense::query()
             ->where('tenant_id', $tenantId)
             ->first();
+
         return $res;
+    }
+
+    public function findByTenantIdForUpdate(int $tenantId): ?TenantLicense
+    {
+        return TenantLicense::query()
+            ->where('tenant_id', $tenantId)
+            ->lockForUpdate()
+            ->first();
     }
 
     public function findByLicenseKey(string $licenseKey): ?TenantLicense
@@ -34,7 +43,7 @@ class TenantLicenseRepository
             ->first();
     }
 
-    public function isLicenseExisted(string $licenseKey) : bool
+    public function isLicenseExisted(string $licenseKey): bool
     {
         return TenantLicense::query()->where('license_key', $licenseKey)->exists();
     }
@@ -62,6 +71,21 @@ class TenantLicenseRepository
         return TenantLicense::query()->update([
             'current_month_slip_count' => 0,
         ]);
+    }
+
+    public function incrementCounter(int $tenantId, string $attribute): void
+    {
+        TenantLicense::query()
+            ->where('tenant_id', $tenantId)
+            ->increment($attribute);
+    }
+
+    public function decrementCounter(int $tenantId, string $attribute): void
+    {
+        TenantLicense::query()
+            ->where('tenant_id', $tenantId)
+            ->where($attribute, '>', 0)
+            ->decrement($attribute);
     }
 
     public function createPlanTransition(array $data): TenantLicensePlanTransition
@@ -98,12 +122,16 @@ class TenantLicenseRepository
 
                 $license = TenantLicense::query()->lockForUpdate()->findOrFail($transition->tenant_license_id);
                 $license->update([
+                    'plan_id' => $transition->to_plan_id,
                     'plan_type' => $transition->to_plan_type,
                     'status' => 'active',
                     'starts_at' => $transition->starts_at,
                     'expires_at' => $transition->expires_at,
                     'update_key' => $license->update_key + 1,
                 ]);
+                if ($transition->toPlan?->category_id !== null) {
+                    $license->tenant()->update(['category_id' => $transition->toPlan->category_id]);
+                }
                 $transition->update([
                     'status' => 'activated',
                     'activated_at' => $currentDate,

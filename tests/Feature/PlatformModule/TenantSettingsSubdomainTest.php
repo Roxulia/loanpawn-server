@@ -85,6 +85,25 @@ class TenantSettingsSubdomainTest extends TestCase
         ]);
     }
 
+    public function test_disallowed_subdomain_submission_is_rejected(): void
+    {
+        config()->set('app.disallowed_subdomains', ['admin', 'api']);
+        $tenant = $this->createTenantWithLicense('basic', 'owner-subdomain');
+
+        $this->actingAs($tenant->owner, 'platformuser')
+            ->from(route('platform.tenants.edit', $tenant->id))
+            ->put(route('platform.tenants.update', $tenant->id), $this->settingsPayload($tenant, [
+                'subdomain' => 'admin',
+            ]))
+            ->assertRedirect(route('platform.tenants.edit', $tenant->id))
+            ->assertSessionHasErrors('subdomain');
+
+        $this->assertDatabaseHas('tenants', [
+            'id' => $tenant->id,
+            'subdomain' => 'owner-subdomain',
+        ]);
+    }
+
     public function test_subdomain_longer_than_twenty_five_characters_is_rejected(): void
     {
         $tenant = $this->createTenantWithLicense('basic', 'short-subdomain');

@@ -3,21 +3,24 @@
 namespace App\Services\PawnModule;
 
 use App\DataObjects\RequestObjects\PawnRedemptionCreate;
-use App\DataObjects\RequestObjects\TenantAccountingCreate;
 use App\DataObjects\ResponseObjects\InterestPaymentHistoryItem;
 use App\DataObjects\ResponseObjects\PawnRedemptionDetail;
 use App\DataObjects\ResponseObjects\PawnRedemptionListPage;
 use App\DataObjects\ResponseObjects\PawnRedemptionResult;
+use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantNotFound;
 use App\Models\CoreModule\TenantDebt;
+use App\Models\FinancialAccount;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PawnModule\PawnRedemption;
 use App\Repository\PawnRedemptionRepository;
 use App\Services\BaseTenantService;
 use App\Services\PawnModule\LoanContractServices\LookUpService as LoanContractLookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService as LoanContractManagementService;
-use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
+use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\TenantIdempotencyService;
@@ -27,7 +30,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Exceptions\AlreadyUpdatedException;
 use Throwable;
 
 class PawnRedemptionService extends BaseTenantService
@@ -41,13 +43,14 @@ class PawnRedemptionService extends BaseTenantService
         private CollateralItemService $collateralItemService,
         private InterestFlowService $interestFlowService,
         private TenantDebtService $tenantDebtService,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TenantIdempotencyService $tenantIdempotencyService,
-    ) {
-    }
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
+    ) {}
 
     public function list(int $perPage = 15, ?CarbonImmutable $startDate = null, ?CarbonImmutable $endDate = null): PawnRedemptionListPage
     {
@@ -55,8 +58,8 @@ class PawnRedemptionService extends BaseTenantService
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('pawn-redemption-list');
         $cacheKey = $this->tenantScopedCacheKeys->paginatedListKey('pawn-redemption-list', $version, $page, $perPage)
-            . ':start-date:' . ($startDate?->toDateString() ?? 'any')
-            . ':end-date:' . ($endDate?->toDateString() ?? 'any');
+            .':start-date:'.($startDate?->toDateString() ?? 'any')
+            .':end-date:'.($endDate?->toDateString() ?? 'any');
 
         return Cache::remember(
             $cacheKey,
@@ -68,6 +71,7 @@ class PawnRedemptionService extends BaseTenantService
     public function createRedemption(PawnRedemptionCreate $request): PawnRedemptionDetail
     {
         $this->permissionService->authorizeLoanContractCreate();
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'pawn_redemption.create',
             $request->idempotencyKey,
@@ -84,9 +88,10 @@ class PawnRedemptionService extends BaseTenantService
             : CarbonImmutable::parse($request->redemptionAt);
 
         try {
-            $redemption = DB::transaction(function () use ($request, $createdBy, $redemptionDate): PawnRedemption {
+            $redemption = DB::transaction(function () use ($request, $createdBy, $redemptionDate, $financialAccount): PawnRedemption {
                 $slip = $this->loanContractLookUpService->findModelBySlipNoWithLock($request->slipNo);
                 $this->validateRedeemableSlip($slip);
+                $this->assertRedemptionAccountCurrency($slip, $financialAccount);
                 $redemptionResult = $this->buildRedemptionResult($slip, $redemptionDate, lockRows: true);
 
                 if (abs($request->calculatedTotal - $redemptionResult->totalAmountToPay) > 0.0001) {
@@ -105,6 +110,7 @@ class PawnRedemptionService extends BaseTenantService
                     'tenant_id' => $this->resolveCurrentTenantId(),
                     'slip_number' => $slip->slip_no,
                     'slip_id' => $slip->id,
+                    'account_id' => $financialAccount->id,
                     'gross_amount' => $grossAmount,
                     'net_amount' => $netAmount,
                     'interest_amount' => $redemptionResult->calculatedInterest,
@@ -115,8 +121,8 @@ class PawnRedemptionService extends BaseTenantService
                     'created_by' => $createdBy,
                 ]);
 
-                $this->interestFlowService->settleForRedemption($slip, $redemptionDate, $createdBy,$request->interests);
-                $this->settleDebtForRedemption($slip,$request->debts, $createdBy);
+                $this->interestFlowService->settleForRedemption($slip, $redemptionDate, $financialAccount, $createdBy, $request->interests);
+                $this->settleDebtForRedemption($slip, $request->debts, $financialAccount, $createdBy);
                 $this->loanContractManagementService->changeStatus($slip, 'redeemed');
                 $this->collateralItemService->redeemProcess($slip);
 
@@ -134,24 +140,41 @@ class PawnRedemptionService extends BaseTenantService
                     $createdBy
                 );
 
-                $this->tenantAccountingService->create(new TenantAccountingCreate(
-                    description: 'Redemption Transaction',
-                    transactionType: 'incoming',
-                    amount: (float) $redemption->received_amount,
-                    createdBy: $createdBy,
-                    referenceId: $redemption->id,
-                    referenceType: PawnRedemption::class
-                ));
+                $accountingTransaction = $this->tenantAccountingService->recordLoanRedemption(
+                    $redemption,
+                    'Redemption Transaction',
+                    (float) $redemption->received_amount,
+                    $financialAccount->currency,
+                    $createdBy,
+                );
+                $this->financialAccountTransactionService->recordPawnRedemption(
+                    $financialAccount,
+                    (float) $redemption->received_amount,
+                    $redemption->slip_number,
+                    PawnRedemption::class,
+                    'Redemption Transaction',
+                    $createdBy,
+                    $accountingTransaction->id,
+                );
 
                 if ((float) $redemption->change_amount > 0.0) {
-                    $this->tenantAccountingService->create(new TenantAccountingCreate(
-                        description: 'Redemption Change Transaction',
-                        transactionType: 'outgoing',
-                        amount: (float) $redemption->change_amount,
-                        createdBy: $createdBy,
-                        referenceId: $redemption->id,
-                        referenceType: PawnRedemption::class
-                    ));
+                    $accountingTransaction = $this->tenantAccountingService->recordRedemptionChange(
+                        $redemption,
+                        'Redemption Change Transaction',
+                        (float) $redemption->change_amount,
+                        $financialAccount->currency,
+                        $createdBy,
+                    );
+                    $this->financialAccountTransactionService->recordAdjustment(
+                        $financialAccount,
+                        (float) $redemption->change_amount,
+                        'credit',
+                        $redemption->slip_number,
+                        PawnRedemption::class,
+                        'Redemption Change Transaction',
+                        $createdBy,
+                        $accountingTransaction->id,
+                    );
                 }
 
                 return $redemption;
@@ -235,6 +258,10 @@ class PawnRedemptionService extends BaseTenantService
     protected function buildRedemptionResult(PawnLoanContractSlip $slip, ?CarbonImmutable $date = null, bool $lockRows = false): PawnRedemptionResult
     {
         $this->validateRedeemableSlip($slip, $date);
+        if ($slip->account_id === null) {
+            throw new InvalidTenantRequest('Loan creation account is required before redemption.');
+        }
+        $loanAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount((int) $slip->account_id);
         $targetDate = $date ?? CarbonImmutable::now()->startOfDay();
         $interestPayments = $lockRows
             ? $this->interestFlowService->getInterestBreakdownUntilNowWithLock($slip, $targetDate)
@@ -244,19 +271,19 @@ class PawnRedemptionService extends BaseTenantService
             fn (float $total, InterestPaymentHistoryItem $payment): float => $total + ($payment->isPaid ? 0.0 : $payment->interestAmount),
             0.0
         );
-        $debts = $lockRows
-            ? $this->tenantDebtService->getDebtsForSlipWithLock($slip->id)
-            : $this->tenantDebtService->getDebtsForSlip($slip->id);
-        $totalDebt = $debts
-            ->filter(fn (TenantDebt $debt): bool => ! $debt->is_paid)
-            ->sum(fn (TenantDebt $debt): float => (float) $debt->amount);
+        $debts = $this->tenantDebtService->getUnpaidDebtsForSlipCurrency($slip->id, (int) $loanAccount->currency_id, $lockRows);
+        $excludedDebts = $this->tenantDebtService->getUnpaidDebtsForSlipExceptCurrency($slip->id, (int) $loanAccount->currency_id);
+        $totalDebt = $debts->sum(fn (TenantDebt $debt): float => (float) $debt->amount);
+        $excludedDebtTotal = $excludedDebts->sum(fn (TenantDebt $debt): float => (float) $debt->amount);
 
         return PawnRedemptionResult::fromValues(
             $slip,
             $calculatedInterest,
             (float) $totalDebt,
+            (float) $excludedDebtTotal,
             $interestPayments,
             $debts->all(),
+            $excludedDebts->all(),
             $this->collateralItemService->getItemsBySlip($slip)
         );
     }
@@ -274,9 +301,9 @@ class PawnRedemptionService extends BaseTenantService
         }
     }
 
-    protected function settleDebtForRedemption(PawnLoanContractSlip $slip,array $debts, ?int $createdBy): void
+    protected function settleDebtForRedemption(PawnLoanContractSlip $slip, array $debts, FinancialAccount $acceptAccount, ?int $createdBy): void
     {
-        $existingDebts = $this->tenantDebtService->getUnpaidDebtsForSlipWithLock($slip->id);
+        $existingDebts = $this->tenantDebtService->getUnpaidDebtsForSlipCurrency($slip->id, (int) $acceptAccount->currency_id, true);
         $requestedBreakdownById = collect($debts)->keyBy('id');
 
         if ($existingDebts->count() !== $requestedBreakdownById->count()) {
@@ -289,11 +316,22 @@ class PawnRedemptionService extends BaseTenantService
                 throw new AlreadyUpdatedException('This Slip is already updated by others. Please refresh.');
             }
         }
-        foreach ($existingDebts as $debt)
-        {
-            $this->tenantDebtService->markAsPaidWithoutAccounting($debt, $createdBy);
+        foreach ($existingDebts as $debt) {
+            $this->tenantDebtService->markAsPaidWithoutAccounting($debt, $acceptAccount, $createdBy);
         }
 
+    }
+
+    protected function assertRedemptionAccountCurrency(PawnLoanContractSlip $slip, FinancialAccount $acceptAccount): void
+    {
+        if ($slip->account_id === null) {
+            throw new InvalidTenantRequest('Loan creation account is required before redemption.');
+        }
+
+        $createdAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount((int) $slip->account_id);
+        if ((int) $createdAccount->currency_id !== (int) $acceptAccount->currency_id) {
+            throw new InvalidTenantRequest('Loan creation and redemption accounts must use the same currency.');
+        }
     }
 
     protected function pawnRedemptionIdempotencyPayload(PawnRedemptionCreate $request): array
@@ -302,6 +340,7 @@ class PawnRedemptionService extends BaseTenantService
             'slip_no' => $request->slipNo,
             'calculated_total' => $request->calculatedTotal,
             'payment_amount' => $request->paymentAmount,
+            'account_id' => $request->accountId,
             'debts' => $request->debts,
             'interests' => $request->interests,
             'redemption_at' => $request->redemptionAt,

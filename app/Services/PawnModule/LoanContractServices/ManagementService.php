@@ -2,11 +2,11 @@
 
 namespace App\Services\PawnModule\LoanContractServices;
 
-use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\LoanContractSlipCreate;
+use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\ResponseObjects\LoanContractSlipDetail;
-use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\InvalidSlipExpiryDuration;
+use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Exceptions\TenantNotFound;
 use App\Models\PawnModule\PawnLoanContractSlip;
@@ -16,9 +16,11 @@ use App\Services\PawnModule\CollateralItemService;
 use App\Services\PawnModule\InterestFlowService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\DefaultDataService;
-use App\Services\TenantModule\TenantAccountingService;
+use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantCustomerService;
 use App\Services\TenantModule\TenantIdempotencyService;
@@ -36,7 +38,7 @@ class ManagementService extends BaseTenantService
         private CollateralItemService $collateralItemService,
         private InterestFlowService $interestFlowService,
         private TenantCustomerService $tenantCustomerService,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
@@ -45,8 +47,9 @@ class ManagementService extends BaseTenantService
         private TenantLicenseService $tenantLicenseService,
         private CustomerTrustScoreService $customerTrustScoreService,
         private DefaultDataService $defaultDataService,
-    ) {
-    }
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
+    ) {}
 
     public function create(LoanContractSlipCreate $request): LoanContractSlipDetail
     {
@@ -59,8 +62,9 @@ class ManagementService extends BaseTenantService
         $this->validateExpiryDuration($request->interestTypeId, $createdAt, $expireAt);
 
         if ($this->tenantLicenseService->checkIfLimitReach('current_month_slip_count', $tenantId)) {
-            throw new TenantAccessDenied("Limit Reached");
+            throw new TenantAccessDenied('Limit Reached');
         }
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'loan_contract_slip.create',
             $request->idempotencyKey,
@@ -77,13 +81,14 @@ class ManagementService extends BaseTenantService
             $slipNo = $this->tableIdGenerationService->generate('pawn_loan_contract_slips', $createdAt->startOfDay());
             $this->collateralItemService->prepareImagesForCreate($request->collateralItems, $tenantId, $slipNo);
 
-            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType, $slipNo) {
+            $slip = DB::transaction(function () use ($request, $tenantId, $createdBy, $createdAt, $expireAt, $expiryQuotaType, $slipNo, $financialAccount) {
                 $customerId = $this->tenantCustomerService->createCustomer($request->customer)->customer->id;
 
                 $slip = $this->repository->create([
                     'tenant_id' => $tenantId,
                     'slip_no' => $slipNo,
                     'customer_id' => $customerId,
+                    'account_id' => $financialAccount->id,
                     'loan_amount' => $request->loanAmount,
                     'interest_rate' => $request->interestRate,
                     'interest_type_id' => $request->interestTypeId,
@@ -101,11 +106,21 @@ class ManagementService extends BaseTenantService
                 $this->collateralItemService->createForSlip($slip, $request->collateralItems);
                 $this->interestFlowService->createInitialSchedule($slip, $createdBy);
                 $this->tenantLicenseService->incrementCurrentMonthSlipCount($tenantId);
-                $this->tenantAccountingService->createOutgoingForReference(
+                $accountingTransaction = $this->tenantAccountingService->recordLoanCreation(
                     $slip,
                     'Loan Contract Transaction',
                     $request->loanAmount,
+                    $financialAccount->currency,
                     $createdBy
+                );
+                $this->financialAccountTransactionService->recordPawnLoanCreation(
+                    $financialAccount,
+                    $request->loanAmount,
+                    $slip->slip_no,
+                    PawnLoanContractSlip::class,
+                    'Loan Contract Transaction',
+                    $createdBy,
+                    $accountingTransaction->id,
                 );
 
                 $this->tenantAuditLogService->log(
@@ -178,6 +193,10 @@ class ManagementService extends BaseTenantService
             );
 
             $this->tenantAccountingService->deleteForReference($targetSlip);
+            $account = $targetSlip->account_id === null
+                ? $this->multiAccountManagement->findActiveCurrentTenantAccount()
+                : $this->multiAccountManagement->findCurrentTenantAccountById((int) $targetSlip->account_id);
+            $this->financialAccountTransactionService->reverseReference($account, $targetSlip->slip_no, PawnLoanContractSlip::class, $this->resolveCurrentTenantUserId());
             $this->repository->markSlipItemsDeleted($targetSlip);
             $this->repository->delete($targetSlip);
             $this->customerTrustScoreService->recalculateForCustomer((int) $targetSlip->customer_id);
@@ -262,7 +281,7 @@ class ManagementService extends BaseTenantService
         $expiryDurationInDays = $createdAt->startOfDay()->diffInDays($expireAt->startOfDay());
 
         if ($expiryDurationInDays <= (int) $interestType->duration_in_days) {
-            throw new InvalidSlipExpiryDuration();
+            throw new InvalidSlipExpiryDuration;
         }
     }
 
@@ -275,6 +294,7 @@ class ManagementService extends BaseTenantService
                 $request->collateralItems,
             ),
             'loan_amount' => $request->loanAmount,
+            'account_id' => $request->accountId,
             'interest_rate' => $request->interestRate,
             'interest_type_id' => $request->interestTypeId,
             'notes' => $request->notes,
@@ -311,7 +331,7 @@ class ManagementService extends BaseTenantService
     }
 
     /**
-     * @param array<int, PawnCollateralItemCreate> $collateralItems
+     * @param  array<int, PawnCollateralItemCreate>  $collateralItems
      */
     protected function validateCollateralItems(array $collateralItems): void
     {

@@ -11,11 +11,11 @@ class TenantExpenseUpdate extends BaseDataObject
         public int $expenseId,
         public string $code,
         public int $updateKey,
+        public ?int $accountId,
         public ?string $description = null,
         public ?int $expenseTypeId = null,
         public bool $hasExpenseTypeId = false,
         public ?UploadedFile $imageReference = null,
         public bool $removeImageReference = false,
-    ) {
-    }
+    ) {}
 }

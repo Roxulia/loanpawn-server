@@ -1,11 +1,16 @@
 <?php
 
-use App\Exceptions\ApiException;
+use App\Console\Commands\EnsureDefaultFinancialAccounts;
+use App\Console\Commands\EnsureTenantCurrencySettings;
+use App\Console\Commands\MigrateLegacyAccounting;
+use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
+use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsurePlatformRole;
 use App\Http\Middleware\EnsurePlatformTenantSubmittedFeature;
+use App\Http\Middleware\EnsureTenantAnyFeature;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
@@ -16,8 +21,10 @@ use App\Http\Middleware\TrackTenantUserActivity;
 use App\Http\Responses\ApiResponse;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
-use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
+use App\Jobs\ProcessAccountingDaysJob;
+use App\Jobs\RefreshDailyExchangeRateSummariesJob;
+use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Support\InternalServerErrorNotifier;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -40,6 +47,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         RepairAccountingChange::class,
+        EnsureDefaultFinancialAccounts::class,
+        EnsureTenantCurrencySettings::class,
+        MigrateLegacyAccounting::class,
+        ReconcileFinancialAccountBalances::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogHttpOperation::class);
@@ -64,6 +75,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.activity' => TrackTenantUserActivity::class,
             'tenant.permission' => EnsureTenantPermission::class,
             'tenant.feature' => EnsureTenantFeature::class,
+            'tenant.any-feature' => EnsureTenantAnyFeature::class,
             'platform.tenant.submitted-feature' => EnsurePlatformTenantSubmittedFeature::class,
             'platform.role' => EnsurePlatformRole::class,
             'admin.password.changed' => EnsureAdminPasswordChanged::class,
@@ -71,10 +83,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
-        $schedule->job(new CheckExpireTenantLicenseJob())->daily();
-        $schedule->job(new CheckExpirePawnLoanContractSlipJob())->dailyAt('23:59');
-        $schedule->job(new ResetTenantLicenseMonthlySlipCountJob())->monthlyOn(1, '00:00');
-        $schedule->job(new ExpireInactiveTenantUsersJob())->everyFiveMinutes()->withoutOverlapping();
+        $schedule->job(new CheckExpireTenantLicenseJob)->daily();
+        $schedule->job(new CheckExpirePawnLoanContractSlipJob)->dailyAt('23:59');
+        $schedule->job(new ResetTenantLicenseMonthlySlipCountJob)->monthlyOn(1, '00:00');
+        $schedule->job(new ExpireInactiveTenantUsersJob)->everyFiveMinutes()->withoutOverlapping();
+        $schedule->job(new RefreshDailyExchangeRateSummariesJob)->hourly()->withoutOverlapping();
+        $schedule->job(new ProcessAccountingDaysJob)->everyFifteenMinutes()->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

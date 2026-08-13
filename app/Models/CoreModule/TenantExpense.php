@@ -2,6 +2,7 @@
 
 namespace App\Models\CoreModule;
 
+use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,7 @@ class TenantExpense extends Model
     protected $fillable = [
         'tenant_id',
         'code',
+        'account_id',
         'description',
         'amount',
         'expense_type_id',
@@ -32,9 +34,13 @@ class TenantExpense extends Model
         return $this->belongsTo(ExpenseType::class);
     }
 
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(FinancialAccount::class, 'account_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(TenantUser::class, 'created_by');
     }
-
 }

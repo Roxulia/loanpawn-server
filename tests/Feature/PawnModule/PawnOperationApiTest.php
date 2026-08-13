@@ -6,15 +6,15 @@ use App\Models\CoreModule\ExpenseType;
 use App\Models\CoreModule\InterestType;
 use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
-use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\PlatformModule\TenantLicense;
-use Database\Seeders\PackageSeeder;
+use App\Models\TenantAccountingTransactions;
 use Carbon\CarbonImmutable;
+use Database\Seeders\PackageSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -148,23 +148,23 @@ class PawnOperationApiTest extends TestCase
             'name' => 'Laptop',
             'item_category_type_id' => $itemCategoryType->id,
         ]);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Redemption Transaction',
-            'transaction_type' => 'incoming',
+            'transaction_direction' => 'incoming',
             'amount' => '510000.00',
             'reference_type' => 'App\\Models\\PawnModule\\PawnRedemption',
         ]);
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Redemption Change Transaction',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
             'amount' => '10000.00',
             'reference_type' => 'App\\Models\\PawnModule\\PawnRedemption',
         ]);
         $this->assertSame(
             2,
-            TenantAccounting::query()
+            TenantAccountingTransactions::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('reference_type', 'App\\Models\\PawnModule\\PawnRedemption')
                 ->count()

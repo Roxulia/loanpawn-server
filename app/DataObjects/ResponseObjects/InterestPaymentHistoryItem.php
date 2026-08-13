@@ -8,22 +8,38 @@ use App\Models\PawnModule\PawnInterestPayment;
 class InterestPaymentHistoryItem extends BaseDataObject
 {
     public int $id;
+
     public int $updateKey;
+
+    public ?int $createdAccountId;
+
+    public ?int $acceptAccountId;
+
     public ?string $slipNo;
+
     public ?string $startPeriodAt;
+
     public ?string $endPeriodAt;
+
     public float $interestAmount;
+
     public float $paymentAmount;
+
     public float $changeAmount;
+
     public ?string $paymentAt;
+
     public bool $isPaid;
+
     public ?string $notes;
 
     public static function fromModel(PawnInterestPayment $payment): self
     {
-        $item = new self();
+        $item = new self;
         $item->id = $payment->id;
         $item->updateKey = (int) $payment->update_key;
+        $item->createdAccountId = $payment->created_account_id;
+        $item->acceptAccountId = $payment->accept_account_id;
         $item->slipNo = $payment->slip?->slip_no;
         $item->startPeriodAt = $payment->start_period_at?->toISOString();
         $item->endPeriodAt = $payment->end_period_at?->toISOString();

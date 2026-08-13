@@ -23,6 +23,8 @@ class TenantCreate extends BaseDataObject
     public ?string $phone;
     public ?string $city;
     public ?string $country;
+    public ?int $categoryId;
+    public ?int $planId;
 
     public function __construct(
         string $name,
@@ -38,6 +40,8 @@ class TenantCreate extends BaseDataObject
         ?string $phone = null,
         ?string $city = null,
         ?string $country = null,
+        ?int $categoryId = null,
+        ?int $planId = null,
     )
     {
         $this->name = $name;
@@ -53,5 +57,7 @@ class TenantCreate extends BaseDataObject
         $this->phone = $phone;
         $this->city = $city;
         $this->country = $country;
+        $this->categoryId = $categoryId;
+        $this->planId = $planId;
     }
 }

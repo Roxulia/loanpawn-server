@@ -12,6 +12,8 @@ use App\Models\CoreModule\TenantCapital;
 use App\Repository\TenantCapitalRepository;
 use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Support\TenantScopedCacheKeys;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
@@ -25,14 +27,15 @@ class TenantCapitalService extends BaseTenantService
 
     public function __construct(
         private TenantCapitalRepository $repository,
-        private TenantAccountingService $tenantAccountingService,
+        private TenantAccountingTransactionService $tenantAccountingService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantIdempotencyService $tenantIdempotencyService,
-    ) {
-    }
+        private MultiAccountManagement $multiAccountManagement,
+        private FinancialAccountTransactionService $financialAccountTransactionService,
+    ) {}
 
     public function list(int $perPage = 15): TenantCapitalListPage
     {
@@ -52,6 +55,7 @@ class TenantCapitalService extends BaseTenantService
         $this->permissionService->authorizeCapitalCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_capital.create',
@@ -64,20 +68,31 @@ class TenantCapitalService extends BaseTenantService
         }
 
         try {
-            $capital = DB::transaction(function () use ($request) {
+            $capital = DB::transaction(function () use ($request, $financialAccount) {
                 $capital = $this->repository->create([
                     'tenant_id' => $request->tenantId,
                     'code' => $this->tableIdGenerationService->generate('tenant_capitals', CarbonImmutable::now()),
+                    'account_id' => $financialAccount->id,
                     'description' => $request->description,
                     'amount' => $request->amount,
                     'created_by' => $request->createdBy,
                 ]);
 
-                $this->tenantAccountingService->createIncomingForReference(
+                $accountingTransaction = $this->tenantAccountingService->recordCapitalCreation(
                     $capital,
                     $capital->description,
                     (float) $capital->amount,
+                    $financialAccount->currency,
                     $capital->created_by
+                );
+                $this->financialAccountTransactionService->recordCapitalContribution(
+                    $financialAccount,
+                    (float) $capital->amount,
+                    $capital->code,
+                    TenantCapital::class,
+                    $capital->description,
+                    $capital->created_by,
+                    $accountingTransaction->id,
                 );
 
                 $this->tenantAuditLogService->log(
@@ -125,6 +140,7 @@ class TenantCapitalService extends BaseTenantService
     {
         $this->permissionService->authorizeCapitalUpdate();
         $capital = $this->findCapitalForCurrentTenant($request->capitalId);
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
         $data = [];
 
         if ($request->updateKey !== $capital->update_key) {
@@ -139,6 +155,8 @@ class TenantCapitalService extends BaseTenantService
             $data['amount'] = $request->amount;
         }
 
+        $data['account_id'] = $financialAccount->id;
+
         if ($data === []) {
             return TenantCapitalDetail::fromModel($capital);
         }
@@ -146,14 +164,17 @@ class TenantCapitalService extends BaseTenantService
         $data['update_key'] = $capital->update_key + 1;
         $original = $capital->only(array_keys($data));
 
-        $updatedCapital = DB::transaction(function () use ($capital, $data, $original) {
+        $updatedCapital = DB::transaction(function () use ($capital, $data, $original, $financialAccount) {
+            $this->financialAccountTransactionService->reverseReference($financialAccount, $capital->code, TenantCapital::class, $this->resolveCurrentTenantUserId());
             $updatedCapital = $this->repository->updateWithLock($capital, $data);
 
-            $this->tenantAccountingService->syncIncomingForReference(
+            $this->tenantAccountingService->syncCapital(
                 $updatedCapital,
                 $updatedCapital->description,
-                (float) $updatedCapital->amount
+                (float) $updatedCapital->amount,
+                $financialAccount->currency,
             );
+            $this->financialAccountTransactionService->recordCapitalContribution($financialAccount, (float) $updatedCapital->amount, $updatedCapital->code, TenantCapital::class, $updatedCapital->description, $this->resolveCurrentTenantUserId());
 
             $this->tenantAuditLogService->log(
                 'tenant_capital.updated',
@@ -207,6 +228,10 @@ class TenantCapitalService extends BaseTenantService
             );
 
             $this->tenantAccountingService->deleteForReference($capital);
+            $account = $capital->account_id === null
+                ? $this->multiAccountManagement->findActiveCurrentTenantAccount()
+                : $this->multiAccountManagement->findCurrentTenantAccountById((int) $capital->account_id);
+            $this->financialAccountTransactionService->reverseReference($account, $capital->code, TenantCapital::class, $this->resolveCurrentTenantUserId());
             $this->repository->delete($capital);
         });
 
@@ -250,6 +275,7 @@ class TenantCapitalService extends BaseTenantService
         return [
             'description' => $request->description,
             'amount' => $request->amount,
+            'account_id' => $request->accountId,
             'created_by' => $request->createdBy,
         ];
     }

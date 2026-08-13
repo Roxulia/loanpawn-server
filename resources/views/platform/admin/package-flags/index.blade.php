@@ -6,9 +6,7 @@
 
 @section('content')
     @php
-        $assignmentPackages = collect(['trial', 'basic', 'premium'])
-            ->map(fn ($code) => $packages->firstWhere('code', $code))
-            ->filter();
+        $assignmentPackages = $packages->where('is_deleted', false);
     @endphp
 
     <style>
@@ -192,11 +190,11 @@
         }
     </style>
 
-    <div class="flag-stack">
+    <div class="admin-stack admin-features-page">
         <form method="POST" action="{{ route('admin.package-flags.plans.update') }}" class="panel" data-resettable-form>
             @csrf
             <div class="section-heading">
-                <h2>Plan</h2>
+                <div><p class="admin-section-kicker">Commercial controls</p><h2>Plan availability and limits</h2><p class="flag-description">Control sales availability and operating quotas for each plan.</p></div>
             </div>
             <div class="flag-list">
                 @foreach ($packages as $package)
@@ -230,6 +228,21 @@
                                 >
                                 @error('max_staff_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
                             </div>
+                            <div>
+                                <label for="max_account_count_{{ $package->id }}">Max accounts</label>
+                                <input id="max_account_count_{{ $package->id }}" type="number" min="1" name="max_account_count[{{ $package->id }}]" value="{{ old('max_account_count.'.$package->id, $package->max_account_count) }}" placeholder="Unlimited">
+                                @error('max_account_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
+                            <div>
+                                <label for="max_currency_type_count_{{ $package->id }}">Max currency types</label>
+                                <input id="max_currency_type_count_{{ $package->id }}" type="number" min="0" name="max_currency_type_count[{{ $package->id }}]" value="{{ old('max_currency_type_count.'.$package->id, $package->max_currency_type_count) }}" placeholder="Unlimited">
+                                @error('max_currency_type_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
+                            <div>
+                                <label for="max_exchange_pair_count_{{ $package->id }}">Max exchange pairs</label>
+                                <input id="max_exchange_pair_count_{{ $package->id }}" type="number" min="0" name="max_exchange_pair_count[{{ $package->id }}]" value="{{ old('max_exchange_pair_count.'.$package->id, $package->max_exchange_pair_count) }}" placeholder="Unlimited">
+                                @error('max_exchange_pair_count.'.$package->id) <div class="field-error">{{ $message }}</div> @enderror
+                            </div>
                             <label class="switch" aria-label="{{ $package->name }} status">
                                 <input type="hidden" name="packages[{{ $package->id }}]" value="0">
                                 <input type="checkbox" name="packages[{{ $package->id }}]" value="1" @checked($package->is_active)>
@@ -247,7 +260,7 @@
 
         <section class="panel">
             <div class="section-heading">
-                <h2>Feature Management</h2>
+                <div><p class="admin-section-kicker">Global controls</p><h2>Feature management</h2><p class="flag-description">Publish or pause capabilities across the platform.</p></div>
                 <button type="button" class="button primary" data-open-dialog="add-feature-dialog">Add Feature</button>
             </div>
 
@@ -279,7 +292,7 @@
         <form method="POST" action="{{ route('admin.package-flags.feature-assignment.update') }}" class="panel" data-resettable-form>
             @csrf
             <div class="section-heading">
-                <h2>Feature Assignment</h2>
+                <div><p class="admin-section-kicker">Entitlements</p><h2>Feature assignment</h2><p class="flag-description">Choose which capabilities are included in each plan.</p></div>
             </div>
 
             <div class="tabs" role="tablist" aria-label="Plan feature assignments">

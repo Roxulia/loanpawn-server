@@ -20,10 +20,11 @@ class BillingManagementController extends Controller
     ) {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('platform.billing.index', [
             'billing' => $this->billingService->getBillingOverview(),
+            'openPaymentTenantRequestId' => (int) $request->query('open_request', session('open_payment_tenant_request_id', 0)),
         ]);
     }
 

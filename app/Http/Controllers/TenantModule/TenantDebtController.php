@@ -15,8 +15,7 @@ class TenantDebtController extends Controller
 {
     public function __construct(
         private TenantDebtService $debtService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -49,11 +48,10 @@ class TenantDebtController extends Controller
         $debt = $this->debtService->createExternalDebt(new TenantDebtCreate(
             amount: (float) $validated['amount'],
             description: $validated['description'],
+            createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
             slipCode: $validated['slip_code'] ?? null,
             customerCode: $validated['customer_code'] ?? null,
             tag: $validated['tag'] ?? null,
-            isPaid: (bool) ($validated['is_paid'] ?? false),
-            acceptedBy: $validated['accepted_by'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
@@ -73,12 +71,11 @@ class TenantDebtController extends Controller
             debtId: $this->debtService->resolveIdByCode($debtCode),
             code: $debtCode,
             updateKey: $validated['update_key'] ?? 0,
+            createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
             amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
             description: $validated['description'] ?? null,
             slipId: $validated['slip_id'] ?? null,
             tag: $validated['tag'] ?? null,
-            isPaid: array_key_exists('is_paid', $validated) ? (bool) $validated['is_paid'] : null,
-            acceptedBy: $validated['accepted_by'] ?? null,
         ));
 
         return $this->successResponse($debt->toArray(), $this->responseMessage(MessageCode::TenantDebtUpdated));
@@ -95,6 +92,7 @@ class TenantDebtController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount_paid' => ['required', 'numeric', 'min:0.01'],
+            'accept_account_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         if ($validator->fails()) {
@@ -105,6 +103,7 @@ class TenantDebtController extends Controller
         $debt = $this->debtService->markAsPaid(
             $this->debtService->resolveIdByCode($debtCode),
             (float) $validated['amount_paid'],
+            isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
         );
 
         return $this->successResponse($debt, $this->responseMessage(MessageCode::TenantDebtPaid));
@@ -114,15 +113,15 @@ class TenantDebtController extends Controller
     {
         return [
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
+            'created_account_id' => ['nullable', 'integer', 'min:1'],
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
             'slip_code' => ['nullable'],
             'customer_code' => ['nullable'],
             'tag' => ['nullable', 'string', 'max:120'],
-            'is_paid' => ['nullable', 'boolean'],
-            'accepted_by' => ['nullable', 'integer'],
+            'is_paid' => ['prohibited'],
+            'accepted_by' => ['prohibited'],
             'update_key' => ['nullable', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ];
     }
-
 }

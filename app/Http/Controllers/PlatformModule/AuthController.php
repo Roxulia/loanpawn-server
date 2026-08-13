@@ -287,10 +287,12 @@ class AuthController extends Controller
 
         $validated = $validator->validated();
         $this->authService->verifyRegistrationOTP($validated['email'], $validated['otp']);
+        $this->authService->loginVerifiedRegistrationUser($validated['email']);
+        $request->session()->regenerate();
         session()->forget([self::REGISTER_EMAIL_KEY, self::REGISTER_RESEND_KEY]);
 
         return $this->successResponse(
-            ['redirect' => route('platform.login.show')],
+            ['redirect' => route('platform.tenants.create')],
             $this->responseMessage(MessageCode::PlatformEmailVerified),
         );
     }

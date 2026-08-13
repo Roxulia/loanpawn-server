@@ -3,6 +3,8 @@
 namespace App\Repository;
 
 use App\Models\CoreModule\TenantSetting;
+use App\Models\PlatformModule\Tenant;
+use Illuminate\Support\Collection;
 
 class TenantSettingRepository
 {
@@ -17,13 +19,28 @@ class TenantSettingRepository
 
     public function firstOrCreate(int $tenantId, string $key, array $data): TenantSetting
     {
-        return TenantSetting::query()->firstOrCreate(
+        return TenantSetting::query()->withoutGlobalScopes()->firstOrCreate(
             [
                 'tenant_id' => $tenantId,
                 'key' => $key,
             ],
             $data,
         );
+    }
+
+    public function currencyPreferences(int $tenantId): ?TenantSetting
+    {
+        return TenantSetting::query()
+            ->withoutGlobalScopes()
+            ->with(['defaultCurrency', 'reportingCurrency'])
+            ->where('tenant_id', $tenantId)
+            ->where('key', 'currency_preferences')
+            ->first();
+    }
+
+    public function allTenantIds(): Collection
+    {
+        return Tenant::query()->orderBy('id')->pluck('id');
     }
 
     public function update(TenantSetting $setting, array $data): TenantSetting

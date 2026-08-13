@@ -40,6 +40,44 @@ class PackageService
         return $package;
     }
 
+    public function findById(int $id): Package
+    {
+        $package = $this->repository->findById($id);
+
+        if (! $package) {
+            throw new TenantNotFound($this->messages->responseMessage(MessageCode::PackageNotFound));
+        }
+
+        return $package;
+    }
+
+    public function findActiveById(int $id): Package
+    {
+        $package = $this->repository->findActiveById($id);
+
+        if (! $package) {
+            throw new TenantNotFound($this->messages->responseMessage(MessageCode::PackageNotFound));
+        }
+
+        return $package;
+    }
+
+    public function trialForCategory(int $categoryId): Package
+    {
+        $package = $this->repository->trialForCategory($categoryId);
+
+        if (! $package) {
+            throw new InvalidTenantRequest('The selected category has no active trial plan.');
+        }
+
+        return $package;
+    }
+
+    public function activeCategoriesWithPlans(): Collection
+    {
+        return $this->repository->activeCategoriesWithPlans();
+    }
+
     public function planHasFeature(string $planType, string $featureCode): bool
     {
         return $this->findEnabledFeatureByPlan($planType, $featureCode) !== null;
@@ -63,9 +101,9 @@ class PackageService
         return $this->repository->featureFlagsByPackageCode($planType);
     }
 
-    public function activePaidPackagesExcept(?string $excludedCode = null): Collection
+    public function activePaidPackagesExcept(?string $excludedCode = null, ?int $categoryId = null): Collection
     {
-        return $this->repository->activePaidPackagesExcept($excludedCode);
+        return $this->repository->activePaidPackagesExcept($excludedCode, $categoryId);
     }
 
     public function flagMatrix(): array
@@ -85,9 +123,18 @@ class PackageService
         array $packageFlags,
         array $maxSlipPerMonth = [],
         array $maxStaffCount = [],
-    ): void
-    {
-        $this->repository->updatePlanFlags($packageFlags, $maxSlipPerMonth, $maxStaffCount);
+        array $maxAccountCount = [],
+        array $maxCurrencyTypeCount = [],
+        array $maxExchangePairCount = [],
+    ): void {
+        $this->repository->updatePlanFlags(
+            $packageFlags,
+            $maxSlipPerMonth,
+            $maxStaffCount,
+            $maxAccountCount,
+            $maxCurrencyTypeCount,
+            $maxExchangePairCount,
+        );
     }
 
     public function createFeature(array $data): void

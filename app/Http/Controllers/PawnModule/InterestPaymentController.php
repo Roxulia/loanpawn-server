@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\PawnModule;
 
-use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\DataObjects\RequestObjects\InterestPaymentAccept;
+use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\InterestFlowService;
 use App\Utility\MessageCode;
@@ -15,8 +15,7 @@ class InterestPaymentController extends Controller
 {
     public function __construct(
         private InterestFlowService $interestFlowService,
-    ) {
-    }
+    ) {}
 
     public function history(Request $request): JsonResponse
     {
@@ -50,6 +49,7 @@ class InterestPaymentController extends Controller
         $validator = Validator::make($input, [
             'slip_update_key' => ['required', 'integer', 'min:0'],
             'payment_amount' => ['required', 'numeric', 'min:0.01'],
+            'accept_account_id' => ['nullable', 'integer', 'min:1'],
             'record_debt' => ['nullable', 'boolean'],
             'interest_breakdown' => ['required', 'array'],
             'interest_breakdown.*.id' => ['required', 'integer', 'min:1'],
@@ -72,6 +72,7 @@ class InterestPaymentController extends Controller
                 new InterestPaymentAccept(
                     slipUpdateKey: (int) $validated['slip_update_key'],
                     paymentAmount: (float) $validated['payment_amount'],
+                    acceptAccountId: isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
                     recordDebt: (bool) ($validated['record_debt'] ?? false),
                     interestBreakdown: array_map(
                         fn (array $breakdown): InterestBreakDown => InterestBreakDown::fromValues(

@@ -5,6 +5,7 @@
 @section('pageDescription', 'Review all manual payments, approval counts, and total approved billings.')
 
 @section('content')
+<div class="admin-stack admin-billing-page">
     <section class="grid kpi">
         <div class="panel">
             <p class="metric-label">Pending Approval</p>
@@ -24,7 +25,8 @@
         </div>
     </section>
 
-    <section class="panel" style="margin-top: 16px;">
+    <section class="panel">
+        <div class="admin-section-heading"><div><p class="admin-section-kicker">Billing history</p><h2>Manual payment records</h2><p>Approved, pending, and reviewed billing activity.</p></div></div>
         @if ($billing['payments']->total() === 0)
             <div class="empty-state">
                 <div>
@@ -33,7 +35,7 @@
                 </div>
             </div>
         @else
-            <div class="table-wrap">
+            <div class="table-wrap admin-table--desktop admin-cards--mobile">
                 <table>
                     <thead>
                     <tr>
@@ -55,8 +57,8 @@
                             <td data-label="Tenant">{{ $payment->tenant?->name ?? '-' }}</td>
                             <td data-label="Request">{{ str_replace('_', ' ', $payment->tenantRequest?->request_type ?? '-') }}</td>
                             <td data-label="Amount">{{ number_format((float) $payment->amount, 0) }} {{ $payment->currency }}</td>
-                            <td data-label="Payment"><span class="badge">{{ $payment->status }}</span></td>
-                            <td data-label="Request"><span class="badge">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td>
+                            <td data-label="Payment"><span class="badge" data-tone="{{ $payment->status === 'approved' ? 'success' : 'warning' }}">{{ $payment->status }}</span></td>
+                            <td data-label="Request"><span class="badge" data-tone="{{ $payment->tenantRequest?->request_status === 'approved' ? 'success' : 'warning' }}">{{ $payment->tenantRequest?->request_status ?? '-' }}</span></td>
                             <td data-label="Reviewed">{{ $payment->reviewed_at?->format('Y-m-d') ?? '-' }}</td>
                         </tr>
                     @endforeach
@@ -69,4 +71,5 @@
             </div>
         @endif
     </section>
+</div>
 @endsection

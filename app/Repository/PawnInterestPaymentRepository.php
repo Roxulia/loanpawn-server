@@ -3,18 +3,16 @@
 namespace App\Repository;
 
 use App\Models\PawnModule\PawnInterestPayment;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Collection;
 
 class PawnInterestPaymentRepository
 {
-
     public function history(int $perPage = 15): LengthAwarePaginator
     {
         return PawnInterestPayment::query()
-            ->with('slip')
-            ->where("is_paid", true)
+            ->with(['slip', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->where('is_paid', true)
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate($perPage);
@@ -22,14 +20,14 @@ class PawnInterestPaymentRepository
 
     public function create(array $data): PawnInterestPayment
     {
-        return PawnInterestPayment::query()->create($data);
+        return PawnInterestPayment::query()->create($data)->load(['createdAccount.currency', 'acceptAccount.currency']);
     }
 
     public function update(PawnInterestPayment $payment, array $data): PawnInterestPayment
     {
         $payment->update($data);
 
-        return $payment->refresh();
+        return $payment->refresh()->load(['createdAccount.currency', 'acceptAccount.currency']);
     }
 
     public function updateWithLock(PawnInterestPayment $payment, array $data): PawnInterestPayment
@@ -49,7 +47,7 @@ class PawnInterestPaymentRepository
 
     public function findById(int $paymentId): ?PawnInterestPayment
     {
-        return PawnInterestPayment::query()->find($paymentId);
+        return PawnInterestPayment::query()->with(['createdAccount.currency', 'acceptAccount.currency'])->find($paymentId);
     }
 
     /**
@@ -58,6 +56,7 @@ class PawnInterestPaymentRepository
     public function findByIdsForSlip(int $slipId, array $paymentIds): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->whereIn('id', $paymentIds)
             ->orderBy('start_period_at')
@@ -68,6 +67,7 @@ class PawnInterestPaymentRepository
     public function findLastAccruedInterestPayment(int $slipId): ?PawnInterestPayment
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->orderByDesc('end_period_at')
             ->orderByDesc('id')
@@ -80,6 +80,7 @@ class PawnInterestPaymentRepository
     public function findInterestUntilDateBySlipId(int $slipId, string $date): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->whereDate('start_period_at', '<=', $date)
             ->orderBy('start_period_at')
@@ -90,6 +91,7 @@ class PawnInterestPaymentRepository
     public function findInterestUntilDateBySlipIdWithLock(int $slipId, string $date): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->whereDate('start_period_at', '<=', $date)
             ->orderBy('start_period_at')
@@ -104,6 +106,7 @@ class PawnInterestPaymentRepository
     public function findInterestAfterDateBySlipId(int $slipId, string $date): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->whereDate('start_period_at', '>', $date)
             ->orderBy('start_period_at')
@@ -114,6 +117,7 @@ class PawnInterestPaymentRepository
     public function findInterestAfterDateBySlipIdWithLock(int $slipId, string $date): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->whereDate('start_period_at', '>', $date)
             ->orderBy('start_period_at')
@@ -128,6 +132,7 @@ class PawnInterestPaymentRepository
     public function findUnpaidInterestUntilDateBySlipId(int $slipId, string $date): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
             ->whereDate('start_period_at', '<=', $date)
@@ -139,6 +144,7 @@ class PawnInterestPaymentRepository
     public function findUnpaidInterestUntilDateBySlipIdWithLock(int $slipId, string $date): Collection
     {
         return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
             ->whereDate('start_period_at', '<=', $date)

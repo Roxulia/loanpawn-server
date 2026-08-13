@@ -8,38 +8,62 @@ use App\Models\PawnModule\PawnLoanContractSlip;
 class LoanContractSlipDetail extends BaseDataObject
 {
     public int $id;
+
     public int $tenantId;
+
     public string $slipNo;
+
     public int $customerId;
+
+    public ?int $accountId;
+
     public ?TenantCustomerDetail $customer;
+
     public string $loanAmount;
+
     public string $interestRate;
+
     public ?int $interestTypeId;
+
     public ?string $interestTypeCode;
+
     public ?string $interestTypeName;
+
     public ?string $expireAt;
+
     public ?string $lastInterestAddedAt;
+
     public ?string $lastInterestPaidAt;
+
     public string $status;
+
     public ?string $notes;
+
     public ?int $createdBy;
+
     public int $expiryQuota;
+
     public string $expiryQuotaType;
+
     /**
      * @var LoanContractSlipItemDetail[]
      */
     public array $items;
+
     public ?string $createdAt;
+
     public ?string $updatedAt;
+
     public int $updateKey;
 
     public static function fromModel(PawnLoanContractSlip $slip): self
     {
-        $detail = new self();
+        $detail = new self;
         $detail->id = $slip->id;
         $detail->tenantId = $slip->tenant_id;
         $detail->slipNo = $slip->slip_no;
         $detail->customerId = $slip->customer_id;
+        $detail->accountId = $slip->account_id;
         $detail->customer = $slip->relationLoaded('customer') && $slip->customer !== null
             ? TenantCustomerDetail::fromModel($slip->customer)
             : null;
@@ -62,6 +86,7 @@ class LoanContractSlipDetail extends BaseDataObject
         $detail->createdAt = $slip->created_at?->toISOString();
         $detail->updatedAt = $slip->updated_at?->toISOString();
         $detail->updateKey = (int) $slip->update_key;
+
         return $detail;
     }
 }

@@ -316,6 +316,54 @@ return [
         ],
     ],
 
+    'finance' => [
+        'response' => [
+            'platform' => [
+                'currency' => ['created' => 'မူလငွေကြေးကို ဖန်တီးပြီးပါပြီ။', 'updated' => 'မူလငွေကြေးကို ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'မူလငွေကြေးကို ဖျက်ပြီးပါပြီ။'],
+                'exchange_pair' => ['created' => 'မူလငွေလဲလှယ်မှုအတွဲကို ဖန်တီးပြီးပါပြီ။', 'updated' => 'မူလငွေလဲလှယ်မှုအတွဲကို ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'မူလငွေလဲလှယ်မှုအတွဲကို ဖျက်ပြီးပါပြီ။'],
+                'exchange_rate' => ['recorded' => 'ပလက်ဖောင်းငွေလဲနှုန်းကို မှတ်တမ်းတင်ပြီးပါပြီ။', 'corrected' => 'ပလက်ဖောင်းငွေလဲနှုန်းကို ပြင်ဆင်ပြီးပါပြီ။', 'voided' => 'ပလက်ဖောင်းငွေလဲနှုန်းကို ပယ်ဖျက်ပြီးပါပြီ။'],
+            ],
+            'tenant' => [
+                'currency' => ['created' => 'ငွေကြေးကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ။', 'updated' => 'ငွေကြေးကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'ငွေကြေးကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'],
+                'financial_account_type' => ['created' => 'Financial account type ဖန်တီးပြီးပါပြီ။', 'updated' => 'Financial account type ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'Financial account type ဖျက်ပြီးပါပြီ။'],
+                'exchange_pair' => ['created' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ။', 'updated' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'],
+                'exchange_rate' => ['recorded' => 'ငွေလဲနှုန်းကို အောင်မြင်စွာ မှတ်တမ်းတင်ပြီးပါပြီ။', 'corrected' => 'ငွေလဲနှုန်းကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'voided' => 'ငွေလဲနှုန်းကို အောင်မြင်စွာ ပယ်ဖျက်ပြီးပါပြီ။', 'resolved' => 'ငွေလဲနှုန်းကို ရှာဖွေတွေ့ရှိပါပြီ။', 'unavailable' => 'ငွေလဲနှုန်း မရရှိနိုင်ပါ။'],
+            ],
+        ],
+        'exception' => [
+            'rate_entry_already_void' => 'ဤငွေလဲနှုန်းမှတ်တမ်းကို ပယ်ဖျက်ပြီးသား ဖြစ်ပါသည်။',
+            'exchange_rate_action_window_closed' => 'ဤငွေလဲနှုန်းမှတ်တမ်းကို ပြင်ဆင်နိုင်သည့်အချိန် ကျော်လွန်သွားပါပြီ။',
+            'default_currency_code_exists' => 'ဤမူလငွေကြေးကုဒ် ရှိပြီးသား ဖြစ်ပါသည်။',
+            'admin_currency_requires_default' => 'စီမံခန့်ခွဲသူ၏ ငွေကြေးစီမံမှုတွင် မူလငွေကြေးများကိုသာ လက်ခံပါသည်။',
+            'currency_already_updated' => 'ဤငွေကြေးကို ပြင်ဆင်ပြီးသား ဖြစ်ပါသည်။ စာမျက်နှာကို ပြန်လည်ဖွင့်ပြီး ထပ်မံကြိုးစားပါ။',
+            'currency_code_locked_by_pair' => 'ငွေလဲလှယ်မှုအတွဲတွင် အသုံးပြုပြီးနောက် ငွေကြေးကုဒ်ကို ပြောင်းလဲ၍ မရပါ။',
+            'default_currency_required' => 'ဤနေရာတွင် မူလငွေကြေးများကိုသာ စီမံနိုင်ပါသည်။',
+            'currency_used_by_pair' => 'ဤငွေကြေးကို အသုံးပြုထားသော ငွေလဲလှယ်မှုအတွဲများကို ဦးစွာဖျက်ပါ။',
+            'default_exchange_pair_exists' => 'ဤမူလငွေလဲလှယ်မှုအတွဲ ရှိပြီးသား ဖြစ်ပါသည်။',
+            'default_exchange_pair_required' => 'ဤနေရာတွင် မူလငွေလဲလှယ်မှုအတွဲများကိုသာ စီမံနိုင်ပါသည်။',
+            'exchange_pair_already_updated' => 'ဤငွေလဲလှယ်မှုအတွဲကို ပြင်ဆင်ပြီးသား ဖြစ်ပါသည်။ စာမျက်နှာကို ပြန်လည်ဖွင့်ပြီး ထပ်မံကြိုးစားပါ။',
+            'exchange_pair_direction_locked' => 'ငွေလဲနှုန်း ထည့်သွင်းပြီးနောက် ငွေလဲလှယ်မှုအတွဲ၏ ဦးတည်ချက်ကို ပြောင်းလဲ၍ မရပါ။',
+            'distinct_active_default_currencies_required' => 'အသုံးပြုနိုင်သော မတူညီသည့် မူလငွေကြေးနှစ်ခုကို ရွေးချယ်ပါ။',
+            'active_default_exchange_pair_required' => 'အသုံးပြုနိုင်သော မူလငွေလဲလှယ်မှုအတွဲကို ရွေးချယ်ပါ။',
+            'platform_exchange_rate_required' => 'ဤနေရာတွင် ပလက်ဖောင်းငွေလဲနှုန်းများကိုသာ စီမံနိုင်ပါသည်။',
+            'currency_not_found' => 'ငွေကြေးကို ရှာမတွေ့ပါ။',
+            'currency_code_already_available' => 'ဤငွေကြေးကုဒ် ရှိပြီးသား ဖြစ်ပါသည်။',
+            'tenant_currency_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေကြေးများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
+            'financial_account_type_already_updated' => 'ဤ financial account type ကို ပြင်ဆင်ပြီးသား ဖြစ်ပါသည်။ ပြန်လည်ဖွင့်ပြီး ထပ်မံကြိုးစားပါ။',
+            'financial_account_type_code_already_available' => 'ဤ financial account type code ကို အသုံးပြုပြီးသား ဖြစ်ပါသည်။',
+            'tenant_financial_account_type_modification_denied' => 'ဤ Tenant ပိုင် financial account type များကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
+            'exchange_pair_not_found' => 'ငွေလဲလှယ်မှုအတွဲကို ရှာမတွေ့ပါ။',
+            'exchange_pair_already_available' => 'ဤငွေလဲလှယ်မှုအတွဲ ရှိပြီးသား ဖြစ်ပါသည်။',
+            'tenant_exchange_pair_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေလဲလှယ်မှုအတွဲများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
+            'visible_active_currencies_required' => 'ငွေကြေးနှစ်ခုလုံးသည် အသုံးပြုနိုင်ပြီး ဤ Tenant တွင် မြင်တွေ့နိုင်ရပါမည်။',
+            'distinct_pair_currencies_required' => 'အခြေခံငွေကြေးနှင့် နှိုင်းယှဉ်ငွေကြေးသည် မတူညီရပါမည်။',
+            'resource_limit_reached' => 'သင့် Plan ၏ အသုံးပြုနိုင်သည့် အရေအတွက် ကန့်သတ်ချက် ပြည့်သွားပါပြီ။',
+            'exchange_rate_not_found' => 'ငွေလဲနှုန်းကို ရှာမတွေ့ပါ။',
+            'active_visible_exchange_pair_required' => 'အသုံးပြုနိုင်ပြီး မြင်တွေ့နိုင်သော ငွေလဲလှယ်မှုအတွဲကို ရွေးချယ်ပါ။',
+            'tenant_exchange_rate_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေလဲနှုန်းမှတ်တမ်းများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
+        ],
+    ],
+
     'billing' => [
         'response' => [
             'payment_request' => [

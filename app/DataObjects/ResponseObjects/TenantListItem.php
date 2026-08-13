@@ -21,7 +21,7 @@ class TenantListItem extends BaseDataObject
         $detail->subdomain = $tenant->subdomain;
         $detail->code = $tenant->tenant_code;
         $detail->updateKey = (int) $tenant->update_key;
-        $detail->currentPlan = $tenant->license?->plan_type;
+        $detail->currentPlan = $tenant->license?->plan?->code ?? $tenant->license?->plan_type;
         $detail->status = $tenant->status;
 
         return $detail;

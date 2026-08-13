@@ -2,7 +2,6 @@
 
 namespace App\Repository;
 
-use App\Models\CoreModule\TenantAccounting;
 use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantDebt;
 use App\Models\CoreModule\TenantExpense;
@@ -10,6 +9,7 @@ use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PawnModule\PawnRedemption;
+use App\Models\TenantAccountingTransactions;
 use App\Support\AccountingReferenceMapper;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -39,16 +39,16 @@ class TenantDashboardRepository
 
     public function dashboardNetProfitBetween(Carbon $startDate, Carbon $endDate): float
     {
-        return (float) TenantAccounting::query()
-            ->whereBetween('created_at', [$startDate, $endDate])
+        return (float) TenantAccountingTransactions::query()
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->where(function ($query): void {
                 $query->whereNull('reference_type')
                     ->orWhereNotIn('reference_type', AccountingReferenceMapper::dashboardNetProfitExcludedReferenceTypes());
             })
             ->selectRaw("
                 COALESCE(SUM(CASE
-                    WHEN transaction_type = 'incoming' THEN amount
-                    WHEN transaction_type = 'outgoing' THEN -amount
+                    WHEN transaction_direction = 'incoming' THEN amount
+                    WHEN transaction_direction = 'outgoing' THEN -amount
                     ELSE 0
                 END), 0) as net_profit
             ")
@@ -57,20 +57,20 @@ class TenantDashboardRepository
 
     public function accountingTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate, ?array $referenceTypes = null): float
     {
-        return (float) TenantAccounting::query()
-            ->where('transaction_type', $transactionType)
-            ->whereBetween('created_at', [$startDate, $endDate])
+        return (float) TenantAccountingTransactions::query()
+            ->where('transaction_direction', $transactionType)
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->when($referenceTypes !== null, fn ($query) => $query->whereIn('reference_type', $referenceTypes))
             ->sum('amount');
     }
 
     public function accountingBalance(): float
     {
-        return (float) TenantAccounting::query()
+        return (float) TenantAccountingTransactions::query()
             ->selectRaw("
                 COALESCE(SUM(CASE
-                    WHEN transaction_type = 'incoming' THEN amount
-                    WHEN transaction_type = 'outgoing' THEN -amount
+                    WHEN transaction_direction = 'incoming' THEN amount
+                    WHEN transaction_direction = 'outgoing' THEN -amount
                     ELSE 0
                 END), 0) as balance
             ")
@@ -79,11 +79,11 @@ class TenantDashboardRepository
 
     public function accountingDailyTotalsBetween(string $transactionType, Carbon $startDate, Carbon $endDate): Collection
     {
-        return TenantAccounting::query()
-            ->selectRaw('DATE(created_at) as summary_date')
+        return TenantAccountingTransactions::query()
+            ->selectRaw('business_date as summary_date')
             ->selectRaw('SUM(amount) as total_amount')
-            ->where('transaction_type', $transactionType)
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->where('transaction_direction', $transactionType)
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->groupBy('summary_date')
             ->orderBy('summary_date')
             ->get()

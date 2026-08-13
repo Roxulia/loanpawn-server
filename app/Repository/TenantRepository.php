@@ -82,7 +82,7 @@ class TenantRepository
     public function paginateAll(int $perPage = 15): LengthAwarePaginator
     {
         return Tenant::query()
-            ->with(['owner', 'license'])
+            ->with(['owner', 'category', 'license.plan'])
             ->orderByDesc('id')
             ->paginate($perPage);
     }
@@ -90,7 +90,7 @@ class TenantRepository
     public function paginateByPlatformUser(int $platformUserId, int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
         $query = Tenant::query()
-            ->with(['owner', 'license', 'branding', 'contact'])
+            ->with(['owner', 'category', 'license.plan', 'branding', 'contact'])
             ->where('platform_user_id', $platformUserId);
 
         $search = trim((string) $search);
@@ -102,7 +102,8 @@ class TenantRepository
                     ->orWhere('subdomain', 'like', '%'.$search.'%')
                     ->orWhere('status', 'like', '%'.$search.'%')
                     ->orWhereHas('license', function ($query) use ($search) {
-                        $query->where('plan_type', 'like', '%'.$search.'%');
+                        $query->where('plan_type', 'like', '%'.$search.'%')
+                            ->orWhereHas('plan', fn ($planQuery) => $planQuery->where('name', 'like', '%'.$search.'%'));
                     });
             });
         }

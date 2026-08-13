@@ -6,6 +6,7 @@
 
 @section('content')
     <section class="panel">
+        <div class="admin-section-heading"><div><p class="admin-section-kicker">Approval queue</p><h2>Pending payment requests</h2><p>{{ $payments->total() }} request{{ $payments->total() === 1 ? '' : 's' }} currently awaiting review.</p></div></div>
         @if ($payments->total() === 0)
             <div class="empty-state">
                 <div>
@@ -14,7 +15,7 @@
                 </div>
             </div>
         @else
-            <div class="table-wrap">
+            <div class="table-wrap admin-table--desktop admin-cards--mobile">
                 <table>
                     <thead>
                     <tr>

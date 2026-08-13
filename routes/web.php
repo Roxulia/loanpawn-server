@@ -2,11 +2,15 @@
 
 use App\Http\Controllers\LocaleSetterController;
 use App\Http\Controllers\PlatformModule\Admin\AdminBillingManagementController;
+use App\Http\Controllers\PlatformModule\Admin\AdminCurrencyController;
 use App\Http\Controllers\PlatformModule\Admin\AdminDashboardController;
+use App\Http\Controllers\PlatformModule\Admin\AdminExchangeRateController;
+use App\Http\Controllers\PlatformModule\Admin\AdminExchangeRatePairController;
 use App\Http\Controllers\PlatformModule\Admin\AdminIssuedTicketController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPackageFlagController;
-use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPaymentQrController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPaymentRequestController;
+use App\Http\Controllers\PlatformModule\Admin\AdminPlanManagementController;
 use App\Http\Controllers\PlatformModule\Admin\AdminPlatformUserController;
 use App\Http\Controllers\PlatformModule\Admin\AdminTenantManagementController;
 use App\Http\Controllers\PlatformModule\AuthController;
@@ -21,6 +25,67 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/robots.txt', function () {
+    $privatePaths = [
+        '/admin',
+        '/api',
+        '/billing',
+        '/customer-service',
+        '/dashboard',
+        '/settings',
+        '/tenants',
+    ];
+    $searchAgents = [
+        'OAI-SearchBot',
+        'ChatGPT-User',
+        'PerplexityBot',
+        'Perplexity-User',
+        '*',
+    ];
+    $lines = [];
+
+    foreach ($searchAgents as $agent) {
+        $lines[] = "User-agent: {$agent}";
+        $lines[] = 'Allow: /';
+
+        foreach ($privatePaths as $path) {
+            $lines[] = "Disallow: {$path}";
+        }
+
+        $lines[] = '';
+    }
+
+    foreach (['GPTBot', 'CCBot'] as $trainingAgent) {
+        $lines[] = "User-agent: {$trainingAgent}";
+        $lines[] = 'Disallow: /';
+        $lines[] = '';
+    }
+
+    $lines[] = 'Sitemap: '.rtrim((string) config('app.url'), '/').'/sitemap.xml';
+
+    return response(implode("\n", $lines)."\n", 200)
+        ->header('Content-Type', 'text/plain; charset=UTF-8');
+})->name('seo.robots');
+
+Route::get('/sitemap.xml', function () {
+    $canonicalUrl = htmlspecialchars(
+        rtrim((string) config('app.url'), '/').'/',
+        ENT_XML1 | ENT_QUOTES,
+        'UTF-8'
+    );
+    $xml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>{$canonicalUrl}</loc>
+    </url>
+</urlset>
+XML;
+
+    return response($xml, 200)
+        ->header('Content-Type', 'application/xml; charset=UTF-8');
+})->name('seo.sitemap');
 
 Route::get('/locale/{locale}', [LocaleSetterController::class, 'setLocale'])->name('locale.set');
 
@@ -38,11 +103,25 @@ Route::name('admin.')->group(function () {
         ->group(function () {
             Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
             Route::get('/tenants', [AdminTenantManagementController::class, 'index'])->name('tenants.index');
+            Route::post('/tenants/{tenant}/plan', [AdminTenantManagementController::class, 'changePlan'])->name('tenants.plan.update');
+            Route::get('/plans', [AdminPlanManagementController::class, 'index'])->name('plans.index');
+            Route::post('/plans/categories', [AdminPlanManagementController::class, 'storeCategory'])->name('plans.categories.store');
+            Route::put('/plans/categories/{category}', [AdminPlanManagementController::class, 'updateCategory'])->name('plans.categories.update');
+            Route::delete('/plans/categories/{category}', [AdminPlanManagementController::class, 'destroyCategory'])->name('plans.categories.destroy');
+            Route::post('/plans', [AdminPlanManagementController::class, 'storePlan'])->name('plans.store');
+            Route::put('/plans/{plan}', [AdminPlanManagementController::class, 'updatePlan'])->name('plans.update');
+            Route::delete('/plans/{plan}', [AdminPlanManagementController::class, 'destroyPlan'])->name('plans.destroy');
             Route::resource('platform-users', AdminPlatformUserController::class)
                 ->parameters(['platform-users' => 'platformUser'])
                 ->except(['show']);
             Route::get('/billing', [AdminBillingManagementController::class, 'index'])->name('billing.index');
             Route::get('/package-flags', [AdminPackageFlagController::class, 'index'])->name('package-flags.index');
+            Route::resource('currencies', AdminCurrencyController::class)->only(['index', 'store', 'update', 'destroy']);
+            Route::resource('exchange-pairs', AdminExchangeRatePairController::class)->only(['index', 'store', 'update', 'destroy']);
+            Route::get('exchange-rates', [AdminExchangeRateController::class, 'index'])->name('exchange-rates.index');
+            Route::post('exchange-rates', [AdminExchangeRateController::class, 'store'])->name('exchange-rates.store');
+            Route::post('exchange-rates/{entry}/correct', [AdminExchangeRateController::class, 'correct'])->name('exchange-rates.correct');
+            Route::post('exchange-rates/{entry}/void', [AdminExchangeRateController::class, 'void'])->name('exchange-rates.void');
             Route::put('/package-flags', [AdminPackageFlagController::class, 'update'])->name('package-flags.update');
             Route::post('/package-flags/plans', [AdminPackageFlagController::class, 'updatePlans'])->name('package-flags.plans.update');
             Route::post('/package-flags/features', [AdminPackageFlagController::class, 'storeFeature'])->name('package-flags.features.store');
@@ -104,6 +183,7 @@ Route::name('platform.')->group(function () {
             Route::put('/{tenant}/settings', 'update')
                 ->middleware('platform.tenant.submitted-feature:subdomain_available,subdomain')
                 ->name('update');
+            Route::put('/{tenant}/accounting-day-schedule', 'updateAccountingSchedule')->name('accounting-day-schedule.update');
             Route::post('/{tenant}/upgrade-request', 'requestPlanChange')->name('upgrade-request');
             Route::post('/{tenant}/extension-request', 'requestLicenseExtension')->name('extension-request');
             Route::post('/{tenant}/open-app', 'openApp')->name('open-app');

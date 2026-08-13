@@ -130,10 +130,10 @@ class LoanContractSlipServiceTest extends TestCase
             'is_paid' => false,
         ]);
 
-        $this->assertDatabaseHas('tenant_accountings', [
+        $this->assertDatabaseHas('tenant_accounting_transactions', [
             'tenant_id' => $tenant->id,
             'description' => 'Loan Contract Transaction',
-            'transaction_type' => 'outgoing',
+            'transaction_direction' => 'outgoing',
             'amount' => '500000.00',
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\PawnModule\\PawnLoanContractSlip',
@@ -237,7 +237,7 @@ class LoanContractSlipServiceTest extends TestCase
             'is_deleted' => true,
         ]);
 
-        $this->assertDatabaseMissing('tenant_accountings', [
+        $this->assertDatabaseMissing('tenant_accounting_transactions', [
             'reference_id' => $created->id,
             'reference_type' => 'App\\Models\\PawnModule\\PawnLoanContractSlip',
         ]);

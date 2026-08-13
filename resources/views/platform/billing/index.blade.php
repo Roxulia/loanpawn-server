@@ -123,7 +123,7 @@
             <dialog
                 class="platform-dialog"
                 id="payment-dialog-{{ $payment->id }}"
-                @if ((int) session('open_payment_tenant_request_id') === (int) $payment->tenant_request_id) data-auto-open-payment-dialog @endif
+                @if ((int) ($openPaymentTenantRequestId ?? 0) === (int) $payment->tenant_request_id) data-auto-open-payment-dialog @endif
             >
                 <form method="POST" action="{{ route('platform.billing.payment.submit', $payment->tenant_request_id) }}" enctype="multipart/form-data">
                     @csrf

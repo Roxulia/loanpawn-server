@@ -8,22 +8,33 @@ use App\Models\CoreModule\TenantCapital;
 class TenantCapitalDetail extends BaseDataObject
 {
     public int $id;
+
     public int $tenantId;
+
     public string $code;
+
     public int $updateKey;
+
+    public ?int $accountId;
+
     public string $description;
+
     public string $amount;
+
     public ?int $createdBy;
+
     public ?string $createdAt;
+
     public ?string $updatedAt;
 
     public static function fromModel(TenantCapital $capital): self
     {
-        $detail = new self();
+        $detail = new self;
         $detail->id = $capital->id;
         $detail->tenantId = $capital->tenant_id;
         $detail->code = $capital->code;
         $detail->updateKey = (int) $capital->update_key;
+        $detail->accountId = $capital->account_id;
         $detail->description = $capital->description;
         $detail->amount = (string) $capital->amount;
         $detail->createdBy = $capital->created_by;

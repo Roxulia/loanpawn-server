@@ -20,11 +20,45 @@
             font-size: 24px;
             line-height: 1;
         }
+
+        .platform-schedule-mobile { display: none; }
+        .platform-schedule-row {
+            display: grid;
+            grid-template-columns: minmax(110px, 1fr) minmax(110px, .7fr) minmax(130px, .8fr) minmax(130px, .8fr);
+            gap: 16px;
+            align-items: start;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--color-border, #e2e8f0);
+        }
+        .platform-schedule-row.header {
+            color: var(--color-muted, #64748b);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .platform-schedule-row input { min-height: 44px; }
+        .platform-schedule-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+        .platform-schedule-toggle input { width: 20px; height: 20px; }
+        @media (max-width: 640px) {
+            .platform-schedule-desktop { display: none; }
+            .platform-schedule-mobile { display: block; }
+            .platform-schedule-card {
+                padding: 16px;
+                margin-bottom: 12px;
+                border: 1px solid var(--color-border, #e2e8f0);
+                border-radius: 8px;
+                background: #fff;
+            }
+            .platform-schedule-card header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+            .platform-schedule-card .form-grid { grid-template-columns: 1fr; }
+            .platform-schedule-card input, .platform-schedule-submit { width: 100%; min-height: 44px; }
+        }
     </style>
 
     @php
-        $currentPlan = $tenant->license?->plan_type ?? 'trial';
-        $canExtendLicense = $currentPlan !== 'trial';
+        $currentPlan = $tenant->license?->plan?->code ?? $tenant->license?->plan_type ?? 'trial';
+        $currentPlanRank = (int) ($tenant->license?->plan?->rank ?? 0);
+        $canExtendLicense = ! ($tenant->license?->plan?->is_trial ?? ($currentPlan === 'trial'));
         $licenseExpiresAt = $tenant->license?->expires_at;
         $upgradeBillingMonths = 1;
 
@@ -163,6 +197,51 @@
         </div>
     </form>
 
+    @if ($canManageAccountingSchedule && $accountingSchedule)
+        @php($weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
+        <form method="POST" action="{{ route('platform.tenants.accounting-day-schedule.update', $tenant->id) }}" class="panel" id="platform-accounting-schedule-form">
+            @csrf
+            @method('PUT')
+            <h2 style="margin-top: 0; color: var(--color-heading); font-size: 20px;">Automatic Accounting Day Schedule</h2>
+            <p class="field-help">Times use {{ $accountingSchedule['timezone'] }}. Due actions are processed every 15 minutes.</p>
+
+            <div class="platform-schedule-desktop">
+                <div class="platform-schedule-row header" aria-hidden="true"><span>Day</span><span>Enabled</span><span>Open</span><span>Close</span></div>
+                @foreach ($accountingSchedule['days'] as $index => $day)
+                    <div class="platform-schedule-row">
+                        <strong>{{ $weekdayNames[$day['weekday']] }}</strong>
+                        <input type="hidden" name="days[{{ $index }}][weekday]" value="{{ $day['weekday'] }}">
+                        <label class="platform-schedule-toggle">
+                            <input type="checkbox" name="days[{{ $index }}][is_enabled]" value="1" data-schedule-field="{{ $index }}-enabled" @checked(old("days.$index.is_enabled", $day['is_enabled']))>
+                            <span>Enabled</span>
+                        </label>
+                        <input aria-label="{{ $weekdayNames[$day['weekday']] }} open time" name="days[{{ $index }}][open_time]" type="time" value="{{ old("days.$index.open_time", $day['open_time']) }}" data-schedule-field="{{ $index }}-open">
+                        <div>
+                            <input aria-label="{{ $weekdayNames[$day['weekday']] }} close time" name="days[{{ $index }}][close_time]" type="time" value="{{ old("days.$index.close_time", $day['close_time']) }}" data-schedule-field="{{ $index }}-close">
+                            @error("days.$index.close_time") <div class="field-error">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="platform-schedule-mobile">
+                @foreach ($accountingSchedule['days'] as $index => $day)
+                    <section class="platform-schedule-card">
+                        <header>
+                            <strong>{{ $weekdayNames[$day['weekday']] }}</strong>
+                            <label class="platform-schedule-toggle"><input type="checkbox" data-schedule-mobile="{{ $index }}-enabled" @checked(old("days.$index.is_enabled", $day['is_enabled']))><span>Enabled</span></label>
+                        </header>
+                        <div class="form-grid">
+                            <div><label for="mobile-open-{{ $index }}">Open time</label><input id="mobile-open-{{ $index }}" type="time" value="{{ old("days.$index.open_time", $day['open_time']) }}" data-schedule-mobile="{{ $index }}-open"></div>
+                            <div><label for="mobile-close-{{ $index }}">Close time</label><input id="mobile-close-{{ $index }}" type="time" value="{{ old("days.$index.close_time", $day['close_time']) }}" data-schedule-mobile="{{ $index }}-close">@error("days.$index.close_time") <div class="field-error">{{ $message }}</div> @enderror</div>
+                        </div>
+                    </section>
+                @endforeach
+            </div>
+            <button type="submit" class="button primary platform-schedule-submit">Save Schedule</button>
+        </form>
+    @endif
+
     @if ($planOptions->isNotEmpty())
     <dialog class="platform-dialog" id="upgrade-request-dialog">
         <form method="POST" action="{{ route('platform.tenants.upgrade-request', $tenant->id) }}">
@@ -176,23 +255,21 @@
                     <label for="requested_plan_type">Requested Plan</label>
                     <select id="requested_plan_type" name="requested_plan_type" required>
                         @foreach ($planOptions as $plan)
-                            <option value="{{ $plan->code }}" data-monthly-price="{{ (float) $plan->price }}">
-                                {{ $plan->name }}
+                            <option value="{{ $plan->code }}" data-monthly-price="{{ (float) $plan->price }}" data-rank="{{ $plan->rank }}">
+                                {{ $plan->category?->name }} — {{ $plan->name }}
                             </option>
                         @endforeach
                     </select>
                 </div>
-                @if ($currentPlan === 'premium')
-                    <div>
-                        <label for="downgrade_extension_months">Basic Renewal Months</label>
+                    <div id="downgrade-term-field" hidden>
+                        <label for="downgrade_extension_months">New plan duration</label>
                         <select id="downgrade_extension_months" name="extension_months">
-                            <option value="">Select term for a Basic downgrade</option>
+                            <option value="">Select term for a scheduled downgrade</option>
                             @foreach (config('pricing.extension_discounts') as $months => $discount)
                                 <option value="{{ $months }}" data-discount="{{ $discount }}">{{ $months }} month{{ $months === 1 ? '' : 's' }}</option>
                             @endforeach
                         </select>
                     </div>
-                @endif
                 <div>
                     <label>Billing Months</label>
                     <input value="{{ $upgradeBillingMonths }} month{{ $upgradeBillingMonths === 1 ? '' : 's' }} until {{ $licenseExpiresAt?->format('Y-m-d') ?? 'license expiry' }}" disabled>
@@ -250,6 +327,7 @@
     <script>
         const upgradeBillingMonths = {{ $upgradeBillingMonths }};
         const currentPlan = @json($currentPlan);
+        const currentPlanRank = {{ $currentPlanRank }};
         const currencyFormatter = new Intl.NumberFormat('en-US', {
             maximumFractionDigits: 0,
         });
@@ -266,7 +344,7 @@
             const selectedOption = planSelect.options[planSelect.selectedIndex];
             const monthlyPrice = Number(selectedOption?.dataset.monthlyPrice || 0);
             const downgradeTerm = document.getElementById('downgrade_extension_months');
-            const isDeferredDowngrade = currentPlan === 'premium' && planSelect.value === 'basic';
+            const isDeferredDowngrade = Number(selectedOption?.dataset.rank || 0) < currentPlanRank;
             const selectedTerm = downgradeTerm?.options[downgradeTerm.selectedIndex];
             const months = isDeferredDowngrade ? Number(selectedTerm?.value || 0) : upgradeBillingMonths;
             const discount = isDeferredDowngrade ? Number(selectedTerm?.dataset.discount || 0) : 0;
@@ -277,6 +355,7 @@
 
             if (downgradeTerm) {
                 downgradeTerm.required = isDeferredDowngrade;
+                document.getElementById('downgrade-term-field').hidden = !isDeferredDowngrade;
             }
         }
 
@@ -290,6 +369,15 @@
         document.querySelectorAll('[data-close-dialog]').forEach(function (button) {
             button.addEventListener('click', function () {
                 document.getElementById(button.dataset.closeDialog)?.close();
+            });
+        });
+
+        document.querySelectorAll('[data-schedule-mobile]').forEach(function (mobileInput) {
+            mobileInput.addEventListener('change', function () {
+                const desktopInput = document.querySelector('[data-schedule-field="' + mobileInput.dataset.scheduleMobile + '"]');
+                if (!desktopInput) return;
+                if (mobileInput.type === 'checkbox') desktopInput.checked = mobileInput.checked;
+                else desktopInput.value = mobileInput.value;
             });
         });
 
