@@ -25,14 +25,19 @@ class LegacyAccountingMigrationService
         private LegacyAccountingMigrationRepository $repository,
         private TenantSettingService $tenantSettingService,
         private TenantSettingRepository $tenantSettingRepository,
-        private MultiAccountManagement $multiAccountManagement,
+        private LegacyOperationAccountBackfillService $operationAccountBackfillService,
         private AccountingDayBusinessClock $businessClock,
     ) {}
 
     public function migrate(bool $apply): array
     {
         $currencySummary = $this->tenantSettingService->ensureAllTenantCurrencyPreferences(! $apply);
-        $accountSummary = $this->multiAccountManagement->ensureDefaults(! $apply);
+        $operationAccountSummary = $this->operationAccountBackfillService->backfill($apply);
+        $accountSummary = [
+            'tenants_checked' => $operationAccountSummary['accounts_created'] + $operationAccountSummary['accounts_promoted'],
+            'accounts_created' => $operationAccountSummary['accounts_created'],
+            'accounts_promoted' => $operationAccountSummary['accounts_promoted'],
+        ];
         $totals = ['scanned' => 0, 'migrated' => 0, 'already_migrated' => 0, 'deleted' => 0, 'internal_skipped' => 0, 'conversion_unavailable' => 0, 'failed' => 0];
         $reports = [];
         $failures = [];
@@ -114,7 +119,7 @@ class LegacyAccountingMigrationService
             $reports[] = ['tenant_id' => $tenantId, 'old' => $old, 'migrated' => $migrated, 'full' => $full];
         }
 
-        return compact('currencySummary', 'accountSummary', 'totals', 'reports', 'failures');
+        return compact('currencySummary', 'accountSummary', 'operationAccountSummary', 'totals', 'reports', 'failures');
     }
 
     private function createAccounting(TenantAccounting $legacy, int $currencyId, bool $reportingIsMmk): TenantAccountingTransactions

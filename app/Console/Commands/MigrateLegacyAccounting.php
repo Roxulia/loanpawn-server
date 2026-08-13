@@ -36,6 +36,22 @@ class MigrateLegacyAccounting extends Command
             $summary['accountSummary']['accounts_created'],
             $summary['accountSummary']['accounts_promoted'],
         ]]);
+        $this->table(['Operation account field', 'Backfilled'], [
+            ['Loan contract account', $summary['operationAccountSummary']['fields']['loan_contract_account']],
+            ['Interest creation account', $summary['operationAccountSummary']['fields']['interest_created_account']],
+            ['Paid interest acceptance account', $summary['operationAccountSummary']['fields']['interest_accept_account']],
+            ['Redemption account', $summary['operationAccountSummary']['fields']['redemption_account']],
+            ['Debt creation account', $summary['operationAccountSummary']['fields']['debt_created_account']],
+            ['Paid debt acceptance account', $summary['operationAccountSummary']['fields']['debt_accept_account']],
+        ]);
+
+        if ($summary['operationAccountSummary']['failures'] !== []) {
+            $this->warn('Operation account backfill failures:');
+            $this->table(['Tenant ID', 'Reason'], array_map(
+                fn (array $failure): array => [$failure['tenant_id'], $failure['reason']],
+                $summary['operationAccountSummary']['failures'],
+            ));
+        }
         $this->table(
             ['Scanned', 'Migrated', 'Already migrated', 'Deleted', 'Internal skipped', 'No conversion', 'Failed'],
             [[...array_values($summary['totals'])]],
@@ -84,7 +100,9 @@ class MigrateLegacyAccounting extends Command
             ));
         }
 
-        return $summary['totals']['failed'] === 0 ? self::SUCCESS : self::FAILURE;
+        return $summary['totals']['failed'] === 0 && $summary['operationAccountSummary']['failures'] === []
+            ? self::SUCCESS
+            : self::FAILURE;
     }
 
     private function movementRow(string $label, array $movement): array
