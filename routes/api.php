@@ -221,6 +221,7 @@ Route::prefix('tenant')->group(function () {
                     Route::post('/', 'store')->middleware('tenant.permission:create_financial_account');
                     Route::get('transfers', [FinancialAccountTransferController::class, 'index'])->middleware(['tenant.feature:account_transferable', 'tenant.permission:transfer_financial_account']);
                     Route::post('transfers', [FinancialAccountTransferController::class, 'store'])->middleware(['tenant.feature:account_transferable', 'tenant.permission:transfer_financial_account']);
+                    Route::get('{accountCode}/transactions', 'transactions')->middleware('tenant.permission:list_financial_account');
                     Route::get('{accountCode}', 'show')->middleware('tenant.permission:list_financial_account');
                     Route::put('{accountCode}', 'update')->middleware('tenant.permission:update_financial_account');
                     Route::delete('{accountCode}', 'destroy')->middleware('tenant.permission:delete_financial_account');

@@ -4,6 +4,9 @@ namespace App\Http\Controllers\TenantModule\Accounting;
 
 use App\DataObjects\RequestObjects\StoreFinancialAccountRequest;
 use App\DataObjects\RequestObjects\UpdateFinancialAccountRequest;
+use App\DataObjects\RequestObjects\FinancialAccountTransactionFilter;
+use App\Enums\FinancialAccountTransactionType;
+use Carbon\CarbonImmutable;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\Accounting\MultiAccountManagement as MultiAccountManagementService;
 use Illuminate\Http\JsonResponse;
@@ -39,6 +42,30 @@ class MultiAccountManagement extends Controller
     public function show(string $accountCode): JsonResponse
     {
         return $this->successResponse($this->service->show($accountCode)->toArray());
+    }
+
+    public function transactions(Request $request, string $accountCode): JsonResponse
+    {
+        $types = array_map(fn (FinancialAccountTransactionType $type): string => $type->value, FinancialAccountTransactionType::cases());
+        $validated = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'direction' => ['nullable', 'in:debit,credit'],
+            'transaction_type' => ['nullable', 'in:'.implode(',', $types)],
+            'start_at' => ['nullable', 'date'],
+            'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
+        ]);
+
+        $filter = new FinancialAccountTransactionFilter(
+            perPage: (int) ($validated['per_page'] ?? 15),
+            search: $validated['search'] ?? null,
+            direction: $validated['direction'] ?? null,
+            transactionType: $validated['transaction_type'] ?? null,
+            startAt: isset($validated['start_at']) ? CarbonImmutable::parse($validated['start_at']) : null,
+            endAt: isset($validated['end_at']) ? CarbonImmutable::parse($validated['end_at']) : null,
+        );
+
+        return $this->successResponse($this->service->transactions($accountCode, $filter)->toArray());
     }
 
     public function update(Request $request, string $accountCode): JsonResponse

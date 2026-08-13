@@ -3,6 +3,8 @@
 namespace App\Services\TenantModule\Accounting;
 
 use App\DataObjects\RequestObjects\FinancialAccountTransactionCreate;
+use App\DataObjects\RequestObjects\FinancialAccountTransactionFilter;
+use App\DataObjects\ResponseObjects\FinancialAccountTransactionListPage;
 use App\Enums\FinancialAccountTransactionType;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\FinancialAccount;
@@ -52,6 +54,17 @@ class FinancialAccountTransactionService
 
             return $transaction;
         });
+    }
+
+    public function listForAccount(int $tenantId, FinancialAccount $account, FinancialAccountTransactionFilter $filter): FinancialAccountTransactionListPage
+    {
+        if ((int) $account->tenant_id !== $tenantId || $account->is_deleted) {
+            throw new InvalidTenantRequest('The financial account is not available for this tenant.');
+        }
+
+        return FinancialAccountTransactionListPage::fromPaginator(
+            $this->repository->paginateForAccount($tenantId, $account->id, $filter),
+        );
     }
 
     public function recordOpeningBalance(FinancialAccount $account, float $amount, ?int $createdBy): ?FinancialAccountTransaction

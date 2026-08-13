@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\DataObjects\RequestObjects\FinancialAccountTransactionCreate;
+use App\DataObjects\RequestObjects\FinancialAccountTransactionFilter;
 use App\Enums\FinancialAccountTransactionType;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\FinancialAccount;
@@ -10,6 +11,7 @@ use App\Models\FinancialAccountTransaction;
 use App\Repository\Accounting\FinancialAccountTransactionRepository;
 use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -100,6 +102,51 @@ class FinancialAccountTransactionServiceTest extends TestCase
             try {
                 $service->record($request);
                 $this->fail('Expected invalid financial account transaction request to be rejected.');
+            } catch (InvalidTenantRequest) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function test_account_history_is_scoped_through_the_repository_and_serialized(): void
+    {
+        $account = $this->account();
+        $filter = new FinancialAccountTransactionFilter(search: 'loan', direction: 'credit');
+        $transaction = new FinancialAccountTransaction;
+        $transaction->forceFill([
+            'id' => 501,
+            'transaction_type' => FinancialAccountTransactionType::PawnLoanCreation,
+            'amount' => '2500.0000',
+            'direction' => 'credit',
+            'reference_number' => 'SLIP-1',
+            'reference_type' => 'PawnLoanContractSlip',
+            'note' => 'Loan issued',
+            'related_transaction_id' => 88,
+            'reversed_transaction_id' => null,
+            'created_at' => now(),
+        ]);
+        $transaction->setRelation('creator', null);
+        $paginator = new LengthAwarePaginator([$transaction], 1, 15, 1);
+        $repository = Mockery::mock(FinancialAccountTransactionRepository::class);
+        $repository->shouldReceive('paginateForAccount')->once()->with(41, 91, $filter)->andReturn($paginator);
+
+        $page = (new FinancialAccountTransactionService($repository))->listForAccount(41, $account, $filter)->toArray();
+
+        $this->assertSame(1, $page['total']);
+        $this->assertSame('PAWN_LOAN_CREATION', $page['items'][0]['transaction_type']);
+        $this->assertSame('SLIP-1', $page['items'][0]['reference_number']);
+    }
+
+    public function test_account_history_rejects_another_tenant_or_deleted_account(): void
+    {
+        $repository = Mockery::mock(FinancialAccountTransactionRepository::class);
+        $repository->shouldNotReceive('paginateForAccount');
+        $service = new FinancialAccountTransactionService($repository);
+
+        foreach ([$this->account(), $this->account(isDeleted: true)] as $index => $account) {
+            try {
+                $service->listForAccount($index === 0 ? 99 : 41, $account, new FinancialAccountTransactionFilter);
+                $this->fail('Expected unavailable account history to be rejected.');
             } catch (InvalidTenantRequest) {
                 $this->addToAssertionCount(1);
             }

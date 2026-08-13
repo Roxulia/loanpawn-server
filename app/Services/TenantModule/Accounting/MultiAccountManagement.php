@@ -4,7 +4,9 @@ namespace App\Services\TenantModule\Accounting;
 
 use App\DataObjects\RequestObjects\StoreFinancialAccountRequest;
 use App\DataObjects\RequestObjects\UpdateFinancialAccountRequest;
+use App\DataObjects\RequestObjects\FinancialAccountTransactionFilter;
 use App\DataObjects\ResponseObjects\DefaultDataListPage;
+use App\DataObjects\ResponseObjects\FinancialAccountTransactionListPage;
 use App\DataObjects\ResponseObjects\FinancialAccountResource;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
@@ -38,6 +40,13 @@ class MultiAccountManagement extends BaseTenantService
     public function show(string $accountCode): FinancialAccountResource
     {
         return FinancialAccountResource::fromModel($this->findCurrentTenantAccount($accountCode));
+    }
+
+    public function transactions(string $accountCode, FinancialAccountTransactionFilter $filter): FinancialAccountTransactionListPage
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+
+        return $this->transactionService->listForAccount($tenantId, $this->findCurrentTenantAccount($accountCode), $filter);
     }
 
     public function findActiveCurrentTenantAccount(?int $accountId = null): FinancialAccount
