@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Models\PlatformModule\TenantLicense;
 use App\Models\PlatformModule\TenantLicensePlanTransition;
+use App\Models\PlatformModule\LicenseStatusLog;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,18 @@ class TenantLicenseRepository
             ->where('tenant_id', $tenantId)
             ->lockForUpdate()
             ->first();
+    }
+
+    public function update(TenantLicense $license, array $data): TenantLicense
+    {
+        $license->update($data);
+
+        return $license->refresh();
+    }
+
+    public function createStatusLog(array $data): LicenseStatusLog
+    {
+        return LicenseStatusLog::query()->create($data);
     }
 
     public function findByLicenseKey(string $licenseKey): ?TenantLicense

@@ -51,6 +51,13 @@ class TenantDetailRepository
             ->leftJoin('tenant_contacts', 'tenant_contacts.tenant_id', '=', 'tenants.id')
             ->leftJoin('tenant_branding', 'tenant_branding.tenant_id', '=', 'tenants.id')
             ->leftJoin('tenant_settings', 'tenant_settings.tenant_id', '=', 'tenants.id')
+            ->leftJoin('currencies as default_currencies', 'default_currencies.id', '=', 'tenant_settings.default_currency_id')
+            ->leftJoin('currencies as reporting_currencies', 'reporting_currencies.id', '=', 'tenant_settings.reporting_currency_id')
+            ->leftJoin('reporting_currency_recalculations as currency_recalculations', function ($join): void {
+                $join->on('currency_recalculations.tenant_id', '=', 'tenants.id')
+                    ->whereIn('currency_recalculations.status', ['queued', 'processing', 'waiting_for_rates', 'failed']);
+            })
+            ->leftJoin('currencies as effective_reporting_currencies', 'effective_reporting_currencies.id', '=', 'currency_recalculations.previous_reporting_currency_id')
             ->select([
                 'tenants.id as tenant_id',
                 'tenants.name as tenant_name',
@@ -83,6 +90,17 @@ class TenantDetailRepository
                 'tenant_settings.key as setting_key',
                 'tenant_settings.value as setting_value',
                 'tenant_settings.category as setting_category',
+                'tenant_settings.default_currency_id as setting_default_currency_id',
+                'tenant_settings.reporting_currency_id as setting_reporting_currency_id',
+                'default_currencies.symbol as setting_default_currency_symbol',
+                'reporting_currencies.symbol as setting_reporting_currency_symbol',
+                'currency_recalculations.id as currency_recalculation_id',
+                'currency_recalculations.status as currency_recalculation_status',
+                'currency_recalculations.previous_reporting_currency_id as effective_reporting_currency_id',
+                'currency_recalculations.window_start as currency_recalculation_window_start',
+                'currency_recalculations.window_end as currency_recalculation_window_end',
+                'currency_recalculations.missing_rates as currency_recalculation_missing_rates',
+                'effective_reporting_currencies.symbol as effective_reporting_currency_symbol',
             ]);
     }
 
@@ -174,6 +192,27 @@ class TenantDetailRepository
         }
 
         $detail = new TenantSettingDetail();
+        $currencyRow = $settingRows->first(fn (stdClass $row) => $row->setting_key === 'currency_preferences');
+        if ($currencyRow !== null) {
+            $detail->default_currency_id = $currencyRow->setting_default_currency_id === null ? null : (int) $currencyRow->setting_default_currency_id;
+            $detail->reporting_currency_id = $currencyRow->setting_reporting_currency_id === null ? null : (int) $currencyRow->setting_reporting_currency_id;
+            $detail->effective_reporting_currency_id = $currencyRow->effective_reporting_currency_id === null
+                ? $detail->reporting_currency_id
+                : (int) $currencyRow->effective_reporting_currency_id;
+            $detail->default_currency_symbol = $currencyRow->setting_default_currency_symbol;
+            $detail->reporting_currency_symbol = $currencyRow->setting_reporting_currency_symbol;
+            $detail->effective_reporting_currency_symbol = $currencyRow->effective_reporting_currency_symbol
+                ?? $currencyRow->setting_reporting_currency_symbol;
+            $detail->reporting_currency_recalculation = $currencyRow->currency_recalculation_id === null ? null : [
+                'id' => (int) $currencyRow->currency_recalculation_id,
+                'status' => $currencyRow->currency_recalculation_status,
+                'window_start' => $currencyRow->currency_recalculation_window_start,
+                'window_end' => $currencyRow->currency_recalculation_window_end,
+                'missing_rates' => $currencyRow->currency_recalculation_missing_rates
+                    ? json_decode($currencyRow->currency_recalculation_missing_rates, true)
+                    : [],
+            ];
+        }
         $detail->items = $settingRows
             ->map(function (stdClass $row) {
                 $item = new TenantSettingItem();

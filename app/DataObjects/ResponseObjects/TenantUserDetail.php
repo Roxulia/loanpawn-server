@@ -34,6 +34,7 @@ class TenantUserDetail extends BaseDataObject
     public ?string $roleName;
     public array $permissions;
     public string $preferLang;
+    public array $financialAccounts;
 
     public function __construct()
     {
@@ -66,6 +67,13 @@ class TenantUserDetail extends BaseDataObject
             ])
         );
         $detail->preferLang = $user->prefer_lang ?? 'en';
+        $detail->financialAccounts = $user->relationLoaded('financialAccounts')
+            ? $user->financialAccounts
+                ->filter(fn ($account) => ! $account->is_deleted)
+                ->map(fn ($account) => FinancialAccountSummary::fromModel($account))
+                ->values()
+                ->all()
+            : [];
         $nrc_decomposed = NrcHelper::decomposeNRC($user->nrc);
         $detail->nrc_state = $nrc_decomposed!==null ? $nrc_decomposed['state'] : "";
         $detail->nrc_township = $nrc_decomposed!==null ? $nrc_decomposed['township'] : "";

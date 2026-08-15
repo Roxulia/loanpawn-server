@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Models\PlatformModule\PlatformUser;
 use App\Exceptions\RequiredValueMissing;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class PlatformUserRepository
 {
@@ -34,6 +35,14 @@ class PlatformUserRepository
             ->withCount(['tenants', 'tenantRequests'])
             ->orderByDesc('id')
             ->paginate($perPage);
+    }
+
+    public function activeOptions(): Collection
+    {
+        return PlatformUser::query()
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'email']);
     }
 
     public function create(array $data): PlatformUser

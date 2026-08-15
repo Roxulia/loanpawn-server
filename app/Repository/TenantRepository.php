@@ -70,6 +70,11 @@ class TenantRepository
         return $res;
     }
 
+    public function findByIdForUpdate(int $id): ?Tenant
+    {
+        return Tenant::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
     public function findByIdForPlatformUser(int $tenantId, int $platformUserId): ?Tenant
     {
         return Tenant::query()

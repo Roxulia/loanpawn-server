@@ -55,7 +55,7 @@ class TenantCapitalService extends BaseTenantService
         $this->permissionService->authorizeCapitalCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_capital.create',
@@ -140,7 +140,7 @@ class TenantCapitalService extends BaseTenantService
     {
         $this->permissionService->authorizeCapitalUpdate();
         $capital = $this->findCapitalForCurrentTenant($request->capitalId);
-        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
         $data = [];
 
         if ($request->updateKey !== $capital->update_key) {

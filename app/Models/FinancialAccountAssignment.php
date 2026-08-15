@@ -15,6 +15,15 @@ class FinancialAccountAssignment extends Model
         'assigned_user_id',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'tenant_id' => 'integer',
+            'financial_account_id' => 'integer',
+            'assigned_user_id' => 'integer',
+        ];
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);

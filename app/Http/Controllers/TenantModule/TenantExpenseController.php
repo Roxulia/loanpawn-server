@@ -6,15 +6,18 @@ use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantExpenseService;
+use App\Services\TenantModule\FinancialUnitService;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class TenantExpenseController extends Controller
 {
     public function __construct(
         private TenantExpenseService $expenseService,
+        private FinancialUnitService $financialUnitService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -47,7 +50,7 @@ class TenantExpenseController extends Controller
         $validated = $validator->validated();
         $expense = $this->expenseService->createForCurrentTenant(new TenantExpenseCreate(
             description: $validated['description'],
-            amount: (float) $validated['amount'],
+            amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             expenseTypeId: $validated['expense_type_id'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
@@ -100,6 +103,9 @@ class TenantExpenseController extends Controller
             'account_id' => ['nullable', 'integer', 'min:1'],
             'amount' => $isCreate
                 ? ['required', 'numeric', 'min:0.01']
+                : ['prohibited'],
+            'amount_unit' => $isCreate
+                ? ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:amount']
                 : ['prohibited'],
             'expense_type_id' => ['nullable', 'integer'],
             'update_key' => ['nullable', 'integer', 'min:0'],

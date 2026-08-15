@@ -38,6 +38,26 @@ class ExchangeRateEntryRepository
         return ExchangeRateEntry::query()->where('scope_key', $scopeKey)->where('exchange_rate_pair_id', $pairId)->whereDate('effective_date', $date)->where('is_void', false)->latest('observed_at')->latest('id')->first();
     }
 
+    public function exactForTenantThenPlatform(int $tenantId, int $pairId, string $date): ?ExchangeRateEntry
+    {
+        return $this->latestActiveForDay("tenant:{$tenantId}", $pairId, $date)
+            ?? $this->latestActiveForDay('platform', $pairId, $date);
+    }
+
+    public function latestActiveOnOrBefore(string $scopeKey, int $pairId, string $date): ?ExchangeRateEntry
+    {
+        return ExchangeRateEntry::query()
+            ->with('pair.baseCurrency', 'pair.quoteCurrency')
+            ->where('scope_key', $scopeKey)
+            ->where('exchange_rate_pair_id', $pairId)
+            ->whereDate('effective_date', '<=', $date)
+            ->where('is_void', false)
+            ->orderByDesc('effective_date')
+            ->orderByDesc('observed_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     public function summaryTargetsBetween(string $fromDate, string $toDate): Collection
     {
         return ExchangeRateEntry::query()

@@ -9,11 +9,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Services\TenantModule\Accounting\FinancialMovementService;
+use Carbon\CarbonImmutable;
 
 class TenantAccountingController extends Controller
 {
     public function __construct(
         private TenantAccountingTransactionService $accountingService,
+        private FinancialMovementService $financialMovementService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -38,6 +41,19 @@ class TenantAccountingController extends Controller
     public function overview(): JsonResponse
     {
         return $this->successResponse($this->accountingService->overview()->toArray());
+    }
+
+    public function movements(Request $request): JsonResponse
+    {
+        $validated = Validator::make($request->all(), [
+            'start_at' => ['required', 'date'],
+            'end_at' => ['required', 'date', 'after_or_equal:start_at'],
+        ])->validate();
+
+        return $this->successResponse($this->financialMovementService->between(
+            CarbonImmutable::parse($validated['start_at']),
+            CarbonImmutable::parse($validated['end_at']),
+        )->toArray());
     }
 
     public function getAccountingLedger(Request $request): JsonResponse

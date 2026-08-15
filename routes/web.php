@@ -103,6 +103,8 @@ Route::name('admin.')->group(function () {
         ->group(function () {
             Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
             Route::get('/tenants', [AdminTenantManagementController::class, 'index'])->name('tenants.index');
+            Route::get('/tenants/create', [AdminTenantManagementController::class, 'create'])->name('tenants.create');
+            Route::post('/tenants', [AdminTenantManagementController::class, 'store'])->name('tenants.store');
             Route::post('/tenants/{tenant}/plan', [AdminTenantManagementController::class, 'changePlan'])->name('tenants.plan.update');
             Route::get('/plans', [AdminPlanManagementController::class, 'index'])->name('plans.index');
             Route::post('/plans/categories', [AdminPlanManagementController::class, 'storeCategory'])->name('plans.categories.store');
@@ -114,6 +116,8 @@ Route::name('admin.')->group(function () {
             Route::resource('platform-users', AdminPlatformUserController::class)
                 ->parameters(['platform-users' => 'platformUser'])
                 ->except(['show']);
+            Route::post('/platform-users/{platformUser}/reset-password', [AdminPlatformUserController::class, 'resetPassword'])
+                ->name('platform-users.reset-password');
             Route::get('/billing', [AdminBillingManagementController::class, 'index'])->name('billing.index');
             Route::get('/package-flags', [AdminPackageFlagController::class, 'index'])->name('package-flags.index');
             Route::resource('currencies', AdminCurrencyController::class)->only(['index', 'store', 'update', 'destroy']);

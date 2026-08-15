@@ -9,17 +9,20 @@ use App\Http\Controllers\Controller;
 use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
+use App\Services\TenantModule\FinancialUnitService;
 use App\Utility\MessageCode;
 use App\Utility\NrcHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class LoanContractSlipController extends Controller
 {
     public function __construct(
         private LookUpService $lookUpService,
         private ManagementService $managementService,
+        private FinancialUnitService $financialUnitService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -71,8 +74,10 @@ class LoanContractSlipController extends Controller
             'collateral_items.*.brand_name' => ['nullable', 'string', 'max:80'],
             'collateral_items.*.image_reference' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'collateral_items.*.estimated_value' => ['nullable', 'numeric', 'min:0'],
+            'collateral_items.*.estimated_value_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class)],
             'collateral_items.*.material_type_id' => ['nullable', 'integer'],
             'collateral_items.*.material_price_per_kyat' => ['nullable', 'numeric', 'min:0'],
+            'collateral_items.*.material_price_per_kyat_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class)],
             'collateral_items.*.item_category_type_id' => ['nullable', 'integer'],
             'collateral_items.*.kyat' => ['nullable', 'numeric', 'min:0'],
             'collateral_items.*.pal' => ['nullable', 'numeric', 'min:0'],
@@ -82,7 +87,9 @@ class LoanContractSlipController extends Controller
             'collateral_items.*.gemstone_details' => ['nullable', 'array'],
             'collateral_items.*.quantity' => ['nullable', 'integer', 'min:1'],
             'collateral_items.*.minimum_retail_price' => ['nullable', 'numeric', 'min:0'],
+            'collateral_items.*.minimum_retail_price_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class)],
             'loan_amount' => ['required', 'numeric', 'min:0.01'],
+            'loan_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:loan_amount'],
             'account_id' => ['nullable', 'integer', 'min:1'],
             'interest_rate' => ['required', 'numeric', 'min:0.01'],
             'interest_type_id' => ['required', 'integer'],
@@ -114,7 +121,7 @@ class LoanContractSlipController extends Controller
                 fn (array $item): PawnCollateralItemCreate => $this->makeCollateralItemCreate($item),
                 $validated['collateral_items'],
             ),
-            loanAmount: (float) $validated['loan_amount'],
+            loanAmount: $this->financialUnitService->toBase($validated['loan_amount'], $validated['loan_amount_unit'] ?? null, 999_999_999_999.99),
             interestRate: (float) $validated['interest_rate'],
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             interestTypeId: (int) $validated['interest_type_id'],
@@ -148,9 +155,9 @@ class LoanContractSlipController extends Controller
             description: $item['description'] ?? null,
             brandName: $item['brand_name'] ?? null,
             imageReference: $item['image_reference'] ?? null,
-            estimatedValue: (float) ($item['estimated_value'] ?? 0),
+            estimatedValue: $this->financialUnitService->toBase($item['estimated_value'] ?? 0, $item['estimated_value_unit'] ?? null, 999_999_999_999.99),
             materialTypeId: $item['material_type_id'] ?? null,
-            materialPricePerKyat: (float) ($item['material_price_per_kyat'] ?? 0),
+            materialPricePerKyat: $this->financialUnitService->toBase($item['material_price_per_kyat'] ?? 0, $item['material_price_per_kyat_unit'] ?? null, 999_999_999_999.99),
             itemCategoryTypeId: $item['item_category_type_id'] ?? null,
             kyat: (float) ($item['kyat'] ?? 0),
             pal: (float) ($item['pal'] ?? 0),
@@ -159,7 +166,7 @@ class LoanContractSlipController extends Controller
             containsGemstones: (bool) ($item['contains_gemstones'] ?? false),
             gemstoneDetails: $item['gemstone_details'] ?? null,
             quantity: (int) ($item['quantity'] ?? 1),
-            minimumRetailPrice: (float) ($item['minimum_retail_price'] ?? 0),
+            minimumRetailPrice: $this->financialUnitService->toBase($item['minimum_retail_price'] ?? 0, $item['minimum_retail_price_unit'] ?? null, 999_999_999_999.99),
         );
     }
 }

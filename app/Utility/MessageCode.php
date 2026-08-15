@@ -46,6 +46,7 @@ enum MessageCode: string
     case PlatformUserCreated = 'platform.response.user.created';
     case PlatformUserUpdated = 'platform.response.user.updated';
     case PlatformUserDeleted = 'platform.response.user.deleted';
+    case PlatformUserPasswordReset = 'platform.response.user.password_reset';
     case PlatformPaymentRequestAccepted = 'billing.response.payment_request.accepted';
     case PlatformPaymentRequestRejected = 'billing.response.payment_request.rejected';
     case PlatformPaymentQrUploaded = 'billing.response.payment_qr.uploaded';
@@ -194,6 +195,15 @@ enum MessageCode: string
     case FinanceVisibleActiveCurrenciesRequired = 'finance.exception.visible_active_currencies_required';
     case FinanceDistinctPairCurrenciesRequired = 'finance.exception.distinct_pair_currencies_required';
     case FinanceResourceLimitReached = 'finance.exception.resource_limit_reached';
+    case FinanceFinancialUnitInvalid = 'finance.exception.financial_unit_invalid';
+    case FinanceFinancialAmountTooLarge = 'finance.exception.financial_amount_too_large';
+    case FinanceAccountNotAssigned = 'finance.exception.account_not_assigned';
+    case FinanceAssignmentSelfDenied = 'finance.exception.assignment_self_denied';
+    case FinanceAssignmentOwnerDenied = 'finance.exception.assignment_owner_denied';
+    case FinanceAssignmentInvalidAccounts = 'finance.exception.assignment_invalid_accounts';
+    case FinanceAssignmentActiveUserRequired = 'finance.exception.assignment_active_user_required';
+    case FinanceAssignmentOwnerRequired = 'finance.exception.assignment_owner_required';
+    case FinanceAssignmentsUpdated = 'finance.response.tenant.financial_account_assignments_updated';
     case FinanceExchangeRateNotFound = 'finance.exception.exchange_rate_not_found';
     case FinanceActiveVisibleExchangePairRequired = 'finance.exception.active_visible_exchange_pair_required';
     case FinanceTenantExchangeRateModificationDenied = 'finance.exception.tenant_exchange_rate_modification_denied';

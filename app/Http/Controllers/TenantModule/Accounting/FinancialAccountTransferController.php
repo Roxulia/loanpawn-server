@@ -5,13 +5,18 @@ namespace App\Http\Controllers\TenantModule\Accounting;
 use App\DataObjects\RequestObjects\FinancialAccountTransferCreate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\Accounting\FinancialAccountTransferService;
+use App\Services\TenantModule\FinancialUnitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class FinancialAccountTransferController extends Controller
 {
-    public function __construct(private FinancialAccountTransferService $service) {}
+    public function __construct(
+        private FinancialAccountTransferService $service,
+        private FinancialUnitService $financialUnitService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -27,8 +32,10 @@ class FinancialAccountTransferController extends Controller
             'from_account_id' => ['required', 'integer', 'min:1', 'different:to_account_id'],
             'to_account_id' => ['required', 'integer', 'min:1'],
             'from_amount' => ['required', 'numeric', 'gt:0'],
+            'from_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:from_amount'],
             'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'fee_amount' => ['nullable', 'numeric', 'min:0'],
+            'fee_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:fee_amount'],
             'note' => ['nullable', 'string', 'max:1000'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ])->validate();
@@ -36,9 +43,9 @@ class FinancialAccountTransferController extends Controller
         $resource = $this->service->create(new FinancialAccountTransferCreate(
             fromAccountId: (int) $validated['from_account_id'],
             toAccountId: (int) $validated['to_account_id'],
-            fromAmount: (float) $validated['from_amount'],
+            fromAmount: $this->financialUnitService->toBase($validated['from_amount'], $validated['from_amount_unit'] ?? null, 9_999_999_999_999_999.9999),
             exchangeRate: isset($validated['exchange_rate']) ? (float) $validated['exchange_rate'] : null,
-            feeAmount: (float) ($validated['fee_amount'] ?? 0),
+            feeAmount: $this->financialUnitService->toBase($validated['fee_amount'] ?? 0, $validated['fee_amount_unit'] ?? null, 9_999_999_999_999_999.9999),
             note: $validated['note'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));

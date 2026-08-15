@@ -45,7 +45,13 @@
                             <td data-label="">
                                 <div class="action-row">
                                     <a href="{{ route('admin.platform-users.edit', $platformUser->id) }}" class="button secondary">Edit</a>
-                                    <form method="POST" action="{{ route('admin.platform-users.destroy', $platformUser->id) }}">
+                                    <form method="POST" action="{{ route('admin.platform-users.reset-password', $platformUser->id) }}"
+                                          onsubmit="return confirm('Reset this user password to the configured default password?')">
+                                        @csrf
+                                        <button type="submit" class="button secondary">Reset Password</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.platform-users.destroy', $platformUser->id) }}"
+                                          onsubmit="return confirm('Delete this platform user? This action cannot be undone.')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="button danger">Delete</button>

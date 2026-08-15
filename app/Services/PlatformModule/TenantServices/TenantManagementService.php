@@ -23,6 +23,7 @@ use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class TenantManagementService extends BaseTenantService
 {
@@ -123,7 +124,9 @@ class TenantManagementService extends BaseTenantService
                 'old_status' => null,
                 'new_status' => $status,
                 'changed_by' => $approvedBy,
-                'reason' => 'Tenant created',
+                'reason' => $request->createdByAdmin
+                    ? 'Admin tenant creation: '.$request->notes
+                    : 'Tenant created',
             ]);
 
             $this->tenantLicenseService->createStatusLog([
@@ -131,7 +134,9 @@ class TenantManagementService extends BaseTenantService
                 'old_status' => null,
                 'new_status' => $status,
                 'changed_by' => $approvedBy,
-                'reason' => 'Tenant license created',
+                'reason' => $request->createdByAdmin
+                    ? 'Admin free license grant: '.$request->notes
+                    : 'Tenant license created',
             ]);
 
             $owner = $this->tenantUserService->createOwner(new TenantUserCreate(
@@ -167,6 +172,11 @@ class TenantManagementService extends BaseTenantService
             now()->addSeconds(self::TENANT_LIST_CACHE_TTL_SECONDS),
             fn () => TenantListPage::fromPaginator($this->repository->paginateAll($perPage))
         );
+    }
+
+    public function paginateAllForAdmin(): LengthAwarePaginator
+    {
+        return $this->repository->paginateAll();
     }
 
     public function listByPlatformUser(): TenantListPage
@@ -285,11 +295,7 @@ class TenantManagementService extends BaseTenantService
 
     protected function resolveTenantCode(TenantCreate $request): string
     {
-        if ($request->createdByAdmin) {
-            if ($request->code === null || trim($request->code) === '') {
-                throw new RequiredValueMissing($this->responseMessage(MessageCode::TenantCodeRequired));
-            }
-
+        if ($request->code !== null && trim($request->code) !== '') {
             $this->ensureTenantCodeIsAvailable($request->code);
 
             return $request->code;

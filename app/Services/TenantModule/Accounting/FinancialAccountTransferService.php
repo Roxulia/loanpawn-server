@@ -25,6 +25,7 @@ class FinancialAccountTransferService extends BaseTenantService
         private TenantAccountingTransactionService $accountingService,
         private TenantUserPermissionService $permissionService,
         private TenantIdempotencyService $idempotencyService,
+        private FinancialAccountAssignmentService $assignmentService,
     ) {}
 
     public function list(int $perPage = 15): DefaultDataListPage
@@ -60,6 +61,8 @@ class FinancialAccountTransferService extends BaseTenantService
                 if (! $from || ! $to || ! $from->currency || ! $to->currency) {
                     throw new InvalidTenantRequest('Both transfer accounts must be active and available to this tenant.');
                 }
+                $this->assignmentService->assertCurrentUserAssigned($from);
+                $this->assignmentService->assertCurrentUserAssigned($to);
 
                 $sameCurrency = (int) $from->currency_id === (int) $to->currency_id;
                 if (! $sameCurrency && ($request->exchangeRate === null || $request->exchangeRate <= 0)) {

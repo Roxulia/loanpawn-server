@@ -62,7 +62,7 @@ class TenantExpenseService extends BaseTenantService
         $this->permissionService->authorizeExpenseCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_expense.create',
@@ -164,7 +164,7 @@ class TenantExpenseService extends BaseTenantService
     {
         $this->permissionService->authorizeExpenseUpdate();
         $expense = $this->findExpenseForCurrentTenant($request->expenseId);
-        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
         $data = [];
 
         if ($request->updateKey !== $expense->update_key) {

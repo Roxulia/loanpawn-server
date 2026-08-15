@@ -13,6 +13,7 @@ use App\Http\Controllers\TenantModule\Accounting\MultiAccountManagement as Multi
 use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
 use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
+use App\Http\Controllers\TenantModule\FinancialUnitController;
 use App\Http\Controllers\TenantModule\LanguageController;
 use App\Http\Controllers\TenantModule\OnlineSyncController;
 use App\Http\Controllers\TenantModule\TenantAccountingController;
@@ -58,6 +59,7 @@ Route::prefix('tenant')->group(function () {
             ->middleware('throttle:public-api');
         Route::middleware(['auth:sanctum', 'tenant.access', 'tenant.activity', 'throttle:tenant-api'])->group(function () {
             Route::get('me', [TenantAuthController::class, 'me']);
+            Route::get('financial-units', [FinancialUnitController::class, 'index']);
             Route::put('me/change-password', [TenantUserController::class, 'changePassword']);
             Route::put('me/change-language', [LanguageController::class, 'change']);
             Route::post('logout', [TenantAuthController::class, 'logout']);
@@ -84,6 +86,8 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:update_user_admin,update_user_all,update_user_own');
                     Route::put('{tenantUserCode}/permissions', [TenantUserController::class, 'updatePermissions'])
                         ->middleware('tenant.permission:update_user_admin');
+                    Route::put('{tenantUserCode}/financial-account-assignments', [TenantUserController::class, 'updateFinancialAccountAssignments'])
+                        ->middleware('tenant.permission:manage_financial_account_assignments');
                     Route::put('{tenantUserCode}/reset-to-defaultpassword', [TenantUserController::class, 'resetPasswordToDefault'])
                         ->middleware('tenant.permission:update_user_admin,update_user_all');
                     Route::delete('{tenantUserCode}', [TenantUserController::class, 'destroy'])
@@ -173,6 +177,8 @@ Route::prefix('tenant')->group(function () {
                     Route::get('/', [TenantAccountingController::class, 'index'])
                         ->middleware('tenant.permission:list_accounting');
                     Route::get('overview', [TenantAccountingController::class, 'overview'])
+                        ->middleware('tenant.permission:list_accounting');
+                    Route::get('movements', [TenantAccountingController::class, 'movements'])
                         ->middleware('tenant.permission:list_accounting');
                     Route::get('incoming', [TenantAccountingController::class, 'listIncomingTransactions'])
                         ->middleware('tenant.permission:list_accounting');

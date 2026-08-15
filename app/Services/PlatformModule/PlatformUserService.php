@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\PlatformUserUpsert;
 use App\Exceptions\AccountNotFound;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\LanguageCodeInvalid;
+use App\Exceptions\RequiredValueMissing;
 use App\Models\PlatformModule\PlatformUser;
 use App\Repository\PlatformUserRepository;
 use App\Services\TableIdGenerationService;
@@ -13,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Collection;
 
 class PlatformUserService
 {
@@ -42,6 +44,11 @@ class PlatformUserService
         return $this->repository->paginateAll();
     }
 
+    public function activeOptions(): Collection
+    {
+        return $this->repository->activeOptions();
+    }
+
     public function create(PlatformUserUpsert $request): PlatformUser
     {
         return DB::transaction(fn () => $this->repository->create([
@@ -49,7 +56,7 @@ class PlatformUserService
             'name' => $request->name,
             'email' => $request->email,
             'phone' => $request->phone,
-            'password' => Hash::make((string) $request->password),
+            'password' => Hash::make($this->defaultPlatformUserPassword()),
             'status' => $request->status,
             'email_verified_at' => now(),
             'update_key' => $request->updateKey
@@ -71,11 +78,14 @@ class PlatformUserService
             'update_key' => $request->updateKey
         ];
 
-        if ($request->password !== null && $request->password !== '') {
-            $data['password'] = Hash::make($request->password);
-        }
-
         return $this->repository->update($platformUser, $data);
+    }
+
+    public function resetPassword(int $id): PlatformUser
+    {
+        return $this->repository->update($this->findById($id), [
+            'password' => Hash::make($this->defaultPlatformUserPassword()),
+        ]);
     }
 
     public function changePreferLanguageForCurrentUser(PlatformUser $user, string $preferLang): PlatformUser
@@ -100,5 +110,16 @@ class PlatformUserService
     public function delete(int $id): void
     {
         $this->repository->delete($this->findById($id));
+    }
+
+    private function defaultPlatformUserPassword(): string
+    {
+        $password = config('app.default_platform_user_password');
+
+        if (! is_string($password) || trim($password) === '') {
+            throw new RequiredValueMissing(null);
+        }
+
+        return $password;
     }
 }

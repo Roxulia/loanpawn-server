@@ -6,16 +6,19 @@ use App\DataObjects\RequestObjects\PawnRedemptionCreate;
 use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\PawnRedemptionService;
+use App\Services\TenantModule\FinancialUnitService;
 use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class PawnRedemptionController extends Controller
 {
     public function __construct(
         private PawnRedemptionService $redemptionService,
+        private FinancialUnitService $financialUnitService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -54,6 +57,7 @@ class PawnRedemptionController extends Controller
             'slip_no' => ['required', 'string', 'max:60'],
             'calculated_total' => ['required', 'numeric', 'min:0'],
             'payment_amount' => ['required', 'numeric', 'min:0'],
+            'payment_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:payment_amount'],
             'account_id' => ['nullable', 'integer', 'min:1'],
             'interests' => ['present', 'array'],
             'interests.*.id' => ['required', 'integer', 'min:1'],
@@ -79,7 +83,7 @@ class PawnRedemptionController extends Controller
         $redemption = $this->redemptionService->createRedemption(new PawnRedemptionCreate(
             slipNo: $validated['slip_no'],
             calculatedTotal: (float) $validated['calculated_total'],
-            paymentAmount: (float) $validated['payment_amount'],
+            paymentAmount: $this->financialUnitService->toBase($validated['payment_amount'], $validated['payment_amount_unit'] ?? null, 999_999_999_999.99),
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             debts: array_map(
                 fn (array $debt): object => (object) [

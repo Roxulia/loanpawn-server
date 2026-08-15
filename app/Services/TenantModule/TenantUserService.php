@@ -81,14 +81,14 @@ class TenantUserService extends BaseTenantService
     {
         $this->permissionService->authorizeUserList();
 
-        return TenantUserDetail::fromModel($this->findUserForCurrentTenant($tenantUserId)->loadMissing(['role', 'permission']));
+        return TenantUserDetail::fromModel($this->findUserForCurrentTenant($tenantUserId)->loadMissing(['role', 'permission', 'financialAccounts.currency']));
     }
 
     public function showByCode(string $code): TenantUserDetail
     {
         $this->permissionService->authorizeUserList();
 
-        return TenantUserDetail::fromModel($this->findUserForCurrentTenantByCode($code)->loadMissing(['role', 'permission']));
+        return TenantUserDetail::fromModel($this->findUserForCurrentTenantByCode($code)->loadMissing(['role', 'permission', 'financialAccounts.currency']));
     }
 
     public function create(TenantUserCreate $request): TenantUserCreateResponse

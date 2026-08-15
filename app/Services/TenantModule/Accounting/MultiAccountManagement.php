@@ -8,6 +8,7 @@ use App\DataObjects\RequestObjects\FinancialAccountTransactionFilter;
 use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\DataObjects\ResponseObjects\FinancialAccountTransactionListPage;
 use App\DataObjects\ResponseObjects\FinancialAccountResource;
+use App\DataObjects\ResponseObjects\FinancialAccountDetailResource;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Models\FinancialAccount;
@@ -16,6 +17,8 @@ use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TableIdGenerationService;
 use App\Utility\MessageCode;
+use App\Services\PlatformModule\TenantServices\TenantSettingService;
+use App\Services\TenantModule\TenantUserPermissionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,26 +30,41 @@ class MultiAccountManagement extends BaseTenantService
         private FinancialAccountTransactionService $transactionService,
         private TenantLicenseService $tenantLicenseService,
         private TableIdGenerationService $tableIdGenerationService,
+        private TenantSettingService $tenantSettingService,
+        private FinancialAccountAssignmentService $assignmentService,
+        private TenantUserPermissionService $permissionService,
     ) {}
 
-    public function list(int $perPage = 15, ?string $search = null): DefaultDataListPage
+    public function list(int $perPage = 15, ?string $search = null, bool $assignedOnly = false): DefaultDataListPage
     {
-        $page = $this->repository->paginate($this->resolveCurrentTenantId(), $perPage, $search);
+        $canManageAccounts = $this->permissionService->currentUserHasAnyPermission([
+            'create_financial_account',
+            'update_financial_account',
+            'delete_financial_account',
+            'manage_financial_account_assignments',
+        ]);
+        $assignedUserId = $assignedOnly || ! $canManageAccounts ? $this->currentTenantUserId() : null;
+        $page = $this->repository->paginate($this->resolveCurrentTenantId(), $perPage, $search, $assignedUserId);
         $page->through(fn (FinancialAccount $account) => FinancialAccountResource::fromModel($account)->toArray());
 
         return DefaultDataListPage::fromPaginator($page);
     }
 
-    public function show(string $accountCode): FinancialAccountResource
+    public function show(string $accountCode): FinancialAccountDetailResource
     {
-        return FinancialAccountResource::fromModel($this->findCurrentTenantAccount($accountCode));
+        $account = $this->findReadableCurrentTenantAccount($accountCode);
+        $assignedUsers = $this->permissionService->currentUserHasAnyPermission(['manage_financial_account_assignments'])
+            ? $this->assignmentService->usersForAccount($account)
+            : [];
+
+        return new FinancialAccountDetailResource(FinancialAccountResource::fromModel($account), $assignedUsers);
     }
 
     public function transactions(string $accountCode, FinancialAccountTransactionFilter $filter): FinancialAccountTransactionListPage
     {
         $tenantId = $this->resolveCurrentTenantId();
 
-        return $this->transactionService->listForAccount($tenantId, $this->findCurrentTenantAccount($accountCode), $filter);
+        return $this->transactionService->listForAccount($tenantId, $this->findReadableCurrentTenantAccount($accountCode), $filter);
     }
 
     public function findActiveCurrentTenantAccount(?int $accountId = null): FinancialAccount
@@ -64,6 +82,8 @@ class MultiAccountManagement extends BaseTenantService
             throw new InvalidTenantRequest('The selected financial account must have an active currency.');
         }
 
+        $this->assignmentService->assertCurrentUserAssigned($account);
+
         return $account;
     }
 
@@ -72,6 +92,20 @@ class MultiAccountManagement extends BaseTenantService
         $account = $this->repository->findById($this->resolveCurrentTenantId(), $accountId);
         if (! $account) {
             throw new TenantAccessDenied('Financial account not found for the current tenant.');
+        }
+
+        $this->assignmentService->assertCurrentUserAssigned($account);
+
+        return $account;
+    }
+
+    public function findActiveDefaultCurrencyAccount(?int $accountId = null): FinancialAccount
+    {
+        $account = $this->findActiveCurrentTenantAccount($accountId);
+        $settings = $this->tenantSettingService->getCurrentTenantCurrencyPreferences();
+
+        if ((int) $account->currency_id !== $settings->defaultCurrencyId) {
+            throw new InvalidTenantRequest('The selected financial account must use the tenant default currency.');
         }
 
         return $account;
@@ -109,6 +143,7 @@ class MultiAccountManagement extends BaseTenantService
             ]);
 
             $this->transactionService->recordOpeningBalance($account, $request->balance, $createdBy);
+            $this->assignmentService->assignOwnersToAccount($account);
             $this->tenantLicenseService->incrementAccountCount($tenantId);
 
             return $account;
@@ -170,6 +205,7 @@ class MultiAccountManagement extends BaseTenantService
                 'deleted_by' => $this->currentTenantUserId(),
                 'update_key' => $account->update_key + 1,
             ]);
+            $this->assignmentService->removeForAccount($account);
             $this->tenantLicenseService->decrementAccountCount($tenantId);
         });
     }
@@ -179,6 +215,7 @@ class MultiAccountManagement extends BaseTenantService
         return DB::transaction(function () use ($tenantId, $createdBy): FinancialAccount {
             $existing = $this->repository->defaultAccount($tenantId);
             if ($existing) {
+                $this->assignmentService->assignOwnersToAccount($existing);
                 if (! $existing->is_active) {
                     return $this->repository->update($existing, [
                         'is_active' => true,
@@ -191,6 +228,7 @@ class MultiAccountManagement extends BaseTenantService
 
             $oldest = $this->repository->oldestAccount($tenantId);
             if ($oldest) {
+                $this->assignmentService->assignOwnersToAccount($oldest);
                 return $this->repository->update($oldest, [
                     'is_default' => true,
                     'is_active' => true,
@@ -222,6 +260,7 @@ class MultiAccountManagement extends BaseTenantService
                 'created_by' => $createdBy,
             ]);
             $this->tenantLicenseService->incrementAccountCount($tenantId);
+            $this->assignmentService->assignOwnersToAccount($account);
 
             return $account;
         });
@@ -247,6 +286,21 @@ class MultiAccountManagement extends BaseTenantService
         $account = $this->repository->findByCode($this->resolveCurrentTenantId(), $accountCode);
         if (! $account) {
             throw new TenantAccessDenied('Financial account not found for the current tenant.');
+        }
+
+        return $account;
+    }
+
+    private function findReadableCurrentTenantAccount(string $accountCode): FinancialAccount
+    {
+        $account = $this->findCurrentTenantAccount($accountCode);
+        if (! $this->permissionService->currentUserHasAnyPermission([
+            'create_financial_account',
+            'update_financial_account',
+            'delete_financial_account',
+            'manage_financial_account_assignments',
+        ])) {
+            $this->assignmentService->assertCurrentUserAssigned($account);
         }
 
         return $account;

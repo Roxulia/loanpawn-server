@@ -6,15 +6,18 @@ use App\DataObjects\RequestObjects\TenantCapitalCreate;
 use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantCapitalService;
+use App\Services\TenantModule\FinancialUnitService;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class TenantCapitalController extends Controller
 {
     public function __construct(
         private TenantCapitalService $capitalService,
+        private FinancialUnitService $financialUnitService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -47,7 +50,7 @@ class TenantCapitalController extends Controller
         $validated = $validator->validated();
         $capital = $this->capitalService->createForCurrentTenant(new TenantCapitalCreate(
             description: $validated['description'],
-            amount: (float) $validated['amount'],
+            amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
@@ -70,7 +73,9 @@ class TenantCapitalController extends Controller
             updateKey: $validated['update_key'] ?? 0,
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
             description: $validated['description'] ?? null,
-            amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
+            amount: array_key_exists('amount', $validated)
+                ? $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99)
+                : null,
         ));
 
         return $this->successResponse($capital->toArray(), $this->responseMessage(MessageCode::TenantCapitalUpdated));
@@ -89,6 +94,7 @@ class TenantCapitalController extends Controller
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
             'account_id' => ['nullable', 'integer', 'min:1'],
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
+            'amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:amount'],
             'update_key' => ['nullable', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ];

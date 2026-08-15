@@ -22,6 +22,7 @@ class TenantAccountingLedgerExport implements FromCollection, ShouldAutoSize, Wi
         private Carbon $endDate,
         private ?string $tenantName,
         private float $openingBalance,
+        private string $currencySymbol = '',
     ) {
     }
 
@@ -40,7 +41,14 @@ class TenantAccountingLedgerExport implements FromCollection, ShouldAutoSize, Wi
 
     public function headings(): array
     {
-        return ['Date', 'Description', 'Reference', 'Debit', 'Credit', 'Balance'];
+        return [
+            'Date',
+            'Description',
+            'Reference',
+            "Debit ({$this->currencySymbol})",
+            "Credit ({$this->currencySymbol})",
+            "Balance ({$this->currencySymbol})",
+        ];
     }
 
     /**

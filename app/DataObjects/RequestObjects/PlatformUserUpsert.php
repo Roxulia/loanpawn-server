@@ -10,7 +10,6 @@ class PlatformUserUpsert extends BaseDataObject
         public string $name,
         public string $email,
         public ?string $phone = null,
-        public ?string $password = null,
         public string $status = 'active',
         public int $updateKey = 0
     ) {

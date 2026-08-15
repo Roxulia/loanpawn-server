@@ -4,7 +4,6 @@ namespace App\Http\Controllers\PlatformModule\Admin;
 
 use App\DataObjects\RequestObjects\PlatformUserUpsert;
 use App\Http\Controllers\Controller;
-use App\Rules\PasswordRules;
 use App\Services\PlatformModule\PlatformUserService;
 use App\Utility\MessageCode;
 use Illuminate\Http\RedirectResponse;
@@ -51,7 +50,7 @@ class AdminPlatformUserController extends Controller
 
     public function update(Request $request, int $platformUser): RedirectResponse
     {
-        $validated = $request->validate($this->rules($platformUser, false), [], __('validation.attributes'));
+        $validated = $request->validate($this->rules($platformUser), [], __('validation.attributes'));
 
         $this->platformUserService->update($platformUser, $this->payload($validated));
 
@@ -69,13 +68,19 @@ class AdminPlatformUserController extends Controller
             ->with('status', $this->responseMessage(MessageCode::PlatformUserDeleted));
     }
 
-    private function rules(?int $platformUserId = null, bool $requirePassword = true): array
+    public function resetPassword(int $platformUser): RedirectResponse
+    {
+        $this->platformUserService->resetPassword($platformUser);
+
+        return back()->with('status', $this->responseMessage(MessageCode::PlatformUserPasswordReset));
+    }
+
+    private function rules(?int $platformUserId = null): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('platform_users', 'email')->ignore($platformUserId)],
             'phone' => ['nullable', 'string', 'max:20'],
-            'password' => [$requirePassword ? 'required' : 'nullable', 'string', PasswordRules::strong(), 'confirmed'],
             'status' => ['required', 'string', 'in:active,inactive,suspended'],
         ];
     }
@@ -86,7 +91,6 @@ class AdminPlatformUserController extends Controller
             name: $validated['name'],
             email: $validated['email'],
             phone: $validated['phone'] ?? null,
-            password: $validated['password'] ?? null,
             status: $validated['status'],
         );
     }

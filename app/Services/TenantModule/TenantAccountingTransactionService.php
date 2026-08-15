@@ -22,6 +22,7 @@ use App\Models\TenantAccountingTransactions;
 use App\Repository\TenantAccountingTransactionRepository;
 use App\Services\BaseTenantService;
 use App\Support\TenantScopedCacheKeys;
+use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
@@ -35,13 +36,15 @@ class TenantAccountingTransactionService extends BaseTenantService
 
     protected const LEDGER_MAX_TIME_RANGE_MONTHS = 3;
 
-    protected const LEDGER_MAX_HISTORY_MONTHS = 6;
+    protected const LEDGER_MAX_HISTORY_MONTHS = 3;
 
     public function __construct(
         private TenantAccountingTransactionRepository $repository,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
         private TenantAccountingDayService $accountingDayService,
+        private ReportingCurrencyRecalculationService $reportingCurrencyRecalculationService,
+        private TenantCurrencyService $tenantCurrencyService,
     ) {}
 
     public function overview(): TenantAccountingOverview
@@ -82,6 +85,7 @@ class TenantAccountingTransactionService extends BaseTenantService
             startDate: $startDate,
             endDate: $endDate,
             tenantName: $this->getCurrentTenantName(),
+            currencySymbol: $this->effectiveReportingCurrencySymbol(),
             openingBalance: $openingBalance,
             currentPage: $paginator->currentPage(),
             lastPage: $paginator->lastPage(),
@@ -108,6 +112,7 @@ class TenantAccountingTransactionService extends BaseTenantService
             startDate: $startDate,
             endDate: $endDate,
             tenantName: $this->getCurrentTenantName(),
+            currencySymbol: $this->effectiveReportingCurrencySymbol(),
             openingBalance: $openingBalance,
         );
 
@@ -175,11 +180,14 @@ class TenantAccountingTransactionService extends BaseTenantService
         $tenantId = $this->resolveCurrentTenantId();
         $accounting = DB::transaction(function () use ($request, $tenantId): TenantAccountingTransactions {
             $day = $this->accountingDayService->ensureOpenForTransaction($request->createdBy);
-            $reportingAmount = $request->reportingAmount;
-
-            if ($reportingAmount === null && $request->exchangeRate !== null) {
-                $reportingAmount = $request->amount * $request->exchangeRate;
-            }
+            [$reportingAmount, $exchangeRate] = $this->reportingCurrencyRecalculationService->reportingValues(
+                $tenantId,
+                $request->currencyId,
+                $request->amount,
+                $day->business_date->toDateString(),
+                $request->exchangeRate,
+                $request->reportingAmount,
+            );
 
             return $this->repository->create([
                 'tenant_id' => $tenantId,
@@ -191,7 +199,7 @@ class TenantAccountingTransactionService extends BaseTenantService
                 'amount' => $request->amount,
                 'currency_id' => $request->currencyId,
                 'reporting_amount' => $reportingAmount,
-                'exchange_rate' => $request->exchangeRate,
+                'exchange_rate' => $exchangeRate,
                 'occurred_at' => $request->occurredAt ?? now(),
                 'created_by' => $request->createdBy,
                 'reference_id' => $request->reference?->getKey(),
@@ -443,5 +451,13 @@ class TenantAccountingTransactionService extends BaseTenantService
         if ($startDate->diffInMonths($endDate) > self::LEDGER_MAX_TIME_RANGE_MONTHS) {
             throw new InvalidTenantRequest('Time range cannot exceed '.self::LEDGER_MAX_TIME_RANGE_MONTHS.' months.');
         }
+    }
+
+    private function effectiveReportingCurrencySymbol(): string
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $currencyId = $this->reportingCurrencyRecalculationService->effectiveCurrencyId($tenantId);
+
+        return $this->tenantCurrencyService->findActiveVisibleForTenant($tenantId, $currencyId)->symbol ?? '';
     }
 }

@@ -5,7 +5,7 @@ namespace App\Support;
 class TenantPermissionColumns
 {
     private const IMPLIED_LIST_PERMISSIONS = [
-        'list_user' => ['update_user_admin', 'update_user_all', 'delete_user'],
+        'list_user' => ['update_user_admin', 'update_user_all', 'delete_user', 'manage_financial_account_assignments'],
         'list_customer' => ['update_customer', 'delete_customer'],
         'list_collateral' => ['update_collateral', 'delete_collateral'],
         'list_expense' => ['update_expense', 'delete_expense'],
@@ -13,7 +13,7 @@ class TenantPermissionColumns
         'list_debt' => ['update_debt', 'delete_debt'],
         'list_loan_contract' => ['delete_loan_contract'],
         'list_financial_account_type' => ['update_financial_account_type', 'delete_financial_account_type'],
-        'list_financial_account' => ['update_financial_account', 'delete_financial_account'],
+        'list_financial_account' => ['update_financial_account', 'delete_financial_account', 'manage_financial_account_assignments'],
         'list_material_type' => ['update_material_type', 'delete_material_type'],
         'list_interest_type' => ['update_interest_type', 'delete_interest_type'],
         'list_item_category_type' => ['update_item_category_type', 'delete_item_category_type'],

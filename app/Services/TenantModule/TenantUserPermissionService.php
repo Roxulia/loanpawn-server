@@ -61,6 +61,27 @@ class TenantUserPermissionService extends BaseTenantService
         throw new TenantUserAccessDenied;
     }
 
+    public function currentUserHasAnyPermission(array $permissions): bool
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        if ($this->isOwningPlatformUser($tenantId)) {
+            return true;
+        }
+
+        $tenantUser = Auth::guard('tenantuser')->user();
+        if (! $tenantUser instanceof TenantUser || (int) $tenantUser->tenant_id !== $tenantId) {
+            return false;
+        }
+
+        foreach ($permissions as $permission) {
+            if ($this->hasPermission($tenantUser, $permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function resolveUpdateScope(TenantUser $targetUser, TenantUserUpdate $request): bool
     {
         $tenantId = $this->resolveCurrentTenantId();

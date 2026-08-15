@@ -13,6 +13,7 @@ use App\Mail\PaymentRequestReviewedMail;
 use App\Models\PlatformModule\PlatformAdmin;
 use App\Models\PlatformModule\Tenant;
 use App\Models\PlatformModule\TenantRequest;
+use App\Models\PlatformModule\Package;
 use App\Repository\TenantRequestRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
@@ -119,6 +120,38 @@ class TenantRequestService extends BaseTenantService
 
             return TenantRequestDetail::fromModel($tenantRequest);
         });
+    }
+
+    public function createAdminApprovedGrant(
+        Tenant $tenant,
+        Package $plan,
+        int $adminId,
+        string $reason,
+        ?int $extensionMonths,
+        array $businessInfo,
+    ): TenantRequest {
+        return $this->repository->create([
+            'code' => $this->tableIdGenerationService->generateForPlatform('tenant_requests', CarbonImmutable::now()),
+            'tenant_id' => $tenant->id,
+            'requested_category_id' => $plan->category_id,
+            'requested_plan_id' => $plan->id,
+            'platform_user_id' => $tenant->platform_user_id,
+            'request_type' => self::TYPE_UPGRADE,
+            'requested_plan_type' => $plan->code,
+            'requested_subdomain' => $tenant->subdomain,
+            'extension_months' => $extensionMonths,
+            'total_cost' => 0,
+            'currency' => 'MMK',
+            'business_info' => array_merge([
+                'tenant_code' => $tenant->tenant_code,
+                'admin_direct' => true,
+                'free_grant' => true,
+            ], $businessInfo),
+            'request_status' => self::STATUS_ACCEPTED,
+            'reviewed_by' => $adminId,
+            'reviewed_at' => now(),
+            'admin_review_note' => $reason,
+        ]);
     }
 
     public function submitPaymentScreenshot(TenantRequestPaymentSubmit $request): TenantRequestDetail

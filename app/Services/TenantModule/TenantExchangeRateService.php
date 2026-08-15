@@ -20,10 +20,11 @@ use App\Services\ExchangeRate\ExchangeRateResolverService;
 use App\Utility\MessageCode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
+use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
 
 class TenantExchangeRateService extends BaseTenantService
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private ExchangeRateResolverService $resolver, private ExchangeRateActionPolicy $actions, private ExchangeRateBusinessClock $clock) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private ExchangeRateResolverService $resolver, private ExchangeRateActionPolicy $actions, private ExchangeRateBusinessClock $clock, private ReportingCurrencyRecalculationService $reportingCurrencyRecalculationService) {}
 
     public function list(int $perPage = 50, ?string $pairCode = null): LengthAwarePaginator
     {
@@ -46,7 +47,10 @@ class TenantExchangeRateService extends BaseTenantService
             throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceActiveVisibleExchangePairRequired));
         }
 
-        return $this->writer->create($pair, $request->toArray(), $tenantId, Auth::guard('tenantuser')->id(), null);
+        $entry = $this->writer->create($pair, $request->toArray(), $tenantId, Auth::guard('tenantuser')->id(), null);
+        $this->reportingCurrencyRecalculationService->retryPendingForTenant($tenantId);
+
+        return $entry;
     }
 
     public function correct(string $code, CorrectExchangeRateRequest $request): ExchangeRateEntry
