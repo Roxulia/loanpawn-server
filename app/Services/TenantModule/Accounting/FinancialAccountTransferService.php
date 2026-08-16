@@ -26,6 +26,7 @@ class FinancialAccountTransferService extends BaseTenantService
         private TenantUserPermissionService $permissionService,
         private TenantIdempotencyService $idempotencyService,
         private FinancialAccountAssignmentService $assignmentService,
+        private ReportingCurrencyRecalculationService $reportingCurrencyService,
     ) {}
 
     public function list(int $perPage = 15): DefaultDataListPage
@@ -65,14 +66,17 @@ class FinancialAccountTransferService extends BaseTenantService
                 $this->assignmentService->assertCurrentUserAssigned($to);
 
                 $sameCurrency = (int) $from->currency_id === (int) $to->currency_id;
-                if (! $sameCurrency && ($request->exchangeRate === null || $request->exchangeRate <= 0)) {
-                    throw new InvalidTenantRequest('A positive exchange rate is required for cross-currency transfers.');
-                }
                 if ($sameCurrency && $request->exchangeRate !== null) {
                     throw new InvalidTenantRequest('Exchange rate must be omitted for same-currency transfers.');
                 }
 
-                $toAmount = $sameCurrency ? $request->fromAmount : round($request->fromAmount * $request->exchangeRate, 4);
+                $transferQuote = $sameCurrency ? null : $this->reportingCurrencyService->quote((int) $from->currency_id, (int) $to->currency_id);
+                $transferRate = $sameCurrency ? null : ($transferQuote->multiplier ?? $request->exchangeRate);
+                if (! $sameCurrency && ($transferRate === null || $transferRate <= 0)) {
+                    throw new InvalidTenantRequest('A positive exchange rate is required for cross-currency transfers.');
+                }
+
+                $toAmount = $sameCurrency ? $request->fromAmount : round($request->fromAmount * $transferRate, 4);
                 $createdBy = Auth::guard('tenantuser')->id();
                 $transfer = $this->repository->create([
                     'tenant_id' => $tenantId,
@@ -82,8 +86,8 @@ class FinancialAccountTransferService extends BaseTenantService
                     'to_currency_id' => $to->currency_id,
                     'from_amount' => $request->fromAmount,
                     'to_amount' => $toAmount,
-                    'exchange_rate' => $sameCurrency ? null : $request->exchangeRate,
-                    'exchange_rate_source' => $sameCurrency ? null : 'manual',
+                    'exchange_rate' => $transferRate,
+                    'exchange_rate_source' => $sameCurrency ? null : ($transferQuote->source ?? 'manual'),
                     'fee_amount' => $request->feeAmount,
                     'fee_account_id' => $request->feeAmount > 0 ? $from->id : null,
                     'note' => $request->note,
@@ -91,12 +95,12 @@ class FinancialAccountTransferService extends BaseTenantService
                     'created_by' => $createdBy,
                 ]);
                 $reference = 'TRANSFER-'.$transfer->id;
-                $accounting = $this->accountingService->createInternalTransfer($transfer, 'Financial account transfer', $request->fromAmount, $createdBy, $from->currency, $request->exchangeRate);
+                $accounting = $this->accountingService->createInternalTransfer($transfer, 'Financial account transfer', $request->fromAmount, $createdBy, $from->currency);
                 $this->transactionService->recordAccountTransfer($from, $request->fromAmount, 'credit', $reference, FinancialAccountsTranfers::class, $request->note, $createdBy, $accounting->id);
                 $this->transactionService->recordAccountTransfer($to, $toAmount, 'debit', $reference, FinancialAccountsTranfers::class, $request->note, $createdBy, $accounting->id);
 
                 if ($request->feeAmount > 0) {
-                    $feeAccounting = $this->accountingService->recordTransferFee($transfer, 'Financial account transfer fee', $request->feeAmount, $from->currency, $createdBy);
+                    $feeAccounting = $this->accountingService->recordTransferFee($transfer, 'Financial account transfer fee', $request->feeAmount, $from->currency, $createdBy, $request->feeReportingExchangeRate);
                     $this->transactionService->recordTransferFee($from, $request->feeAmount, $reference, FinancialAccountsTranfers::class, 'Transfer fee', $createdBy, $feeAccounting->id);
                 }
 

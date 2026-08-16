@@ -19,6 +19,7 @@ class TenantCurrencySettingsResource extends BaseDataObject
         public int $effectiveReportingCurrencyId,
         public CurrencyResource $effectiveReportingCurrency,
         public ?array $reportingCurrencyRecalculation,
+        public ?string $defaultFinancialUnit,
     ) {}
 
     public static function fromModel(TenantSetting $setting, ?ReportingCurrencyRecalculation $recalculation = null): self
@@ -42,6 +43,7 @@ class TenantCurrencySettingsResource extends BaseDataObject
                 'window_end' => $recalculation->window_end->toDateString(),
                 'missing_rates' => $recalculation->missing_rates ?? [],
             ],
+            defaultFinancialUnit: $setting->value,
         );
     }
 }

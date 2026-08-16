@@ -11,6 +11,7 @@ class TenantDebtUpdate extends BaseDataObject
         public string $code,
         public int $updateKey,
         public ?int $createdAccountId,
+        public ?float $reportingExchangeRate = null,
         public ?float $amount = null,
         public ?string $description = null,
         public ?int $slipId = null,

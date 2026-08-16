@@ -7,6 +7,7 @@ use App\DataObjects\ResponseObjects\InterestBreakDown;
 use App\Http\Controllers\Controller;
 use App\Services\PawnModule\PawnRedemptionService;
 use App\Services\TenantModule\FinancialUnitService;
+use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,7 @@ class PawnRedemptionController extends Controller
     public function __construct(
         private PawnRedemptionService $redemptionService,
         private FinancialUnitService $financialUnitService,
+        private ReportingExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -57,8 +59,10 @@ class PawnRedemptionController extends Controller
             'slip_no' => ['required', 'string', 'max:60'],
             'calculated_total' => ['required', 'numeric', 'min:0'],
             'payment_amount' => ['required', 'numeric', 'min:0'],
-            'payment_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:payment_amount'],
+            'payment_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:payment_amount'],
             'account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'interests' => ['present', 'array'],
             'interests.*.id' => ['required', 'integer', 'min:1'],
             'interests.*.update_key' => ['required', 'integer', 'min:0'],
@@ -85,6 +89,10 @@ class PawnRedemptionController extends Controller
             calculatedTotal: (float) $validated['calculated_total'],
             paymentAmount: $this->financialUnitService->toBase($validated['payment_amount'], $validated['payment_amount_unit'] ?? null, 999_999_999_999.99),
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             debts: array_map(
                 fn (array $debt): object => (object) [
                     'id' => (int) $debt['id'],

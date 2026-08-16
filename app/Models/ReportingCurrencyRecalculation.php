@@ -17,6 +17,7 @@ class ReportingCurrencyRecalculation extends Model
         'tenant_id', 'previous_reporting_currency_id', 'requested_reporting_currency_id',
         'window_start', 'window_end', 'status', 'missing_rates', 'attempt_count',
         'error_message', 'queued_at', 'started_at', 'completed_at',
+        'cancelled_at',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class ReportingCurrencyRecalculation extends Model
             'queued_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Services\PlatformModule\TenantServices;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
+use App\DataObjects\RequestObjects\ReportingCurrencyAbortRequest;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
@@ -65,20 +66,28 @@ class TenantSettingService extends BaseTenantService
         $reportingCurrency = $this->tenantCurrencyService->findActiveVisibleForTenant($tenantId, $request->reportingCurrencyId);
 
         $previousReportingCurrencyId = (int) $setting->reporting_currency_id;
-        $setting = DB::transaction(function () use ($setting, $defaultCurrency, $reportingCurrency, $tenantId, $previousReportingCurrencyId): TenantSetting {
-            $updated = $this->repository->update($setting, [
+        $setting = DB::transaction(function () use ($request, $setting, $defaultCurrency, $reportingCurrency, $tenantId, $previousReportingCurrencyId): TenantSetting {
+            $updateData = [
                 'default_currency_id' => $defaultCurrency->id,
                 'reporting_currency_id' => $reportingCurrency->id,
                 'category' => 'finance',
                 'update_key' => $setting->update_key + 1,
-            ]);
+            ];
 
-            $this->reportingCurrencyRecalculationService->start(
-                $tenantId,
-                $previousReportingCurrencyId,
-                (int) $reportingCurrency->id,
-                $this->accountingDayService->currentBusinessDate(),
-            );
+            if ($request->hasDefaultFinancialUnit) {
+                $updateData['value'] = $request->defaultFinancialUnit;
+            }
+
+            $updated = $this->repository->update($setting, $updateData);
+
+            if ($previousReportingCurrencyId !== (int) $reportingCurrency->id) {
+                $this->reportingCurrencyRecalculationService->start(
+                    $tenantId,
+                    $previousReportingCurrencyId,
+                    (int) $reportingCurrency->id,
+                    $this->accountingDayService->currentBusinessDate(),
+                );
+            }
 
             return $updated;
         })->load(['defaultCurrency', 'reportingCurrency']);
@@ -87,6 +96,18 @@ class TenantSettingService extends BaseTenantService
             $setting,
             $this->reportingCurrencyRecalculationService->activeForTenant($tenantId),
         );
+    }
+
+    public function abortCurrentReportingCurrencyChange(ReportingCurrencyAbortRequest $request): TenantCurrencySettingsResource
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $setting = $this->reportingCurrencyRecalculationService->abort(
+            $tenantId,
+            $request->recalculationId,
+            $request->updateKey,
+        );
+
+        return TenantCurrencySettingsResource::fromModel($setting, null);
     }
 
     public function ensureAllTenantCurrencyPreferences(bool $dryRun = false): array

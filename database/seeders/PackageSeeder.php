@@ -89,20 +89,17 @@ class PackageSeeder extends Seeder
                 ]
             );
 
+            $enabledFeatureCodes = $definition['features'] ?? [];
+
             foreach ($features as $featureCode => $feature) {
                 PackageFeature::query()->updateOrCreate(
-                    ['package_id' => $package->id, 'feature_id' => $feature->id],
                     [
-                        'is_enabled' => in_array($featureCode, [
-                            'accounting_management',
-                            'expense_management',
-                            'capital_management',
-                            'debt_management',
-                            'accounting_type_management',
-                            'multi_account_management',
-                            'account_transferable',
-                        ], true),
-                        'value' => null,
+                        'package_id' => $package->id,
+                        'feature_id' => $feature->id,
+                    ],
+                    [
+                        'is_enabled' => in_array($featureCode, $enabledFeatureCodes, true),
+                        'value' => $definition['feature_values'][$featureCode] ?? null,
                     ]
                 );
             }

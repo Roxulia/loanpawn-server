@@ -12,6 +12,7 @@ class TenantExpenseUpdate extends BaseDataObject
         public string $code,
         public int $updateKey,
         public ?int $accountId,
+        public ?float $reportingExchangeRate = null,
         public ?string $description = null,
         public ?int $expenseTypeId = null,
         public bool $hasExpenseTypeId = false,

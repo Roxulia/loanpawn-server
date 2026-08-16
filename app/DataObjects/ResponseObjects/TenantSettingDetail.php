@@ -14,6 +14,7 @@ class TenantSettingDetail extends BaseDataObject
     public ?string $reporting_currency_symbol = null;
     public ?string $effective_reporting_currency_symbol = null;
     public ?array $reporting_currency_recalculation = null;
+    public ?string $default_financial_unit = null;
 }
 
 class TenantSettingItem extends BaseDataObject

@@ -83,7 +83,8 @@ class TenantCapitalService extends BaseTenantService
                     $capital->description,
                     (float) $capital->amount,
                     $financialAccount->currency,
-                    $capital->created_by
+                    $capital->created_by,
+                    $request->reportingExchangeRate,
                 );
                 $this->financialAccountTransactionService->recordCapitalContribution(
                     $financialAccount,
@@ -164,7 +165,7 @@ class TenantCapitalService extends BaseTenantService
         $data['update_key'] = $capital->update_key + 1;
         $original = $capital->only(array_keys($data));
 
-        $updatedCapital = DB::transaction(function () use ($capital, $data, $original, $financialAccount) {
+        $updatedCapital = DB::transaction(function () use ($capital, $data, $original, $financialAccount, $request) {
             $this->financialAccountTransactionService->reverseReference($financialAccount, $capital->code, TenantCapital::class, $this->resolveCurrentTenantUserId());
             $updatedCapital = $this->repository->updateWithLock($capital, $data);
 
@@ -173,6 +174,7 @@ class TenantCapitalService extends BaseTenantService
                 $updatedCapital->description,
                 (float) $updatedCapital->amount,
                 $financialAccount->currency,
+                $request->reportingExchangeRate,
             );
             $this->financialAccountTransactionService->recordCapitalContribution($financialAccount, (float) $updatedCapital->amount, $updatedCapital->code, TenantCapital::class, $updatedCapital->description, $this->resolveCurrentTenantUserId());
 

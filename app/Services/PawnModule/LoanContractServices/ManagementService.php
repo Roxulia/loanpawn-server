@@ -111,7 +111,8 @@ class ManagementService extends BaseTenantService
                     'Loan Contract Transaction',
                     $request->loanAmount,
                     $financialAccount->currency,
-                    $createdBy
+                    $createdBy,
+                    $request->reportingExchangeRate,
                 );
                 $this->financialAccountTransactionService->recordPawnLoanCreation(
                     $financialAccount,

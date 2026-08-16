@@ -11,6 +11,7 @@ class FinancialAccountTransferCreate extends BaseDataObject
         public int $toAccountId,
         public float $fromAmount,
         public ?float $exchangeRate = null,
+        public ?float $feeReportingExchangeRate = null,
         public float $feeAmount = 0,
         public ?string $note = null,
         public ?string $idempotencyKey = null,

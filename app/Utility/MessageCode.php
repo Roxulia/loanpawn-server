@@ -75,6 +75,8 @@ enum MessageCode: string
     case FinanceTenantExchangeRateVoided = 'finance.response.tenant.exchange_rate.voided';
     case FinanceTenantExchangeRateResolved = 'finance.response.tenant.exchange_rate.resolved';
     case FinanceTenantExchangeRateUnavailable = 'finance.response.tenant.exchange_rate.unavailable';
+    case FinanceTenantHistoricalRatesRecorded = 'finance.response.tenant.exchange_rate.historical_recorded';
+    case FinanceTenantReportingCurrencyChangeAborted = 'finance.response.tenant.reporting_currency_change_aborted';
     case PlatformLicenseValidationFailed = 'platform.response.license.validation_failed';
     case PlatformLoginSuccess = 'auth.response.login_success';
     case PlatformPasswordChanged = 'auth.response.password_changed';
@@ -207,4 +209,9 @@ enum MessageCode: string
     case FinanceExchangeRateNotFound = 'finance.exception.exchange_rate_not_found';
     case FinanceActiveVisibleExchangePairRequired = 'finance.exception.active_visible_exchange_pair_required';
     case FinanceTenantExchangeRateModificationDenied = 'finance.exception.tenant_exchange_rate_modification_denied';
+    case FinanceHistoricalRateBackfillUnavailable = 'finance.exception.historical_rate_backfill_unavailable';
+    case FinanceHistoricalRateBackfillMismatch = 'finance.exception.historical_rate_backfill_mismatch';
+    case FinanceHistoricalRatePairRequired = 'finance.exception.historical_rate_pair_required';
+    case FinanceReportingCurrencyChangeAlreadyActive = 'finance.exception.reporting_currency_change_already_active';
+    case FinanceReportingExchangeRateRequired = 'finance.exception.reporting_exchange_rate_required';
 }

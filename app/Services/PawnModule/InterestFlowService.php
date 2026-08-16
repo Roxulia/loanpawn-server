@@ -200,12 +200,12 @@ class InterestFlowService extends BaseTenantService
                 }
 
                 foreach ($paidPayments as $paidPayment) {
-                    $this->recordInterestPaymentAccounting($paidPayment, $financialAccount);
+                    $this->recordInterestPaymentAccounting($paidPayment, $financialAccount, $request->reportingExchangeRate);
                     $this->logInterestPaymentUpdate($paidPayment);
                 }
 
                 if ($changeAmount > 0.0) {
-                    $this->recordInterestPaymentChangeAccounting($lastPaidPayment, $financialAccount);
+                    $this->recordInterestPaymentChangeAccounting($lastPaidPayment, $financialAccount, $request->reportingExchangeRate);
                 }
 
                 foreach ($this->repository->findPaymentsAfterPaymentWithLock($slip->id, $lastPaidPayment) as $futurePayment) {
@@ -601,7 +601,7 @@ class InterestFlowService extends BaseTenantService
         return $remainingInterest;
     }
 
-    protected function recordInterestPaymentAccounting(PawnInterestPayment $payment, FinancialAccount $financialAccount): void
+    protected function recordInterestPaymentAccounting(PawnInterestPayment $payment, FinancialAccount $financialAccount, ?float $reportingExchangeRate = null): void
     {
         if ((float) $payment->payment_amount <= 0.0) {
             return;
@@ -613,6 +613,7 @@ class InterestFlowService extends BaseTenantService
             (float) $payment->payment_amount,
             $financialAccount->currency,
             $payment->created_by,
+            $reportingExchangeRate,
         );
         $this->financialAccountTransactionService->recordPawnInterestPayment(
             $financialAccount,
@@ -625,7 +626,7 @@ class InterestFlowService extends BaseTenantService
         );
     }
 
-    protected function recordInterestPaymentChangeAccounting(PawnInterestPayment $payment, FinancialAccount $financialAccount): void
+    protected function recordInterestPaymentChangeAccounting(PawnInterestPayment $payment, FinancialAccount $financialAccount, ?float $reportingExchangeRate = null): void
     {
         if ((float) $payment->change_amount <= 0.0) {
             return;
@@ -637,6 +638,7 @@ class InterestFlowService extends BaseTenantService
             (float) $payment->change_amount,
             $financialAccount->currency,
             $payment->created_by,
+            $reportingExchangeRate,
         );
         $this->financialAccountTransactionService->recordAdjustment(
             $financialAccount,

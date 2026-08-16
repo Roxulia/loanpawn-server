@@ -10,6 +10,7 @@ use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
 use App\Services\TenantModule\FinancialUnitService;
+use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
 use App\Utility\NrcHelper;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +24,7 @@ class LoanContractSlipController extends Controller
         private LookUpService $lookUpService,
         private ManagementService $managementService,
         private FinancialUnitService $financialUnitService,
+        private ReportingExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -89,8 +91,10 @@ class LoanContractSlipController extends Controller
             'collateral_items.*.minimum_retail_price' => ['nullable', 'numeric', 'min:0'],
             'collateral_items.*.minimum_retail_price_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class)],
             'loan_amount' => ['required', 'numeric', 'min:0.01'],
-            'loan_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:loan_amount'],
+            'loan_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:loan_amount'],
             'account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'interest_rate' => ['required', 'numeric', 'min:0.01'],
             'interest_type_id' => ['required', 'integer'],
             'notes' => ['nullable', 'string'],
@@ -124,6 +128,10 @@ class LoanContractSlipController extends Controller
             loanAmount: $this->financialUnitService->toBase($validated['loan_amount'], $validated['loan_amount_unit'] ?? null, 999_999_999_999.99),
             interestRate: (float) $validated['interest_rate'],
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             interestTypeId: (int) $validated['interest_type_id'],
             notes: $validated['notes'] ?? null,
             expiryQuota: (int) $validated['expiry_quota'],

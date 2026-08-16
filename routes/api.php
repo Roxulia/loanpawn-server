@@ -10,6 +10,7 @@ use App\Http\Controllers\PlatformModule\TelegramWebhookController;
 use App\Http\Controllers\PlatformModule\TenantController;
 use App\Http\Controllers\TenantModule\Accounting\FinancialAccountTransferController;
 use App\Http\Controllers\TenantModule\Accounting\MultiAccountManagement as MultiAccountManagementController;
+use App\Http\Controllers\TenantModule\Accounting\ReportingExchangeRateQuoteController;
 use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
 use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\TenantModule\TenantExchangeRatePairController;
 use App\Http\Controllers\TenantModule\TenantExpenseController;
 use App\Http\Controllers\TenantModule\TenantRoleController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
+use App\Http\Controllers\TenantModule\ReportingCurrencyRateRequirementController;
 use App\Http\Controllers\TenantModule\TenantUserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -219,6 +221,9 @@ Route::prefix('tenant')->group(function () {
                     Route::delete('{code}', 'destroy')->middleware(['tenant.any-feature:accounting_type_management,master_data_management', 'tenant.permission:delete_financial_account_type']);
                 });
 
+            Route::get('accounting/reporting-exchange-rate-quote', ReportingExchangeRateQuoteController::class)
+                ->middleware('tenant.feature:currency_management');
+
             Route::prefix('financial-accounts')
                 ->controller(MultiAccountManagementController::class)
                 ->middleware('tenant.feature:multi_account_management')
@@ -335,6 +340,15 @@ Route::prefix('tenant')->group(function () {
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::put('timezone', [TenantSettingsController::class, 'updateTimezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
+                Route::prefix('reporting-currency-rate-requirements')
+                    ->controller(ReportingCurrencyRateRequirementController::class)
+                    ->middleware(['tenant.feature:currency_management', 'tenant.feature:exchange_pair_management', 'tenant.feature:daily_rate_assignment'])
+                    ->group(function () {
+                        Route::get('/', 'index')->middleware(['tenant.permission:update_currency', 'tenant.permission:list_exchange_rate']);
+                        Route::post('/', 'store')->middleware(['tenant.permission:update_currency', 'tenant.permission:create_exchange_rate']);
+                    });
+                Route::post('reporting-currency-recalculation/abort', [ReportingCurrencyRateRequirementController::class, 'abort'])
+                    ->middleware(['tenant.feature:currency_management', 'tenant.permission:update_currency']);
             });
 
             Route::prefix('slip-documents')

@@ -24,7 +24,7 @@ class StoreFinancialAccountRequest extends BaseDataObject
             'currency_type' => ['required', 'string', 'max:12'],
             'account_name' => ['required', 'string', 'max:100'],
             'balance' => ['nullable', 'numeric', 'min:0'],
-            'balance_unit' => ['nullable', 'string', Rule::enum(FinancialUnit::class), 'prohibited_without:balance'],
+            'balance_unit' => ['nullable', 'string', Rule::enum(FinancialUnit::class), 'exclude_without:balance'],
             'allow_negative_balance' => ['sometimes', 'boolean'],
             'account_number' => ['nullable', 'string', 'max:50'],
         ];

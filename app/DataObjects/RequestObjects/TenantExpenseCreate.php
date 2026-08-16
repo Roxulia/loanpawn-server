@@ -11,6 +11,7 @@ class TenantExpenseCreate extends BaseDataObject
         public string $description,
         public float $amount,
         public ?int $accountId,
+        public ?float $reportingExchangeRate = null,
         public ?int $expenseTypeId = null,
         public ?int $tenantId = null,
         public ?int $createdBy = null,

@@ -146,6 +146,7 @@ class PawnRedemptionService extends BaseTenantService
                     (float) $redemption->received_amount,
                     $financialAccount->currency,
                     $createdBy,
+                    $request->reportingExchangeRate,
                 );
                 $this->financialAccountTransactionService->recordPawnRedemption(
                     $financialAccount,
@@ -164,6 +165,7 @@ class PawnRedemptionService extends BaseTenantService
                         (float) $redemption->change_amount,
                         $financialAccount->currency,
                         $createdBy,
+                        $request->reportingExchangeRate,
                     );
                     $this->financialAccountTransactionService->recordAdjustment(
                         $financialAccount,

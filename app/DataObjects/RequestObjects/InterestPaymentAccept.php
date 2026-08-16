@@ -16,6 +16,7 @@ class InterestPaymentAccept extends BaseDataObject
         public ?int $acceptAccountId,
         public bool $recordDebt,
         public array $interestBreakdown,
+        public ?float $reportingExchangeRate = null,
         public ?string $idempotencyKey = null,
     ) {}
 }

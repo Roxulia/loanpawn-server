@@ -30,6 +30,16 @@ class ReportingCurrencyRecalculationRepository
             ->find($id);
     }
 
+    public function findForTenant(int $id, int $tenantId, bool $lock = false): ?ReportingCurrencyRecalculation
+    {
+        return ReportingCurrencyRecalculation::query()
+            ->withoutGlobalScopes()
+            ->with(['previousReportingCurrency', 'requestedReportingCurrency'])
+            ->where('tenant_id', $tenantId)
+            ->when($lock, fn ($query) => $query->lockForUpdate())
+            ->find($id);
+    }
+
     public function create(array $data): ReportingCurrencyRecalculation
     {
         return ReportingCurrencyRecalculation::query()->withoutGlobalScopes()->create($data)->refresh();
@@ -45,6 +55,13 @@ class ReportingCurrencyRecalculationRepository
     public function lockCurrencyPreferences(int $tenantId): TenantSetting
     {
         return $this->currencyPreferences($tenantId, true);
+    }
+
+    public function updateCurrencyPreferences(TenantSetting $setting, array $data): TenantSetting
+    {
+        $setting->update($data);
+
+        return $setting->refresh()->load(['defaultCurrency', 'reportingCurrency']);
     }
 
     public function currencyPreferences(int $tenantId, bool $lock = false): TenantSetting

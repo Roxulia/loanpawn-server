@@ -203,6 +203,7 @@ class TenantDetailRepository
             $detail->reporting_currency_symbol = $currencyRow->setting_reporting_currency_symbol;
             $detail->effective_reporting_currency_symbol = $currencyRow->effective_reporting_currency_symbol
                 ?? $currencyRow->setting_reporting_currency_symbol;
+            $detail->default_financial_unit = $currencyRow->setting_value;
             $detail->reporting_currency_recalculation = $currencyRow->currency_recalculation_id === null ? null : [
                 'id' => (int) $currencyRow->currency_recalculation_id,
                 'status' => $currencyRow->currency_recalculation_status,

@@ -7,6 +7,7 @@ use App\DataObjects\RequestObjects\TenantExpenseUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantExpenseService;
 use App\Services\TenantModule\FinancialUnitService;
+use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class TenantExpenseController extends Controller
     public function __construct(
         private TenantExpenseService $expenseService,
         private FinancialUnitService $financialUnitService,
+        private ReportingExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -52,6 +54,10 @@ class TenantExpenseController extends Controller
             description: $validated['description'],
             amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             expenseTypeId: $validated['expense_type_id'] ?? null,
             idempotencyKey: $validated['idempotency_key'] ?? null,
             imageReference: $validated['image_reference'] ?? null,
@@ -74,6 +80,10 @@ class TenantExpenseController extends Controller
             code: $expenseCode,
             updateKey: $validated['update_key'] ?? 0,
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             description: $validated['description'] ?? null,
             expenseTypeId: $validated['expense_type_id'] ?? null,
             hasExpenseTypeId: array_key_exists('expense_type_id', $validated),
@@ -101,11 +111,13 @@ class TenantExpenseController extends Controller
         $rules = [
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
             'account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'amount' => $isCreate
                 ? ['required', 'numeric', 'min:0.01']
                 : ['prohibited'],
             'amount_unit' => $isCreate
-                ? ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'prohibited_without:amount']
+                ? ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount']
                 : ['prohibited'],
             'expense_type_id' => ['nullable', 'integer'],
             'update_key' => ['nullable', 'integer', 'min:0'],

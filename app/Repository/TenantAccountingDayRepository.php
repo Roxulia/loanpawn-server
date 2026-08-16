@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Enums\AccountingCategory;
 use App\Models\PlatformModule\Tenant;
 use App\Models\TenantAccountingDay;
 use App\Models\TenantAccountingDaySchedule;
@@ -108,8 +109,11 @@ class TenantAccountingDayRepository
                 ->selectRaw('accounting_category, SUM(amount) AS total')
                 ->groupBy('accounting_category')
                 ->get()
-                ->pluck('total', 'accounting_category')
-                ->map(fn ($amount) => (float) $amount)
+                ->mapWithKeys(fn (TenantAccountingTransactions $row): array => [
+                    $row->accounting_category instanceof AccountingCategory
+                        ? $row->accounting_category->value
+                        : (string) $row->accounting_category => (float) $row->total,
+                ])
                 ->all();
 
             $opening = (float) $opening;

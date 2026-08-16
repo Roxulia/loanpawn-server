@@ -10,6 +10,7 @@ class TenantDebtCreate extends BaseDataObject
         public float $amount,
         public string $description,
         public ?int $createdAccountId,
+        public ?float $reportingExchangeRate = null,
         public ?int $slipId = null,
         public ?string $slipCode = null,
         public ?string $customerCode = null,
