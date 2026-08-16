@@ -5,6 +5,7 @@ use App\Console\Commands\EnsureTenantCurrencySettings;
 use App\Console\Commands\MigrateLegacyAccounting;
 use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
+use App\Console\Commands\RepairInterestSchedules;
 use App\Console\Commands\SummarizeMonthlyFinancialMovements;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         RepairAccountingChange::class,
+        RepairInterestSchedules::class,
         EnsureDefaultFinancialAccounts::class,
         EnsureTenantCurrencySettings::class,
         SummarizeMonthlyFinancialMovements::class,

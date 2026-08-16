@@ -12,6 +12,7 @@ use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
+use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Services\PawnModule\InterestFlowService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
 use App\Support\TenantContext;
@@ -19,6 +20,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class InterestFlowServiceTest extends TestCase
@@ -137,7 +139,7 @@ class InterestFlowServiceTest extends TestCase
             'id' => $created->id,
             'last_interest_paid_at' => '2026-04-04 10:00:00',
             'last_interest_added_at' => '2026-04-04 10:00:00',
-            'expire_at' => '2026-08-04 00:00:00',
+            'expire_at' => '2026-09-04 00:00:00',
         ]);
 
         $this->assertDatabaseHas('pawn_interest_payments', [
@@ -159,7 +161,7 @@ class InterestFlowServiceTest extends TestCase
             'is_paid' => false,
         ]);
 
-        $this->assertDatabaseCount('pawn_interest_payments', 5);
+        $this->assertDatabaseCount('pawn_interest_payments', 6);
         $this->assertDatabaseHas('tenant_accounting_transactions', [
             'description' => 'Interest Payment Transaction',
             'transaction_direction' => 'incoming',
@@ -259,7 +261,7 @@ class InterestFlowServiceTest extends TestCase
         $this->assertSame(25000.0, $incomingTotal);
     }
 
-    public function test_daily_interest_with_day_quota_extends_expiry_by_paid_interest_row_count(): void
+    public function test_daily_interest_renews_from_payment_date_plus_interest_interval(): void
     {
         $tenant = $this->createTenant();
         $this->actingTenantUser($tenant, ['access_all']);
@@ -311,6 +313,58 @@ class InterestFlowServiceTest extends TestCase
             'id' => $created->id,
             'expire_at' => '2026-07-09 00:00:00',
         ]);
+    }
+
+    #[DataProvider('renewalWindowProvider')]
+    public function test_renewal_window_uses_interest_interval_then_quota_duration(
+        string $interestCode,
+        int $durationInDays,
+        string $quotaType,
+        int $quota,
+        string $expectedStart,
+        string $expectedExpire,
+    ): void {
+        $slip = new PawnLoanContractSlip([
+            'loan_amount' => 100000,
+            'interest_rate' => 10,
+            'expiry_quota' => $quota,
+            'expiry_quota_type' => $quotaType,
+        ]);
+        $slip->setRelation('interestType', new InterestType([
+            'code' => $interestCode,
+            'name' => ucfirst($interestCode),
+            'duration_in_days' => $durationInDays,
+        ]));
+
+        $service = app(InterestFlowService::class);
+        $window = $service->calculateRenewalWindow($slip, CarbonImmutable::parse('2026-01-31'));
+
+        $this->assertSame($expectedStart, $window['start_at']->toDateString());
+        $this->assertSame($expectedExpire, $window['expire_at']->toDateString());
+
+        $rows = $service->expectedScheduleRows($slip, $window['start_at'], $window['expire_at']);
+        $this->assertNotEmpty($rows);
+        foreach ($rows as $row) {
+            $this->assertSame(10000.0, $row['calculated_interest']);
+        }
+    }
+
+    public static function renewalWindowProvider(): array
+    {
+        return [
+            'daily interest, day quota' => ['daily', 1, 'Day', 5, '2026-02-01', '2026-02-06'],
+            'daily interest, week quota' => ['daily', 1, 'Week', 2, '2026-02-01', '2026-02-15'],
+            'daily interest, month quota' => ['daily', 1, 'Month', 2, '2026-02-01', '2026-04-01'],
+            'daily interest, year quota' => ['daily', 1, 'Year', 1, '2026-02-01', '2027-02-01'],
+            'weekly interest, day quota' => ['weekly', 7, 'Day', 5, '2026-02-07', '2026-02-12'],
+            'weekly interest, week quota' => ['weekly', 7, 'Week', 2, '2026-02-07', '2026-02-21'],
+            'weekly interest, month quota' => ['weekly', 7, 'Month', 2, '2026-02-07', '2026-04-07'],
+            'weekly interest, year quota' => ['weekly', 7, 'Year', 1, '2026-02-07', '2027-02-07'],
+            'monthly interest, day quota' => ['monthly', 30, 'Day', 5, '2026-02-28', '2026-03-05'],
+            'monthly interest, week quota' => ['monthly', 30, 'Week', 2, '2026-02-28', '2026-03-14'],
+            'monthly interest, month quota' => ['monthly', 30, 'Month', 2, '2026-02-28', '2026-04-28'],
+            'monthly interest, year quota' => ['monthly', 30, 'Year', 1, '2026-02-28', '2027-02-28'],
+        ];
     }
 
     public function test_migration_corrects_expiry_when_day_quota_is_shorter_than_interest_duration(): void

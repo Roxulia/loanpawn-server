@@ -139,7 +139,6 @@ class InterestFlowService extends BaseTenantService
                 $leftAmount = $request->paymentAmount;
                 $debtAmount = 0.0;
                 $lastPaidPayment = null;
-                $paidInterestRowCount = 0;
                 $paidPayments = [];
 
                 foreach ($payments as $payment) {
@@ -170,8 +169,6 @@ class InterestFlowService extends BaseTenantService
                     ]);
 
                     $paidPayments[] = $updatedPayment;
-                    $paidInterestRowCount++;
-
                     if ($appliedAmount < $calculatedInterest) {
                         $this->createRemainingInterestDebt($slip, $updatedPayment);
                         $leftAmount = 0.0;
@@ -212,19 +209,18 @@ class InterestFlowService extends BaseTenantService
                     $this->repository->delete($futurePayment);
                 }
 
+                $renewalWindow = $this->calculateRenewalWindow($slip, $currentDate);
                 $updatedSlip = $this->loanContractSlipRepository->update($slip, [
                     'last_interest_paid_at' => $currentAt,
                     'last_interest_added_at' => $currentAt,
-                    'expire_at' => $this->calculateRenewedExpireDate($slip, $currentAt, $paidInterestRowCount),
+                    'expire_at' => $renewalWindow['expire_at'],
                     'update_key' => $slip->update_key + 1,
                 ]);
 
-                $nextScheduleStart = $this->calculateNextScheduleStartDate($currentDate, (string) $slip->expiry_quota_type);
-
                 $this->createLoanContractInterestPayments(
                     $updatedSlip,
-                    $nextScheduleStart,
-                    CarbonImmutable::parse($updatedSlip->expire_at)->startOfDay(),
+                    $renewalWindow['start_at'],
+                    $renewalWindow['expire_at'],
                     $this->resolveCurrentTenantUserId()
                 );
 
@@ -418,36 +414,28 @@ class InterestFlowService extends BaseTenantService
         return match (ucfirst(strtolower(trim($quotaType)))) {
             'Day' => $date->addDays($quota),
             'Week' => $date->addWeeks($quota),
-            'Month' => $date->addMonths($quota),
-            'Year' => $date->addYears($quota),
+            'Month' => $date->addMonthsNoOverflow($quota),
+            'Year' => $date->addYearsNoOverflow($quota),
             default => throw new InvalidTenantRequest('Expiry quota type must be Day, Week, Month, or Year.'),
         };
     }
 
-    protected function calculateRenewedExpireDate(
-        PawnLoanContractSlip $slip,
-        CarbonInterface $currentDate,
-        int $paidInterestRowCount
-    ): CarbonImmutable {
-        $quotaType = ucfirst(strtolower(trim((string) $slip->expiry_quota_type)));
-        $slip->loadMissing('interestType');
-
-        if ($this->resolveInterestIntervalUnit($slip) === 'day' && $quotaType === 'Day') {
-            return CarbonImmutable::parse($slip->expire_at)
-                ->startOfDay()
-                ->addDays($paidInterestRowCount);
-        }
-
-        return $this->calculateExpireDate(
-            $currentDate,
-            (int) $slip->expiry_quota,
-            (string) $slip->expiry_quota_type
-        );
-    }
-
-    protected function calculateNextScheduleStartDate(CarbonInterface $currentDate, string $quotaType): CarbonImmutable
+    /** @return array{start_at: CarbonImmutable, expire_at: CarbonImmutable} */
+    public function calculateRenewalWindow(PawnLoanContractSlip $slip, CarbonInterface $paymentDate): array
     {
-        return $this->calculateExpireDate($currentDate, 1, $quotaType);
+        $startAt = $this->resolveNextInterestPeriodStart(
+            CarbonImmutable::parse($paymentDate)->startOfDay(),
+            $slip,
+        );
+
+        return [
+            'start_at' => $startAt,
+            'expire_at' => $this->calculateExpireDate(
+                $startAt,
+                (int) $slip->expiry_quota,
+                (string) $slip->expiry_quota_type,
+            ),
+        ];
     }
 
     public function calculateEndDate(CarbonInterface $currentDate, PawnLoanContractSlip $slip): CarbonImmutable
@@ -515,29 +503,19 @@ class InterestFlowService extends BaseTenantService
         }
 
         $tenantId = $this->resolveCurrentTenantId();
-        $interestAmount = ((float) $slip->loan_amount * (float) $slip->interest_rate) / 100;
-        $currentStart = $startDate;
-        $useInclusiveBoundary = in_array($this->resolveInterestIntervalUnit($slip), ['day', 'week'], true);
 
-        while ($useInclusiveBoundary ? $currentStart->lte($expireDate) : $currentStart->lt($expireDate)) {
-            $nextStart = $this->resolveNextInterestPeriodStart($currentStart, $slip);
-            $endDate = $nextStart->subDay();
-
-            if ($endDate->gt($expireDate)) {
-                $endDate = $expireDate;
-            }
-
+        foreach ($this->expectedScheduleRows($slip, $startDate, $expireDate) as $row) {
             $payment = $this->repository->create([
                 'tenant_id' => $tenantId,
                 'slip_id' => $slip->id,
                 'created_account_id' => $slip->account_id,
                 'payment_amount' => 0,
                 'change_amount' => 0,
-                'calculated_interest' => $interestAmount,
+                'calculated_interest' => $row['calculated_interest'],
                 'notes' => null,
                 'created_by' => $createdBy,
-                'start_period_at' => $currentStart,
-                'end_period_at' => $endDate,
+                'start_period_at' => $row['start_period_at'],
+                'end_period_at' => $row['end_period_at'],
                 'is_paid' => false,
             ]);
 
@@ -554,12 +532,50 @@ class InterestFlowService extends BaseTenantService
                 $createdBy
             );
 
-            if ($endDate->gte($expireDate)) {
-                break;
+        }
+    }
+
+    /** @return array<int, array{start_period_at: CarbonImmutable, end_period_at: CarbonImmutable, calculated_interest: float}> */
+    public function expectedScheduleRows(
+        PawnLoanContractSlip $slip,
+        CarbonImmutable $startDate,
+        CarbonImmutable $expireDate,
+    ): array {
+        $slip->loadMissing('interestType');
+        $interestAmount = ((float) $slip->loan_amount * (float) $slip->interest_rate) / 100;
+        $currentStart = $startDate->startOfDay();
+        $expireAt = $expireDate->startOfDay();
+        $useInclusiveBoundary = in_array($this->resolveInterestIntervalUnit($slip), ['day', 'week'], true);
+        $rows = [];
+
+        while ($useInclusiveBoundary ? $currentStart->lte($expireAt) : $currentStart->lt($expireAt)) {
+            $endDate = $this->resolveNextInterestPeriodStart($currentStart, $slip)->subDay();
+            if ($endDate->gt($expireAt)) {
+                $endDate = $expireAt;
             }
 
+            $rows[] = [
+                'start_period_at' => $currentStart,
+                'end_period_at' => $endDate,
+                'calculated_interest' => $interestAmount,
+            ];
+
+            if ($endDate->gte($expireAt)) {
+                break;
+            }
             $currentStart = $endDate->addDay();
         }
+
+        return $rows;
+    }
+
+    public function recreateRenewedSchedule(
+        PawnLoanContractSlip $slip,
+        CarbonImmutable $startDate,
+        CarbonImmutable $expireDate,
+        ?int $createdBy = null,
+    ): void {
+        $this->createLoanContractInterestPayments($slip, $startDate, $expireDate, $createdBy);
     }
 
     protected function resolveAccrualStartDate(PawnInterestPayment $lastPayment): CarbonImmutable
@@ -727,8 +743,8 @@ class InterestFlowService extends BaseTenantService
         return match ($this->resolveInterestIntervalUnit($slip)) {
             'day' => $currentStart->addDay(),
             'week' => $currentStart->addWeek(),
-            'month' => $currentStart->addMonth(),
-            'year' => $currentStart->addYear(),
+            'month' => $currentStart->addMonthNoOverflow(),
+            'year' => $currentStart->addYearNoOverflow(),
         };
     }
 
