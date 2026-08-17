@@ -183,6 +183,26 @@ class AuthController extends Controller
         );
     }
 
+    public function changePassword(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'current_password' => ['required', 'string', 'max:255'],
+            'password' => ['required', 'string', PasswordRules::strong(), 'max:255', 'confirmed'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator->errors());
+        }
+
+        $validated = $validator->validated();
+        $this->authService->changePassword($validated['current_password'], $validated['password'], false);
+
+        return $this->successResponse(
+            ['redirect' => route('platform.settings')],
+            $this->responseMessage(MessageCode::PlatformPasswordChanged),
+        );
+    }
+
     public function showRegister(): View
     {
         return view('platform.auth.register');

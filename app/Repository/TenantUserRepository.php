@@ -6,6 +6,7 @@ use App\Models\CoreModule\TenantUser;
 use App\Exceptions\RequiredValueMissing;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
 class TenantUserRepository
@@ -208,5 +209,59 @@ class TenantUserRepository
     public function deleteSessionsForUser(int $userId): void
     {
         DB::table('sessions')->where('user_id', $userId)->delete();
+    }
+
+    public function findOwnedByPlatformUserAndEmailWithLock(int $platformUserId, string $email): Collection
+    {
+        return TenantUser::query()
+            ->withoutGlobalScope('tenant')
+            ->where('email', $email)
+            ->where('is_deleted', false)
+            ->whereHas('tenant', fn ($query) => $query->where('platform_user_id', $platformUserId))
+            ->lockForUpdate()
+            ->get();
+    }
+
+    public function updateSynchronizedPassword(TenantUser $tenantUser, string $passwordHash): TenantUser
+    {
+        $tenantUser->forceFill([
+            'password' => $passwordHash,
+            'remember_token' => null,
+            'update_key' => (int) $tenantUser->update_key + 1,
+        ])->save();
+
+        return $tenantUser->refresh();
+    }
+
+    public function deletePersonalAccessTokensForUsers(array $tenantUserIds): void
+    {
+        if ($tenantUserIds === []) {
+            return;
+        }
+
+        DB::table('personal_access_tokens')
+            ->where('tokenable_type', (new TenantUser())->getMorphClass())
+            ->whereIn('tokenable_id', $tenantUserIds)
+            ->delete();
+    }
+
+    public function sessionCandidatesForUsers(array $tenantUserIds): SupportCollection
+    {
+        if ($tenantUserIds === []) {
+            return collect();
+        }
+
+        return DB::table(config('session.table', 'sessions'))
+            ->whereIn('user_id', $tenantUserIds)
+            ->get(['id', 'user_id', 'payload']);
+    }
+
+    public function deleteSessionsByIds(array $sessionIds): void
+    {
+        if ($sessionIds === []) {
+            return;
+        }
+
+        DB::table(config('session.table', 'sessions'))->whereIn('id', $sessionIds)->delete();
     }
 }

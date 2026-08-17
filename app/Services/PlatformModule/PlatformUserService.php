@@ -24,6 +24,7 @@ class PlatformUserService
     public function __construct(
         private PlatformUserRepository $repository,
         private TableIdGenerationService $tableIdGenerationService,
+        private PlatformUserCredentialService $credentialService,
     )
     {
         //
@@ -83,9 +84,7 @@ class PlatformUserService
 
     public function resetPassword(int $id): PlatformUser
     {
-        return $this->repository->update($this->findById($id), [
-            'password' => Hash::make($this->defaultPlatformUserPassword()),
-        ]);
+        return $this->credentialService->replacePassword($id, $this->defaultPlatformUserPassword());
     }
 
     public function changePreferLanguageForCurrentUser(PlatformUser $user, string $preferLang): PlatformUser

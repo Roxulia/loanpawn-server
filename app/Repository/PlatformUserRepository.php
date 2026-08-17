@@ -29,6 +29,11 @@ class PlatformUserRepository
         return $res;
     }
 
+    public function findByIdForUpdate(int $id): ?PlatformUser
+    {
+        return PlatformUser::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
     public function paginateAll(int $perPage = 15): LengthAwarePaginator
     {
         return PlatformUser::query()
@@ -62,6 +67,17 @@ class PlatformUserRepository
     public function update(PlatformUser $platformUser, array $data): PlatformUser
     {
         $platformUser->update($data);
+
+        return $platformUser->refresh();
+    }
+
+    public function updatePasswordCredentials(PlatformUser $platformUser, string $passwordHash): PlatformUser
+    {
+        $platformUser->forceFill([
+            'password' => $passwordHash,
+            'remember_token' => null,
+            'update_key' => (int) $platformUser->update_key + 1,
+        ])->save();
 
         return $platformUser->refresh();
     }
