@@ -54,7 +54,7 @@ class ReportingCurrencyHistoricalRateTest extends TestCase
 
     public function test_requested_historical_rates_are_saved_once_as_open_and_close(): void
     {
-        Queue::fake();
+        Queue::fake([RecalculateReportingCurrencyJob::class]);
         [$tenant, $recalculation] = $this->waitingRecalculation('backfill');
         app(TenantContext::class)->set($tenant->id);
         $service = app(HistoricalRateBackfillService::class);

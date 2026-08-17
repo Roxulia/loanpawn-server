@@ -5,6 +5,7 @@ namespace App\Services\TenantModule;
 use App\DataObjects\RequestObjects\CorrectExchangeRateRequest;
 use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
 use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
+use App\Events\ExchangeRateChanged;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Models\CoreModule\ExchangeRateEntry;
@@ -60,6 +61,9 @@ class TenantExchangeRateService extends BaseTenantService
         }
 
         $entry = $this->writer->create($pair, $request->toArray(), $tenantId, Auth::guard('tenantuser')->id(), null);
+        if ($entry->wasRecentlyCreated) {
+            event(ExchangeRateChanged::fromEntry($entry));
+        }
         $this->reportingCurrencyRecalculationService->retryPendingForTenant($tenantId);
 
         return $entry;

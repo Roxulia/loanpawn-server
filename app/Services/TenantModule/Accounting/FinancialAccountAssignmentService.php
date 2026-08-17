@@ -64,10 +64,6 @@ class FinancialAccountAssignmentService extends BaseTenantService
             throw new FinancialAccountAssignmentDenied(MessageCode::FinanceAssignmentOwnerDenied);
         }
 
-        if ($targetUser->status !== 'active') {
-            throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceAssignmentActiveUserRequired));
-        }
-
         $accountIds = array_values(array_unique(array_map('intval', $request->financialAccountIds)));
         $validAccountIds = $this->repository->validAccountIds($tenantId, $accountIds);
         sort($accountIds);

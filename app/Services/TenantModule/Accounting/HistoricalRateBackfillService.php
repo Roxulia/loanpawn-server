@@ -4,12 +4,12 @@ namespace App\Services\TenantModule\Accounting;
 
 use App\DataObjects\RequestObjects\HistoricalRateBackfillRequest;
 use App\DataObjects\ResponseObjects\HistoricalRateRequirementsResource;
+use App\Events\ExchangeRateChanged;
 use App\Exceptions\InvalidTenantRequest;
 use App\Jobs\RecalculateReportingCurrencyJob;
 use App\Models\ReportingCurrencyRecalculation;
 use App\Repository\Accounting\ReportingCurrencyRecalculationRepository;
 use App\Services\ExchangeRate\ExchangeRateEntryWriter;
-use App\Services\ExchangeRate\ExchangeRateSummaryService;
 use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Services\TenantModule\TenantCurrencyService;
 use App\Support\TenantContext;
@@ -24,7 +24,6 @@ class HistoricalRateBackfillService
         private ReportingCurrencyRecalculationRepository $repository,
         private ReportingExchangeRateService $exchangeRates,
         private ExchangeRateEntryWriter $writer,
-        private ExchangeRateSummaryService $summaries,
         private TenantCurrencyService $currencies,
         private TenantContext $tenantContext,
         private Messages $messages,
@@ -65,19 +64,21 @@ class HistoricalRateBackfillService
                 $values = $submitted->get($requirement['requirement_key']);
                 $pair = $requirement['_pair'];
                 $idempotencyPrefix = "reporting-recalc:{$recalculation->id}:{$requirement['requirement_key']}";
-                $this->writer->create($pair, [
+                $opening = $this->writer->create($pair, [
                     'buying_rate' => $values['buying_open'],
                     'selling_rate' => $values['selling_open'],
                     'effective_date' => $requirement['date'],
                     'idempotency_key' => "{$idempotencyPrefix}:open",
                 ], $tenantId, $tenantUserId, null);
-                $this->writer->create($pair, [
+                $closing = $this->writer->create($pair, [
                     'buying_rate' => $values['buying_close'],
                     'selling_rate' => $values['selling_close'],
                     'effective_date' => $requirement['date'],
                     'idempotency_key' => "{$idempotencyPrefix}:close",
                 ], $tenantId, $tenantUserId, null);
-                $this->summaries->rebuild("tenant:{$tenantId}", $tenantId, $pair->id, $requirement['date']);
+                if ($opening->wasRecentlyCreated || $closing->wasRecentlyCreated) {
+                    event(ExchangeRateChanged::fromEntry($closing));
+                }
             }
 
             $recalculation = $this->repository->update($recalculation, [

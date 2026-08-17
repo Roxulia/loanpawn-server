@@ -2,6 +2,7 @@
 
 namespace App\Services\ExchangeRate;
 
+use App\Events\ExchangeRateChanged;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Repository\ExchangeRateCorrectionRepository;
@@ -20,7 +21,7 @@ class ExchangeRateCorrectionService
             throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::FinanceRateEntryAlreadyVoid));
         }
 
-        return DB::transaction(function () use ($entry, $buyingRate, $sellingRate, $reason, $tenantUserId, $adminId) {
+        $replacement = DB::transaction(function () use ($entry, $buyingRate, $sellingRate, $reason, $tenantUserId, $adminId) {
             $locked = ExchangeRateEntry::query()->lockForUpdate()->findOrFail($entry->id);
             $this->voidLocked($locked, $reason, $tenantUserId, $adminId);
             $replacement = $this->writer->create($locked->pair, ['buying_rate' => $buyingRate, 'selling_rate' => $sellingRate], $locked->tenant_id, $tenantUserId, $adminId, $locked->observed_at->toImmutable());
@@ -28,6 +29,10 @@ class ExchangeRateCorrectionService
 
             return $replacement;
         });
+
+        event(ExchangeRateChanged::fromEntry($replacement));
+
+        return $replacement;
     }
 
     public function void(ExchangeRateEntry $entry, string $reason, ?int $tenantUserId, ?int $adminId): void
@@ -40,6 +45,8 @@ class ExchangeRateCorrectionService
             $this->voidLocked($locked, $reason, $tenantUserId, $adminId);
             $this->corrections->create(['original_entry_id' => $locked->id, 'tenant_id' => $locked->tenant_id, 'scope_key' => $locked->scope_key, 'action' => 'VOID', 'reason' => $reason, 'corrected_by_tenant_user_id' => $tenantUserId, 'corrected_by_platform_admin_id' => $adminId]);
         });
+
+        event(ExchangeRateChanged::fromEntry($entry));
     }
 
     private function voidLocked(ExchangeRateEntry $entry, string $reason, ?int $tenantUserId, ?int $adminId): void
