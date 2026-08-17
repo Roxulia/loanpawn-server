@@ -6,6 +6,7 @@ use App\Events\ExchangeRateChanged;
 use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
+use App\Jobs\PurgeExpiredTenantUserNotificationsJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\Telegram\SendInternalServerErrorTelegramNotificationJob;
 use App\Listeners\RebuildDailyExchangeRateSummary;
@@ -32,6 +33,7 @@ class QueueAssignmentTest extends TestCase
         $this->assertSame('scheduled', (new CheckExpirePawnLoanContractSlipJob)->queue);
         $this->assertSame('scheduled', (new ResetTenantLicenseMonthlySlipCountJob)->queue);
         $this->assertSame('scheduled', (new ExpireInactiveTenantUsersJob)->queue);
+        $this->assertSame('scheduled', (new PurgeExpiredTenantUserNotificationsJob)->queue);
     }
 
     public function test_scheduled_jobs_use_selected_queue_connection(): void
@@ -53,6 +55,7 @@ class QueueAssignmentTest extends TestCase
         $this->assertSame('redis', (new CheckExpirePawnLoanContractSlipJob)->connection);
         $this->assertSame('redis', (new ResetTenantLicenseMonthlySlipCountJob)->connection);
         $this->assertSame('redis', (new ExpireInactiveTenantUsersJob)->connection);
+        $this->assertSame('redis', (new PurgeExpiredTenantUserNotificationsJob)->connection);
     }
 
     public function test_tenant_user_expiration_job_prevents_overlapping_executions(): void

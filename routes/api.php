@@ -32,6 +32,7 @@ use App\Http\Controllers\TenantModule\TenantRoleController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
 use App\Http\Controllers\TenantModule\ReportingCurrencyRateRequirementController;
 use App\Http\Controllers\TenantModule\TenantUserController;
+use App\Http\Controllers\TenantModule\TenantUserNotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -65,6 +66,11 @@ Route::prefix('tenant')->group(function () {
             Route::put('me/change-password', [TenantUserController::class, 'changePassword']);
             Route::put('me/change-language', [LanguageController::class, 'change']);
             Route::post('logout', [TenantAuthController::class, 'logout']);
+            Route::prefix('notifications')->controller(TenantUserNotificationController::class)->group(function () {
+                Route::get('/', 'index');
+                Route::post('read-all', 'markAllRead');
+                Route::post('{id}/read', 'markRead');
+            });
             Route::post('online-sync', [OnlineSyncController::class, 'push'])
                 ->middleware('tenant.feature:online_sync')
                 ->middleware('throttle:online-sync');

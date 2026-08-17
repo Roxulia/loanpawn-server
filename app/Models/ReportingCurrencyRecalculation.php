@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\CoreModule\Currency;
+use App\Models\CoreModule\TenantUser;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +15,7 @@ class ReportingCurrencyRecalculation extends Model
     public const ACTIVE_STATUSES = ['queued', 'processing', 'waiting_for_rates', 'failed'];
 
     protected $fillable = [
-        'tenant_id', 'previous_reporting_currency_id', 'requested_reporting_currency_id',
+        'tenant_id', 'initiated_by_tenant_user_id', 'previous_reporting_currency_id', 'requested_reporting_currency_id',
         'window_start', 'window_end', 'status', 'missing_rates', 'attempt_count',
         'error_message', 'queued_at', 'started_at', 'completed_at',
         'cancelled_at',
@@ -42,5 +43,10 @@ class ReportingCurrencyRecalculation extends Model
     public function requestedReportingCurrency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'requested_reporting_currency_id');
+    }
+
+    public function initiator(): BelongsTo
+    {
+        return $this->belongsTo(TenantUser::class, 'initiated_by_tenant_user_id');
     }
 }

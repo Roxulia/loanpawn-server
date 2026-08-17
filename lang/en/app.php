@@ -481,6 +481,8 @@ return [
 
     'tenant' => [
         'response' => [
+            'notification' => ['read' => 'Notification marked as read.'],
+            'notifications' => ['read' => 'Notifications marked as read.'],
             'debt' => [
                 'created' => 'Debt created successfully.',
                 'updated' => 'Debt updated successfully.',

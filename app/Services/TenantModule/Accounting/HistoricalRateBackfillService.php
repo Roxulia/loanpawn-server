@@ -6,7 +6,6 @@ use App\DataObjects\RequestObjects\HistoricalRateBackfillRequest;
 use App\DataObjects\ResponseObjects\HistoricalRateRequirementsResource;
 use App\Events\ExchangeRateChanged;
 use App\Exceptions\InvalidTenantRequest;
-use App\Jobs\RecalculateReportingCurrencyJob;
 use App\Models\ReportingCurrencyRecalculation;
 use App\Repository\Accounting\ReportingCurrencyRecalculationRepository;
 use App\Services\ExchangeRate\ExchangeRateEntryWriter;
@@ -27,6 +26,7 @@ class HistoricalRateBackfillService
         private TenantCurrencyService $currencies,
         private TenantContext $tenantContext,
         private Messages $messages,
+        private ReportingCurrencyRecalculationService $recalculationService,
     ) {}
 
     public function requirements(): HistoricalRateRequirementsResource
@@ -81,12 +81,7 @@ class HistoricalRateBackfillService
                 }
             }
 
-            $recalculation = $this->repository->update($recalculation, [
-                'status' => 'queued',
-                'missing_rates' => null,
-                'queued_at' => now(),
-            ]);
-            RecalculateReportingCurrencyJob::dispatch($recalculation->id)->afterCommit();
+            $recalculation = $this->recalculationService->requeueAfterHistoricalRates($recalculation);
 
             return $this->resource($recalculation, $tenantId, []);
         });

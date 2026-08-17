@@ -15,6 +15,7 @@ use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantCurrencyService;
 use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class TenantSettingService extends BaseTenantService
 {
@@ -81,8 +82,10 @@ class TenantSettingService extends BaseTenantService
             $updated = $this->repository->update($setting, $updateData);
 
             if ($previousReportingCurrencyId !== (int) $reportingCurrency->id) {
+                $tenantUserId = Auth::guard('tenantuser')->id() ?? throw new \App\Exceptions\InvalidTenantRequest;
                 $this->reportingCurrencyRecalculationService->start(
                     $tenantId,
+                    (int) $tenantUserId,
                     $previousReportingCurrencyId,
                     (int) $reportingCurrency->id,
                     $this->accountingDayService->currentBusinessDate(),

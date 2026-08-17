@@ -42,7 +42,11 @@ class ReportingCurrencyRecalculationRepository
 
     public function create(array $data): ReportingCurrencyRecalculation
     {
-        return ReportingCurrencyRecalculation::query()->withoutGlobalScopes()->create($data)->refresh();
+        return ReportingCurrencyRecalculation::query()
+            ->withoutGlobalScopes()
+            ->create($data)
+            ->refresh()
+            ->load(['previousReportingCurrency', 'requestedReportingCurrency']);
     }
 
     public function update(ReportingCurrencyRecalculation $recalculation, array $data): ReportingCurrencyRecalculation

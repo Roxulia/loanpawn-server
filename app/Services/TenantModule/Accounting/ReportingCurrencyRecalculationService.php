@@ -19,6 +19,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantCurrencyService;
+use App\Services\TenantModule\TenantUserNotificationService;
 
 class ReportingCurrencyRecalculationService
 {
@@ -32,9 +33,10 @@ class ReportingCurrencyRecalculationService
         private TenantContext $tenantContext,
         private TenantAccountingDayService $accountingDayService,
         private TenantCurrencyService $tenantCurrencyService,
+        private TenantUserNotificationService $notificationService,
     ) {}
 
-    public function start(int $tenantId, int $previousCurrencyId, int $requestedCurrencyId, string $businessDate): ?ReportingCurrencyRecalculation
+    public function start(int $tenantId, int $tenantUserId, int $previousCurrencyId, int $requestedCurrencyId, string $businessDate): ?ReportingCurrencyRecalculation
     {
         if ($previousCurrencyId === $requestedCurrencyId) {
             return null;
@@ -47,6 +49,7 @@ class ReportingCurrencyRecalculationService
         $currentDate = CarbonImmutable::parse($businessDate);
         $recalculation = $this->repository->create([
             'tenant_id' => $tenantId,
+            'initiated_by_tenant_user_id' => $tenantUserId,
             'previous_reporting_currency_id' => $previousCurrencyId,
             'requested_reporting_currency_id' => $requestedCurrencyId,
             'window_start' => $currentDate->startOfMonth()->subMonthsNoOverflow(2)->toDateString(),
@@ -55,6 +58,8 @@ class ReportingCurrencyRecalculationService
             'missing_rates' => null,
             'queued_at' => now(),
         ]);
+
+        $this->notificationService->recordReportingCurrencyStatus($recalculation);
 
         RecalculateReportingCurrencyJob::dispatch($recalculation->id)->afterCommit();
 
@@ -142,7 +147,7 @@ class ReportingCurrencyRecalculationService
         DB::transaction(function () use ($tenantId): void {
             $active = $this->repository->activeForTenant($tenantId, true);
             if ($active !== null && in_array($active->status, ['waiting_for_rates', 'failed'], true)) {
-                $this->repository->update($active, ['status' => 'queued', 'queued_at' => now()]);
+                $this->updateStatus($active, ['status' => 'queued', 'queued_at' => now()]);
                 RecalculateReportingCurrencyJob::dispatch($active->id)->afterCommit();
             }
         });
@@ -156,7 +161,7 @@ class ReportingCurrencyRecalculationService
                 return null;
             }
 
-            return $this->repository->update($locked, [
+            return $this->updateStatus($locked, [
                 'status' => 'processing',
                 'started_at' => now(),
                 'attempt_count' => $locked->attempt_count + 1,
@@ -171,7 +176,7 @@ class ReportingCurrencyRecalculationService
             DB::transaction(function () use ($recalculation, $missingRates): void {
                 $locked = $this->repository->find($recalculation->id, true);
                 if ($locked !== null && in_array($locked->status, ReportingCurrencyRecalculation::ACTIVE_STATUSES, true)) {
-                    $this->repository->update($locked, ['status' => 'waiting_for_rates', 'missing_rates' => $missingRates]);
+                    $this->updateStatus($locked, ['status' => 'waiting_for_rates', 'missing_rates' => $missingRates]);
                 }
             });
 
@@ -206,7 +211,7 @@ class ReportingCurrencyRecalculationService
             }
 
             if ($missingRates !== []) {
-                $this->repository->update($locked, [
+                $this->updateStatus($locked, [
                     'status' => 'waiting_for_rates',
                     'missing_rates' => array_values($missingRates),
                 ]);
@@ -224,7 +229,7 @@ class ReportingCurrencyRecalculationService
             }
 
             $this->rebuildCompletedMonths($locked);
-            $this->repository->update($locked, [
+            $this->updateStatus($locked, [
                 'status' => 'completed',
                 'missing_rates' => null,
                 'completed_at' => now(),
@@ -239,7 +244,7 @@ class ReportingCurrencyRecalculationService
         DB::transaction(function () use ($recalculationId, $message): void {
             $recalculation = $this->repository->find($recalculationId, true);
             if ($recalculation !== null && in_array($recalculation->status, ReportingCurrencyRecalculation::ACTIVE_STATUSES, true)) {
-                $this->repository->update($recalculation, [
+                $this->updateStatus($recalculation, [
                     'status' => 'failed',
                     'error_message' => mb_substr($message, 0, 2000),
                 ]);
@@ -264,7 +269,7 @@ class ReportingCurrencyRecalculationService
                 'reporting_currency_id' => $recalculation->previous_reporting_currency_id,
                 'update_key' => $setting->update_key + 1,
             ]);
-            $this->repository->update($recalculation, [
+            $this->updateStatus($recalculation, [
                 'status' => 'cancelled',
                 'missing_rates' => null,
                 'cancelled_at' => now(),
@@ -272,6 +277,18 @@ class ReportingCurrencyRecalculationService
 
             return $setting;
         });
+    }
+
+    public function requeueAfterHistoricalRates(ReportingCurrencyRecalculation $recalculation): ReportingCurrencyRecalculation
+    {
+        $recalculation = $this->updateStatus($recalculation, [
+            'status' => 'queued',
+            'missing_rates' => null,
+            'queued_at' => now(),
+        ]);
+        RecalculateReportingCurrencyJob::dispatch($recalculation->id)->afterCommit();
+
+        return $recalculation;
     }
 
     private function missingRates(ReportingCurrencyRecalculation $recalculation, bool $lock): array
@@ -331,5 +348,17 @@ class ReportingCurrencyRecalculationService
         ] as $namespace) {
             $this->tenantScopedCacheKeys->bumpVersion($namespace, tenantId: $tenantId);
         }
+    }
+
+    private function updateStatus(ReportingCurrencyRecalculation $recalculation, array $data): ReportingCurrencyRecalculation
+    {
+        $previousStatus = $recalculation->status;
+        $updated = $this->repository->update($recalculation, $data);
+
+        if (array_key_exists('status', $data) && $updated->status !== $previousStatus) {
+            $this->notificationService->recordReportingCurrencyStatus($updated);
+        }
+
+        return $updated;
     }
 }

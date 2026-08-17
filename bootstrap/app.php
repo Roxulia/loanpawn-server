@@ -25,6 +25,7 @@ use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
 use App\Jobs\ProcessAccountingDaysJob;
+use App\Jobs\PurgeExpiredTenantUserNotificationsJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\SummarizeMonthlyFinancialMovementsJob;
 use App\Support\InternalServerErrorNotifier;
@@ -92,6 +93,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob)->monthlyOn(1, '00:00');
         $schedule->job(new ExpireInactiveTenantUsersJob)->everyFiveMinutes()->withoutOverlapping();
         $schedule->job(new ProcessAccountingDaysJob)->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->job(new PurgeExpiredTenantUserNotificationsJob)->dailyAt('02:00')->withoutOverlapping();
         $schedule->job(new SummarizeMonthlyFinancialMovementsJob)->monthlyOn(2, '00:30')->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {

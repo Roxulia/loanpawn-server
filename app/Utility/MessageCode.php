@@ -64,6 +64,8 @@ enum MessageCode: string
     case FinanceTenantCurrencyCreated = 'finance.response.tenant.currency.created';
     case FinanceTenantCurrencyUpdated = 'finance.response.tenant.currency.updated';
     case FinanceTenantCurrencyDeleted = 'finance.response.tenant.currency.deleted';
+    case TenantNotificationRead = 'tenant.response.notification.read';
+    case TenantNotificationsRead = 'tenant.response.notifications.read';
     case FinanceTenantFinancialAccountTypeCreated = 'finance.response.tenant.financial_account_type.created';
     case FinanceTenantFinancialAccountTypeUpdated = 'finance.response.tenant.financial_account_type.updated';
     case FinanceTenantFinancialAccountTypeDeleted = 'finance.response.tenant.financial_account_type.deleted';
