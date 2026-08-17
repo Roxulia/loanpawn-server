@@ -40,6 +40,7 @@ class TenantDashboardRepository
     public function dashboardNetProfitBetween(Carbon $startDate, Carbon $endDate): float
     {
         return (float) TenantAccountingTransactions::query()
+            ->where('is_deleted', false)
             ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->where(function ($query): void {
                 $query->whereNull('reference_type')
@@ -47,8 +48,8 @@ class TenantDashboardRepository
             })
             ->selectRaw("
                 COALESCE(SUM(CASE
-                    WHEN transaction_direction = 'incoming' THEN amount
-                    WHEN transaction_direction = 'outgoing' THEN -amount
+                    WHEN transaction_direction = 'incoming' THEN COALESCE(reporting_amount, 0)
+                    WHEN transaction_direction = 'outgoing' THEN -COALESCE(reporting_amount, 0)
                     ELSE 0
                 END), 0) as net_profit
             ")
@@ -58,19 +59,22 @@ class TenantDashboardRepository
     public function accountingTotalBetween(string $transactionType, Carbon $startDate, Carbon $endDate, ?array $referenceTypes = null): float
     {
         return (float) TenantAccountingTransactions::query()
+            ->where('is_deleted', false)
             ->where('transaction_direction', $transactionType)
             ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->when($referenceTypes !== null, fn ($query) => $query->whereIn('reference_type', $referenceTypes))
-            ->sum('amount');
+            ->selectRaw('COALESCE(SUM(reporting_amount), 0) as total_amount')
+            ->value('total_amount');
     }
 
     public function accountingBalance(): float
     {
         return (float) TenantAccountingTransactions::query()
+            ->where('is_deleted', false)
             ->selectRaw("
                 COALESCE(SUM(CASE
-                    WHEN transaction_direction = 'incoming' THEN amount
-                    WHEN transaction_direction = 'outgoing' THEN -amount
+                    WHEN transaction_direction = 'incoming' THEN COALESCE(reporting_amount, 0)
+                    WHEN transaction_direction = 'outgoing' THEN -COALESCE(reporting_amount, 0)
                     ELSE 0
                 END), 0) as balance
             ")
@@ -92,15 +96,16 @@ class TenantDashboardRepository
 
     public function expenseDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
-        return TenantExpense::query()
-            ->selectRaw('DATE(created_at) as summary_date')
-            ->selectRaw('SUM(amount) as total_amount')
+        return $this->reportingDailyTotalsBetween([TenantExpense::class], $startDate, $endDate, 'outgoing');
+    }
+
+    public function activeLoans(): Collection
+    {
+        return PawnLoanContractSlip::query()
+            ->with('account.currency')
             ->where('is_deleted', false)
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->groupBy('summary_date')
-            ->orderBy('summary_date')
-            ->get()
-            ->keyBy('summary_date');
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->get();
     }
 
     public function activeLoanPrincipal(): float
@@ -132,53 +137,34 @@ class TenantDashboardRepository
             ->keyBy('summary_date');
     }
 
-    public function debtDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
+    public function loansCreatedBetween(Carbon $startDate, Carbon $endDate): Collection
     {
-        return TenantDebt::query()
-            ->selectRaw('DATE(created_at) as summary_date')
-            ->selectRaw('SUM(amount) as total_amount')
+        return PawnLoanContractSlip::query()
+            ->with('account.currency')
             ->where('is_deleted', false)
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->groupBy('summary_date')
-            ->orderBy('summary_date')
-            ->get()
-            ->keyBy('summary_date');
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    public function debtDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
+    {
+        return $this->reportingDailyTotalsBetween([TenantDebt::class], $startDate, $endDate, 'outgoing');
     }
 
     public function interestCollectedBetween(Carbon $startDate, Carbon $endDate): float
     {
-        return (float) PawnInterestPayment::query()
-            ->where('is_deleted', false)
-            ->where('is_paid', true)
-            ->whereBetween(DB::raw('DATE(payment_at)'), [$startDate->toDateString(), $endDate->toDateString()])
-            ->sum('payment_amount');
+        return $this->reportingNetTotalBetween([PawnInterestPayment::class], $startDate, $endDate);
     }
 
     public function interestDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
-        return PawnInterestPayment::query()
-            ->selectRaw('DATE(payment_at) as summary_date')
-            ->selectRaw('SUM(payment_amount) as total_amount')
-            ->where('is_deleted', false)
-            ->where('is_paid', true)
-            ->whereBetween(DB::raw('DATE(payment_at)'), [$startDate->toDateString(), $endDate->toDateString()])
-            ->groupBy('summary_date')
-            ->orderBy('summary_date')
-            ->get()
-            ->keyBy('summary_date');
+        return $this->reportingDailyTotalsBetween([PawnInterestPayment::class], $startDate, $endDate);
     }
 
     public function redemptionDailyTotalsBetween(Carbon $startDate, Carbon $endDate): Collection
     {
-        return PawnRedemption::query()
-            ->selectRaw('DATE(redemption_at) as summary_date')
-            ->selectRaw('SUM(received_amount) as total_amount')
-            ->where('is_deleted', false)
-            ->whereBetween(DB::raw('DATE(redemption_at)'), [$startDate->toDateString(), $endDate->toDateString()])
-            ->groupBy('summary_date')
-            ->orderBy('summary_date')
-            ->get()
-            ->keyBy('summary_date');
+        return $this->reportingDailyTotalsBetween([PawnRedemption::class], $startDate, $endDate);
     }
 
     public function activeSlipsDueOn(Carbon $date): int
@@ -215,6 +201,16 @@ class TenantDashboardRepository
             ->whereRaw('LOWER(status) = ?', ['active'])
             ->whereDate('expire_at', '<', $today->toDateString())
             ->sum('loan_amount');
+    }
+
+    public function activeOverdueLoans(Carbon $today): Collection
+    {
+        return PawnLoanContractSlip::query()
+            ->with('account.currency')
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereDate('expire_at', '<', $today->toDateString())
+            ->get();
     }
 
     public function highRiskCustomerCount(int $trustScoreThreshold, Carbon $today): int
@@ -259,7 +255,7 @@ class TenantDashboardRepository
     public function loansRequiringAttention(Carbon $today, Carbon $weekEnd, int $limit = 8): Collection
     {
         return PawnLoanContractSlip::query()
-            ->with('customer')
+            ->with(['customer', 'account.currency'])
             ->where('is_deleted', false)
             ->whereRaw('LOWER(status) = ?', ['active'])
             ->whereDate('expire_at', '<=', $weekEnd->toDateString())
@@ -281,7 +277,7 @@ class TenantDashboardRepository
     public function collateralItemsForDashboard(): Collection
     {
         return PawnCollateralItem::query()
-            ->with(['loanContract.customer', 'materialType', 'itemCategoryType'])
+            ->with(['loanContract.customer', 'loanContract.account.currency', 'materialType', 'itemCategoryType'])
             ->where('is_deleted', false)
             ->whereRaw('LOWER(item_status) != ?', ['redeemed'])
             ->orderByRaw("CASE WHEN LOWER(item_status) = 'active' THEN 0 ELSE 1 END")
@@ -310,5 +306,42 @@ class TenantDashboardRepository
             ->orderByDesc('minimum_retail_price')
             ->limit($limit)
             ->get();
+    }
+
+    protected function reportingNetTotalBetween(array $referenceTypes, Carbon $startDate, Carbon $endDate): float
+    {
+        return (float) TenantAccountingTransactions::query()
+            ->where('is_deleted', false)
+            ->whereIn('reference_type', $referenceTypes)
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->selectRaw("COALESCE(SUM(CASE
+                WHEN transaction_direction = 'incoming' THEN COALESCE(reporting_amount, 0)
+                WHEN transaction_direction = 'outgoing' THEN -COALESCE(reporting_amount, 0)
+                ELSE 0
+            END), 0) as total_amount")
+            ->value('total_amount');
+    }
+
+    protected function reportingDailyTotalsBetween(array $referenceTypes, Carbon $startDate, Carbon $endDate, ?string $direction = null): Collection
+    {
+        $amountExpression = $direction === null
+            ? "SUM(CASE
+                WHEN transaction_direction = 'incoming' THEN COALESCE(reporting_amount, 0)
+                WHEN transaction_direction = 'outgoing' THEN -COALESCE(reporting_amount, 0)
+                ELSE 0
+            END)"
+            : 'SUM(COALESCE(reporting_amount, 0))';
+
+        return TenantAccountingTransactions::query()
+            ->selectRaw('business_date as summary_date')
+            ->selectRaw($amountExpression.' as total_amount')
+            ->where('is_deleted', false)
+            ->whereIn('reference_type', $referenceTypes)
+            ->when($direction !== null, fn ($query) => $query->where('transaction_direction', $direction))
+            ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->groupBy('summary_date')
+            ->orderBy('summary_date')
+            ->get()
+            ->keyBy('summary_date');
     }
 }
