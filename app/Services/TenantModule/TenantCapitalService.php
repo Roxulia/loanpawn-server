@@ -55,7 +55,7 @@ class TenantCapitalService extends BaseTenantService
         $this->permissionService->authorizeCapitalCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_capital.create',
@@ -141,7 +141,10 @@ class TenantCapitalService extends BaseTenantService
     {
         $this->permissionService->authorizeCapitalUpdate();
         $capital = $this->findCapitalForCurrentTenant($request->capitalId);
-        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->resolvePostedTransactionAccount(
+            $capital->account_id,
+            $request->accountId,
+        );
         $data = [];
 
         if ($request->updateKey !== $capital->update_key) {
@@ -155,8 +158,6 @@ class TenantCapitalService extends BaseTenantService
         if ($request->amount !== null) {
             $data['amount'] = $request->amount;
         }
-
-        $data['account_id'] = $financialAccount->id;
 
         if ($data === []) {
             return TenantCapitalDetail::fromModel($capital);
@@ -203,6 +204,13 @@ class TenantCapitalService extends BaseTenantService
         }
 
         return $this->findCapitalForCurrentTenantByCode($code)->id;
+    }
+
+    public function show(string $code): TenantCapitalDetail
+    {
+        $this->permissionService->authorizeCapitalList();
+
+        return TenantCapitalDetail::fromModel($this->findCapitalForCurrentTenantByCode($code));
     }
 
     public function delete(int $capitalId): void

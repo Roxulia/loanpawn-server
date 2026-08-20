@@ -99,6 +99,19 @@ class MultiAccountManagement extends BaseTenantService
         return $account;
     }
 
+    public function resolvePostedTransactionAccount(?int $storedAccountId, ?int $requestedAccountId): FinancialAccount
+    {
+        if ($storedAccountId === null) {
+            throw new InvalidTenantRequest('This posted transaction has no financial account and cannot be updated.');
+        }
+
+        if ($requestedAccountId !== null && $requestedAccountId !== $storedAccountId) {
+            throw new InvalidTenantRequest('The financial account used by a posted transaction cannot be changed.');
+        }
+
+        return $this->findCurrentTenantAccountById($storedAccountId);
+    }
+
     public function findActiveDefaultCurrencyAccount(?int $accountId = null): FinancialAccount
     {
         $account = $this->findActiveCurrentTenantAccount($accountId);

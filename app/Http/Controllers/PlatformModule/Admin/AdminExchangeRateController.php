@@ -20,9 +20,25 @@ class AdminExchangeRateController extends Controller
 {
     public function __construct(private AdminExchangeRateService $service, private AdminExchangeRatePairService $pairs, private AdminDailyExchangeRateService $daily) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('platform.admin.exchange-rates.index', ['rates' => $this->service->list(), 'pairs' => $this->pairs->list(100), 'dailySummaries' => $this->daily->list()]);
+        $pairs = $this->pairs->list(100);
+        $selectedPair = $pairs->getCollection()->firstWhere('code', strtoupper((string) $request->query('pair_code')))
+            ?? $pairs->getCollection()->first();
+        $days = in_array((int) $request->query('days'), [7, 30, 90], true)
+            ? (int) $request->query('days')
+            : 30;
+        $trend = $selectedPair
+            ? $this->daily->closingTrend((int) $selectedPair->id, $days)
+            : [];
+
+        return view('platform.admin.exchange-rates.index', [
+            'rates' => $this->service->list(),
+            'pairs' => $pairs,
+            'selectedPair' => $selectedPair,
+            'trendDays' => $days,
+            'trend' => $trend,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

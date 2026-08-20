@@ -8,6 +8,7 @@ use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\DailyExchangeRateSummary;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Models\CoreModule\ExchangeRatePair;
+use App\Repository\DailyExchangeRateSummaryRepository;
 use App\Services\ExchangeRate\ExchangeRateCorrectionService;
 use App\Services\ExchangeRate\ExchangeRateEntryWriter;
 use App\Services\PlatformModule\AdminExchangeRateService;
@@ -118,6 +119,27 @@ class CurrencyExchangeFoundationTest extends TestCase
         Event::assertDispatchedTimes(ExchangeRateChanged::class, 1);
     }
 
+    public function test_platform_closing_trend_filters_pair_and_date_range_in_chronological_order(): void
+    {
+        $pair = $this->defaultPair();
+        $otherPair = ExchangeRatePair::query()->where('code', 'JPY-MMK')->firstOrFail();
+
+        $this->dailySummary($pair, '2026-08-18', '3500', '3520');
+        $this->dailySummary($pair, '2026-08-20', '3510', '3530');
+        $this->dailySummary($pair, '2026-08-10', '3400', '3420');
+        $this->dailySummary($otherPair, '2026-08-19', '24', '25');
+
+        $trend = app(DailyExchangeRateSummaryRepository::class)->platformClosingTrend(
+            $pair->id,
+            '2026-08-18',
+            '2026-08-20',
+        );
+
+        $this->assertSame(['2026-08-18', '2026-08-20'], array_column($trend, 'date'));
+        $this->assertSame(['3500.000000000000', '3510.000000000000'], array_column($trend, 'buying_close'));
+        $this->assertSame(['3520.000000000000', '3530.000000000000'], array_column($trend, 'selling_close'));
+    }
+
     private function defaultPair(): ExchangeRatePair
     {
         $this->seed(CurrencySeeder::class);
@@ -137,5 +159,25 @@ class CurrencyExchangeFoundationTest extends TestCase
             CarbonImmutable::parse($observedAt, 'Asia/Yangon'),
         );
         event(ExchangeRateChanged::fromEntry($entry));
+    }
+
+    private function dailySummary(ExchangeRatePair $pair, string $date, string $buyingClose, string $sellingClose): void
+    {
+        DailyExchangeRateSummary::query()->create([
+            'tenant_id' => null,
+            'scope_key' => 'platform',
+            'exchange_rate_pair_id' => $pair->id,
+            'rate_date' => $date,
+            'buying_open' => $buyingClose,
+            'buying_high' => $buyingClose,
+            'buying_low' => $buyingClose,
+            'buying_close' => $buyingClose,
+            'selling_open' => $sellingClose,
+            'selling_high' => $sellingClose,
+            'selling_low' => $sellingClose,
+            'selling_close' => $sellingClose,
+            'entry_count' => 1,
+            'calculated_at' => now(),
+        ]);
     }
 }

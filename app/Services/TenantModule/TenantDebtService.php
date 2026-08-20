@@ -150,7 +150,7 @@ class TenantDebtService extends BaseTenantService
         ?int $customerId,
         string $operationType
     ): TenantDebt {
-        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->createdAccountId);
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->createdAccountId);
 
         $debt = DB::transaction(function () use ($request, $slip, $customerId, $operationType, $financialAccount) {
             $debt = $this->repository->create([
@@ -231,7 +231,10 @@ class TenantDebtService extends BaseTenantService
     {
         $this->permissionService->authorizeDebtUpdate();
         $debt = $this->findDebtForCurrentTenant($request->debtId);
-        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->createdAccountId);
+        $financialAccount = $this->multiAccountManagement->resolvePostedTransactionAccount(
+            $debt->created_account_id,
+            $request->createdAccountId,
+        );
         $data = [];
         if ($debt->is_paid) {
             throw new InvalidTenantRequest('A paid debt cannot be edited.');
@@ -255,8 +258,6 @@ class TenantDebtService extends BaseTenantService
         if ($request->tag !== null) {
             $data['tag'] = $request->tag;
         }
-
-        $data['created_account_id'] = $financialAccount->id;
 
         if ($data === []) {
             return TenantDebtDetail::fromModel($debt);

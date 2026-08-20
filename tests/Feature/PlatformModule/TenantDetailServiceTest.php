@@ -65,6 +65,14 @@ class TenantDetailServiceTest extends TestCase
             'slip_footer_layout' => ['text' => 'Detail Footer'],
         ])->save();
 
+        $tenant->license->update([
+            'current_month_slip_count' => 7,
+            'current_staff_count' => 3,
+            'current_account_count' => 1,
+            'current_currency_type_count' => 2,
+            'current_exchange_pair_count' => 1,
+        ]);
+
         $detail = app(TenantDetailService::class)->findByTenantId($tenant->id);
 
         $this->assertSame('Detail Tenant', $detail->name);
@@ -76,6 +84,17 @@ class TenantDetailServiceTest extends TestCase
         $this->assertSame('Myanmar', $detail->tenant_contact->country);
         $this->assertSame('trial', $detail->tenant_license->planType);
         $this->assertSame('active', $detail->tenant_license->status);
+        $this->assertSame(7, $detail->tenant_license->currentMonthSlipCount);
+        $this->assertSame(3, $detail->tenant_license->currentStaffCount);
+        $this->assertSame(1, $detail->tenant_license->currentAccountCount);
+        $this->assertSame(2, $detail->tenant_license->currentCurrencyTypeCount);
+        $this->assertSame(1, $detail->tenant_license->currentExchangePairCount);
+        $this->assertSame($tenant->license->plan->max_slip_per_month, $detail->tenant_license->maxSlipPerMonth);
+        $this->assertSame($tenant->license->plan->max_staff_count, $detail->tenant_license->maxStaffCount);
+        $this->assertSame($tenant->license->plan->max_account_count, $detail->tenant_license->maxAccountCount);
+        $this->assertSame($tenant->license->plan->max_currency_type_count, $detail->tenant_license->maxCurrencyTypeCount);
+        $this->assertSame($tenant->license->plan->max_exchange_pair_count, $detail->tenant_license->maxExchangePairCount);
+        $this->assertSame(7, $detail->toArray()['tenant_license']['current_month_slip_count']);
         $this->assertSame('#123456', $detail->tenant_branding?->primaryColor);
         $this->assertSame(['title' => 'Detail Header'], $detail->tenant_branding?->slipHeaderLayout);
         $features = $detail->tenant_features->toArray();

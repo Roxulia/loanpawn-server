@@ -104,11 +104,11 @@
         </section>
 
         @if (session('status'))
-            <div class="flash">{{ session('status') }}</div>
+            <div class="flash" role="status" data-auto-dismiss>{{ session('status') }}<button type="button" data-dismiss-flash aria-label="Dismiss">&times;</button></div>
         @endif
 
         @if (session('error'))
-            <div class="flash error">{{ session('error') }}</div>
+            <div class="flash error" role="alert">{{ session('error') }}<button type="button" data-dismiss-flash aria-label="Dismiss">&times;</button></div>
         @endif
 
         @yield('content')
@@ -117,6 +117,8 @@
 @stack('scripts')
 <script>
     (function () {
+        document.querySelectorAll('[data-dismiss-flash]').forEach(function (button) { button.addEventListener('click', function () { button.closest('.flash')?.remove(); }); });
+        document.querySelectorAll('[data-auto-dismiss]').forEach(function (flash) { window.setTimeout(function () { flash.remove(); }, 5000); });
         const openButton = document.querySelector('[data-platform-menu-open]');
         const navLinks = document.querySelectorAll('.platform-mobile-nav a');
 

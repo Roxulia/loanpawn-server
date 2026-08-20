@@ -39,9 +39,9 @@ class TenantRequestService extends BaseTenantService
 
     private const STATUS_DECLINED = 'declined';
 
-    private const TYPE_UPGRADE = 'plan_change';
+    public const TYPE_UPGRADE = 'plan_change';
 
-    private const TYPE_EXTENSION = 'extension';
+    public const TYPE_EXTENSION = 'extension';
 
     public function __construct(
         private TenantRequestRepository $repository,
@@ -129,6 +129,7 @@ class TenantRequestService extends BaseTenantService
         string $reason,
         ?int $extensionMonths,
         array $businessInfo,
+        string $requestType = self::TYPE_UPGRADE,
     ): TenantRequest {
         return $this->repository->create([
             'code' => $this->tableIdGenerationService->generateForPlatform('tenant_requests', CarbonImmutable::now()),
@@ -136,7 +137,7 @@ class TenantRequestService extends BaseTenantService
             'requested_category_id' => $plan->category_id,
             'requested_plan_id' => $plan->id,
             'platform_user_id' => $tenant->platform_user_id,
-            'request_type' => self::TYPE_UPGRADE,
+            'request_type' => $requestType,
             'requested_plan_type' => $plan->code,
             'requested_subdomain' => $tenant->subdomain,
             'extension_months' => $extensionMonths,

@@ -64,6 +64,11 @@ class TenantCapitalController extends Controller
         return $this->successResponse($capital->toArray(), $this->responseMessage(MessageCode::TenantCapitalCreated), 201);
     }
 
+    public function show(string $capitalCode): JsonResponse
+    {
+        return $this->successResponse($this->capitalService->show($capitalCode)->toArray());
+    }
+
     public function update(Request $request, string $capitalCode): JsonResponse
     {
         $validator = Validator::make($request->all(), $this->rules(false));

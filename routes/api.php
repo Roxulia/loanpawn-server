@@ -292,6 +292,8 @@ Route::prefix('tenant')->group(function () {
                 ->group(function () {
                     Route::get('/', [TenantCapitalController::class, 'index'])
                         ->middleware('tenant.permission:list_capital');
+                    Route::get('{capitalCode}', [TenantCapitalController::class, 'show'])
+                        ->middleware('tenant.permission:list_capital');
                     Route::post('/', [TenantCapitalController::class, 'store'])
                         ->middleware('tenant.permission:create_capital');
                     Route::put('{capitalCode}', [TenantCapitalController::class, 'update'])

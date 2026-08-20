@@ -48,6 +48,7 @@ class TenantDetailRepository
     {
         return DB::table('tenants')
             ->leftJoin('tenant_licenses', 'tenant_licenses.tenant_id', '=', 'tenants.id')
+            ->leftJoin('packages', 'packages.id', '=', 'tenant_licenses.plan_id')
             ->leftJoin('tenant_contacts', 'tenant_contacts.tenant_id', '=', 'tenants.id')
             ->leftJoin('tenant_branding', 'tenant_branding.tenant_id', '=', 'tenants.id')
             ->leftJoin('tenant_settings', 'tenant_settings.tenant_id', '=', 'tenants.id')
@@ -73,9 +74,23 @@ class TenantDetailRepository
                 'tenant_licenses.id as license_id',
                 'tenant_licenses.update_key as license_update_key',
                 'tenant_licenses.license_key as license_key',
+                'tenant_licenses.plan_id as license_plan_id',
                 'tenant_licenses.plan_type as license_plan_type',
                 'tenant_licenses.expires_at as license_expires_at',
                 'tenant_licenses.status as license_status',
+                'tenant_licenses.current_month_slip_count as license_current_month_slip_count',
+                'tenant_licenses.current_staff_count as license_current_staff_count',
+                'tenant_licenses.current_account_count as license_current_account_count',
+                'tenant_licenses.current_currency_type_count as license_current_currency_type_count',
+                'tenant_licenses.current_exchange_pair_count as license_current_exchange_pair_count',
+                'packages.code as license_plan_code',
+                'packages.name as license_plan_name',
+                'packages.rank as license_plan_rank',
+                'packages.max_slip_per_month as license_max_slip_per_month',
+                'packages.max_staff_count as license_max_staff_count',
+                'packages.max_account_count as license_max_account_count',
+                'packages.max_currency_type_count as license_max_currency_type_count',
+                'packages.max_exchange_pair_count as license_max_exchange_pair_count',
                 'tenant_branding.id as branding_id',
                 'tenant_branding.update_key as branding_update_key',
                 'tenant_branding.logo_path as branding_logo_path',
@@ -146,11 +161,35 @@ class TenantDetailRepository
         $detail = new TenantLicenseDetail();
         $detail->licenseKey = $row->license_key;
         $detail->updateKey = (int) $row->license_update_key;
-        $detail->planType = $row->license_plan_type;
+        $detail->planId = $row->license_plan_id === null ? null : (int) $row->license_plan_id;
+        $detail->planCode = $row->license_plan_code ?? $row->license_plan_type;
+        $detail->planName = $row->license_plan_name;
+        $detail->planRank = $row->license_plan_rank === null ? null : (int) $row->license_plan_rank;
+        $detail->planType = $detail->planCode;
         $detail->expiresAt = $row->license_expires_at
             ? Carbon::parse($row->license_expires_at)->toISOString()
             : null;
         $detail->status = $row->license_status;
+        $detail->currentMonthSlipCount = (int) $row->license_current_month_slip_count;
+        $detail->currentStaffCount = (int) $row->license_current_staff_count;
+        $detail->currentAccountCount = (int) $row->license_current_account_count;
+        $detail->currentCurrencyTypeCount = (int) $row->license_current_currency_type_count;
+        $detail->currentExchangePairCount = (int) $row->license_current_exchange_pair_count;
+        $detail->maxSlipPerMonth = $row->license_max_slip_per_month === null
+            ? null
+            : (int) $row->license_max_slip_per_month;
+        $detail->maxStaffCount = $row->license_max_staff_count === null
+            ? null
+            : (int) $row->license_max_staff_count;
+        $detail->maxAccountCount = $row->license_max_account_count === null
+            ? null
+            : (int) $row->license_max_account_count;
+        $detail->maxCurrencyTypeCount = $row->license_max_currency_type_count === null
+            ? null
+            : (int) $row->license_max_currency_type_count;
+        $detail->maxExchangePairCount = $row->license_max_exchange_pair_count === null
+            ? null
+            : (int) $row->license_max_exchange_pair_count;
 
         return $detail;
     }

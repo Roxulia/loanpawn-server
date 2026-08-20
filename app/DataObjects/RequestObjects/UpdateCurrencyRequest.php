@@ -10,9 +10,6 @@ class UpdateCurrencyRequest extends BaseDataObject
         public string $code,
         public string $name,
         public ?string $symbol,
-        public int $decimalPrecision,
-        public string $roundingMode,
-        public ?string $adjustmentStep,
         public ?bool $isActive,
         public int $updateKey,
     ) {}
@@ -30,9 +27,6 @@ class UpdateCurrencyRequest extends BaseDataObject
             code: $data['code'],
             name: $data['name'],
             symbol: $data['symbol'] ?? null,
-            decimalPrecision: (int) $data['decimal_precision'],
-            roundingMode: $data['rounding_mode'],
-            adjustmentStep: $data['adjustment_step'] ?? null,
             isActive: array_key_exists('is_active', $data) ? (bool) $data['is_active'] : null,
             updateKey: (int) $data['update_key'],
         );

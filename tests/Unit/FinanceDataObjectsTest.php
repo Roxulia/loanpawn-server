@@ -12,12 +12,16 @@ use App\DataObjects\ResponseObjects\DefaultDataListPage;
 use App\DataObjects\ResponseObjects\ExchangeRateEntryResource;
 use App\DataObjects\ResponseObjects\ExchangeRatePairResource;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
+use App\Http\Controllers\TenantModule\TenantCurrencyController;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Models\CoreModule\ExchangeRatePair;
 use App\Models\CoreModule\TenantSetting;
+use App\Services\TenantModule\TenantCurrencyService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Mockery;
 use ReflectionMethod;
 use Tests\TestCase;
 use Illuminate\Support\Facades\Validator;
@@ -50,8 +54,6 @@ class FinanceDataObjectsTest extends TestCase
             'code' => 'USD',
             'name' => 'US Dollar',
             'symbol' => '$',
-            'decimal_precision' => 2,
-            'rounding_mode' => 'HALF_UP',
         ]);
         $exchangeRateRequest = StoreExchangeRateRequest::fromValidated([
             'pair_code' => 'USD-MMK',
@@ -61,7 +63,6 @@ class FinanceDataObjectsTest extends TestCase
 
         $this->assertInstanceOf(BaseDataObject::class, $currencyRequest);
         $this->assertSame('USD', $currencyRequest->code);
-        $this->assertSame(2, $currencyRequest->decimalPrecision);
         $this->assertNull($currencyRequest->isActive);
         $this->assertSame('USD-MMK', $exchangeRateRequest->pairCode);
         $this->assertSame([
@@ -134,6 +135,23 @@ class FinanceDataObjectsTest extends TestCase
 
         $this->assertSame([['id' => 1, 'display_code' => 'USD/MMK']], $response['items']);
         $this->assertSame(1, $response['total']);
+    }
+
+    public function test_tenant_currency_list_uses_currency_resources_for_action_flags(): void
+    {
+        $currency = $this->currency(1, 'USD', 'US Dollar', 10);
+        $paginator = new LengthAwarePaginator([$currency], 1, 100, 1);
+        $service = Mockery::mock(TenantCurrencyService::class);
+        $service->shouldReceive('list')->once()->with(100)->andReturn($paginator);
+
+        $response = (new TenantCurrencyController($service))->index(
+            Request::create('/tenant/currencies', 'GET', ['per_page' => 100])
+        )->getData(true);
+        $item = $response['data']['items'][0];
+
+        $this->assertSame('TENANT', $item['source']);
+        $this->assertTrue($item['can_update']);
+        $this->assertTrue($item['can_delete']);
     }
 
     public function test_default_financial_unit_is_optional_and_can_be_cleared(): void

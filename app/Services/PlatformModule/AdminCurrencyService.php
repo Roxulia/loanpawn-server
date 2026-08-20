@@ -28,7 +28,12 @@ class AdminCurrencyService
             throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::FinanceDefaultCurrencyCodeExists));
         }
 
-        return $this->repository->create($this->payload($request, $code) + ['created_by_platform_admin_id' => Auth::guard('platformadmin')->id()]);
+        return $this->repository->create($this->payload($request, $code) + [
+            'decimal_precision' => 2,
+            'rounding_mode' => 'HALF_UP',
+            'adjustment_step' => null,
+            'created_by_platform_admin_id' => Auth::guard('platformadmin')->id(),
+        ]);
     }
 
     public function update(Currency $currency, UpdateCurrencyRequest $request): Currency
@@ -65,6 +70,6 @@ class AdminCurrencyService
 
     private function payload(StoreCurrencyRequest|UpdateCurrencyRequest $request, string $code): array
     {
-        return ['tenant_id' => null, 'scope_key' => 'platform', 'code' => $code, 'name' => trim($request->name), 'symbol' => $request->symbol, 'decimal_precision' => $request->decimalPrecision, 'rounding_mode' => $request->roundingMode, 'adjustment_step' => $request->adjustmentStep, 'is_default' => true, 'is_active' => $request->isActive ?? true];
+        return ['tenant_id' => null, 'scope_key' => 'platform', 'code' => $code, 'name' => trim($request->name), 'symbol' => $request->symbol, 'is_default' => true, 'is_active' => $request->isActive ?? true];
     }
 }

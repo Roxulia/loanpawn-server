@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\PlatformModule\Admin;
 
 use App\DataObjects\RequestObjects\AdminLicenseGrant;
+use App\DataObjects\RequestObjects\AdminLicenseExtension;
 use App\DataObjects\RequestObjects\AdminTenantProvision;
 use App\Http\Controllers\Controller;
 use App\Services\PlatformModule\AdminTenantLicenseGrantService;
@@ -96,5 +97,21 @@ class AdminTenantManagementController extends Controller
         ));
 
         return back()->with('status', 'Tenant category and plan updated.');
+    }
+
+    public function extendLicense(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $validated = $request->validate([
+            'extension_months' => ['required', 'integer', 'in:1,3,6,12'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->adminTenantLicenseGrantService->extend(new AdminLicenseExtension(
+            tenantId: (int) $tenant->id,
+            extensionMonths: (int) $validated['extension_months'],
+            reason: $validated['reason'],
+        ));
+
+        return back()->with('status', 'Tenant license extended successfully.');
     }
 }

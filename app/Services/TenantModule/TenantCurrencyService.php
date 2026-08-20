@@ -62,7 +62,12 @@ class TenantCurrencyService extends BaseTenantService
                 throw new TenantAccessDenied($this->responseMessage(MessageCode::FinanceResourceLimitReached));
             }
 
-            $currency = $this->repository->create($this->payload($request, $tenantId, $code) + ['created_by_tenant_user_id' => Auth::guard('tenantuser')->id()]);
+            $currency = $this->repository->create($this->payload($request, $tenantId, $code) + [
+                'decimal_precision' => 2,
+                'rounding_mode' => 'HALF_UP',
+                'adjustment_step' => null,
+                'created_by_tenant_user_id' => Auth::guard('tenantuser')->id(),
+            ]);
             $this->tenantLicenseService->incrementCurrencyTypeCount($tenantId);
 
             return $currency;
@@ -114,6 +119,6 @@ class TenantCurrencyService extends BaseTenantService
 
     private function payload(StoreCurrencyRequest|UpdateCurrencyRequest $request, int $tenantId, string $code): array
     {
-        return ['tenant_id' => $tenantId, 'scope_key' => "tenant:{$tenantId}", 'code' => $code, 'name' => trim($request->name), 'symbol' => $request->symbol, 'decimal_precision' => $request->decimalPrecision, 'rounding_mode' => $request->roundingMode, 'adjustment_step' => $request->adjustmentStep, 'is_default' => false, 'is_active' => $request->isActive ?? true];
+        return ['tenant_id' => $tenantId, 'scope_key' => "tenant:{$tenantId}", 'code' => $code, 'name' => trim($request->name), 'symbol' => $request->symbol, 'is_default' => false, 'is_active' => $request->isActive ?? true];
     }
 }

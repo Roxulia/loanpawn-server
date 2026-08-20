@@ -106,6 +106,7 @@ Route::name('admin.')->group(function () {
             Route::get('/tenants/create', [AdminTenantManagementController::class, 'create'])->name('tenants.create');
             Route::post('/tenants', [AdminTenantManagementController::class, 'store'])->name('tenants.store');
             Route::post('/tenants/{tenant}/plan', [AdminTenantManagementController::class, 'changePlan'])->name('tenants.plan.update');
+            Route::post('/tenants/{tenant}/license-extension', [AdminTenantManagementController::class, 'extendLicense'])->name('tenants.license.extend');
             Route::get('/plans', [AdminPlanManagementController::class, 'index'])->name('plans.index');
             Route::post('/plans/categories', [AdminPlanManagementController::class, 'storeCategory'])->name('plans.categories.store');
             Route::put('/plans/categories/{category}', [AdminPlanManagementController::class, 'updateCategory'])->name('plans.categories.update');

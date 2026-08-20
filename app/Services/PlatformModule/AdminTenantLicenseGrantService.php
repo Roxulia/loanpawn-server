@@ -3,6 +3,7 @@
 namespace App\Services\PlatformModule;
 
 use App\DataObjects\RequestObjects\AdminLicenseGrant;
+use App\DataObjects\RequestObjects\AdminLicenseExtension;
 use App\Exceptions\TenantNotFound;
 use App\Repository\TenantRepository;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
@@ -94,6 +95,56 @@ class AdminTenantLicenseGrantService
                 'new_status' => 'active',
                 'changed_by' => $adminId,
                 'reason' => 'Admin free plan grant: '.$request->reason,
+            ]);
+        });
+    }
+
+    public function extend(AdminLicenseExtension $request): void
+    {
+        DB::transaction(function () use ($request): void {
+            $tenant = $this->repository->findByIdForUpdate($request->tenantId);
+            if (! $tenant) {
+                throw new TenantNotFound('Tenant not found.');
+            }
+
+            $license = $this->tenantLicenseService->getTenantLicenseForUpdate($tenant->id);
+            $this->tenantLicenseService->ensureTenantHasNoScheduledPlanTransition($tenant->id);
+            $plan = $license->plan ?? $this->packageService->findActiveByCode($license->plan_type);
+            $adminId = (int) $this->authService->getCurrentUser('platformadmin')->id;
+            $previousExpiry = $license->expires_at;
+            $extensionBase = $previousExpiry !== null && $previousExpiry->isFuture() ? $previousExpiry : now();
+            $newExpiry = $extensionBase->copy()->addMonths($request->extensionMonths);
+            $oldStatus = $license->status;
+
+            $this->tenantRequestService->createAdminApprovedGrant(
+                tenant: $tenant,
+                plan: $plan,
+                adminId: $adminId,
+                reason: $request->reason,
+                extensionMonths: $request->extensionMonths,
+                businessInfo: [
+                    'action' => 'license_extension_grant',
+                    'previous_expires_at' => $previousExpiry?->toIso8601String(),
+                    'new_expires_at' => $newExpiry->toIso8601String(),
+                ],
+                requestType: TenantRequestService::TYPE_EXTENSION,
+            );
+
+            $this->tenantLicenseService->updateLicense($license, [
+                'status' => 'active',
+                'starts_at' => $license->starts_at ?? now(),
+                'activated_at' => $license->activated_at ?? now(),
+                'expires_at' => $newExpiry,
+                'approved_by' => $adminId,
+                'notes' => $request->reason,
+                'update_key' => $license->update_key + 1,
+            ]);
+            $this->tenantLicenseService->createStatusLog([
+                'license_id' => $license->id,
+                'old_status' => $oldStatus,
+                'new_status' => 'active',
+                'changed_by' => $adminId,
+                'reason' => 'Admin free license extension: '.$request->reason,
             ]);
         });
     }

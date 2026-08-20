@@ -64,7 +64,7 @@ class ManagementService extends BaseTenantService
         if ($this->tenantLicenseService->checkIfLimitReach('current_month_slip_count', $tenantId)) {
             throw new TenantAccessDenied('Limit Reached');
         }
-        $financialAccount = $this->multiAccountManagement->findActiveDefaultCurrencyAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'loan_contract_slip.create',
             $request->idempotencyKey,

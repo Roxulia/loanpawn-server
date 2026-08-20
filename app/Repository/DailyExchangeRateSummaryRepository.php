@@ -48,12 +48,30 @@ class DailyExchangeRateSummaryRepository
         return DailyExchangeRateSummary::query()->with('pair.baseCurrency', 'pair.quoteCurrency')->whereNull('tenant_id')->latest('rate_date')->paginate($perPage);
     }
 
+    public function platformClosingTrend(int $pairId, string $fromDate, string $toDate): array
+    {
+        return DailyExchangeRateSummary::query()
+            ->whereNull('tenant_id')
+            ->where('exchange_rate_pair_id', $pairId)
+            ->whereDate('rate_date', '>=', $fromDate)
+            ->whereDate('rate_date', '<=', $toDate)
+            ->orderBy('rate_date')
+            ->get()
+            ->map(fn (DailyExchangeRateSummary $summary) => [
+                'date' => $summary->rate_date->toDateString(),
+                'buying_close' => $summary->buying_close,
+                'selling_close' => $summary->selling_close,
+            ])
+            ->all();
+    }
+
     public function closingTrend(int $tenantId, int $pairId, string $fromDate, string $toDate): array
     {
         return DailyExchangeRateSummary::query()
             ->whereIn('scope_key', ['platform', "tenant:{$tenantId}"])
             ->where('exchange_rate_pair_id', $pairId)
-            ->whereBetween('rate_date', [$fromDate, $toDate])
+            ->whereDate('rate_date', '>=', $fromDate)
+            ->whereDate('rate_date', '<=', $toDate)
             ->orderBy('rate_date')
             ->get()
             ->groupBy(fn (DailyExchangeRateSummary $summary) => $summary->tenant_id === null ? 'platform' : 'tenant')

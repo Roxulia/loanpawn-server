@@ -93,14 +93,16 @@
             </div>
         </header>
 
-        @if (session('status')) <div class="flash" role="status">{{ session('status') }}</div> @endif
-        @if (session('error')) <div class="flash error" role="alert">{{ session('error') }}</div> @endif
+        @if (session('status')) <div class="flash" role="status" data-auto-dismiss>{{ session('status') }}<button type="button" data-dismiss-flash aria-label="Dismiss">&times;</button></div> @endif
+        @if (session('error')) <div class="flash error" role="alert">{{ session('error') }}<button type="button" data-dismiss-flash aria-label="Dismiss">&times;</button></div> @endif
         <div class="admin-content">@yield('content')</div>
     </main>
 </div>
 @stack('scripts')
 <script>
     (function () {
+        document.querySelectorAll('[data-dismiss-flash]').forEach((button) => button.addEventListener('click', () => button.closest('.flash')?.remove()));
+        document.querySelectorAll('[data-auto-dismiss]').forEach((flash) => window.setTimeout(() => flash.remove(), 5000));
         const openButton = document.querySelector('[data-admin-menu-open]');
         const closeButtons = document.querySelectorAll('[data-admin-menu-close]');
         const navLinks = document.querySelectorAll('.platform-sidebar a');
