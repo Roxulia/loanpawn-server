@@ -85,7 +85,6 @@ class ReportingCurrencyRecalculationRepository
             ->where('tenant_id', $recalculation->tenant_id)
             ->where('is_deleted', false)
             ->whereNotNull('currency_id')
-            ->where('currency_id', '!=', $recalculation->requested_reporting_currency_id)
             ->where(function ($query) use ($recalculation): void {
                 $query->whereBetween('business_date', [
                     $recalculation->window_start->toDateString(),
