@@ -17,6 +17,7 @@ enum MessageCode: string
     case ApiResponseSuccess = 'common.response.success';
     case ApiResponseFailed = 'common.response.failed';
     case ApiValidationFailed = 'common.response.validation_failed';
+    case AppFrontendUpdateRequired = 'common.response.frontend_update_required';
     case ValidationNrcAllFieldsRequired = 'common.validation.nrc.all_fields_required';
     case ValidationNrcInvalidState = 'common.validation.nrc.invalid_state';
     case ValidationNrcInvalidTownship = 'common.validation.nrc.invalid_township';

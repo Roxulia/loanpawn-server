@@ -5,6 +5,7 @@ use App\Http\Controllers\PawnModule\InterestPaymentController;
 use App\Http\Controllers\PawnModule\LoanContractSlipController;
 use App\Http\Controllers\PawnModule\PawnRedemptionController;
 use App\Http\Controllers\PawnModule\SlipDocumentController;
+use App\Http\Controllers\AppCompatibilityController;
 use App\Http\Controllers\PlatformModule\LicenseController;
 use App\Http\Controllers\PlatformModule\TelegramWebhookController;
 use App\Http\Controllers\PlatformModule\TenantController;
@@ -40,6 +41,9 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::get('/app/compatibility', [AppCompatibilityController::class, 'show'])
+    ->middleware('throttle:public-api');
+
 Route::post('/license/validate', [LicenseController::class, 'validateLicense'])
     ->middleware('throttle:public-api');
 
@@ -60,7 +64,7 @@ Route::prefix('tenant')->group(function () {
             ->middleware('throttle:public-api');
         Route::get('resolve-tenant', [TenantController::class, 'resolveTenant'])
             ->middleware('throttle:public-api');
-        Route::middleware(['auth:sanctum', 'tenant.access', 'tenant.activity', 'throttle:tenant-api'])->group(function () {
+        Route::middleware(['auth:sanctum', 'tenant.access', 'frontend.supported', 'tenant.activity', 'throttle:tenant-api'])->group(function () {
             Route::get('me', [TenantAuthController::class, 'me']);
             Route::get('financial-units', [FinancialUnitController::class, 'index']);
             Route::put('me/change-password', [TenantUserController::class, 'changePassword']);

@@ -6,6 +6,7 @@ return [
             'success' => 'Request completed successfully.',
             'failed' => 'Request failed.',
             'validation_failed' => 'Validation failed.',
+            'frontend_update_required' => 'This app version is no longer supported. Refresh the app to update before making changes.',
             'locale' => [
                 'set_failed' => 'Failed to set locale. Unsupported locale.',
                 'set_success' => 'Locale set successfully.',

@@ -17,6 +17,7 @@ use App\Http\Middleware\EnsureTenantAnyFeature;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
+use App\Http\Middleware\EnsureSupportedFrontendVersion;
 use App\Http\Middleware\LogHttpOperation;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\StandardizeJsonResponse;
@@ -79,6 +80,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant-resolve' => ResolveTenant::class,
             'tenant.access' => EnsureTenantUserBelongsToTenant::class,
+            'frontend.supported' => EnsureSupportedFrontendVersion::class,
             'tenant.activity' => TrackTenantUserActivity::class,
             'tenant.permission' => EnsureTenantPermission::class,
             'tenant.feature' => EnsureTenantFeature::class,
