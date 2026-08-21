@@ -41,10 +41,15 @@ class AdminTenantManagementController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $disallowedSubdomains = array_map(
+            static fn (mixed $subdomain): string => strtolower(trim((string) $subdomain)),
+            (array) config('app.disallowed_subdomains', []),
+        );
+
         $validated = $request->validate([
             'platform_user_id' => ['required', 'integer', Rule::exists('platform_users', 'id')->where('status', 'active')],
             'name' => ['required', 'string', 'max:255'],
-            'subdomain' => ['nullable', 'string', 'max:63', 'alpha_dash', 'unique:tenants,subdomain'],
+            'subdomain' => ['nullable', 'string', 'max:63', 'alpha_dash', Rule::notIn($disallowedSubdomains), 'unique:tenants,subdomain'],
             'category_id' => ['required', 'integer', Rule::exists('tenant_categories', 'id')->where('is_active', true)->where('is_deleted', false)],
             'plan_id' => ['required', 'integer', Rule::exists('packages', 'id')->where('is_active', true)->where('is_deleted', false)],
             'license_months' => ['required', 'integer', 'in:1,3,6,12'],

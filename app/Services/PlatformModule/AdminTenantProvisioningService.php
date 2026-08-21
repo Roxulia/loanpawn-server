@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class AdminTenantProvisioningService
 {
+    private const SUBDOMAIN_FEATURE = 'subdomain_available';
+
     public function __construct(
         private TenantManagementService $tenantManagementService,
         private PlatformUserService $platformUserService,
@@ -21,9 +23,24 @@ class AdminTenantProvisioningService
 
     public function formOptions(): array
     {
+        $categories = $this->packageService->activeCategoriesWithPlans()
+            ->each(function ($category): void {
+                $category->setRelation(
+                    'packages',
+                    $category->packages
+                        ->filter(fn ($plan): bool => $this->packageService->planHasFeature(
+                            $plan->code,
+                            self::SUBDOMAIN_FEATURE,
+                        ))
+                        ->values(),
+                );
+            })
+            ->filter(fn ($category): bool => $category->packages->isNotEmpty())
+            ->values();
+
         return [
             'owners' => $this->platformUserService->activeOptions(),
-            'categories' => $this->packageService->activeCategoriesWithPlans(),
+            'categories' => $categories,
         ];
     }
 
@@ -37,6 +54,20 @@ class AdminTenantProvisioningService
         $plan = $this->packageService->findActiveById($request->planId);
         if ((int) $plan->category_id !== $request->categoryId) {
             throw new InvalidTenantRequest('Select a plan belonging to the chosen tenant category.');
+        }
+
+        if (! $this->packageService->planHasFeature($plan->code, self::SUBDOMAIN_FEATURE)) {
+            throw new InvalidTenantRequest('The selected plan does not support tenant subdomains.');
+        }
+
+        $disallowedSubdomains = array_map(
+            static fn (mixed $subdomain): string => strtolower(trim((string) $subdomain)),
+            (array) config('app.disallowed_subdomains', []),
+        );
+
+        if ($request->subdomain !== null
+            && in_array(strtolower(trim($request->subdomain)), $disallowedSubdomains, true)) {
+            throw new InvalidTenantRequest('The selected subdomain is not available.');
         }
 
         $adminId = (int) $this->authService->getCurrentUser('platformadmin')->id;
