@@ -4,9 +4,20 @@ namespace App\Repository;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\LazyCollection;
 
 class CustomerTrustScoreRepository
 {
+    public function activeCustomersForBackfill(): LazyCollection
+    {
+        return DB::table('tenant_customers')
+            ->select(['id', 'tenant_id', 'trust_score'])
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->lazyById(500, 'id');
+    }
+
     public function metricsForCustomer(int $tenantId, int $customerId, CarbonInterface $today): array
     {
         $slipMetrics = DB::table('pawn_loan_contract_slips')

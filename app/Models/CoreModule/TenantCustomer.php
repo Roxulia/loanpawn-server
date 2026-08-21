@@ -14,6 +14,13 @@ class TenantCustomer extends Model
     use BelongToTenant;
     use SoftDeletes;
 
+    public const MAX_TRUST_SCORE = 255;
+    public const DEFAULT_TRUST_SCORE = 128;
+
+    protected $attributes = [
+        'trust_score' => self::DEFAULT_TRUST_SCORE,
+    ];
+
     protected $fillable = [
         'tenant_id',
         'code',

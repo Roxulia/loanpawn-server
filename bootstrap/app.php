@@ -2,6 +2,7 @@
 
 use App\Console\Commands\EnsureDefaultFinancialAccounts;
 use App\Console\Commands\EnsureTenantCurrencySettings;
+use App\Console\Commands\BackfillCustomerTrustScores;
 use App\Console\Commands\MigrateLegacyAccounting;
 use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withCommands([
+        BackfillCustomerTrustScores::class,
         RepairAccountingChange::class,
         RepairInterestSchedules::class,
         EnsureDefaultFinancialAccounts::class,

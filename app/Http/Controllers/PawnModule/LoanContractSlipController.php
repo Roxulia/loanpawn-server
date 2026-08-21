@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\LoanContractSlipCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\Http\Controllers\Controller;
+use App\Models\CoreModule\TenantCustomer;
 use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
@@ -118,7 +119,7 @@ class LoanContractSlipController extends Controller
                 email: $customer['email'] ?? null,
                 phone: $customer['phone'] ?? null,
                 address: $customer['address'] ?? null,
-                trustScore: (int) ($customer['trust_score'] ?? 0),
+                trustScore: (int) ($customer['trust_score'] ?? TenantCustomer::DEFAULT_TRUST_SCORE),
                 note: $customer['note'] ?? null,
             ),
             collateralItems: array_map(

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\TenantModule;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\DataObjects\RequestObjects\TenantCustomerUpdate;
 use App\Http\Controllers\Controller;
+use App\Models\CoreModule\TenantCustomer;
 use App\Rules\NrcRules;
 use App\Services\TenantModule\TenantCustomerService;
 use App\Utility\MessageCode;
@@ -78,7 +79,7 @@ class TenantCustomerController extends Controller
             email: $validated['email'] ?? null,
             phone: $validated['phone'] ?? null,
             address: $validated['address'] ?? null,
-            trustScore: (int) ($validated['trust_score'] ?? 0),
+            trustScore: (int) ($validated['trust_score'] ?? TenantCustomer::DEFAULT_TRUST_SCORE),
             note: $validated['note'] ?? null,
         ));
 
