@@ -13,6 +13,7 @@ use App\Repository\TenantSettingRepository;
 use App\Services\BaseTenantService;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantCurrencyService;
+use App\Services\TenantModule\TenantUserPermissionService;
 use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,7 @@ class TenantSettingService extends BaseTenantService
         private TenantCurrencyService $tenantCurrencyService,
         private TenantAccountingDayService $accountingDayService,
         private ReportingCurrencyRecalculationService $reportingCurrencyRecalculationService,
+        private TenantUserPermissionService $permissionService,
     ) {}
 
     public function createDefaultTenantSettings(int $tenantId): void
@@ -58,6 +60,20 @@ class TenantSettingService extends BaseTenantService
     {
         $tenantId = $this->resolveCurrentTenantId();
         $setting = $this->ensureCurrencyPreferencesForTenant($tenantId);
+
+        $requiredPermissions = [];
+        if ((int) $setting->default_currency_id !== $request->defaultCurrencyId) {
+            $requiredPermissions[] = 'update_default_currency';
+        }
+        if ((int) $setting->reporting_currency_id !== $request->reportingCurrencyId) {
+            $requiredPermissions[] = 'update_reporting_currency';
+        }
+        if ($request->hasDefaultFinancialUnit && $setting->value !== $request->defaultFinancialUnit) {
+            $requiredPermissions[] = 'update_default_financial_unit';
+        }
+        foreach ($requiredPermissions as $permission) {
+            $this->permissionService->authorizePermission($permission);
+        }
 
         if ((int) $setting->update_key !== $request->updateKey) {
             throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');

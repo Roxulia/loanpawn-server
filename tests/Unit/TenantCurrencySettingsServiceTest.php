@@ -10,6 +10,7 @@ use App\Services\PlatformModule\TenantServices\TenantSettingService;
 use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantCurrencyService;
+use App\Services\TenantModule\TenantUserPermissionService;
 use App\Support\TenantContext;
 use Mockery;
 use Tests\TestCase;
@@ -53,12 +54,15 @@ class TenantCurrencySettingsServiceTest extends TestCase
         $recalculationService = Mockery::mock(ReportingCurrencyRecalculationService::class);
         $recalculationService->shouldNotReceive('start');
         $recalculationService->shouldReceive('activeForTenant')->once()->with(10)->andReturnNull();
+        $permissionService = Mockery::mock(TenantUserPermissionService::class);
+        $permissionService->shouldReceive('authorizePermission')->once()->with('update_default_financial_unit');
 
         $service = new TenantSettingService(
             $repository,
             $currencyService,
             $accountingDayService,
             $recalculationService,
+            $permissionService,
         );
         $response = $service->updateCurrentTenantCurrencyPreferences(new TenantCurrencySettingsUpdate(
             defaultCurrencyId: 1,

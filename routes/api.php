@@ -95,15 +95,21 @@ Route::prefix('tenant')->group(function () {
                     Route::get('{tenantUserCode}', [TenantUserController::class, 'show'])
                         ->middleware('tenant.permission:list_user');
                     Route::put('{tenantUserCode}', [TenantUserController::class, 'update'])
-                        ->middleware('tenant.permission:update_user_admin,update_user_all,update_user_own');
+                        ->middleware('tenant.permission:update_user_roles,update_user_info,update_user_self,update_admin_user');
                     Route::put('{tenantUserCode}/permissions', [TenantUserController::class, 'updatePermissions'])
-                        ->middleware('tenant.permission:update_user_admin');
+                        ->middleware([
+                            'tenant.permission:assign_permission',
+                            'tenant.permission:update_user_info,update_admin_user',
+                        ]);
                     Route::put('{tenantUserCode}/financial-account-assignments', [TenantUserController::class, 'updateFinancialAccountAssignments'])
-                        ->middleware('tenant.permission:manage_financial_account_assignments');
+                        ->middleware([
+                            'tenant.permission:manage_financial_account_assignments',
+                            'tenant.permission:update_user_info,update_admin_user',
+                        ]);
                     Route::put('{tenantUserCode}/reset-to-defaultpassword', [TenantUserController::class, 'resetPasswordToDefault'])
-                        ->middleware('tenant.permission:update_user_admin,update_user_all');
+                        ->middleware('tenant.permission:update_user_self,update_user_info,update_admin_user');
                     Route::delete('{tenantUserCode}', [TenantUserController::class, 'destroy'])
-                        ->middleware('tenant.permission:delete_user');
+                        ->middleware('tenant.permission:delete_user,delete_admin_user');
                 });
 
             Route::prefix('customers')
@@ -214,9 +220,9 @@ Route::prefix('tenant')->group(function () {
                     Route::post('close', [TenantAccountingDayController::class, 'close'])
                         ->middleware('tenant.permission:close_accounting_day');
                     Route::get('schedule', [TenantAccountingDayController::class, 'schedule'])
-                        ->middleware(['tenant.feature:automatic_open_close', 'tenant.permission:open_accounting_day', 'tenant.permission:close_accounting_day']);
+                        ->middleware(['tenant.feature:automatic_open_close', 'tenant.permission:manage_accounting_day_schedule']);
                     Route::put('schedule', [TenantAccountingDayController::class, 'updateSchedule'])
-                        ->middleware(['tenant.feature:automatic_open_close', 'tenant.permission:open_accounting_day', 'tenant.permission:close_accounting_day']);
+                        ->middleware(['tenant.feature:automatic_open_close', 'tenant.permission:manage_accounting_day_schedule']);
                     Route::get('{businessDate}/summary', [TenantAccountingDayController::class, 'show'])
                         ->middleware('tenant.permission:list_accounting');
                 });
@@ -331,6 +337,12 @@ Route::prefix('tenant')->group(function () {
             });
 
             Route::prefix('settings')->group(function () {
+                Route::get('tenant', [TenantSettingsController::class, 'tenantBootstrap'])
+                    ->middleware('tenant.permission:manage_slip_document,manage_tenant_contact,manage_tenant_timezone');
+                Route::get('finance', [TenantSettingsController::class, 'financeBootstrap'])
+                    ->middleware('tenant.permission:list_currency,update_default_currency,update_reporting_currency,update_default_financial_unit,manage_accounting_day_schedule,list_financial_account_type');
+                Route::get('default-data', [TenantSettingsController::class, 'defaultDataBootstrap'])
+                    ->middleware('tenant.permission:list_interest_type,list_expense_type,list_material_type,list_item_category_type');
                 Route::get('/', [TenantSettingsController::class, 'show'])
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::put('/', [TenantSettingsController::class, 'update'])
@@ -339,13 +351,15 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.feature:tenant_branding')
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::put('contact', [TenantSettingsController::class, 'updateContact'])
-                    ->middleware('tenant.permission:manage_slip_document');
+                    ->middleware('tenant.permission:manage_tenant_contact');
+                Route::get('contact', [TenantSettingsController::class, 'contact'])
+                    ->middleware('tenant.permission:manage_tenant_contact');
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::get('currencies', [TenantSettingsController::class, 'currencyPreferences'])
                     ->middleware(['tenant.feature:currency_management', 'tenant.permission:list_currency']);
                 Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])
-                    ->middleware(['tenant.feature:currency_management', 'tenant.permission:update_currency']);
+                    ->middleware('tenant.feature:currency_management');
                 Route::get('timezone', [TenantSettingsController::class, 'timezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])
@@ -356,11 +370,11 @@ Route::prefix('tenant')->group(function () {
                     ->controller(ReportingCurrencyRateRequirementController::class)
                     ->middleware(['tenant.feature:currency_management', 'tenant.feature:exchange_pair_management', 'tenant.feature:daily_rate_assignment'])
                     ->group(function () {
-                        Route::get('/', 'index')->middleware(['tenant.permission:update_currency', 'tenant.permission:list_exchange_rate']);
-                        Route::post('/', 'store')->middleware(['tenant.permission:update_currency', 'tenant.permission:create_exchange_rate']);
+                        Route::get('/', 'index')->middleware(['tenant.permission:update_reporting_currency', 'tenant.permission:list_exchange_rate']);
+                        Route::post('/', 'store')->middleware(['tenant.permission:update_reporting_currency', 'tenant.permission:create_exchange_rate']);
                     });
                 Route::post('reporting-currency-recalculation/abort', [ReportingCurrencyRateRequirementController::class, 'abort'])
-                    ->middleware(['tenant.feature:currency_management', 'tenant.permission:update_currency']);
+                    ->middleware(['tenant.feature:currency_management', 'tenant.permission:update_reporting_currency']);
             });
 
             Route::prefix('slip-documents')
@@ -416,7 +430,7 @@ Route::prefix('tenant')->group(function () {
             Route::prefix('user-roles')
                 ->group(function () {
                     Route::get('/', [TenantRoleController::class, 'index'])
-                        ->middleware('tenant.permission:create_user,update_user_admin,update_user_all');
+                        ->middleware('tenant.permission:create_user,update_user_roles,update_user_info,update_user_self,update_admin_user');
                 });
         });
     });

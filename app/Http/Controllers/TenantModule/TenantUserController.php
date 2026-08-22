@@ -106,7 +106,6 @@ class TenantUserController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:100'],
             'role_id' => ['nullable', 'integer'],
-            'status' => ['nullable', 'string', 'max:20'],
             'update_key' => ['nullable', 'integer', 'min:0'],
         ]);
 
@@ -127,7 +126,6 @@ class TenantUserController extends Controller
             phone: $validated['phone'] ?? null,
             address: $validated['address'] ?? null,
             roleId: $validated['role_id'] ?? null,
-            status: $validated['status'] ?? null,
         ));
 
         return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserUpdated));

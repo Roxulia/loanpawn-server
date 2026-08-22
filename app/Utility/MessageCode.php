@@ -12,6 +12,7 @@ enum MessageCode: string
     case PackageNotFound = 'exception.exception.package_not_found';
     case SelfDelete = 'exception.exception.self_delete';
     case DeleteOwner = 'exception.exception.delete_owner';
+    case OwnerAccountProtected = 'exception.exception.owner_account_protected';
     case LanguageCodeInvalid = 'exception.exception.language_code_invalid';
     case LanguageChangeSuccess = 'tenant.response.user.language_change_success';
     case ApiResponseSuccess = 'common.response.success';

@@ -79,6 +79,15 @@ class TenantRoleService extends BaseTenantService
         return mb_strtolower($this->findAccessibleRole($roleId, $tenantId)->name) === 'admin';
     }
 
+    public function isOwnerRole(?int $roleId, ?int $tenantId = null): bool
+    {
+        if ($roleId === null) {
+            return false;
+        }
+
+        return mb_strtolower($this->findAccessibleRole($roleId, $tenantId)->name) === 'owner';
+    }
+
     protected function findAccessibleRole(int $roleId, ?int $tenantId = null)
     {
         $tenantId = $tenantId ?? $this->resolveOptionalCurrentTenantId();

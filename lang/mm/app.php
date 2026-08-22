@@ -586,6 +586,7 @@ return [
     'exception' => [
         'exception' => [
             'not_tenant_user' => 'You are not from this tenant',
+            'owner_account_protected' => 'Owner သာ မိမိ၏ profile ကို ပြင်ဆင်ခြင်း သို့မဟုတ် မိမိ၏ password ကို default password သို့ reset ပြုလုပ်ခြင်း လုပ်နိုင်ပါသည်။ Owner role၊ permissions၊ financial accounts၊ status နှင့် deactivation များကို ပြောင်းလဲ၍မရပါ။',
             'not_owner' => 'You do not own this tenant',
             'not_enough_permission' => 'You do not have enough permission to perform this action',
             'file_must_image' => 'Uploaded File type must be Image',

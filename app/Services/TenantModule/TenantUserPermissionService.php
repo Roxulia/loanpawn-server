@@ -2,7 +2,6 @@
 
 namespace App\Services\TenantModule;
 
-use App\DataObjects\RequestObjects\TenantUserUpdate;
 use App\Exceptions\TenantUserAccessDenied;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
@@ -82,51 +81,55 @@ class TenantUserPermissionService extends BaseTenantService
         return false;
     }
 
-    public function resolveUpdateScope(TenantUser $targetUser, TenantUserUpdate $request): bool
+    public function authorizeProfileUpdate(TenantUser $targetUser): void
     {
-        $tenantId = $this->resolveCurrentTenantId();
-
-        if ($this->canManageAllUsers($tenantId)) {
-            return true;
-        }
-
-        $currentTenantUser = Auth::guard('tenantuser')->user();
-
-        if (! $currentTenantUser instanceof TenantUser || $currentTenantUser->tenant_id !== $tenantId) {
-            throw new TenantUserAccessDenied($this->responseMessage(MessageCode::NotTenantUser));
-        }
-
-        $isSelfUpdate = $currentTenantUser->id === $targetUser->id;
-        $hasAdminUpdate = $this->hasPermission($currentTenantUser, 'update_user_admin');
-        $hasAllUpdate = $this->hasPermission($currentTenantUser, 'update_user_all');
-        $hasOwnUpdate = $this->hasPermission($currentTenantUser, 'update_user_own');
-        $updatesAdminFields = $request->roleId !== null || $request->status !== null;
-        $updatesProfileFields = $request->name !== null
-            || $request->nrc !== null
-            || $request->email !== null
-            || $request->phone !== null
-            || $request->address !== null
-            || $request->password !== null;
-
-        if ($updatesAdminFields && ! $hasAdminUpdate) {
-            throw new TenantUserAccessDenied(null);
-        }
-
-        if ($updatesProfileFields && ! $hasAllUpdate && ! $hasAdminUpdate && (! $isSelfUpdate || ! $hasOwnUpdate)) {
-            throw new TenantUserAccessDenied(null);
-        }
-
-        return $hasAdminUpdate;
+        $this->authorizeTargetInformation($targetUser, allowSelf: true, allowOwnerSelf: true);
     }
 
-    public function canUpdateAdminFields(TenantUser $tenantUser): bool
+    public function authorizeRoleAssignment(TenantUser $targetUser, bool $destinationIsAdmin): void
     {
-        return $this->hasPermission($tenantUser, 'update_user_admin');
+        $this->denySelfOrOwnerTarget($targetUser);
+        $this->authorizeTenantPermission('update_user_roles');
+
+        $currentIsAdmin = $this->isAdminTarget($targetUser);
+        $this->authorizeRoleClassInformation($currentIsAdmin);
+
+        if ($currentIsAdmin !== $destinationIsAdmin) {
+            $this->authorizeRoleClassInformation($destinationIsAdmin);
+        }
     }
 
-    public function canUpdateAllUsers(TenantUser $tenantUser): bool
+    public function authorizePermissionAssignment(TenantUser $targetUser): void
     {
-        return $this->hasPermission($tenantUser, 'update_user_all');
+        $this->denySelfOrOwnerTarget($targetUser);
+        $this->authorizeTargetInformation($targetUser, allowSelf: false, allowOwnerSelf: false);
+        $this->authorizeTenantPermission('assign_permission');
+        $this->authorizeCanManageTargetRole($targetUser);
+    }
+
+    public function authorizeFinancialAccountAssignment(TenantUser $targetUser): void
+    {
+        $this->denySelfOrOwnerTarget($targetUser);
+        $this->authorizeTargetInformation($targetUser, allowSelf: false, allowOwnerSelf: false);
+        $this->authorizeTenantPermission('manage_financial_account_assignments');
+    }
+
+    public function authorizePasswordReset(TenantUser $targetUser): void
+    {
+        $this->authorizeTargetInformation($targetUser, allowSelf: true, allowOwnerSelf: true);
+    }
+
+    public function authorizeDeleteTarget(TenantUser $targetUser): void
+    {
+        $this->denySelfOrOwnerTarget($targetUser);
+
+        if ($this->isAdminTarget($targetUser)) {
+            $this->authorizeAdminUserDelete();
+
+            return;
+        }
+
+        $this->authorizeTenantPermission('delete_user');
     }
 
     public function createPermissionFromRole(TenantUser $tenantUser): TenantUserPermission
@@ -141,7 +144,12 @@ class TenantUserPermissionService extends BaseTenantService
 
     public function updateUserPermissions(TenantUser $tenantUser, array $permissions): TenantUserPermission
     {
-        $this->authorizeTenantPermission('update_user_admin');
+        $tenantUser->loadMissing('role');
+
+        if (mb_strtolower((string) $tenantUser->role?->name) === 'owner') {
+            $this->denyOwnerAccountChange();
+        }
+
         $this->authorizeCanManageTargetRole($tenantUser);
 
         return $this->tenantUserPermissionRepository->updateOrCreateForUser(
@@ -160,16 +168,6 @@ class TenantUserPermissionService extends BaseTenantService
         $this->authorizeTenantPermission('create_user');
     }
 
-    public function authorizeUserUpdate(): void
-    {
-        $this->authorizeTenantPermission('update_user_all');
-    }
-
-    public function authorizeUserDelete(): void
-    {
-        $this->authorizeTenantPermission('delete_user');
-    }
-
     public function authorizeAdminUserCreate(): void
     {
         $this->authorizeOwnerAdminPermission('create_admin_user');
@@ -183,11 +181,6 @@ class TenantUserPermissionService extends BaseTenantService
     public function authorizeAdminUserDelete(): void
     {
         $this->authorizeOwnerAdminPermission('delete_admin_user');
-    }
-
-    public function authorizeAdminPermissionAssignment(): void
-    {
-        $this->authorizeOwnerAdminPermission('assign_admin_permissions');
     }
 
     public function authorizeCustomerList(): void
@@ -401,6 +394,82 @@ class TenantUserPermissionService extends BaseTenantService
         $tenant = $this->tenantLookupService->findById($tenantId);
 
         return (int) $tenant->platform_user_id === (int) $platformUser->id;
+    }
+
+    protected function denyOwnerAccountChange(): never
+    {
+        throw new TenantUserAccessDenied($this->responseMessage(MessageCode::OwnerAccountProtected));
+    }
+
+    protected function authorizeTargetInformation(
+        TenantUser $targetUser,
+        bool $allowSelf,
+        bool $allowOwnerSelf,
+    ): void {
+        if ($this->isOwnerTarget($targetUser)) {
+            if ($allowOwnerSelf && $this->isSelfTarget($targetUser)) {
+                return;
+            }
+
+            $this->denyOwnerAccountChange();
+        }
+
+        if ($this->isSelfTarget($targetUser)) {
+            if (! $allowSelf) {
+                throw new TenantUserAccessDenied;
+            }
+
+            $this->authorizeTenantPermission('update_user_self');
+
+            return;
+        }
+
+        $this->authorizeRoleClassInformation($this->isAdminTarget($targetUser));
+    }
+
+    protected function authorizeRoleClassInformation(bool $isAdmin): void
+    {
+        if ($isAdmin) {
+            $this->authorizeAdminUserUpdate();
+
+            return;
+        }
+
+        $this->authorizeTenantPermission('update_user_info');
+    }
+
+    protected function denySelfOrOwnerTarget(TenantUser $targetUser): void
+    {
+        if ($this->isSelfTarget($targetUser)) {
+            throw new TenantUserAccessDenied;
+        }
+
+        if ($this->isOwnerTarget($targetUser)) {
+            $this->denyOwnerAccountChange();
+        }
+    }
+
+    protected function isSelfTarget(TenantUser $targetUser): bool
+    {
+        $currentUser = Auth::guard('tenantuser')->user();
+
+        return $currentUser instanceof TenantUser
+            && (int) $currentUser->tenant_id === $this->resolveCurrentTenantId()
+            && (int) $currentUser->id === (int) $targetUser->id;
+    }
+
+    protected function isAdminTarget(TenantUser $targetUser): bool
+    {
+        $targetUser->loadMissing('role');
+
+        return mb_strtolower((string) $targetUser->role?->name) === 'admin';
+    }
+
+    protected function isOwnerTarget(TenantUser $targetUser): bool
+    {
+        $targetUser->loadMissing('role');
+
+        return mb_strtolower((string) $targetUser->role?->name) === 'owner';
     }
 
     public function hasPermission(TenantUser $tenantUser, string $permission): bool

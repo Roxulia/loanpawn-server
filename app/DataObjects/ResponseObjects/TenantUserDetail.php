@@ -41,7 +41,7 @@ class TenantUserDetail extends BaseDataObject
         //
     }
 
-    public static function fromModel(TenantUser $user): self
+    public static function fromModel(TenantUser $user, ?array $financialAccounts = null): self
     {
         $detail = new self();
         $detail->id = $user->id;
@@ -67,13 +67,13 @@ class TenantUserDetail extends BaseDataObject
             ])
         );
         $detail->preferLang = $user->prefer_lang ?? 'en';
-        $detail->financialAccounts = $user->relationLoaded('financialAccounts')
+        $detail->financialAccounts = $financialAccounts ?? ($user->relationLoaded('financialAccounts')
             ? $user->financialAccounts
                 ->filter(fn ($account) => ! $account->is_deleted)
                 ->map(fn ($account) => FinancialAccountSummary::fromModel($account))
                 ->values()
                 ->all()
-            : [];
+            : []);
         $nrc_decomposed = NrcHelper::decomposeNRC($user->nrc);
         $detail->nrc_state = $nrc_decomposed!==null ? $nrc_decomposed['state'] : "";
         $detail->nrc_township = $nrc_decomposed!==null ? $nrc_decomposed['township'] : "";

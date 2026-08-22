@@ -598,6 +598,7 @@ return [
             'file_type_error' => 'Uploaded File type is not Allowed',
             'package_not_found' => 'Package with such code cannot be found',
             'delete_owner' => 'Cannot Delete Tenant\'s owner',
+            'owner_account_protected' => 'Only the Owner can edit their own profile or reset their own password. Owner role, permissions, financial accounts, status, and deactivation are protected.',
             'self_delete' => 'Cannot delete yourself',
             'language_code_invalid' => 'The provided language code is invalid.',
             'tenant_not_found' => 'Tenant not found.',

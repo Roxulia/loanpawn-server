@@ -48,7 +48,6 @@ class FinancialAccountAssignmentService extends BaseTenantService
 
     public function updateForUser(string $userCode, FinancialAccountAssignmentUpdate $request): array
     {
-        $this->permissionService->authorizePermission('manage_financial_account_assignments');
         $tenantId = $this->resolveCurrentTenantId();
         $targetUser = $this->repository->findUserByCode($tenantId, $userCode);
         if (! $targetUser) {
@@ -63,6 +62,8 @@ class FinancialAccountAssignmentService extends BaseTenantService
         if (mb_strtolower((string) $targetUser->role?->name) === 'owner') {
             throw new FinancialAccountAssignmentDenied(MessageCode::FinanceAssignmentOwnerDenied);
         }
+
+        $this->permissionService->authorizeFinancialAccountAssignment($targetUser);
 
         $accountIds = array_values(array_unique(array_map('intval', $request->financialAccountIds)));
         $validAccountIds = $this->repository->validAccountIds($tenantId, $accountIds);

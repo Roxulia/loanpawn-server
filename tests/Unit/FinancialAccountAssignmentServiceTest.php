@@ -80,7 +80,7 @@ class FinancialAccountAssignmentServiceTest extends TestCase
     private function permissionService(): TenantUserPermissionService
     {
         $service = Mockery::mock(TenantUserPermissionService::class);
-        $service->shouldReceive('authorizePermission')->once()->with('manage_financial_account_assignments');
+        $service->shouldNotReceive('authorizeFinancialAccountAssignment');
         return $service;
     }
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantUserCreate;
+use App\DataObjects\RequestObjects\TenantUserUpdate;
 use App\Exceptions\TenantUserAccessDenied;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
@@ -158,19 +159,18 @@ class TenantUserServiceTest extends TestCase
         $permissionService->authorizeAdminUserCreate();
         $permissionService->authorizeAdminUserUpdate();
         $permissionService->authorizeAdminUserDelete();
-        $permissionService->authorizeAdminPermissionAssignment();
 
         Auth::guard('tenantuser')->login($admin);
 
         $this->expectException(TenantUserAccessDenied::class);
-        $permissionService->authorizeAdminPermissionAssignment();
+        $permissionService->authorizeAdminUserUpdate();
     }
 
     public function test_it_resets_password_to_default_and_logs_out_target_when_requested(): void
     {
         $tenant = $this->createTenant();
         $this->createUserRole();
-        $admin = $this->createTenantUser($tenant, 'admin@example.com', ['update_user_all']);
+        $admin = $this->createTenantUser($tenant, 'admin@example.com', ['update_user_info']);
         $target = $this->createTenantUser($tenant, 'target@example.com', []);
         $target->createToken('target-token');
         app(TenantContext::class)->set($tenant);
@@ -187,7 +187,7 @@ class TenantUserServiceTest extends TestCase
     {
         $tenant = $this->createTenant();
         $this->createUserRole();
-        $admin = $this->createTenantUser($tenant, 'admin@example.com', ['update_user_all']);
+        $admin = $this->createTenantUser($tenant, 'admin@example.com', ['update_user_info']);
         $target = $this->createTenantUser($tenant, 'target@example.com', []);
         $target->createToken('target-token');
         app(TenantContext::class)->set($tenant);
@@ -198,6 +198,220 @@ class TenantUserServiceTest extends TestCase
         $target->refresh();
         $this->assertTrue(Hash::check('12345678', $target->password));
         $this->assertSame(1, $target->tokens()->count());
+    }
+
+    public function test_owner_can_reset_only_their_own_password_to_default(): void
+    {
+        $tenant = $this->createTenant();
+        $ownerRole = TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Owner role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Owner.permissions'),
+        ]);
+        $owner = $this->createTenantUserWithRole($tenant, $ownerRole, 'owner-reset@example.com');
+        $owner->createToken('owner-token');
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($owner);
+
+        app(TenantUserService::class)->resetPasswordToDefault($owner->id, true);
+
+        $owner->refresh();
+        $this->assertTrue(Hash::check('12345678', $owner->password));
+        $this->assertSame(0, $owner->tokens()->count());
+    }
+
+    public function test_other_users_cannot_reset_an_owner_password(): void
+    {
+        $tenant = $this->createTenant();
+        $ownerRole = TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Owner role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Owner.permissions'),
+        ]);
+        $owner = $this->createTenantUserWithRole($tenant, $ownerRole, 'protected-owner@example.com');
+        $manager = $this->createTenantUser($tenant, 'manager@example.com', ['update_user_info']);
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($manager);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserService::class)->resetPasswordToDefault($owner->id, true);
+    }
+
+    public function test_platform_owner_cannot_bypass_owner_self_reset_protection(): void
+    {
+        $tenant = $this->createTenant();
+        $ownerRole = TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Owner role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Owner.permissions'),
+        ]);
+        $owner = $this->createTenantUserWithRole($tenant, $ownerRole, 'platform-protected-owner@example.com');
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('platformuser')->login($tenant->owner);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserService::class)->resetPasswordToDefault($owner->id, true);
+    }
+
+    public function test_admin_password_reset_requires_owner_admin_update_permission(): void
+    {
+        $tenant = $this->createTenant();
+        $adminRole = TenantRole::query()->create([
+            'name' => 'Admin',
+            'description' => 'Admin role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Admin.permissions'),
+        ]);
+        $admin = $this->createTenantUserWithRole($tenant, $adminRole, 'admin-reset-target@example.com');
+        $manager = $this->createTenantUser($tenant, 'user-manager@example.com', ['update_user_info']);
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($manager);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserService::class)->resetPasswordToDefault($admin->id, true);
+    }
+
+    public function test_owner_with_admin_update_permission_can_reset_admin_password(): void
+    {
+        $tenant = $this->createTenant();
+        $ownerRole = TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Owner role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Owner.permissions'),
+        ]);
+        $adminRole = TenantRole::query()->create([
+            'name' => 'Admin',
+            'description' => 'Admin role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Admin.permissions'),
+        ]);
+        $owner = $this->createTenantUserWithRole($tenant, $ownerRole, 'admin-reset-owner@example.com');
+        $admin = $this->createTenantUserWithRole($tenant, $adminRole, 'admin-reset-success@example.com');
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($owner);
+
+        app(TenantUserService::class)->resetPasswordToDefault($admin->id, false);
+
+        $this->assertTrue(Hash::check('12345678', $admin->refresh()->password));
+    }
+
+    public function test_owner_permissions_cannot_be_changed(): void
+    {
+        $tenant = $this->createTenant();
+        $ownerRole = TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Owner role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Owner.permissions'),
+        ]);
+        $owner = $this->createTenantUserWithRole($tenant, $ownerRole, 'permission-protected-owner@example.com');
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($owner);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserService::class)->updatePermissions($owner->id, ['dashboard' => false]);
+    }
+
+    public function test_owner_can_edit_own_profile_but_cannot_change_owner_role(): void
+    {
+        $tenant = $this->createTenant();
+        $ownerRole = TenantRole::query()->create([
+            'name' => 'Owner',
+            'description' => 'Owner role',
+            'is_default' => true,
+            'permissions' => config('tenant_permissions.roles.Owner.permissions'),
+        ]);
+        $userRole = $this->createUserRole();
+        $owner = $this->createTenantUserWithRole($tenant, $ownerRole, 'owner-profile@example.com');
+        $owner->update(['update_key' => 0]);
+        $owner->refresh();
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($owner);
+        $service = app(TenantUserService::class);
+
+        $updated = $service->update(new TenantUserUpdate(
+            userId: $owner->id,
+            code: $owner->code,
+            updateKey: $owner->update_key,
+            name: 'Updated Owner',
+        ));
+
+        $this->assertSame('Updated Owner', $updated->name);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        $service->update(new TenantUserUpdate(
+            userId: $owner->id,
+            code: $owner->code,
+            updateKey: $updated->updateKey,
+            roleId: $userRole->id,
+        ));
+    }
+
+    public function test_permission_assignment_requires_target_update_and_assignment_permissions(): void
+    {
+        $tenant = $this->createTenant();
+        $this->createUserRole();
+        $manager = $this->createTenantUser($tenant, 'permission-manager@example.com', ['update_user_info']);
+        $target = $this->createTenantUser($tenant, 'permission-target@example.com', []);
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($manager);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserPermissionService::class)->authorizePermissionAssignment($target);
+    }
+
+    public function test_financial_assignment_requires_target_update_and_assignment_permissions(): void
+    {
+        $tenant = $this->createTenant();
+        $this->createUserRole();
+        $manager = $this->createTenantUser($tenant, 'financial-manager@example.com', ['manage_financial_account_assignments']);
+        $target = $this->createTenantUser($tenant, 'financial-target@example.com', []);
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($manager);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserPermissionService::class)->authorizeFinancialAccountAssignment($target);
+    }
+
+    public function test_access_all_cannot_bypass_self_assignment_prohibitions(): void
+    {
+        $tenant = $this->createTenant();
+        $this->createUserRole();
+        $user = $this->createTenantUser($tenant, 'access-all-self@example.com', ['access_all']);
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($user);
+
+        $this->expectException(TenantUserAccessDenied::class);
+
+        app(TenantUserPermissionService::class)->authorizeRoleAssignment($user, false);
+    }
+
+    public function test_permission_assignment_succeeds_when_both_permissions_are_present(): void
+    {
+        $tenant = $this->createTenant();
+        $this->createUserRole();
+        $manager = $this->createTenantUser($tenant, 'full-permission-manager@example.com', [
+            'update_user_info',
+            'assign_permission',
+        ]);
+        $target = $this->createTenantUser($tenant, 'full-permission-target@example.com', []);
+        app(TenantContext::class)->set($tenant);
+        Auth::guard('tenantuser')->login($manager);
+
+        app(TenantUserPermissionService::class)->authorizePermissionAssignment($target);
+
+        $this->addToAssertionCount(1);
     }
 
     public function test_current_user_password_change_logs_out_current_user_from_all_devices(): void

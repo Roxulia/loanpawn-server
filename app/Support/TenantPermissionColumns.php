@@ -5,7 +5,7 @@ namespace App\Support;
 class TenantPermissionColumns
 {
     private const IMPLIED_LIST_PERMISSIONS = [
-        'list_user' => ['update_user_admin', 'update_user_all', 'delete_user', 'manage_financial_account_assignments'],
+        'list_user' => ['update_user_roles', 'update_user_info', 'assign_permission', 'delete_user', 'manage_financial_account_assignments'],
         'list_customer' => ['update_customer', 'delete_customer'],
         'list_collateral' => ['update_collateral', 'delete_collateral'],
         'list_expense' => ['update_expense', 'delete_expense'],
@@ -18,6 +18,7 @@ class TenantPermissionColumns
         'list_interest_type' => ['update_interest_type', 'delete_interest_type'],
         'list_item_category_type' => ['update_item_category_type', 'delete_item_category_type'],
         'list_expense_type' => ['update_expense_type', 'delete_expense_type'],
+        'list_currency' => ['update_default_currency', 'update_reporting_currency', 'update_default_financial_unit'],
     ];
 
     public static function all(): array

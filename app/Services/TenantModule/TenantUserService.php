@@ -20,6 +20,7 @@ use App\Repository\TenantUserRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\PlatformModule\TenantServices\TenantSettingService;
+use App\Services\TenantModule\Accounting\FinancialAccountAssignmentService;
 use App\Services\TableIdGenerationService;
 use App\Support\TenantContext;
 use App\Support\TenantScopedCacheKeys;
@@ -44,6 +45,7 @@ class TenantUserService extends BaseTenantService
         private TenantSettingService $tenantSettingService,
         private TableIdGenerationService $tableIdGenerationService,
         private TenantLicenseService $tenantLicenseService,
+        private FinancialAccountAssignmentService $financialAccountAssignmentService,
         private Messages $messages
     ) {
     }
@@ -81,14 +83,18 @@ class TenantUserService extends BaseTenantService
     {
         $this->permissionService->authorizeUserList();
 
-        return TenantUserDetail::fromModel($this->findUserForCurrentTenant($tenantUserId)->loadMissing(['role', 'permission', 'financialAccounts.currency']));
+        $user = $this->findUserForCurrentTenant($tenantUserId)->loadMissing(['role', 'permission']);
+
+        return TenantUserDetail::fromModel($user, $this->financialAccountAssignmentService->accountsForUser($user));
     }
 
     public function showByCode(string $code): TenantUserDetail
     {
         $this->permissionService->authorizeUserList();
 
-        return TenantUserDetail::fromModel($this->findUserForCurrentTenantByCode($code)->loadMissing(['role', 'permission', 'financialAccounts.currency']));
+        $user = $this->findUserForCurrentTenantByCode($code)->loadMissing(['role', 'permission']);
+
+        return TenantUserDetail::fromModel($user, $this->financialAccountAssignmentService->accountsForUser($user));
     }
 
     public function create(TenantUserCreate $request): TenantUserCreateResponse
@@ -229,26 +235,32 @@ class TenantUserService extends BaseTenantService
     public function update(TenantUserUpdate $request): TenantUserDetail
     {
         $targetUser = $this->findUserForCurrentTenant($request->userId);
+        $hasProfileUpdates = $request->name !== null
+            || $request->nrc !== null
+            || $request->email !== null
+            || $request->phone !== null
+            || $request->address !== null;
 
+        if ($hasProfileUpdates) {
+            $this->permissionService->authorizeProfileUpdate($targetUser);
+        }
+
+        $canChangeRole = false;
         if ($request->roleId !== null && $request->roleId !== $targetUser->role_id) {
             $this->tenantRoleService->ensureStaffAssignableRole($request->roleId, $targetUser->tenant_id);
+            $this->permissionService->authorizeRoleAssignment(
+                $targetUser,
+                $this->tenantRoleService->isAdminRole($request->roleId, $targetUser->tenant_id),
+            );
+            $canChangeRole = true;
         }
-
-        if (
-            $this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)
-            || ($request->roleId !== null && $this->tenantRoleService->isAdminRole($request->roleId, $targetUser->tenant_id))
-        ) {
-            $this->permissionService->authorizeAdminUserUpdate();
-        }
-
-        $canManageAll = $this->permissionService->resolveUpdateScope($targetUser, $request);
 
         if($targetUser->update_key !== $request->updateKey)
         {
             throw new AlreadyUpdatedException("This User is already updated.Please refresh");
         }
 
-        $data = $this->buildUpdateData($targetUser, $request, $canManageAll);
+        $data = $this->buildUpdateData($targetUser, $request, $canChangeRole);
 
         if ($data === []) {
             return TenantUserDetail::fromModel($targetUser->loadMissing(['role', 'permission']));
@@ -294,12 +306,8 @@ class TenantUserService extends BaseTenantService
 
     public function resetPasswordToDefault(int $tenantUserId, bool $logoutFromAll = false): void
     {
-        $this->permissionService->authorizeUserUpdate();
         $targetUser = $this->findUserForCurrentTenant($tenantUserId);
-
-        if ($this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)) {
-            $this->permissionService->authorizeAdminUserUpdate();
-        }
+        $this->permissionService->authorizePasswordReset($targetUser);
 
         $defaultPassword = $this->resolveTenantDefaultPassword($targetUser->tenant_id);
 
@@ -325,10 +333,7 @@ class TenantUserService extends BaseTenantService
     public function updatePermissions(int $tenantUserId, array $permissions): TenantUserDetail
     {
         $targetUser = $this->findUserForCurrentTenant($tenantUserId);
-
-        if ($this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)) {
-            $this->permissionService->authorizeAdminPermissionAssignment();
-        }
+        $this->permissionService->authorizePermissionAssignment($targetUser);
 
         DB::transaction(function () use ($targetUser, $permissions): void {
             $lockedUser = $this->repository->findByIdWithLock($targetUser->id);
@@ -347,12 +352,8 @@ class TenantUserService extends BaseTenantService
 
     public function delete(int $userId): void
     {
-        $this->permissionService->authorizeUserDelete();
         $targetUser = $this->findUserForCurrentTenant($userId);
-
-        if ($this->tenantRoleService->isAdminRole($targetUser->role_id, $targetUser->tenant_id)) {
-            $this->permissionService->authorizeAdminUserDelete();
-        }
+        $this->permissionService->authorizeDeleteTarget($targetUser);
 
         $ownerRole = $this->tenantRoleService->resolveDefaultRoleIdByName('Owner');
         if($targetUser->role_id === $ownerRole)
@@ -447,7 +448,7 @@ class TenantUserService extends BaseTenantService
         return $username;
     }
 
-    protected function buildUpdateData(TenantUser $targetUser, TenantUserUpdate $request, bool $canManageAll): array
+    protected function buildUpdateData(TenantUser $targetUser, TenantUserUpdate $request, bool $canChangeRole): array
     {
         $data = [];
 
@@ -480,13 +481,9 @@ class TenantUserService extends BaseTenantService
             $data['address'] = $request->address;
         }
 
-        if ($canManageAll && $request->roleId !== null && $request->roleId !== $targetUser->role_id) {
+        if ($canChangeRole && $request->roleId !== null && $request->roleId !== $targetUser->role_id) {
             $this->tenantRoleService->ensureRoleExists($request->roleId, $targetUser->tenant_id);
             $data['role_id'] = $request->roleId;
-        }
-
-        if ($canManageAll && $request->status !== null) {
-            $data['status'] = $request->status;
         }
 
         return $data;

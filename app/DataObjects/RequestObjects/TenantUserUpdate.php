@@ -16,7 +16,6 @@ class TenantUserUpdate extends BaseDataObject
     public ?string $phone;
     public ?string $address;
     public ?string $password;
-    public ?string $status;
 
     public function __construct(
         int $userId,
@@ -29,7 +28,6 @@ class TenantUserUpdate extends BaseDataObject
         ?string $phone = null,
         ?string $address = null,
         ?int $roleId = null,
-        ?string $status = null,
     ) {
         $this->userId = $userId;
         $this->roleId = $roleId;
@@ -39,7 +37,6 @@ class TenantUserUpdate extends BaseDataObject
         $this->phone = $phone;
         $this->address = $address;
         $this->password = $password;
-        $this->status = $status;
         $this->code = $code;
         $this->updateKey = $updateKey;
     }
