@@ -3,6 +3,7 @@
 namespace App\DataObjects\RequestObjects;
 
 use App\DataObjects\BaseDataObject;
+use App\Models\CoreModule\TenantCustomer;
 
 class TenantCustomerCreate extends BaseDataObject
 {
@@ -12,7 +13,7 @@ class TenantCustomerCreate extends BaseDataObject
         public ?string $email = null,
         public ?string $phone = null,
         public ?string $address = null,
-        public int $trustScore = 0,
+        public int $trustScore = TenantCustomer::DEFAULT_TRUST_SCORE,
         public ?string $note = null,
         public ?int $tenantId = null,
         public ?int $createdBy = null,

@@ -41,16 +41,6 @@
         @error('status') <div class="field-error">{{ $message }}</div> @enderror
     </div>
 
-    <div>
-        <label for="password">{{ isset($platformUser) ? 'New Password' : 'Password' }}</label>
-        <input id="password" type="password" name="password" autocomplete="new-password" {{ isset($platformUser) ? '' : 'required' }}>
-        @error('password') <div class="field-error">{{ $message }}</div> @enderror
-    </div>
-
-    <div>
-        <label for="password_confirmation">Confirm Password</label>
-        <input id="password_confirmation" type="password" name="password_confirmation" autocomplete="new-password" {{ isset($platformUser) ? '' : 'required' }}>
-    </div>
 </div>
 
 <div style="margin-top: 16px;">

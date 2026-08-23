@@ -37,6 +37,28 @@ class ExchangeRatePairRepository
         return ExchangeRatePair::query()->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))->where('base_currency_id', $baseId)->where('quote_currency_id', $quoteId)->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))->exists();
     }
 
+    public function findVisibleDirection(int $tenantId, int $baseCurrencyId, int $quoteCurrencyId): ?ExchangeRatePair
+    {
+        return $this->baseQuery()
+            ->where('base_currency_id', $baseCurrencyId)
+            ->where('quote_currency_id', $quoteCurrencyId)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))
+            ->orderByRaw('tenant_id IS NULL')
+            ->first();
+    }
+
+    public function visibleDirections(int $tenantId, int $baseCurrencyId, int $quoteCurrencyId): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->baseQuery()
+            ->where('base_currency_id', $baseCurrencyId)
+            ->where('quote_currency_id', $quoteCurrencyId)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))
+            ->orderByRaw('tenant_id IS NULL')
+            ->get();
+    }
+
     public function create(array $data): ExchangeRatePair
     {
         return ExchangeRatePair::query()->create($data)->load(['baseCurrency', 'quoteCurrency'])->refresh();

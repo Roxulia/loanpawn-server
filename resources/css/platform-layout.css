@@ -241,6 +241,67 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.platform-settings-grid {
+    align-items: start;
+}
+
+.platform-settings-panel {
+    display: grid;
+    gap: 20px;
+}
+
+.platform-settings-header h2 {
+    margin: 0;
+    color: var(--color-heading);
+    font-size: 20px;
+}
+
+.platform-settings-header p {
+    margin: 6px 0 0;
+    color: var(--color-outline);
+    line-height: 1.55;
+}
+
+.platform-settings-form {
+    align-content: start;
+}
+
+.platform-settings-hint {
+    margin: 7px 0 0;
+    color: var(--color-outline);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.platform-settings-actions {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.platform-settings-status {
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    padding: 11px 12px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.platform-settings-status[hidden] {
+    display: none;
+}
+
+.platform-settings-status.is-success {
+    border-color: var(--color-success);
+    background: var(--color-success-soft);
+    color: var(--color-success);
+}
+
+.platform-settings-status.is-error {
+    border-color: var(--color-danger);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
 .metric-label {
     margin: 0;
     color: var(--color-outline);
@@ -378,6 +439,8 @@ select:focus {
     color: var(--color-success);
     font-weight: 700;
 }
+.flash { position: fixed; right: 24px; top: 20px; width: min(28rem, calc(100vw - 32px)); z-index: 1200; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.flash button { appearance: none; background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0; }
 
 .flash.error {
     background: var(--color-danger-soft);

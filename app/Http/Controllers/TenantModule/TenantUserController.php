@@ -4,11 +4,13 @@ namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantUserCreate;
 use App\DataObjects\RequestObjects\TenantUserUpdate;
+use App\DataObjects\RequestObjects\FinancialAccountAssignmentUpdate;
 use App\Http\Controllers\Controller;
 use App\Rules\NrcRules;
 use App\Rules\PasswordRules;
 use App\Services\TenantModule\AuthService;
 use App\Services\TenantModule\TenantUserService;
+use App\Services\TenantModule\Accounting\FinancialAccountAssignmentService;
 use App\Utility\MessageCode;
 use App\Utility\NrcHelper;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +21,8 @@ class TenantUserController extends Controller
 {
     public function __construct(
         private TenantUserService $tenantUserService,
-        private AuthService $authService
+        private AuthService $authService,
+        private FinancialAccountAssignmentService $financialAccountAssignmentService,
     ) {
     }
 
@@ -103,7 +106,6 @@ class TenantUserController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:100'],
             'role_id' => ['nullable', 'integer'],
-            'status' => ['nullable', 'string', 'max:20'],
             'update_key' => ['nullable', 'integer', 'min:0'],
         ]);
 
@@ -124,7 +126,6 @@ class TenantUserController extends Controller
             phone: $validated['phone'] ?? null,
             address: $validated['address'] ?? null,
             roleId: $validated['role_id'] ?? null,
-            status: $validated['status'] ?? null,
         ));
 
         return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserUpdated));
@@ -195,6 +196,24 @@ class TenantUserController extends Controller
         $user = $this->tenantUserService->updatePermissions($this->tenantUserService->resolveIdByCode($tenantUserCode), $validator->validated());
 
         return $this->successResponse($user->toArray(), $this->responseMessage(MessageCode::TenantUserPermissionsUpdated));
+    }
+
+    public function updateFinancialAccountAssignments(Request $request, string $tenantUserCode): JsonResponse
+    {
+        $validated = $request->validate([
+            'financial_account_ids' => ['required', 'array'],
+            'financial_account_ids.*' => ['integer', 'min:1', 'distinct'],
+        ]);
+
+        $accounts = $this->financialAccountAssignmentService->updateForUser(
+            $tenantUserCode,
+            new FinancialAccountAssignmentUpdate($validated['financial_account_ids']),
+        );
+
+        return $this->successResponse(
+            ['financial_accounts' => array_map(fn ($account) => $account->toArray(), $accounts)],
+            $this->responseMessage(MessageCode::FinanceAssignmentsUpdated),
+        );
     }
 
     public function destroy(string $tenantUserCode): JsonResponse

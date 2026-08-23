@@ -2,17 +2,21 @@
 
 namespace Tests\Feature\TenantModule;
 
+use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
+use App\Events\ExchangeRateChanged;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\DailyExchangeRateSummary;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Models\CoreModule\ExchangeRatePair;
+use App\Repository\DailyExchangeRateSummaryRepository;
 use App\Services\ExchangeRate\ExchangeRateCorrectionService;
 use App\Services\ExchangeRate\ExchangeRateEntryWriter;
-use App\Services\ExchangeRate\ExchangeRateSummaryService;
+use App\Services\PlatformModule\AdminExchangeRateService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\CurrencySeeder;
 use Database\Seeders\ExchangeRatePairSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class CurrencyExchangeFoundationTest extends TestCase
@@ -40,18 +44,14 @@ class CurrencyExchangeFoundationTest extends TestCase
         $this->assertSame(0, ExchangeRateEntry::query()->count());
     }
 
-    public function test_periodic_refresh_builds_daily_ohlc_without_blocking_rate_entries(): void
+    public function test_exchange_rate_events_build_daily_ohlc(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 08:00:00', 'UTC'));
         $pair = $this->defaultPair();
         $writer = app(ExchangeRateEntryWriter::class);
-        $writer->create($pair, ['buying_rate' => '3500', 'selling_rate' => '3520'], null, null, null, CarbonImmutable::parse('2026-08-10 09:00:00', 'Asia/Yangon'));
-        $writer->create($pair, ['buying_rate' => '3550', 'selling_rate' => '3570'], null, null, null, CarbonImmutable::parse('2026-08-10 11:00:00', 'Asia/Yangon'));
-        $writer->create($pair, ['buying_rate' => '3450', 'selling_rate' => '3490'], null, null, null, CarbonImmutable::parse('2026-08-10 14:00:00', 'Asia/Yangon'));
-
-        $this->assertDatabaseCount('daily_exchange_rate_summaries', 0);
-
-        app(ExchangeRateSummaryService::class)->refreshCurrentBusinessDays();
+        $this->record($writer, $pair, '3500', '3520', '2026-08-10 09:00:00');
+        $this->record($writer, $pair, '3550', '3570', '2026-08-10 11:00:00');
+        $this->record($writer, $pair, '3450', '3490', '2026-08-10 14:00:00');
 
         $summary = DailyExchangeRateSummary::query()->firstOrFail();
         $this->assertSame('3500.000000000000', $summary->buying_open);
@@ -65,7 +65,7 @@ class CurrencyExchangeFoundationTest extends TestCase
         $this->assertSame(3, $summary->entry_count);
     }
 
-    public function test_periodic_refresh_uses_corrected_latest_active_rate_as_close(): void
+    public function test_correction_event_uses_latest_active_rate_as_close(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 08:00:00', 'UTC'));
         $pair = $this->defaultPair();
@@ -76,47 +76,68 @@ class CurrencyExchangeFoundationTest extends TestCase
         $this->assertSame('3600.000000000000', $replacement->buying_rate);
         $this->assertSame('3620.000000000000', $replacement->selling_rate);
         $this->assertDatabaseHas('exchange_rate_corrections', ['original_entry_id' => $entry->id, 'replacement_entry_id' => $replacement->id, 'action' => 'CORRECT']);
-        $this->assertDatabaseCount('daily_exchange_rate_summaries', 0);
-
-        app(ExchangeRateSummaryService::class)->refreshCurrentBusinessDays();
-
         $this->assertDatabaseHas('daily_exchange_rate_summaries', ['exchange_rate_pair_id' => $pair->id, 'entry_count' => 1, 'buying_close' => '3600.000000000000', 'selling_close' => '3620.000000000000']);
     }
 
-    public function test_periodic_refresh_deletes_summary_when_all_current_entries_are_void(): void
+    public function test_void_event_deletes_summary_when_all_entries_are_void(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 08:00:00', 'UTC'));
         $pair = $this->defaultPair();
         $entry = app(ExchangeRateEntryWriter::class)->create($pair, ['buying_rate' => '3500', 'selling_rate' => '3520'], null, null, null, CarbonImmutable::parse('2026-08-10 09:00:00', 'Asia/Yangon'));
-        $summaries = app(ExchangeRateSummaryService::class);
-        $summaries->refreshCurrentBusinessDays();
+        event(ExchangeRateChanged::fromEntry($entry));
 
         $this->assertDatabaseCount('daily_exchange_rate_summaries', 1);
 
         app(ExchangeRateCorrectionService::class)->void($entry, 'Invalid rate', null, null);
-        $this->assertDatabaseCount('daily_exchange_rate_summaries', 1);
-
-        $summaries->refreshCurrentBusinessDays();
-
         $this->assertDatabaseCount('daily_exchange_rate_summaries', 0);
     }
 
-    public function test_first_refresh_after_rollover_finalizes_previous_business_day_once(): void
+    public function test_historical_correction_event_rebuilds_the_affected_day(): void
     {
         $pair = $this->defaultPair();
         $entry = app(ExchangeRateEntryWriter::class)->create($pair, ['buying_rate' => '3500', 'selling_rate' => '3520'], null, null, null, CarbonImmutable::parse('2026-08-10 23:30:00', 'Asia/Yangon'));
+        event(ExchangeRateChanged::fromEntry($entry));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 18:00:00', 'UTC'));
-        $summaries = app(ExchangeRateSummaryService::class);
-
-        $summaries->refreshCurrentBusinessDays();
-
         app(ExchangeRateCorrectionService::class)->correct($entry, '3600', '3620', 'Late correction', null, null);
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 19:00:00', 'UTC'));
-        $summaries->refreshCurrentBusinessDays();
 
         $summary = DailyExchangeRateSummary::query()->firstOrFail();
-        $this->assertSame('3500.000000000000', $summary->buying_close);
-        $this->assertSame('3520.000000000000', $summary->selling_close);
+        $this->assertSame('3600.000000000000', $summary->buying_close);
+        $this->assertSame('3620.000000000000', $summary->selling_close);
+    }
+
+    public function test_idempotent_create_dispatches_only_for_the_new_entry(): void
+    {
+        Event::fake([ExchangeRateChanged::class]);
+        $this->defaultPair();
+        $request = new StoreExchangeRateRequest('USD-MMK', '3500', '3520', 'rate-request-1');
+        $service = app(AdminExchangeRateService::class);
+
+        $service->create($request);
+        $service->create($request);
+
+        $this->assertDatabaseCount('exchange_rate_entries', 1);
+        Event::assertDispatchedTimes(ExchangeRateChanged::class, 1);
+    }
+
+    public function test_platform_closing_trend_filters_pair_and_date_range_in_chronological_order(): void
+    {
+        $pair = $this->defaultPair();
+        $otherPair = ExchangeRatePair::query()->where('code', 'JPY-MMK')->firstOrFail();
+
+        $this->dailySummary($pair, '2026-08-18', '3500', '3520');
+        $this->dailySummary($pair, '2026-08-20', '3510', '3530');
+        $this->dailySummary($pair, '2026-08-10', '3400', '3420');
+        $this->dailySummary($otherPair, '2026-08-19', '24', '25');
+
+        $trend = app(DailyExchangeRateSummaryRepository::class)->platformClosingTrend(
+            $pair->id,
+            '2026-08-18',
+            '2026-08-20',
+        );
+
+        $this->assertSame(['2026-08-18', '2026-08-20'], array_column($trend, 'date'));
+        $this->assertSame(['3500.000000000000', '3510.000000000000'], array_column($trend, 'buying_close'));
+        $this->assertSame(['3520.000000000000', '3530.000000000000'], array_column($trend, 'selling_close'));
     }
 
     private function defaultPair(): ExchangeRatePair
@@ -125,5 +146,38 @@ class CurrencyExchangeFoundationTest extends TestCase
         $this->seed(ExchangeRatePairSeeder::class);
 
         return ExchangeRatePair::query()->where('code', 'USD-MMK')->firstOrFail();
+    }
+
+    private function record(ExchangeRateEntryWriter $writer, ExchangeRatePair $pair, string $buyingRate, string $sellingRate, string $observedAt): void
+    {
+        $entry = $writer->create(
+            $pair,
+            ['buying_rate' => $buyingRate, 'selling_rate' => $sellingRate],
+            null,
+            null,
+            null,
+            CarbonImmutable::parse($observedAt, 'Asia/Yangon'),
+        );
+        event(ExchangeRateChanged::fromEntry($entry));
+    }
+
+    private function dailySummary(ExchangeRatePair $pair, string $date, string $buyingClose, string $sellingClose): void
+    {
+        DailyExchangeRateSummary::query()->create([
+            'tenant_id' => null,
+            'scope_key' => 'platform',
+            'exchange_rate_pair_id' => $pair->id,
+            'rate_date' => $date,
+            'buying_open' => $buyingClose,
+            'buying_high' => $buyingClose,
+            'buying_low' => $buyingClose,
+            'buying_close' => $buyingClose,
+            'selling_open' => $sellingClose,
+            'selling_high' => $sellingClose,
+            'selling_low' => $sellingClose,
+            'selling_close' => $sellingClose,
+            'entry_count' => 1,
+            'calculated_at' => now(),
+        ]);
     }
 }

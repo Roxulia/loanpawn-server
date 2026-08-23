@@ -6,15 +6,20 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantDebtService;
+use App\Services\TenantModule\FinancialUnitService;
+use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class TenantDebtController extends Controller
 {
     public function __construct(
         private TenantDebtService $debtService,
+        private FinancialUnitService $financialUnitService,
+        private ReportingExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -46,9 +51,13 @@ class TenantDebtController extends Controller
 
         $validated = $validator->validated();
         $debt = $this->debtService->createExternalDebt(new TenantDebtCreate(
-            amount: (float) $validated['amount'],
+            amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
             description: $validated['description'],
             createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             slipCode: $validated['slip_code'] ?? null,
             customerCode: $validated['customer_code'] ?? null,
             tag: $validated['tag'] ?? null,
@@ -72,7 +81,13 @@ class TenantDebtController extends Controller
             code: $debtCode,
             updateKey: $validated['update_key'] ?? 0,
             createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
-            amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
+            amount: array_key_exists('amount', $validated)
+                ? $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99)
+                : null,
             description: $validated['description'] ?? null,
             slipId: $validated['slip_id'] ?? null,
             tag: $validated['tag'] ?? null,
@@ -92,7 +107,10 @@ class TenantDebtController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount_paid' => ['required', 'numeric', 'min:0.01'],
+            'amount_paid_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount_paid'],
             'accept_account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -102,8 +120,12 @@ class TenantDebtController extends Controller
         $validated = $validator->validated();
         $debt = $this->debtService->markAsPaid(
             $this->debtService->resolveIdByCode($debtCode),
-            (float) $validated['amount_paid'],
+            $this->financialUnitService->toBase($validated['amount_paid'], $validated['amount_paid_unit'] ?? null, 999_999_999_999.99),
             isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
+            $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
         );
 
         return $this->successResponse($debt, $this->responseMessage(MessageCode::TenantDebtPaid));
@@ -113,7 +135,10 @@ class TenantDebtController extends Controller
     {
         return [
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
+            'amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount'],
             'created_account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
             'slip_code' => ['nullable'],
             'customer_code' => ['nullable'],

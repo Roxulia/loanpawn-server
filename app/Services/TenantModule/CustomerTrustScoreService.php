@@ -2,15 +2,15 @@
 
 namespace App\Services\TenantModule;
 
+use App\Models\CoreModule\TenantCustomer;
 use App\Repository\CustomerTrustScoreRepository;
 use App\Services\BaseTenantService;
 use App\Support\TenantScopedCacheKeys;
 use Carbon\CarbonImmutable;
+use Throwable;
 
 class CustomerTrustScoreService extends BaseTenantService
 {
-    private const MAX_SCORE = 255;
-
     public function __construct(
         private CustomerTrustScoreRepository $repository,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
@@ -58,16 +58,65 @@ class CustomerTrustScoreService extends BaseTenantService
         );
 
         if ($metrics['slip_count'] === 0) {
-            return 0;
+            return TenantCustomer::DEFAULT_TRUST_SCORE;
         }
 
-        $score = $this->paymentHistoryScore($metrics)
+        $historyScore = $this->paymentHistoryScore($metrics)
             + $this->outstandingBurdenScore($metrics)
             + $this->relationshipLengthScore($metrics)
             + $this->activityScore($metrics)
             + $this->debtCleanlinessScore($metrics);
+        $historyAdjustment = $historyScore - TenantCustomer::DEFAULT_TRUST_SCORE;
+        $score = TenantCustomer::DEFAULT_TRUST_SCORE + $historyAdjustment;
 
-        return max(0, min(self::MAX_SCORE, (int) round($score)));
+        return max(0, min(TenantCustomer::MAX_TRUST_SCORE, (int) round($score)));
+    }
+
+    /**
+     * @return array{processed: int, changed: int, unchanged: int, failed: int}
+     */
+    public function backfillAll(bool $apply): array
+    {
+        $summary = [
+            'processed' => 0,
+            'changed' => 0,
+            'unchanged' => 0,
+            'failed' => 0,
+        ];
+        $affectedTenantIds = [];
+
+        foreach ($this->repository->activeCustomersForBackfill() as $customer) {
+            $summary['processed']++;
+
+            try {
+                $score = $this->calculateForTenantCustomer(
+                    (int) $customer->tenant_id,
+                    (int) $customer->id,
+                );
+
+                if ($score === (int) $customer->trust_score) {
+                    $summary['unchanged']++;
+
+                    continue;
+                }
+
+                $summary['changed']++;
+
+                if ($apply) {
+                    $tenantId = (int) $customer->tenant_id;
+                    $this->repository->updateTrustScore($tenantId, (int) $customer->id, $score);
+                    $affectedTenantIds[$tenantId] = true;
+                }
+            } catch (Throwable) {
+                $summary['failed']++;
+            }
+        }
+
+        foreach (array_keys($affectedTenantIds) as $tenantId) {
+            $this->tenantScopedCacheKeys->bumpVersion('tenant-customer-list', tenantId: $tenantId);
+        }
+
+        return $summary;
     }
 
     protected function paymentHistoryScore(array $metrics): float

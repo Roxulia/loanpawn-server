@@ -25,7 +25,7 @@ class TenantAccountingService extends BaseTenantService
     protected const TENANT_ACCOUNTING_LIST_CACHE_TTL_SECONDS = 600;
     protected const TENANT_ACCOUNTING_LEDGER_CACHE_TTL_SECONDS = 600;
     protected const TENANT_ACCOUNTING_LEDGER_MAX_TIME_RANGE_MONTHS = 3;
-    protected const TENANT_ACCOUNTING_LEDGER_MAX_HISTORY_MONTHS = 6;
+    protected const TENANT_ACCOUNTING_LEDGER_MAX_HISTORY_MONTHS = 3;
 
     public function __construct(
         private TenantAccountingRepository $repository,

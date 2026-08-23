@@ -3,6 +3,8 @@
 namespace App\DataObjects\RequestObjects;
 
 use App\DataObjects\BaseDataObject;
+use App\Enums\FinancialUnit;
+use Illuminate\Validation\Rule;
 
 class StoreFinancialAccountRequest extends BaseDataObject
 {
@@ -22,6 +24,7 @@ class StoreFinancialAccountRequest extends BaseDataObject
             'currency_type' => ['required', 'string', 'max:12'],
             'account_name' => ['required', 'string', 'max:100'],
             'balance' => ['nullable', 'numeric', 'min:0'],
+            'balance_unit' => ['nullable', 'string', Rule::enum(FinancialUnit::class), 'exclude_without:balance'],
             'allow_negative_balance' => ['sometimes', 'boolean'],
             'account_number' => ['nullable', 'string', 'max:50'],
         ];

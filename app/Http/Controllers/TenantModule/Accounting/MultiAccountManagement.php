@@ -9,32 +9,42 @@ use App\Enums\FinancialAccountTransactionType;
 use Carbon\CarbonImmutable;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\Accounting\MultiAccountManagement as MultiAccountManagementService;
+use App\Services\TenantModule\FinancialUnitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class MultiAccountManagement extends Controller
 {
-    public function __construct(private MultiAccountManagementService $service) {}
+    public function __construct(
+        private MultiAccountManagementService $service,
+        private FinancialUnitService $financialUnitService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'search' => ['nullable', 'string', 'max:100'],
+            'assigned_only' => ['nullable', 'boolean'],
         ]);
 
         return $this->successResponse($this->service->list(
             (int) ($validated['per_page'] ?? 15),
             $validated['search'] ?? null,
+            (bool) ($validated['assigned_only'] ?? false),
         )->toArray());
     }
 
     public function store(Request $request): JsonResponse
     {
-        $data = StoreFinancialAccountRequest::fromValidated(
-            Validator::make($request->all(), StoreFinancialAccountRequest::rules())->validate()
+        $validated = Validator::make($request->all(), StoreFinancialAccountRequest::rules())->validate();
+        $validated['balance'] = $this->financialUnitService->toBase(
+            $validated['balance'] ?? 0,
+            $validated['balance_unit'] ?? null,
+            999_999_999_999_999.99,
         );
+        $data = StoreFinancialAccountRequest::fromValidated($validated);
 
         return $this->successResponse($this->service->create($data)->toArray(), 'Financial account created.', 201);
     }

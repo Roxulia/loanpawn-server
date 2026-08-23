@@ -12,11 +12,13 @@ enum MessageCode: string
     case PackageNotFound = 'exception.exception.package_not_found';
     case SelfDelete = 'exception.exception.self_delete';
     case DeleteOwner = 'exception.exception.delete_owner';
+    case OwnerAccountProtected = 'exception.exception.owner_account_protected';
     case LanguageCodeInvalid = 'exception.exception.language_code_invalid';
     case LanguageChangeSuccess = 'tenant.response.user.language_change_success';
     case ApiResponseSuccess = 'common.response.success';
     case ApiResponseFailed = 'common.response.failed';
     case ApiValidationFailed = 'common.response.validation_failed';
+    case AppFrontendUpdateRequired = 'common.response.frontend_update_required';
     case ValidationNrcAllFieldsRequired = 'common.validation.nrc.all_fields_required';
     case ValidationNrcInvalidState = 'common.validation.nrc.invalid_state';
     case ValidationNrcInvalidTownship = 'common.validation.nrc.invalid_township';
@@ -46,6 +48,7 @@ enum MessageCode: string
     case PlatformUserCreated = 'platform.response.user.created';
     case PlatformUserUpdated = 'platform.response.user.updated';
     case PlatformUserDeleted = 'platform.response.user.deleted';
+    case PlatformUserPasswordReset = 'platform.response.user.password_reset';
     case PlatformPaymentRequestAccepted = 'billing.response.payment_request.accepted';
     case PlatformPaymentRequestRejected = 'billing.response.payment_request.rejected';
     case PlatformPaymentQrUploaded = 'billing.response.payment_qr.uploaded';
@@ -63,6 +66,8 @@ enum MessageCode: string
     case FinanceTenantCurrencyCreated = 'finance.response.tenant.currency.created';
     case FinanceTenantCurrencyUpdated = 'finance.response.tenant.currency.updated';
     case FinanceTenantCurrencyDeleted = 'finance.response.tenant.currency.deleted';
+    case TenantNotificationRead = 'tenant.response.notification.read';
+    case TenantNotificationsRead = 'tenant.response.notifications.read';
     case FinanceTenantFinancialAccountTypeCreated = 'finance.response.tenant.financial_account_type.created';
     case FinanceTenantFinancialAccountTypeUpdated = 'finance.response.tenant.financial_account_type.updated';
     case FinanceTenantFinancialAccountTypeDeleted = 'finance.response.tenant.financial_account_type.deleted';
@@ -74,6 +79,8 @@ enum MessageCode: string
     case FinanceTenantExchangeRateVoided = 'finance.response.tenant.exchange_rate.voided';
     case FinanceTenantExchangeRateResolved = 'finance.response.tenant.exchange_rate.resolved';
     case FinanceTenantExchangeRateUnavailable = 'finance.response.tenant.exchange_rate.unavailable';
+    case FinanceTenantHistoricalRatesRecorded = 'finance.response.tenant.exchange_rate.historical_recorded';
+    case FinanceTenantReportingCurrencyChangeAborted = 'finance.response.tenant.reporting_currency_change_aborted';
     case PlatformLicenseValidationFailed = 'platform.response.license.validation_failed';
     case PlatformLoginSuccess = 'auth.response.login_success';
     case PlatformPasswordChanged = 'auth.response.password_changed';
@@ -194,7 +201,21 @@ enum MessageCode: string
     case FinanceVisibleActiveCurrenciesRequired = 'finance.exception.visible_active_currencies_required';
     case FinanceDistinctPairCurrenciesRequired = 'finance.exception.distinct_pair_currencies_required';
     case FinanceResourceLimitReached = 'finance.exception.resource_limit_reached';
+    case FinanceFinancialUnitInvalid = 'finance.exception.financial_unit_invalid';
+    case FinanceFinancialAmountTooLarge = 'finance.exception.financial_amount_too_large';
+    case FinanceAccountNotAssigned = 'finance.exception.account_not_assigned';
+    case FinanceAssignmentSelfDenied = 'finance.exception.assignment_self_denied';
+    case FinanceAssignmentOwnerDenied = 'finance.exception.assignment_owner_denied';
+    case FinanceAssignmentInvalidAccounts = 'finance.exception.assignment_invalid_accounts';
+    case FinanceAssignmentActiveUserRequired = 'finance.exception.assignment_active_user_required';
+    case FinanceAssignmentOwnerRequired = 'finance.exception.assignment_owner_required';
+    case FinanceAssignmentsUpdated = 'finance.response.tenant.financial_account_assignments_updated';
     case FinanceExchangeRateNotFound = 'finance.exception.exchange_rate_not_found';
     case FinanceActiveVisibleExchangePairRequired = 'finance.exception.active_visible_exchange_pair_required';
     case FinanceTenantExchangeRateModificationDenied = 'finance.exception.tenant_exchange_rate_modification_denied';
+    case FinanceHistoricalRateBackfillUnavailable = 'finance.exception.historical_rate_backfill_unavailable';
+    case FinanceHistoricalRateBackfillMismatch = 'finance.exception.historical_rate_backfill_mismatch';
+    case FinanceHistoricalRatePairRequired = 'finance.exception.historical_rate_pair_required';
+    case FinanceReportingCurrencyChangeAlreadyActive = 'finance.exception.reporting_currency_change_already_active';
+    case FinanceReportingExchangeRateRequired = 'finance.exception.reporting_exchange_rate_required';
 }

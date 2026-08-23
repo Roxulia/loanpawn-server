@@ -11,6 +11,7 @@ class StoreExchangeRateRequest extends BaseDataObject
         public string $buyingRate,
         public string $sellingRate,
         public ?string $idempotencyKey,
+        public ?string $effectiveDate = null,
     ) {}
 
     public static function rules(): array
@@ -20,6 +21,7 @@ class StoreExchangeRateRequest extends BaseDataObject
             'buying_rate' => ['required', 'decimal:0,12', 'gt:0'],
             'selling_rate' => ['required', 'decimal:0,12', 'gt:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'effective_date' => ['nullable', 'date', 'before_or_equal:today'],
         ];
     }
 
@@ -30,6 +32,7 @@ class StoreExchangeRateRequest extends BaseDataObject
             buyingRate: $data['buying_rate'],
             sellingRate: $data['selling_rate'],
             idempotencyKey: $data['idempotency_key'] ?? null,
+            effectiveDate: $data['effective_date'] ?? null,
         );
     }
 }

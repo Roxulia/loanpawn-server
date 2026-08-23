@@ -87,6 +87,8 @@ return [
 
     'disallowed_subdomains' => array_values(array_filter(array_map('trim', explode(',', env('APP_DISALLOWED_SUBDOMAINS', ''))))),
 
+    'default_platform_user_password' => env('DEFAULT_PLATFORM_USER_PASSWORD'),
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

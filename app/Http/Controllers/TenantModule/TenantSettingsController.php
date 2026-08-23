@@ -16,6 +16,7 @@ use App\Services\PlatformModule\TenantServices\TenantContactService;
 use App\Services\PlatformModule\TenantServices\TenantSettingService;
 use App\Services\TenantModule\DefaultDataService;
 use App\Services\TenantModule\TenantSettingsService;
+use App\Services\TenantModule\TenantSettingsBootstrapService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -28,7 +29,23 @@ class TenantSettingsController extends Controller
         private TenantContactService $tenantContactService,
         private DefaultDataService $defaultDataService,
         private TenantSettingsService $tenantSettingsService,
+        private TenantSettingsBootstrapService $tenantSettingsBootstrapService,
     ) {}
+
+    public function tenantBootstrap(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingsBootstrapService->tenant()->toArray());
+    }
+
+    public function financeBootstrap(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingsBootstrapService->finance()->toArray());
+    }
+
+    public function defaultDataBootstrap(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingsBootstrapService->defaultData()->toArray());
+    }
 
     public function show(): JsonResponse
     {
@@ -120,6 +137,11 @@ class TenantSettingsController extends Controller
         );
 
         return $this->successResponse($contact->toArray());
+    }
+
+    public function contact(): JsonResponse
+    {
+        return $this->successResponse($this->tenantContactService->getCurrentTenantContact()->toArray());
     }
 
     public function updateTenantDefaultUserPassword(Request $request): JsonResponse

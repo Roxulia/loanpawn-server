@@ -6,15 +6,20 @@ use App\DataObjects\RequestObjects\TenantCapitalCreate;
 use App\DataObjects\RequestObjects\TenantCapitalUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantCapitalService;
+use App\Services\TenantModule\FinancialUnitService;
+use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class TenantCapitalController extends Controller
 {
     public function __construct(
         private TenantCapitalService $capitalService,
+        private FinancialUnitService $financialUnitService,
+        private ReportingExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -47,12 +52,21 @@ class TenantCapitalController extends Controller
         $validated = $validator->validated();
         $capital = $this->capitalService->createForCurrentTenant(new TenantCapitalCreate(
             description: $validated['description'],
-            amount: (float) $validated['amount'],
+            amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             idempotencyKey: $validated['idempotency_key'] ?? null,
         ));
 
         return $this->successResponse($capital->toArray(), $this->responseMessage(MessageCode::TenantCapitalCreated), 201);
+    }
+
+    public function show(string $capitalCode): JsonResponse
+    {
+        return $this->successResponse($this->capitalService->show($capitalCode)->toArray());
     }
 
     public function update(Request $request, string $capitalCode): JsonResponse
@@ -69,8 +83,14 @@ class TenantCapitalController extends Controller
             code: $capitalCode,
             updateKey: $validated['update_key'] ?? 0,
             accountId: isset($validated['account_id']) ? (int) $validated['account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+            ),
             description: $validated['description'] ?? null,
-            amount: array_key_exists('amount', $validated) ? (float) $validated['amount'] : null,
+            amount: array_key_exists('amount', $validated)
+                ? $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99)
+                : null,
         ));
 
         return $this->successResponse($capital->toArray(), $this->responseMessage(MessageCode::TenantCapitalUpdated));
@@ -88,7 +108,10 @@ class TenantCapitalController extends Controller
         return [
             'description' => [$isCreate ? 'required' : 'nullable', 'string'],
             'account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
+            'amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount'],
             'update_key' => ['nullable', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ];

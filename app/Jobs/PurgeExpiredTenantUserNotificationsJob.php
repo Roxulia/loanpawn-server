@@ -2,14 +2,14 @@
 
 namespace App\Jobs;
 
-use App\Services\ExchangeRate\ExchangeRateSummaryService;
+use App\Services\TenantModule\TenantUserNotificationService;
 use App\Support\OperationLogger;
 use App\Support\RedisAvailability;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 
-class RefreshDailyExchangeRateSummariesJob implements ShouldQueue
+class PurgeExpiredTenantUserNotificationsJob implements ShouldQueue
 {
     use Queueable;
 
@@ -19,17 +19,16 @@ class RefreshDailyExchangeRateSummariesJob implements ShouldQueue
         $this->onQueue('scheduled');
     }
 
-    public function handle(ExchangeRateSummaryService $summaries): void
+    public function handle(TenantUserNotificationService $service): void
     {
-        app(OperationLogger::class)->run(self::class.'::handle', function () use ($summaries): void {
-            $summaries->refreshCurrentBusinessDays();
-        });
+        app(OperationLogger::class)->run(
+            self::class.'::handle',
+            fn () => $service->purgeExpired(),
+        );
     }
 
     public function middleware(): array
     {
-        return [
-            (new WithoutOverlapping('refresh-daily-exchange-rate-summaries'))->expireAfter(7200),
-        ];
+        return [(new WithoutOverlapping('purge-expired-tenant-user-notifications'))->expireAfter(3600)];
     }
 }

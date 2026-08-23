@@ -20,6 +20,7 @@ class TenantCurrencyController extends Controller
     public function index(Request $request): JsonResponse
     {
         $page = $this->service->list($this->perPage($request));
+        $page->through(fn ($currency) => CurrencyResource::fromModel($currency));
 
         return $this->successResponse(DefaultDataListPage::fromPaginator($page)->toArray());
     }

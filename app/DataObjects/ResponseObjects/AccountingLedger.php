@@ -16,6 +16,7 @@ class AccountingLedger extends BaseDataObject
         public Carbon $endDate,
         public ?string $tenantName,
         public float $openingBalance,
+        public string $currencySymbol = '',
         public int $currentPage = 1,
         public int $lastPage = 1,
         public int $perPage = 15,

@@ -41,6 +41,7 @@ class AuthService
         PlatformUserRepository $userRepository,
         private TableIdGenerationService $tableIdGenerationService,
         private AuthLoginAttemptService $loginAttemptService,
+        private PlatformUserCredentialService $platformUserCredentialService,
     ) {
         $this->adminRepository = $adminRepository;
         $this->userRepository = $userRepository;
@@ -254,12 +255,16 @@ class AuthService
     public function resetPassword(string $email, string $newPassword, bool $isAdmin): void
     {
         $account = $this->resolveAccount($email, $isAdmin);
-        $account->forceFill([
-            'password' => Hash::make($newPassword),
-            'remember_token' => null,
-        ])->save();
 
-        DB::table($this->passwordConfig($isAdmin)['table'])->where('email', $email)->delete();
+        DB::transaction(function () use ($account, $email, $isAdmin, $newPassword): void {
+            if ($account instanceof PlatformUser) {
+                $this->platformUserCredentialService->replacePassword((int) $account->id, $newPassword);
+            } else {
+                $this->adminRepository->updatePasswordCredentials($account, Hash::make($newPassword));
+            }
+
+            DB::table($this->passwordConfig($isAdmin)['table'])->where('email', $email)->delete();
+        });
     }
 
     public function changePassword(string $currentPassword, string $newPassword, bool $isAdmin): void
@@ -275,9 +280,9 @@ class AuthService
             throw new InvalidCredential(null);
         }
         if ($isAdmin) {
-            PlatformAdmin::where('id', $account->id)->update(['password' => Hash::make($newPassword)]);
+            $this->adminRepository->updatePasswordCredentials($account, Hash::make($newPassword));
         } else {
-            PlatformUser::where('id', $account->id)->update(['password' => Hash::make($newPassword)]);
+            $this->platformUserCredentialService->replacePassword((int) $account->id, $newPassword);
         }
     }
 

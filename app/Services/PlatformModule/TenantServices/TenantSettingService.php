@@ -5,6 +5,7 @@ namespace App\Services\PlatformModule\TenantServices;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
+use App\DataObjects\RequestObjects\ReportingCurrencyAbortRequest;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
@@ -12,6 +13,10 @@ use App\Repository\TenantSettingRepository;
 use App\Services\BaseTenantService;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantCurrencyService;
+use App\Services\TenantModule\TenantUserPermissionService;
+use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class TenantSettingService extends BaseTenantService
 {
@@ -22,6 +27,8 @@ class TenantSettingService extends BaseTenantService
         private TenantSettingRepository $repository,
         private TenantCurrencyService $tenantCurrencyService,
         private TenantAccountingDayService $accountingDayService,
+        private ReportingCurrencyRecalculationService $reportingCurrencyRecalculationService,
+        private TenantUserPermissionService $permissionService,
     ) {}
 
     public function createDefaultTenantSettings(int $tenantId): void
@@ -43,13 +50,30 @@ class TenantSettingService extends BaseTenantService
     {
         $setting = $this->ensureCurrencyPreferencesForTenant($this->resolveCurrentTenantId());
 
-        return TenantCurrencySettingsResource::fromModel($setting);
+        return TenantCurrencySettingsResource::fromModel(
+            $setting,
+            $this->reportingCurrencyRecalculationService->activeForTenant($setting->tenant_id),
+        );
     }
 
     public function updateCurrentTenantCurrencyPreferences(TenantCurrencySettingsUpdate $request): TenantCurrencySettingsResource
     {
         $tenantId = $this->resolveCurrentTenantId();
         $setting = $this->ensureCurrencyPreferencesForTenant($tenantId);
+
+        $requiredPermissions = [];
+        if ((int) $setting->default_currency_id !== $request->defaultCurrencyId) {
+            $requiredPermissions[] = 'update_default_currency';
+        }
+        if ((int) $setting->reporting_currency_id !== $request->reportingCurrencyId) {
+            $requiredPermissions[] = 'update_reporting_currency';
+        }
+        if ($request->hasDefaultFinancialUnit && $setting->value !== $request->defaultFinancialUnit) {
+            $requiredPermissions[] = 'update_default_financial_unit';
+        }
+        foreach ($requiredPermissions as $permission) {
+            $this->permissionService->authorizePermission($permission);
+        }
 
         if ((int) $setting->update_key !== $request->updateKey) {
             throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
@@ -58,14 +82,51 @@ class TenantSettingService extends BaseTenantService
         $defaultCurrency = $this->tenantCurrencyService->findActiveVisibleForTenant($tenantId, $request->defaultCurrencyId);
         $reportingCurrency = $this->tenantCurrencyService->findActiveVisibleForTenant($tenantId, $request->reportingCurrencyId);
 
-        $setting = $this->repository->update($setting, [
-            'default_currency_id' => $defaultCurrency->id,
-            'reporting_currency_id' => $reportingCurrency->id,
-            'category' => 'finance',
-            'update_key' => $setting->update_key + 1,
-        ])->load(['defaultCurrency', 'reportingCurrency']);
+        $previousReportingCurrencyId = (int) $setting->reporting_currency_id;
+        $setting = DB::transaction(function () use ($request, $setting, $defaultCurrency, $reportingCurrency, $tenantId, $previousReportingCurrencyId): TenantSetting {
+            $updateData = [
+                'default_currency_id' => $defaultCurrency->id,
+                'reporting_currency_id' => $reportingCurrency->id,
+                'category' => 'finance',
+                'update_key' => $setting->update_key + 1,
+            ];
 
-        return TenantCurrencySettingsResource::fromModel($setting);
+            if ($request->hasDefaultFinancialUnit) {
+                $updateData['value'] = $request->defaultFinancialUnit;
+            }
+
+            $updated = $this->repository->update($setting, $updateData);
+
+            if ($previousReportingCurrencyId !== (int) $reportingCurrency->id) {
+                $tenantUserId = Auth::guard('tenantuser')->id() ?? throw new \App\Exceptions\InvalidTenantRequest;
+                $this->reportingCurrencyRecalculationService->start(
+                    $tenantId,
+                    (int) $tenantUserId,
+                    $previousReportingCurrencyId,
+                    (int) $reportingCurrency->id,
+                    $this->accountingDayService->currentBusinessDate(),
+                );
+            }
+
+            return $updated;
+        })->load(['defaultCurrency', 'reportingCurrency']);
+
+        return TenantCurrencySettingsResource::fromModel(
+            $setting,
+            $this->reportingCurrencyRecalculationService->activeForTenant($tenantId),
+        );
+    }
+
+    public function abortCurrentReportingCurrencyChange(ReportingCurrencyAbortRequest $request): TenantCurrencySettingsResource
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        $setting = $this->reportingCurrencyRecalculationService->abort(
+            $tenantId,
+            $request->recalculationId,
+            $request->updateKey,
+        );
+
+        return TenantCurrencySettingsResource::fromModel($setting, null);
     }
 
     public function ensureAllTenantCurrencyPreferences(bool $dryRun = false): array
@@ -78,7 +139,7 @@ class TenantSettingService extends BaseTenantService
             $mmk = $this->tenantCurrencyService->findActiveVisibleByCodeForTenant((int) $tenantId, 'MMK');
             $status = $setting === null
                 ? 'created'
-                : ((int) $setting->default_currency_id !== (int) $mmk->id || $setting->reporting_currency_id === null ? 'updated' : 'unchanged');
+                : ($setting->default_currency_id === null || $setting->reporting_currency_id === null ? 'updated' : 'unchanged');
             $summary[$status]++;
 
             if (! $dryRun && $status !== 'unchanged') {
@@ -94,14 +155,14 @@ class TenantSettingService extends BaseTenantService
         $setting = $this->repository->currencyPreferences($tenantId);
         $mmk = $this->tenantCurrencyService->findActiveVisibleByCodeForTenant($tenantId, 'MMK');
 
-        if ($setting?->default_currency_id === $mmk->id && $setting->reporting_currency_id !== null) {
+        if ($setting?->default_currency_id !== null && $setting->reporting_currency_id !== null) {
             return $setting;
         }
 
         if ($setting === null) {
             $setting = $this->repository->firstOrCreate($tenantId, 'currency_preferences', [
                 'category' => 'finance',
-                'default_currency_id' => $mmk->id,
+                'default_currency_id' => $setting->default_currency_id ?? $mmk->id,
                 'reporting_currency_id' => $mmk->id,
             ]);
         } else {

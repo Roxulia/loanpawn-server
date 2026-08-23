@@ -2,9 +2,12 @@
 
 use App\Console\Commands\EnsureDefaultFinancialAccounts;
 use App\Console\Commands\EnsureTenantCurrencySettings;
+use App\Console\Commands\BackfillCustomerTrustScores;
 use App\Console\Commands\MigrateLegacyAccounting;
 use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
+use App\Console\Commands\RepairInterestSchedules;
+use App\Console\Commands\SummarizeMonthlyFinancialMovements;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
@@ -14,6 +17,7 @@ use App\Http\Middleware\EnsureTenantAnyFeature;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\EnsureTenantPermission;
 use App\Http\Middleware\EnsureTenantUserBelongsToTenant;
+use App\Http\Middleware\EnsureSupportedFrontendVersion;
 use App\Http\Middleware\LogHttpOperation;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\StandardizeJsonResponse;
@@ -23,8 +27,9 @@ use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
 use App\Jobs\ProcessAccountingDaysJob;
-use App\Jobs\RefreshDailyExchangeRateSummariesJob;
+use App\Jobs\PurgeExpiredTenantUserNotificationsJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
+use App\Jobs\SummarizeMonthlyFinancialMovementsJob;
 use App\Support\InternalServerErrorNotifier;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -46,9 +51,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withCommands([
+        BackfillCustomerTrustScores::class,
         RepairAccountingChange::class,
+        RepairInterestSchedules::class,
         EnsureDefaultFinancialAccounts::class,
         EnsureTenantCurrencySettings::class,
+        SummarizeMonthlyFinancialMovements::class,
         MigrateLegacyAccounting::class,
         ReconcileFinancialAccountBalances::class,
     ])
@@ -72,6 +80,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant-resolve' => ResolveTenant::class,
             'tenant.access' => EnsureTenantUserBelongsToTenant::class,
+            'frontend.supported' => EnsureSupportedFrontendVersion::class,
             'tenant.activity' => TrackTenantUserActivity::class,
             'tenant.permission' => EnsureTenantPermission::class,
             'tenant.feature' => EnsureTenantFeature::class,
@@ -87,8 +96,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new CheckExpirePawnLoanContractSlipJob)->dailyAt('23:59');
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob)->monthlyOn(1, '00:00');
         $schedule->job(new ExpireInactiveTenantUsersJob)->everyFiveMinutes()->withoutOverlapping();
-        $schedule->job(new RefreshDailyExchangeRateSummariesJob)->hourly()->withoutOverlapping();
         $schedule->job(new ProcessAccountingDaysJob)->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->job(new PurgeExpiredTenantUserNotificationsJob)->dailyAt('02:00')->withoutOverlapping();
+        $schedule->job(new SummarizeMonthlyFinancialMovementsJob)->monthlyOn(2, '00:30')->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

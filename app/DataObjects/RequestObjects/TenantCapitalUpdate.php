@@ -11,6 +11,7 @@ class TenantCapitalUpdate extends BaseDataObject
         public string $code,
         public int $updateKey,
         public ?int $accountId,
+        public ?float $reportingExchangeRate = null,
         public ?string $description = null,
         public ?float $amount = null,
     ) {}

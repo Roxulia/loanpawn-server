@@ -108,6 +108,42 @@ body.platform-admin-layout {
 
 .platform-dialog { box-shadow: 0 24px 72px rgba(11,31,45,.25); }
 
+.form-grid-wide { grid-column: 1 / -1; }
+.admin-dialog-actions { justify-content: flex-end; margin-top: 18px; }
+.admin-tenant-create-mobile { display: none; }
+.admin-tenant-create__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.admin-tenant-create__grid label,
+.admin-finance-dialog label { display: grid; gap: 7px; color: var(--color-heading); font-size: 13px; font-weight: 750; }
+.admin-tenant-create__wide { grid-column: 1 / -1; }
+.admin-tenant-create__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+.admin-finance-create-card { padding: clamp(18px, 2.2vw, 24px); }
+.admin-finance-list-card { padding: clamp(18px, 2.2vw, 24px); }
+.admin-finance-create-actions { display: flex; align-items: flex-end; }
+.admin-finance-create-actions .button { width: 100%; }
+.admin-finance-mobile { display: none; }
+.admin-finance-dialog { width: min(680px, calc(100vw - 32px)); border: 0; border-radius: 16px; padding: 24px; }
+.admin-finance-dialog::backdrop { background: rgba(5,20,29,.58); }
+.admin-finance-dialog p { color: var(--color-text-muted); line-height: 1.55; }
+.admin-finance-dialog .admin-finance-dialog-error { margin-bottom: 16px; position: static; width: 100%; }
+.admin-check-row { display: flex !important; grid-column: 1 / -1; align-items: center; gap: 9px !important; min-height: 44px; }
+.admin-finance-mobile-card { display: grid; gap: 14px; padding: 16px; border: 1px solid #dce9ed; border-radius: 12px; background: #fff; }
+.admin-finance-mobile-card h3 { margin: 0; color: var(--color-heading); font: 700 16px/1.35 var(--font-heading); }
+.admin-finance-mobile-card p { margin: 5px 0 0; color: var(--color-text-muted); font-size: 13px; }
+.admin-finance-mobile-card dl { display: grid; gap: 8px; margin: 0; }
+.admin-finance-mobile-card dl div { display: flex; justify-content: space-between; gap: 12px; }
+.admin-finance-mobile-card dt { color: var(--color-text-muted); font-size: 12px; }
+.admin-finance-mobile-card dd { margin: 0; color: var(--color-heading); font-size: 13px; font-weight: 700; }
+.admin-finance-mobile-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-exchange-rate-chart-filters { align-items: end; display: grid; gap: 16px; grid-template-columns: minmax(15rem, 1fr) auto; margin-bottom: 20px; }
+.admin-exchange-rate-chart-filters label,
+.admin-exchange-rate-chart-filters fieldset { display: grid; gap: 7px; margin: 0; min-width: 0; }
+.admin-exchange-rate-chart-filters fieldset { border: 0; padding: 0; }
+.admin-exchange-rate-chart-filters label,
+.admin-exchange-rate-chart-filters legend { color: var(--color-heading); font-size: 13px; font-weight: 750; }
+.admin-exchange-rate-range { display: flex; gap: 8px; }
+.admin-exchange-rate-chart { height: clamp(280px, 42vw, 430px); min-width: 0; position: relative; }
+
 @media (max-width: 1180px) and (min-width: 941px) {
     .platform-admin-layout .platform-shell { grid-template-columns: 260px minmax(0, 1fr); }
 }
@@ -135,10 +171,27 @@ body.platform-admin-layout {
     .admin-cards--mobile { display: block; }
     .platform-admin-layout .grid.kpi { grid-template-columns: repeat(2, minmax(0,1fr)); }
     .admin-quick-links { grid-template-columns: 1fr; }
+    .admin-tenant-create-desktop,
+    .admin-finance-desktop { display: none; }
+    .admin-tenant-create-mobile { display: block; }
+    .admin-finance-mobile { display: grid; gap: 12px; }
+    .admin-tenant-create__grid { grid-template-columns: 1fr; }
+    .admin-tenant-create__wide { grid-column: auto; }
+    .admin-tenant-create__actions { display: grid; grid-template-columns: 1fr; }
+    .admin-tenant-create__actions .button,
+    .admin-dialog-actions .button { width: 100%; }
+    .admin-dialog-actions { display: grid; grid-template-columns: 1fr; }
+    .admin-finance-create-actions { grid-column: 1 / -1; }
+    .admin-finance-list-card { padding: 16px; }
+    .admin-exchange-rate-chart-filters { align-items: stretch; grid-template-columns: 1fr; }
+    .admin-exchange-rate-range { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .admin-exchange-rate-chart { height: 310px; }
 }
 
 @media (max-width: 480px) {
     .platform-admin-layout .platform-main { padding-inline: 14px; }
     .platform-admin-layout .grid.kpi { grid-template-columns: 1fr; }
     .platform-admin-layout .grid.kpi .panel { min-height: 112px; }
+    .admin-finance-mobile-actions { grid-template-columns: 1fr; }
+    .admin-finance-dialog { width: calc(100vw - 24px); padding: 18px; }
 }

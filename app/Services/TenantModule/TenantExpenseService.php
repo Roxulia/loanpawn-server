@@ -104,7 +104,8 @@ class TenantExpenseService extends BaseTenantService
                     $expense->description,
                     (float) $expense->amount,
                     $financialAccount->currency,
-                    $expense->created_by
+                    $expense->created_by,
+                    $request->reportingExchangeRate,
                 );
                 $this->financialAccountTransactionService->recordExpensePayment(
                     $financialAccount,
@@ -164,7 +165,10 @@ class TenantExpenseService extends BaseTenantService
     {
         $this->permissionService->authorizeExpenseUpdate();
         $expense = $this->findExpenseForCurrentTenant($request->expenseId);
-        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
+        $financialAccount = $this->multiAccountManagement->resolvePostedTransactionAccount(
+            $expense->account_id,
+            $request->accountId,
+        );
         $data = [];
 
         if ($request->updateKey !== $expense->update_key) {
@@ -178,8 +182,6 @@ class TenantExpenseService extends BaseTenantService
         if ($request->hasExpenseTypeId) {
             $data['expense_type_id'] = $request->expenseTypeId;
         }
-
-        $data['account_id'] = $financialAccount->id;
 
         $oldImageReference = $expense->image_reference;
         $newImageReference = null;
@@ -206,7 +208,7 @@ class TenantExpenseService extends BaseTenantService
         $original['has_image_reference'] = filled($oldImageReference);
 
         try {
-            $updatedExpense = DB::transaction(function () use ($expense, $data, $original, $auditFields, $financialAccount) {
+            $updatedExpense = DB::transaction(function () use ($expense, $data, $original, $auditFields, $financialAccount, $request) {
                 $this->financialAccountTransactionService->reverseReference($financialAccount, $expense->code, TenantExpense::class, $this->resolveCurrentTenantUserId());
                 $updatedExpense = $this->repository->updateWithLock($expense, $data);
 
@@ -215,6 +217,7 @@ class TenantExpenseService extends BaseTenantService
                     $updatedExpense->description,
                     (float) $updatedExpense->amount,
                     $financialAccount->currency,
+                    $request->reportingExchangeRate,
                 );
                 $this->financialAccountTransactionService->recordExpensePayment($financialAccount, (float) $updatedExpense->amount, $updatedExpense->code, TenantExpense::class, $updatedExpense->description, $this->resolveCurrentTenantUserId());
 

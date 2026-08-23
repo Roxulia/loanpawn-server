@@ -3,6 +3,9 @@
 @section('title', 'Admin Tenant Management')
 @section('pageTitle', 'Tenant Management')
 @section('pageDescription', 'Review all platform tenants and their current owner, plan, and license status.')
+@section('pageAction')
+    <a href="{{ route('admin.tenants.create') }}" class="button primary">Create tenant</a>
+@endsection
 
 @section('content')
     <section class="panel">
@@ -43,7 +46,12 @@
                             <td data-label="License"><span class="badge" data-tone="{{ in_array($tenant->license?->status, ['active', 'paid', 'trial']) ? 'success' : 'warning' }}">{{ $tenant->license?->status ?? '-' }}</span></td>
                             <td data-label="Expires">{{ $tenant->license?->expires_at?->format('Y-m-d') ?? '-' }}</td>
                             <td data-label="Status"><span class="badge" data-tone="{{ $tenant->status === 'active' ? 'success' : 'warning' }}">{{ $tenant->status }}</span></td>
-                            <td data-label=""><button type="button" class="button secondary" data-open-dialog="tenant-plan-{{ $tenant->id }}">Change type/plan</button></td>
+                            <td data-label="">
+                                <div class="action-row admin-tenant-row-actions">
+                                    <button type="button" class="button secondary" data-open-dialog="tenant-extension-{{ $tenant->id }}">Extend license</button>
+                                    <button type="button" class="button secondary" data-open-dialog="tenant-plan-{{ $tenant->id }}">Change type/plan</button>
+                                </div>
+                            </td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -62,11 +70,24 @@
             @csrf
             <div class="dialog-header"><h2>Change {{ $tenant->name }}</h2><button type="button" class="dialog-close" data-close-dialog="tenant-plan-{{ $tenant->id }}">&times;</button></div>
             <div class="form-grid">
-                <div><label>Category and plan</label><select name="plan_id" required>@foreach($plans as $plan)<option value="{{ $plan->id }}">{{ $plan->category?->name }} — {{ $plan->name }}</option>@endforeach</select></div>
+                <div><label>Category and plan</label><select name="plan_id" required>@foreach($plans as $plan)<option value="{{ $plan->id }}">{{ $plan->category?->name }} &mdash; {{ $plan->name }}</option>@endforeach</select></div>
                 <div><label>Effective</label><select name="effective"><option value="immediate">Immediately, keep current expiry</option><option value="scheduled">At current expiry</option></select></div>
                 <div><label>Scheduled duration</label><select name="duration_months"><option value="">Not required for immediate</option>@foreach(config('pricing.extension_discounts') as $months => $discount)<option value="{{ $months }}">{{ $months }} months</option>@endforeach</select></div>
+                <div class="form-grid-wide"><label>Reason for free grant</label><textarea name="admin_review_note" rows="3" maxlength="1000" required></textarea></div>
             </div>
-            <div style="margin-top:16px"><button class="button primary">Apply change</button></div>
+            <div class="action-row admin-dialog-actions"><button type="button" class="button secondary" data-close-dialog="tenant-plan-{{ $tenant->id }}">Cancel</button><button type="submit" class="button primary">Apply change</button></div>
+        </form>
+    </dialog>
+    <dialog class="platform-dialog" id="tenant-extension-{{ $tenant->id }}">
+        <form method="POST" action="{{ route('admin.tenants.license.extend', $tenant) }}">
+            @csrf
+            <div class="dialog-header"><h2>Extend {{ $tenant->name }}</h2><button type="button" class="dialog-close" data-close-dialog="tenant-extension-{{ $tenant->id }}">&times;</button></div>
+            <div class="form-grid">
+                <div><label for="extension-months-{{ $tenant->id }}">Extension duration</label><select id="extension-months-{{ $tenant->id }}" name="extension_months" required><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option><option value="12">12 months</option></select></div>
+                <div><label>Current expiry</label><input value="{{ $tenant->license?->expires_at?->format('Y-m-d') ?? 'No expiry' }}" disabled></div>
+                <div class="form-grid-wide"><label for="extension-reason-{{ $tenant->id }}">Reason for free extension</label><textarea id="extension-reason-{{ $tenant->id }}" name="reason" rows="3" maxlength="1000" required></textarea></div>
+            </div>
+            <div class="action-row admin-dialog-actions"><button type="button" class="button secondary" data-close-dialog="tenant-extension-{{ $tenant->id }}">Cancel</button><button type="submit" class="button primary">Extend license</button></div>
         </form>
     </dialog>
     @endforeach

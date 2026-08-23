@@ -26,7 +26,7 @@ class ExchangeRateEntryWriter
 
         return DB::transaction(function () use ($pair, $data, $tenantId, $tenantUserId, $adminId, $scopeKey, $observedAt) {
             ExchangeRatePair::query()->whereKey($pair->id)->lockForUpdate()->firstOrFail();
-            return $this->entries->create(['code' => 'RATE-'.Str::upper((string) Str::ulid()), 'tenant_id' => $tenantId, 'scope_key' => $scopeKey, 'exchange_rate_pair_id' => $pair->id, 'buying_rate' => $data['buying_rate'], 'selling_rate' => $data['selling_rate'], 'effective_date' => $observedAt->toDateString(), 'observed_at' => $observedAt->utc(), 'source' => $tenantId ? 'TENANT' : 'PLATFORM', 'idempotency_key' => $data['idempotency_key'] ?? null, 'created_by_tenant_user_id' => $tenantUserId, 'created_by_platform_admin_id' => $adminId]);
+            return $this->entries->create(['code' => 'RATE-'.Str::upper((string) Str::ulid()), 'tenant_id' => $tenantId, 'scope_key' => $scopeKey, 'exchange_rate_pair_id' => $pair->id, 'buying_rate' => $data['buying_rate'], 'selling_rate' => $data['selling_rate'], 'effective_date' => $data['effective_date'] ?? $observedAt->toDateString(), 'observed_at' => $observedAt->utc(), 'source' => $tenantId ? 'TENANT' : 'PLATFORM', 'idempotency_key' => $data['idempotency_key'] ?? null, 'created_by_tenant_user_id' => $tenantUserId, 'created_by_platform_admin_id' => $adminId]);
         });
     }
 }

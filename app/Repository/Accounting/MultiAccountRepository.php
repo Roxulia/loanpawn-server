@@ -11,12 +11,15 @@ use Illuminate\Support\Collection;
 
 class MultiAccountRepository
 {
-    public function paginate(int $tenantId, int $perPage, ?string $search = null): LengthAwarePaginator
+    public function paginate(int $tenantId, int $perPage, ?string $search = null, ?int $assignedUserId = null): LengthAwarePaginator
     {
         return FinancialAccount::query()
             ->with(['accountType', 'currency'])
             ->where('tenant_id', $tenantId)
             ->where('is_deleted', false)
+            ->when($assignedUserId, fn ($query) => $query->whereHas('assignments', fn ($assignmentQuery) => $assignmentQuery
+                ->where('tenant_id', $tenantId)
+                ->where('assigned_user_id', $assignedUserId)))
             ->when($search, function ($query, string $search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('account_code', 'like', "%{$search}%")

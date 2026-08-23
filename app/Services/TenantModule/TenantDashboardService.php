@@ -15,16 +15,19 @@ use Illuminate\Support\Collection;
 class TenantDashboardService extends BaseTenantService
 {
     private const RISK_WINDOW_DAYS = 7;
+
     private const HIGH_RISK_TRUST_PERCENT = 40;
+
     private const MEDIUM_RISK_TRUST_PERCENT = 60;
+
     private const LOW_MARGIN_LTV = 85;
+
     private const TRUST_SCORE_MAX = 255;
 
     public function __construct(
         private TenantDashboardRepository $repository,
         private TenantUserPermissionService $permissionService,
-    ) {
-    }
+    ) {}
 
     public function summary(?DashboardTimeFilter $timeFilter = null): TenantDashboardSummary
     {
@@ -44,6 +47,8 @@ class TenantDashboardService extends BaseTenantService
         $previousExpense = $this->repository->dashboardExpenseTotalBetween($previousStartDate, $previousEndDate);
         $previousInterest = $this->repository->interestCollectedBetween($previousStartDate, $previousEndDate);
         $previousNetProfit = $this->repository->dashboardNetProfitBetween($previousStartDate, $previousEndDate);
+        $activeLoans = $this->repository->activeLoans();
+        $overdueLoans = $this->repository->activeOverdueLoans($today);
         $collateralItems = $this->repository->collateralItemsForDashboard();
 
         return new TenantDashboardSummary(
@@ -54,7 +59,8 @@ class TenantDashboardService extends BaseTenantService
             ],
             financial: [
                 'cashAvailable' => $this->repository->accountingBalance(),
-                'activeLoanAmount' => $this->repository->activeLoanPrincipal(),
+                'activeLoanAmount' => (float) $activeLoans->sum('loan_amount'),
+                'activeLoanAmounts' => $this->groupLoanAmountsByCurrency($activeLoans),
                 'activeLoanCount' => $this->repository->activeLoanCount(),
                 'interestCollected' => $periodInterest,
                 'totalIncome' => $periodIncome,
@@ -70,7 +76,8 @@ class TenantDashboardService extends BaseTenantService
                 'dueToday' => $this->repository->activeSlipsDueOn($today),
                 'dueThisWeek' => $this->repository->activeSlipsDueBetween($today, $weekEnd),
                 'overdueLoans' => $this->repository->activeOverdueLoanCount($today),
-                'overdueAmount' => $this->repository->activeOverdueLoanAmount($today),
+                'overdueAmount' => (float) $overdueLoans->sum('loan_amount'),
+                'overdueAmounts' => $this->groupLoanAmountsByCurrency($overdueLoans),
                 'highRiskCustomers' => $this->repository->highRiskCustomerCount($this->trustScoreFromPercent(self::HIGH_RISK_TRUST_PERCENT), $today),
                 'badRepaymentHistoryCount' => $this->repository->badRepaymentHistoryCustomerCount($today),
                 'loansRequiringAttention' => $this->mapLoansRequiringAttention($this->repository->loansRequiringAttention($today, $weekEnd), $today),
@@ -86,7 +93,8 @@ class TenantDashboardService extends BaseTenantService
 
     protected function buildFinancialChart(DashboardTimeFilter $timeFilter): array
     {
-        $loanRows = $this->repository->loanDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
+        $loanRows = $this->repository->loansCreatedBetween($timeFilter->startDate, $timeFilter->endDate)
+            ->groupBy(fn (PawnLoanContractSlip $slip) => $slip->created_at->toDateString());
         $debtRows = $this->repository->debtDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
         $expenseRows = $this->repository->expenseDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
         $redemptionRows = $this->repository->redemptionDailyTotalsBetween($timeFilter->startDate, $timeFilter->endDate);
@@ -98,7 +106,9 @@ class TenantDashboardService extends BaseTenantService
 
                 return [
                     'date' => $key,
-                    'loanAmount' => $this->summaryRowAmount($loanRows, $key) + $this->summaryRowAmount($debtRows, $key),
+                    'loanAmount' => (float) ($loanRows->get($key)?->sum('loan_amount') ?? 0),
+                    'loanAmounts' => $this->groupLoanAmountsByCurrency($loanRows->get($key, collect())),
+                    'debt' => $this->summaryRowAmount($debtRows, $key),
                     'returnedAmount' => $this->summaryRowAmount($redemptionRows, $key),
                     'interest' => $this->summaryRowAmount($interestRows, $key),
                     'expenses' => $this->summaryRowAmount($expenseRows, $key),
@@ -128,6 +138,7 @@ class TenantDashboardService extends BaseTenantService
                     'loanCode' => $slip->slip_no,
                     'dueDate' => $dueDate?->toDateString(),
                     'loanAmount' => (float) $slip->loan_amount,
+                    'currency' => $this->loanCurrency($slip),
                     'overdueDays' => $overdueDays,
                     'riskLevel' => $this->riskLevel($overdueDays, $trustPercent, $dueDate, $today),
                     'trustPercent' => $trustPercent,
@@ -157,8 +168,13 @@ class TenantDashboardService extends BaseTenantService
 
         return [
             'totalCollateralValue' => $totalValue,
+            'totalCollateralValues' => $this->groupMappedAmountsByCurrency($mappedItems, 'estimatedMarketValue'),
             'averageLtvRatio' => $totalCollateralForLtv <= 0 ? 0.0 : ($totalLoanAgainstValue / $totalCollateralForLtv) * 100,
             'goldJewelryValue' => $jewelleryValue,
+            'goldJewelryValues' => $this->groupMappedAmountsByCurrency(
+                $mappedItems->filter(fn (array $item) => $item['isJewellery']),
+                'estimatedMarketValue',
+            ),
             'expiredCollateralCount' => $mappedItems->where('status', 'Expired')->count(),
             'lowMarginCollateralItems' => $mappedItems->where('status', 'Low Margin')->count(),
             'categoryBreakdown' => $this->categoryBreakdown($mappedItems),
@@ -185,6 +201,7 @@ class TenantDashboardService extends BaseTenantService
             'category' => $this->collateralCategory($item),
             'estimatedMarketValue' => $estimatedValue,
             'loanAmount' => $loanAmount,
+            'currency' => $this->loanCurrency($item->loanContract),
             'ltvRatio' => $ltvRatio,
             'status' => $status,
             'isJewellery' => $this->isJewellery($item),
@@ -201,15 +218,56 @@ class TenantDashboardService extends BaseTenantService
     protected function categoryBreakdown(Collection $items): array
     {
         return $items
-            ->groupBy('category')
-            ->map(fn (Collection $categoryItems, string $category) => [
-                'category' => $category,
+            ->groupBy(fn (array $item) => $item['category'].'|'.$this->currencyKey($item['currency']))
+            ->map(fn (Collection $categoryItems) => [
+                'category' => $categoryItems->first()['category'],
                 'value' => (float) $categoryItems->sum('estimatedMarketValue'),
                 'count' => $categoryItems->count(),
+                'currency' => $categoryItems->first()['currency'],
             ])
             ->sortByDesc('value')
             ->values()
             ->all();
+    }
+
+    protected function groupLoanAmountsByCurrency(Collection $loans): array
+    {
+        return $loans
+            ->groupBy(fn (PawnLoanContractSlip $loan) => $this->currencyKey($this->loanCurrency($loan)))
+            ->map(fn (Collection $currencyLoans) => [
+                'amount' => (float) $currencyLoans->sum('loan_amount'),
+                'currency' => $this->loanCurrency($currencyLoans->first()),
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function groupMappedAmountsByCurrency(Collection $items, string $amountKey): array
+    {
+        return $items
+            ->groupBy(fn (array $item) => $this->currencyKey($item['currency']))
+            ->map(fn (Collection $currencyItems) => [
+                'amount' => (float) $currencyItems->sum($amountKey),
+                'currency' => $currencyItems->first()['currency'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function loanCurrency(?PawnLoanContractSlip $loan): array
+    {
+        $currency = $loan?->account?->currency;
+
+        return [
+            'id' => $currency?->id,
+            'code' => $currency?->code ?? '',
+            'symbol' => $currency?->symbol ?? '',
+        ];
+    }
+
+    protected function currencyKey(array $currency): string
+    {
+        return $currency['id'] === null ? 'unknown' : (string) $currency['id'];
     }
 
     protected function collateralCategory(PawnCollateralItem $item): string

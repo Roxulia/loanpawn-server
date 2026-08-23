@@ -112,9 +112,6 @@ class FinanceResourceLicenseQuotaTest extends TestCase
             code: $code,
             name: "{$code} Currency",
             symbol: null,
-            decimalPrecision: 2,
-            roundingMode: 'HALF_UP',
-            adjustmentStep: null,
             isActive: true,
         );
     }

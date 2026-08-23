@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Models\PlatformModule\PlatformUser;
 use App\Exceptions\RequiredValueMissing;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class PlatformUserRepository
 {
@@ -28,12 +29,25 @@ class PlatformUserRepository
         return $res;
     }
 
+    public function findByIdForUpdate(int $id): ?PlatformUser
+    {
+        return PlatformUser::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
     public function paginateAll(int $perPage = 15): LengthAwarePaginator
     {
         return PlatformUser::query()
             ->withCount(['tenants', 'tenantRequests'])
             ->orderByDesc('id')
             ->paginate($perPage);
+    }
+
+    public function activeOptions(): Collection
+    {
+        return PlatformUser::query()
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'email']);
     }
 
     public function create(array $data): PlatformUser
@@ -53,6 +67,17 @@ class PlatformUserRepository
     public function update(PlatformUser $platformUser, array $data): PlatformUser
     {
         $platformUser->update($data);
+
+        return $platformUser->refresh();
+    }
+
+    public function updatePasswordCredentials(PlatformUser $platformUser, string $passwordHash): PlatformUser
+    {
+        $platformUser->forceFill([
+            'password' => $passwordHash,
+            'remember_token' => null,
+            'update_key' => (int) $platformUser->update_key + 1,
+        ])->save();
 
         return $platformUser->refresh();
     }

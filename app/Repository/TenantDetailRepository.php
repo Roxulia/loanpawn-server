@@ -48,9 +48,17 @@ class TenantDetailRepository
     {
         return DB::table('tenants')
             ->leftJoin('tenant_licenses', 'tenant_licenses.tenant_id', '=', 'tenants.id')
+            ->leftJoin('packages', 'packages.id', '=', 'tenant_licenses.plan_id')
             ->leftJoin('tenant_contacts', 'tenant_contacts.tenant_id', '=', 'tenants.id')
             ->leftJoin('tenant_branding', 'tenant_branding.tenant_id', '=', 'tenants.id')
             ->leftJoin('tenant_settings', 'tenant_settings.tenant_id', '=', 'tenants.id')
+            ->leftJoin('currencies as default_currencies', 'default_currencies.id', '=', 'tenant_settings.default_currency_id')
+            ->leftJoin('currencies as reporting_currencies', 'reporting_currencies.id', '=', 'tenant_settings.reporting_currency_id')
+            ->leftJoin('reporting_currency_recalculations as currency_recalculations', function ($join): void {
+                $join->on('currency_recalculations.tenant_id', '=', 'tenants.id')
+                    ->whereIn('currency_recalculations.status', ['queued', 'processing', 'waiting_for_rates', 'failed']);
+            })
+            ->leftJoin('currencies as effective_reporting_currencies', 'effective_reporting_currencies.id', '=', 'currency_recalculations.previous_reporting_currency_id')
             ->select([
                 'tenants.id as tenant_id',
                 'tenants.name as tenant_name',
@@ -66,9 +74,23 @@ class TenantDetailRepository
                 'tenant_licenses.id as license_id',
                 'tenant_licenses.update_key as license_update_key',
                 'tenant_licenses.license_key as license_key',
+                'tenant_licenses.plan_id as license_plan_id',
                 'tenant_licenses.plan_type as license_plan_type',
                 'tenant_licenses.expires_at as license_expires_at',
                 'tenant_licenses.status as license_status',
+                'tenant_licenses.current_month_slip_count as license_current_month_slip_count',
+                'tenant_licenses.current_staff_count as license_current_staff_count',
+                'tenant_licenses.current_account_count as license_current_account_count',
+                'tenant_licenses.current_currency_type_count as license_current_currency_type_count',
+                'tenant_licenses.current_exchange_pair_count as license_current_exchange_pair_count',
+                'packages.code as license_plan_code',
+                'packages.name as license_plan_name',
+                'packages.rank as license_plan_rank',
+                'packages.max_slip_per_month as license_max_slip_per_month',
+                'packages.max_staff_count as license_max_staff_count',
+                'packages.max_account_count as license_max_account_count',
+                'packages.max_currency_type_count as license_max_currency_type_count',
+                'packages.max_exchange_pair_count as license_max_exchange_pair_count',
                 'tenant_branding.id as branding_id',
                 'tenant_branding.update_key as branding_update_key',
                 'tenant_branding.logo_path as branding_logo_path',
@@ -83,6 +105,17 @@ class TenantDetailRepository
                 'tenant_settings.key as setting_key',
                 'tenant_settings.value as setting_value',
                 'tenant_settings.category as setting_category',
+                'tenant_settings.default_currency_id as setting_default_currency_id',
+                'tenant_settings.reporting_currency_id as setting_reporting_currency_id',
+                'default_currencies.symbol as setting_default_currency_symbol',
+                'reporting_currencies.symbol as setting_reporting_currency_symbol',
+                'currency_recalculations.id as currency_recalculation_id',
+                'currency_recalculations.status as currency_recalculation_status',
+                'currency_recalculations.previous_reporting_currency_id as effective_reporting_currency_id',
+                'currency_recalculations.window_start as currency_recalculation_window_start',
+                'currency_recalculations.window_end as currency_recalculation_window_end',
+                'currency_recalculations.missing_rates as currency_recalculation_missing_rates',
+                'effective_reporting_currencies.symbol as effective_reporting_currency_symbol',
             ]);
     }
 
@@ -128,11 +161,35 @@ class TenantDetailRepository
         $detail = new TenantLicenseDetail();
         $detail->licenseKey = $row->license_key;
         $detail->updateKey = (int) $row->license_update_key;
-        $detail->planType = $row->license_plan_type;
+        $detail->planId = $row->license_plan_id === null ? null : (int) $row->license_plan_id;
+        $detail->planCode = $row->license_plan_code ?? $row->license_plan_type;
+        $detail->planName = $row->license_plan_name;
+        $detail->planRank = $row->license_plan_rank === null ? null : (int) $row->license_plan_rank;
+        $detail->planType = $detail->planCode;
         $detail->expiresAt = $row->license_expires_at
             ? Carbon::parse($row->license_expires_at)->toISOString()
             : null;
         $detail->status = $row->license_status;
+        $detail->currentMonthSlipCount = (int) $row->license_current_month_slip_count;
+        $detail->currentStaffCount = (int) $row->license_current_staff_count;
+        $detail->currentAccountCount = (int) $row->license_current_account_count;
+        $detail->currentCurrencyTypeCount = (int) $row->license_current_currency_type_count;
+        $detail->currentExchangePairCount = (int) $row->license_current_exchange_pair_count;
+        $detail->maxSlipPerMonth = $row->license_max_slip_per_month === null
+            ? null
+            : (int) $row->license_max_slip_per_month;
+        $detail->maxStaffCount = $row->license_max_staff_count === null
+            ? null
+            : (int) $row->license_max_staff_count;
+        $detail->maxAccountCount = $row->license_max_account_count === null
+            ? null
+            : (int) $row->license_max_account_count;
+        $detail->maxCurrencyTypeCount = $row->license_max_currency_type_count === null
+            ? null
+            : (int) $row->license_max_currency_type_count;
+        $detail->maxExchangePairCount = $row->license_max_exchange_pair_count === null
+            ? null
+            : (int) $row->license_max_exchange_pair_count;
 
         return $detail;
     }
@@ -174,6 +231,28 @@ class TenantDetailRepository
         }
 
         $detail = new TenantSettingDetail();
+        $currencyRow = $settingRows->first(fn (stdClass $row) => $row->setting_key === 'currency_preferences');
+        if ($currencyRow !== null) {
+            $detail->default_currency_id = $currencyRow->setting_default_currency_id === null ? null : (int) $currencyRow->setting_default_currency_id;
+            $detail->reporting_currency_id = $currencyRow->setting_reporting_currency_id === null ? null : (int) $currencyRow->setting_reporting_currency_id;
+            $detail->effective_reporting_currency_id = $currencyRow->effective_reporting_currency_id === null
+                ? $detail->reporting_currency_id
+                : (int) $currencyRow->effective_reporting_currency_id;
+            $detail->default_currency_symbol = $currencyRow->setting_default_currency_symbol;
+            $detail->reporting_currency_symbol = $currencyRow->setting_reporting_currency_symbol;
+            $detail->effective_reporting_currency_symbol = $currencyRow->effective_reporting_currency_symbol
+                ?? $currencyRow->setting_reporting_currency_symbol;
+            $detail->default_financial_unit = $currencyRow->setting_value;
+            $detail->reporting_currency_recalculation = $currencyRow->currency_recalculation_id === null ? null : [
+                'id' => (int) $currencyRow->currency_recalculation_id,
+                'status' => $currencyRow->currency_recalculation_status,
+                'window_start' => $currencyRow->currency_recalculation_window_start,
+                'window_end' => $currencyRow->currency_recalculation_window_end,
+                'missing_rates' => $currencyRow->currency_recalculation_missing_rates
+                    ? json_decode($currencyRow->currency_recalculation_missing_rates, true)
+                    : [],
+            ];
+        }
         $detail->items = $settingRows
             ->map(function (stdClass $row) {
                 $item = new TenantSettingItem();

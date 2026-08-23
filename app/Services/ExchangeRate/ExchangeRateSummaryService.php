@@ -3,7 +3,6 @@
 namespace App\Services\ExchangeRate;
 
 use App\Repository\ExchangeRateEntryRepository;
-use Carbon\CarbonImmutable;
 
 class ExchangeRateSummaryService
 {
@@ -12,40 +11,6 @@ class ExchangeRateSummaryService
         private DailyExchangeRateSummaryPersistenceService $summaries,
         private ExchangeRateBusinessClock $clock,
     ) {}
-
-    public function refreshCurrentBusinessDays(): void
-    {
-        $utcNow = CarbonImmutable::now('UTC');
-        $targets = $this->entries->summaryTargetsBetween(
-            $utcNow->subDays(2)->toDateString(),
-            $utcNow->addDay()->toDateString(),
-        );
-        $businessTimes = [];
-
-        foreach ($targets as $target) {
-            $tenantId = $target->tenant_id === null ? null : (int) $target->tenant_id;
-            $pairId = (int) $target->exchange_rate_pair_id;
-            $clockKey = $tenantId === null ? 'platform' : "tenant:{$tenantId}";
-            $businessNow = $businessTimes[$clockKey] ??= $this->clock->now($tenantId);
-            $rateDate = $target->effective_date->toDateString();
-            $identity = [
-                'scope_key' => $target->scope_key,
-                'exchange_rate_pair_id' => $pairId,
-                'rate_date' => $rateDate,
-            ];
-
-            if ($rateDate === $businessNow->toDateString()) {
-                $this->rebuild($target->scope_key, $tenantId, $pairId, $rateDate);
-
-                continue;
-            }
-
-            if ($rateDate === $businessNow->subDay()->toDateString()
-                && $this->summaries->requiresFinalization($identity, $businessNow->startOfDay()->utc())) {
-                $this->rebuild($target->scope_key, $tenantId, $pairId, $rateDate);
-            }
-        }
-    }
 
     public function rebuild(string $scopeKey, ?int $tenantId, int $pairId, string $date): void
     {

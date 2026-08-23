@@ -12,6 +12,8 @@ use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\TenantAccountingDay;
+use App\Models\TenantAccountingTransactions;
+use App\Repository\TenantAccountingDayRepository;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Support\TenantContext;
@@ -95,6 +97,29 @@ class TenantAccountingDayServiceTest extends TestCase
         $this->assertDatabaseHas('tenant_accounting_days', ['business_date' => '2026-08-12', 'status' => 'OPEN']);
     }
 
+    public function test_day_summary_normalizes_internal_category_enum(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-12 10:00:00', 'Asia/Yangon'));
+        [$tenant, $user] = $this->actingTenant([]);
+        TenantAccountingTransactions::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_date' => '2026-08-12',
+            'transaction_direction' => 'internal',
+            'accounting_category' => AccountingCategory::Internal,
+            'amount' => 5000,
+            'description' => 'Financial account transfer',
+            'occurred_at' => now(),
+            'created_by' => $user->id,
+            'update_key' => 0,
+            'is_deleted' => false,
+        ]);
+
+        $summary = app(TenantAccountingDayRepository::class)->summaryData($tenant->id, '2026-08-12')[0];
+
+        $this->assertSame(5000.0, $summary['category_totals']['internal']);
+        $this->assertSame(0.0, $summary['closing_balance']);
+    }
+
     private function actingTenant(array $permissions): array
     {
         $owner = PlatformUser::query()->create([
@@ -126,6 +151,7 @@ class TenantAccountingDayServiceTest extends TestCase
             'name' => 'Accounting User',
             'email' => 'accounting-user-'.random_int(1, 999999).'@example.com',
             'phone' => '09222222222',
+            'nrc' => '12/TEST(N)'.random_int(100000, 999999),
             'password' => 'secret123',
             'status' => 'active',
             'is_deleted' => false,

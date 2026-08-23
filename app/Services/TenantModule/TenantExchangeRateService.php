@@ -5,6 +5,7 @@ namespace App\Services\TenantModule;
 use App\DataObjects\RequestObjects\CorrectExchangeRateRequest;
 use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
 use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
+use App\Events\ExchangeRateChanged;
 use App\Exceptions\InvalidTenantRequest;
 use App\Exceptions\TenantAccessDenied;
 use App\Models\CoreModule\ExchangeRateEntry;
@@ -20,15 +21,24 @@ use App\Services\ExchangeRate\ExchangeRateResolverService;
 use App\Utility\MessageCode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
+use App\Services\TenantModule\Accounting\ReportingCurrencyRecalculationService;
 
 class TenantExchangeRateService extends BaseTenantService
 {
-    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private ExchangeRateResolverService $resolver, private ExchangeRateActionPolicy $actions, private ExchangeRateBusinessClock $clock) {}
+    public function __construct(private ExchangeRateEntryRepository $entries, private ExchangeRatePairRepository $pairs, private ExchangeRateEntryWriter $writer, private ExchangeRateCorrectionService $corrections, private ExchangeRateResolverService $resolver, private ExchangeRateActionPolicy $actions, private ExchangeRateBusinessClock $clock, private ReportingCurrencyRecalculationService $reportingCurrencyRecalculationService) {}
 
     public function list(int $perPage = 50, ?string $pairCode = null): LengthAwarePaginator
     {
         $page = $this->entries->visibleToTenant($this->resolveCurrentTenantId(), $perPage, $pairCode);
-        $page->through(fn (ExchangeRateEntry $entry) => $this->actions->apply($entry));
+        $page->through(function (ExchangeRateEntry $entry): ExchangeRateEntry {
+            $entry = $this->actions->apply($entry);
+            if ($entry->effective_date->toDateString() !== $this->clock->now($entry->tenant_id)->toDateString()) {
+                $entry->setAttribute('can_correct', false);
+                $entry->setAttribute('can_void', false);
+            }
+
+            return $entry;
+        });
 
         return $page;
     }
@@ -41,17 +51,29 @@ class TenantExchangeRateService extends BaseTenantService
     public function create(StoreExchangeRateRequest $request): ExchangeRateEntry
     {
         $tenantId = $this->resolveCurrentTenantId();
+        $businessDate = $this->clock->now($tenantId)->toDateString();
+        if ($request->effectiveDate !== null && $request->effectiveDate !== $businessDate) {
+            throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceExchangeRateActionWindowClosed));
+        }
         $pair = $this->pairs->findVisible($request->pairCode, $tenantId);
         if (! $pair || ! $pair->is_active) {
             throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceActiveVisibleExchangePairRequired));
         }
 
-        return $this->writer->create($pair, $request->toArray(), $tenantId, Auth::guard('tenantuser')->id(), null);
+        $entry = $this->writer->create($pair, $request->toArray(), $tenantId, Auth::guard('tenantuser')->id(), null);
+        if ($entry->wasRecentlyCreated) {
+            event(ExchangeRateChanged::fromEntry($entry));
+        }
+        $this->reportingCurrencyRecalculationService->retryPendingForTenant($tenantId);
+
+        return $entry;
     }
 
     public function correct(string $code, CorrectExchangeRateRequest $request): ExchangeRateEntry
     {
         $entry = $this->owned($code);
+
+        $this->assertCurrentBusinessDay($entry);
 
         $this->actions->assertCorrectable($entry);
 
@@ -61,6 +83,7 @@ class TenantExchangeRateService extends BaseTenantService
     public function void(string $code, VoidExchangeRateRequest $request): void
     {
         $entry = $this->owned($code);
+        $this->assertCurrentBusinessDay($entry);
         $this->actions->assertVoidable($entry);
         $this->corrections->void($entry, $request->reason, Auth::guard('tenantuser')->id(), null);
     }
@@ -91,5 +114,12 @@ class TenantExchangeRateService extends BaseTenantService
     private function owned(string $code): ExchangeRateEntry
     {
         return $this->entries->findOwned($code, $this->resolveCurrentTenantId()) ?? throw new TenantAccessDenied($this->responseMessage(MessageCode::FinanceTenantExchangeRateModificationDenied));
+    }
+
+    private function assertCurrentBusinessDay(ExchangeRateEntry $entry): void
+    {
+        if ($entry->effective_date->toDateString() !== $this->clock->now($entry->tenant_id)->toDateString()) {
+            throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceExchangeRateActionWindowClosed));
+        }
     }
 }

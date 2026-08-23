@@ -4,9 +4,12 @@ namespace App\Services\ExchangeRate;
 
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Models\CoreModule\ExchangeRatePair;
+use App\Repository\ExchangeRateEntryRepository;
 
 class ExchangeRateResolverService
 {
+    public function __construct(private ExchangeRateEntryRepository $entries) {}
+
     public function resolve(ExchangeRatePair $pair, ?int $tenantId, string $date): ?ExchangeRateEntry
     {
         if ($tenantId) {
@@ -21,6 +24,11 @@ class ExchangeRateResolverService
 
     private function latest(string $scopeKey, int $pairId, string $date): ?ExchangeRateEntry
     {
-        return ExchangeRateEntry::query()->with('pair.baseCurrency', 'pair.quoteCurrency')->where('scope_key', $scopeKey)->where('exchange_rate_pair_id', $pairId)->whereDate('effective_date', '<=', $date)->where('is_void', false)->orderByDesc('effective_date')->orderByDesc('observed_at')->orderByDesc('id')->first();
+        return $this->entries->latestActiveOnOrBefore($scopeKey, $pairId, $date);
+    }
+
+    public function resolveExact(ExchangeRatePair $pair, int $tenantId, string $date): ?ExchangeRateEntry
+    {
+        return $this->entries->exactForTenantThenPlatform($tenantId, $pair->id, $date);
     }
 }

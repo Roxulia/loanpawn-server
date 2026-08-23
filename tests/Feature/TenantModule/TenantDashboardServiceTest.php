@@ -3,6 +3,7 @@
 namespace Tests\Feature\TenantModule;
 
 use App\DataObjects\RequestObjects\DashboardTimeFilter;
+use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\TenantCapital;
@@ -11,6 +12,8 @@ use App\Models\CoreModule\TenantDebt;
 use App\Models\CoreModule\TenantExpense;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
+use App\Models\FinancialAccount;
+use App\Models\FinancialAccountTypes;
 use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
@@ -43,6 +46,8 @@ class TenantDashboardServiceTest extends TestCase
 
         $tenant = $this->createTenant();
         $this->actingTenantUser($tenant, ['dashboard']);
+        $mmkAccount = $this->createFinancialAccount($tenant, 'MMK', 'K');
+        $usdAccount = $this->createFinancialAccount($tenant, 'USD', '$');
 
         $gold = MaterialType::query()->create([
             'tenant_id' => null,
@@ -58,8 +63,8 @@ class TenantDashboardServiceTest extends TestCase
         ]);
         $overdueCustomer = $this->createCustomer($tenant, 'Overdue Customer', 80);
         $dueCustomer = $this->createCustomer($tenant, 'Due Customer', 180);
-        $overdueSlip = $this->createSlip($tenant, $overdueCustomer, 'LS-OVERDUE', 1000000, '2026-06-10');
-        $dueSlip = $this->createSlip($tenant, $dueCustomer, 'LS-DUE', 200000, '2026-06-18');
+        $overdueSlip = $this->createSlip($tenant, $overdueCustomer, $mmkAccount, 'LS-OVERDUE', 1000000, '2026-06-10');
+        $dueSlip = $this->createSlip($tenant, $dueCustomer, $usdAccount, 'LS-DUE', 200000, '2026-06-18');
 
         $capital = TenantCapital::query()->create([
             'tenant_id' => $tenant->id,
@@ -74,6 +79,7 @@ class TenantDashboardServiceTest extends TestCase
             'transaction_direction' => 'incoming',
             'accounting_category' => 'equity',
             'amount' => 5000000,
+            'reporting_amount' => 5000,
             'reference_id' => $capital->id,
             'reference_type' => TenantCapital::class,
             'business_date' => '2026-06-12',
@@ -86,6 +92,7 @@ class TenantDashboardServiceTest extends TestCase
             'transaction_direction' => 'outgoing',
             'accounting_category' => 'asset',
             'amount' => 1200000,
+            'reporting_amount' => 1200,
             'reference_id' => $overdueSlip->id,
             'reference_type' => PawnLoanContractSlip::class,
             'business_date' => '2026-06-13',
@@ -98,6 +105,7 @@ class TenantDashboardServiceTest extends TestCase
             'transaction_direction' => 'incoming',
             'accounting_category' => 'revenue',
             'amount' => 3000000,
+            'reporting_amount' => 3000,
             'business_date' => '2026-05-30',
             'occurred_at' => '2026-05-30 08:00:00',
             'created_at' => '2026-05-30 08:00:00',
@@ -115,6 +123,7 @@ class TenantDashboardServiceTest extends TestCase
             'transaction_direction' => 'outgoing',
             'accounting_category' => 'expense',
             'amount' => 1000000,
+            'reporting_amount' => 1000,
             'reference_id' => $expense->id,
             'reference_type' => TenantExpense::class,
             'business_date' => '2026-06-13',
@@ -133,10 +142,11 @@ class TenantDashboardServiceTest extends TestCase
         $debt->save();
         TenantAccountingTransactions::query()->create([
             'tenant_id' => $tenant->id,
-            'description' => 'Debt payment',
-            'transaction_direction' => 'incoming',
+            'description' => 'Debt creation',
+            'transaction_direction' => 'outgoing',
             'accounting_category' => 'liability',
             'amount' => 50000,
+            'reporting_amount' => 50,
             'reference_id' => $debt->id,
             'reference_type' => TenantDebt::class,
             'business_date' => '2026-06-12',
@@ -157,13 +167,14 @@ class TenantDashboardServiceTest extends TestCase
             'transaction_direction' => 'incoming',
             'accounting_category' => 'revenue',
             'amount' => 300000,
+            'reporting_amount' => 300,
             'reference_id' => $interestPayment->id,
             'reference_type' => PawnInterestPayment::class,
             'business_date' => '2026-06-12',
             'occurred_at' => '2026-06-12 08:00:00',
             'created_at' => '2026-06-12 08:00:00',
         ]);
-        PawnRedemption::query()->create([
+        $redemption = PawnRedemption::query()->create([
             'tenant_id' => $tenant->id,
             'slip_number' => 'LS-RETURNED',
             'slip_id' => $dueSlip->id,
@@ -173,6 +184,19 @@ class TenantDashboardServiceTest extends TestCase
             'received_amount' => 900000,
             'change_amount' => 0,
             'redemption_at' => '2026-06-12 00:00:00',
+        ]);
+        TenantAccountingTransactions::query()->create([
+            'tenant_id' => $tenant->id,
+            'description' => 'Redemption payment',
+            'transaction_direction' => 'incoming',
+            'accounting_category' => 'asset',
+            'amount' => 900000,
+            'reporting_amount' => 900,
+            'reference_id' => $redemption->id,
+            'reference_type' => PawnRedemption::class,
+            'business_date' => '2026-06-12',
+            'occurred_at' => '2026-06-12 08:00:00',
+            'created_at' => '2026-06-12 08:00:00',
         ]);
         PawnCollateralItem::query()->create([
             'tenant_id' => $tenant->id,
@@ -222,26 +246,41 @@ class TenantDashboardServiceTest extends TestCase
             ))
             ->toArray();
 
-        $this->assertSame(6150000.0, $summary['financial']['cashAvailable']);
+        $this->assertSame(6950.0, $summary['financial']['cashAvailable']);
         $this->assertSame(1200000.0, $summary['financial']['activeLoanAmount']);
+        $this->assertSame(
+            ['MMK' => 1000000.0, 'USD' => 200000.0],
+            collect($summary['financial']['activeLoanAmounts'])->mapWithKeys(fn (array $item) => [$item['currency']['code'] => $item['amount']])->all(),
+        );
         $this->assertSame(2, $summary['financial']['activeLoanCount']);
-        $this->assertSame(300000.0, $summary['financial']['interestCollected']);
-        $this->assertSame(300000.0, $summary['financial']['totalIncome']);
-        $this->assertSame(1000000.0, $summary['financial']['totalExpenses']);
-        $this->assertSame(-1850000.0, $summary['financial']['netProfit']);
-        $this->assertSame(1250000.0, $summary['financial']['chart'][0]['loanAmount']);
-        $this->assertSame(900000.0, $summary['financial']['chart'][11]['returnedAmount']);
-        $this->assertSame(300000.0, $summary['financial']['chart'][11]['interest']);
+        $this->assertSame(300.0, $summary['financial']['interestCollected']);
+        $this->assertSame(300.0, $summary['financial']['totalIncome']);
+        $this->assertSame(1000.0, $summary['financial']['totalExpenses']);
+        $this->assertSame(-1050.0, $summary['financial']['netProfit']);
+        $this->assertSame(1200000.0, $summary['financial']['chart'][0]['loanAmount']);
+        $this->assertSame(
+            ['MMK' => 1000000.0, 'USD' => 200000.0],
+            collect($summary['financial']['chart'][0]['loanAmounts'])->mapWithKeys(fn (array $item) => [$item['currency']['code'] => $item['amount']])->all(),
+        );
+        $this->assertSame(50.0, $summary['financial']['chart'][11]['debt']);
+        $this->assertSame(900.0, $summary['financial']['chart'][11]['returnedAmount']);
+        $this->assertSame(300.0, $summary['financial']['chart'][11]['interest']);
 
         $this->assertSame(0, $summary['risk']['dueToday']);
         $this->assertSame(1, $summary['risk']['dueThisWeek']);
         $this->assertSame(1, $summary['risk']['overdueLoans']);
         $this->assertSame(1000000.0, $summary['risk']['overdueAmount']);
+        $this->assertSame(1000000.0, $summary['risk']['overdueAmounts'][0]['amount']);
+        $this->assertSame('MMK', $summary['risk']['loansRequiringAttention'][0]['currency']['code']);
         $this->assertSame(1, $summary['risk']['highRiskCustomers']);
         $this->assertSame('High', $summary['risk']['loansRequiringAttention'][0]['riskLevel']);
         $this->assertSame('Medium', $summary['risk']['loansRequiringAttention'][1]['riskLevel']);
 
         $this->assertSame(2500000.0, $summary['collateral']['totalCollateralValue']);
+        $this->assertSame(
+            ['MMK' => 2000000.0, 'USD' => 500000.0],
+            collect($summary['collateral']['totalCollateralValues'])->mapWithKeys(fn (array $item) => [$item['currency']['code'] => $item['amount']])->all(),
+        );
         $this->assertSame(2000000.0, $summary['collateral']['goldJewelryValue']);
         $this->assertCount(2, $summary['collateral']['items']);
         $this->assertSame('Gold', $summary['collateral']['categoryBreakdown'][0]['category']);
@@ -311,12 +350,42 @@ class TenantDashboardServiceTest extends TestCase
         ]);
     }
 
-    protected function createSlip(Tenant $tenant, TenantCustomer $customer, string $slipNo, float $amount, string $expireDate): PawnLoanContractSlip
+    protected function createFinancialAccount(Tenant $tenant, string $currencyCode, string $symbol): FinancialAccount
+    {
+        $type = FinancialAccountTypes::query()->firstOrCreate(
+            ['tenant_id' => null, 'code' => 'dashboard-cash'],
+            ['name' => 'Dashboard Cash', 'is_active' => true],
+        );
+        $currency = Currency::query()->create([
+            'tenant_id' => $tenant->id,
+            'scope_key' => 'dashboard-'.$tenant->id,
+            'code' => $currencyCode,
+            'name' => $currencyCode,
+            'symbol' => $symbol,
+            'is_active' => true,
+        ]);
+
+        return FinancialAccount::query()->create([
+            'tenant_id' => $tenant->id,
+            'account_type_id' => $type->id,
+            'currency_id' => $currency->id,
+            'account_number' => $currencyCode.'-001',
+            'account_name' => $currencyCode.' Cash',
+            'account_code' => 'DASH-'.$currencyCode,
+            'balance' => 0,
+            'is_active' => true,
+            'is_default' => $currencyCode === 'MMK',
+            'is_deleted' => false,
+        ]);
+    }
+
+    protected function createSlip(Tenant $tenant, TenantCustomer $customer, FinancialAccount $account, string $slipNo, float $amount, string $expireDate): PawnLoanContractSlip
     {
         return PawnLoanContractSlip::query()->create([
             'tenant_id' => $tenant->id,
             'slip_no' => $slipNo,
             'customer_id' => $customer->id,
+            'account_id' => $account->id,
             'loan_amount' => $amount,
             'interest_rate' => 5,
             'created_at' => '2026-06-01 00:00:00',

@@ -5,6 +5,7 @@ namespace App\Services\PlatformModule;
 use App\DataObjects\RequestObjects\CorrectExchangeRateRequest;
 use App\DataObjects\RequestObjects\StoreExchangeRateRequest;
 use App\DataObjects\RequestObjects\VoidExchangeRateRequest;
+use App\Events\ExchangeRateChanged;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\ExchangeRateEntry;
 use App\Repository\ExchangeRateEntryRepository;
@@ -36,7 +37,12 @@ class AdminExchangeRateService
             throw new InvalidTenantRequest($this->messages->responseMessage(MessageCode::FinanceActiveDefaultExchangePairRequired));
         }
 
-        return $this->writer->create($pair, $request->toArray(), null, null, Auth::guard('platformadmin')->id());
+        $entry = $this->writer->create($pair, $request->toArray(), null, null, Auth::guard('platformadmin')->id());
+        if ($entry->wasRecentlyCreated) {
+            event(ExchangeRateChanged::fromEntry($entry));
+        }
+
+        return $entry;
     }
 
     public function correct(ExchangeRateEntry $entry, CorrectExchangeRateRequest $request): ExchangeRateEntry

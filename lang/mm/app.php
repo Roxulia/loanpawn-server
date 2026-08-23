@@ -6,6 +6,7 @@ return [
             'success' => 'တောင်းဆိုမှု အောင်မြင်စွာ ပြီးဆုံးပါသည်။',
             'failed' => 'တောင်းဆိုမှု မအောင်မြင်ပါ။',
             'validation_failed' => 'စစ်ဆေးမှု မအောင်မြင်ပါ။',
+            'frontend_update_required' => 'ဤအက်ပ်ဗားရှင်းကို ဆက်လက်ပံ့ပိုးမထားပါ။ ပြောင်းလဲမှုမပြုလုပ်မီ အက်ပ်ကို refresh လုပ်၍ update ပြုလုပ်ပါ။',
             'locale' => [
                 'set_failed' => 'ဘာသာစကား သတ်မှတ်၍ မရပါ။ ထောက်ပံ့မထားသော ဘာသာစကား ဖြစ်ပါသည်။',
                 'set_success' => 'ဘာသာစကား သတ်မှတ်ပြီးပါပြီ။',
@@ -163,6 +164,7 @@ return [
                 'created' => 'Platform အသုံးပြုသူ ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'Platform အသုံးပြုသူ ပြင်ဆင်ပြီးပါပြီ။',
                 'deleted' => 'Platform အသုံးပြုသူ ဖျက်ပြီးပါပြီ။',
+                'password_reset' => 'Platform အသုံးပြုသူ၏ စကားဝှက်ကို သတ်မှတ်ထားသော မူလစကားဝှက်သို့ ပြန်လည်သတ်မှတ်ပြီးပါပြီ။',
             ],
             'package_flags' => [
                 'updated' => 'Feature နှင့် plan flags များ ပြင်ဆင်ပြီးပါပြီ။',
@@ -301,6 +303,15 @@ return [
             'customer_service' => 'Customer Service',
             'user_setting' => 'User Setting',
             'user_setting_description' => 'Manage your platform account preferences.',
+            'language_preferences' => 'ဘာသာစကား ရွေးချယ်မှု',
+            'language_preferences_description' => 'သင့် platform အကောင့်တွင် အသုံးပြုမည့် ဘာသာစကားကို ရွေးချယ်ပါ။',
+            'change_password' => 'စကားဝှက် ပြောင်းရန်',
+            'change_password_description' => 'သင့် platform စကားဝှက်ကို ပြောင်းလဲပါ။ လက်ရှိ session ကို ဆက်လက်အသုံးပြုနိုင်ပါသည်။',
+            'current_password' => 'လက်ရှိ စကားဝှက်',
+            'confirm_password' => 'စကားဝှက်အသစ် အတည်ပြုရန်',
+            'password_requirements' => 'စာလုံးအကြီး၊ စာလုံးအသေး၊ နံပါတ်နှင့် သင်္ကေတတို့ပါဝင်သော အနည်းဆုံး စာလုံး ၈ လုံးကို အသုံးပြုပါ။',
+            'changing_password' => 'စကားဝှက် ပြောင်းနေသည်...',
+            'password_change_failed' => 'စကားဝှက်ကို မပြောင်းနိုင်ပါ။ ထပ်မံကြိုးစားပါ။',
             'admin_dashboard' => 'အက်ဒမင် Dashboard',
             'admin_dashboard_description' => 'Platform တစ်ခုလုံး၏ tenant၊ အသုံးပြုသူ၊ billing နှင့် ငွေပေးချေမှု အတည်ပြုချက် အကျဉ်းချုပ်။',
             'platform_user_management' => 'Platform အသုံးပြုသူ စီမံခန့်ခွဲမှု',
@@ -324,6 +335,7 @@ return [
                 'exchange_rate' => ['recorded' => 'ပလက်ဖောင်းငွေလဲနှုန်းကို မှတ်တမ်းတင်ပြီးပါပြီ။', 'corrected' => 'ပလက်ဖောင်းငွေလဲနှုန်းကို ပြင်ဆင်ပြီးပါပြီ။', 'voided' => 'ပလက်ဖောင်းငွေလဲနှုန်းကို ပယ်ဖျက်ပြီးပါပြီ။'],
             ],
             'tenant' => [
+                'financial_account_assignments_updated' => 'ငွေစာရင်း အကောင့်အသုံးပြုခွင့်များကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။',
                 'currency' => ['created' => 'ငွေကြေးကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ။', 'updated' => 'ငွေကြေးကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'ငွေကြေးကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'],
                 'financial_account_type' => ['created' => 'Financial account type ဖန်တီးပြီးပါပြီ။', 'updated' => 'Financial account type ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'Financial account type ဖျက်ပြီးပါပြီ။'],
                 'exchange_pair' => ['created' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ။', 'updated' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။', 'deleted' => 'ငွေလဲလှယ်မှုအတွဲကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'],
@@ -358,6 +370,14 @@ return [
             'visible_active_currencies_required' => 'ငွေကြေးနှစ်ခုလုံးသည် အသုံးပြုနိုင်ပြီး ဤ Tenant တွင် မြင်တွေ့နိုင်ရပါမည်။',
             'distinct_pair_currencies_required' => 'အခြေခံငွေကြေးနှင့် နှိုင်းယှဉ်ငွေကြေးသည် မတူညီရပါမည်။',
             'resource_limit_reached' => 'သင့် Plan ၏ အသုံးပြုနိုင်သည့် အရေအတွက် ကန့်သတ်ချက် ပြည့်သွားပါပြီ။',
+            'financial_unit_invalid' => 'ရွေးချယ်ထားသော ငွေကြေးယူနစ် မမှန်ကန်ပါ။',
+            'financial_amount_too_large' => 'ပြောင်းလဲတွက်ချက်ထားသော ငွေပမာဏသည် အလွန်ကြီးမားနေပါသည်။',
+            'account_not_assigned' => 'ဤငွေစာရင်းအကောင့်ကို အသုံးပြုရန် သင့်အား ခွင့်ပြုထားခြင်း မရှိပါ။',
+            'assignment_self_denied' => 'မိမိ၏ ငွေစာရင်းအကောင့်အသုံးပြုခွင့်ကို မိမိကိုယ်တိုင် ထည့်ခြင်း သို့မဟုတ် ဖယ်ရှားခြင်း မပြုလုပ်နိုင်ပါ။',
+            'assignment_owner_denied' => 'ပိုင်ရှင်၏ ငွေစာရင်းအကောင့်အသုံးပြုခွင့်များကို ပြောင်းလဲ၍ မရပါ။',
+            'assignment_invalid_accounts' => 'ရွေးချယ်ထားသော ငွေစာရင်းအကောင့်အားလုံးသည် ဤလုပ်ငန်းပိုင်ဖြစ်ပြီး အသုံးပြုနိုင်ရပါမည်။',
+            'assignment_active_user_required' => 'အသုံးပြုနေဆဲ ဝန်ထမ်းအကောင့်ကိုသာ ငွေစာရင်းအကောင့် အသုံးပြုခွင့်ပေးနိုင်ပါသည်။',
+            'assignment_owner_required' => 'ငွေစာရင်းအကောင့် မဖန်တီးမီ လုပ်ငန်းပိုင်ရှင် ရှိရပါမည်။',
             'exchange_rate_not_found' => 'ငွေလဲနှုန်းကို ရှာမတွေ့ပါ။',
             'active_visible_exchange_pair_required' => 'အသုံးပြုနိုင်ပြီး မြင်တွေ့နိုင်သော ငွေလဲလှယ်မှုအတွဲကို ရွေးချယ်ပါ။',
             'tenant_exchange_rate_modification_denied' => 'Tenant မှ ဖန်တီးထားသော ငွေလဲနှုန်းမှတ်တမ်းများကိုသာ ပြင်ဆင်နိုင်ပါသည်။',
@@ -465,6 +485,8 @@ return [
 
     'tenant' => [
         'response' => [
+            'notification' => ['read' => 'အသိပေးချက်ကို ဖတ်ပြီးအဖြစ် သတ်မှတ်ပြီးပါပြီ။'],
+            'notifications' => ['read' => 'အသိပေးချက်များကို ဖတ်ပြီးအဖြစ် သတ်မှတ်ပြီးပါပြီ။'],
             'debt' => [
                 'created' => 'အကြွေး ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'အကြွေး ပြင်ဆင်ပြီးပါပြီ။',
@@ -564,6 +586,7 @@ return [
     'exception' => [
         'exception' => [
             'not_tenant_user' => 'You are not from this tenant',
+            'owner_account_protected' => 'Owner သာ မိမိ၏ profile ကို ပြင်ဆင်ခြင်း သို့မဟုတ် မိမိ၏ password ကို default password သို့ reset ပြုလုပ်ခြင်း လုပ်နိုင်ပါသည်။ Owner role၊ permissions၊ financial accounts၊ status နှင့် deactivation များကို ပြောင်းလဲ၍မရပါ။',
             'not_owner' => 'You do not own this tenant',
             'not_enough_permission' => 'You do not have enough permission to perform this action',
             'file_must_image' => 'Uploaded File type must be Image',

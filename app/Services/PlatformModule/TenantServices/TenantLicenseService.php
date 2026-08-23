@@ -73,6 +73,27 @@ class TenantLicenseService extends BaseTenantService
         return $license;
     }
 
+    public function getTenantLicenseForUpdate(int $tenantId): TenantLicense
+    {
+        $license = $this->repository->findByTenantIdForUpdate($tenantId);
+
+        if (! $license) {
+            throw new TenantNotFound('Tenant license not found.');
+        }
+
+        return $license->loadMissing('plan');
+    }
+
+    public function updateLicense(TenantLicense $license, array $data): TenantLicense
+    {
+        return $this->repository->update($license, $data);
+    }
+
+    public function createPlanTransition(array $data): void
+    {
+        $this->repository->createPlanTransition($data);
+    }
+
     public function validateLicenseKey(string $licenseKey): LicenseValidationResult
     {
         $license = $this->repository->findByLicenseKey($licenseKey);
@@ -195,7 +216,7 @@ class TenantLicenseService extends BaseTenantService
 
     public function createStatusLog(array $data): LicenseStatusLog
     {
-        return LicenseStatusLog::query()->create($data);
+        return $this->repository->createStatusLog($data);
     }
 
     public function applyApprovedTenantRequest(TenantRequest $tenantRequest, int $approvedBy, ?string $adminReviewNote = null): TenantLicense

@@ -16,6 +16,7 @@ class TenantAccountingTransactionRepository
     {
         $query = TenantAccountingTransactions::query()
             ->where('is_deleted', false)
+            ->where('transaction_direction', '!=', 'internal')
             ->orderByDesc('occurred_at')
             ->orderByDesc('id');
 
