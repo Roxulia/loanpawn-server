@@ -9,7 +9,7 @@
 ## UI Redesign Workflow
 
 When the user asks to redesign a page or work with UI:
-
+Only do the following if user didn't give you reference UI or UI description.
 1. Inspect the existing Blade page/component using filesystem access.
 2. Identify:
    - page purpose

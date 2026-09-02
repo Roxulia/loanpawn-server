@@ -55,10 +55,13 @@ class PackageRepository
     public function activeCategoriesWithPlans(): Collection
     {
         return TenantCategory::query()
-            ->with(['packages' => fn ($query) => $query
-                ->where('is_active', true)
-                ->where('is_deleted', false)
-                ->orderBy('rank')])
+            ->with([
+                'packages' => fn ($query) => $query
+                    ->where('is_active', true)
+                    ->where('is_deleted', false)
+                    ->orderBy('rank'),
+                'packages.packageFeatures.feature',
+            ])
             ->where('is_active', true)
             ->where('is_deleted', false)
             ->orderBy('name')
