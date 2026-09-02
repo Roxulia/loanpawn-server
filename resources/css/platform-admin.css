@@ -116,6 +116,72 @@ body.platform-admin-layout {
 .admin-finance-dialog label { display: grid; gap: 7px; color: var(--color-heading); font-size: 13px; font-weight: 750; }
 .admin-tenant-create__wide { grid-column: 1 / -1; }
 .admin-tenant-create__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.admin-tenant-wizard { max-width: 1180px; padding: 0 !important; overflow: hidden; }
+.admin-tenant-wizard__steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border-bottom: 1px solid #dce9ed; background: #f8fbfc; }
+.admin-tenant-wizard__steps li { position: relative; display: flex; align-items: center; gap: 12px; min-height: 88px; padding: 20px 24px; color: #6b7f87; }
+.admin-tenant-wizard__steps li + li { border-left: 1px solid #dce9ed; }
+.admin-tenant-wizard__steps li::after { content: ''; position: absolute; inset: auto 24px 0; height: 3px; border-radius: 999px 999px 0 0; background: transparent; }
+.admin-tenant-wizard__steps li.is-active { color: var(--color-heading); background: #fff; }
+.admin-tenant-wizard__steps li.is-active::after,
+.admin-tenant-wizard__steps li.is-complete::after { background: var(--color-primary-bright); }
+.admin-tenant-wizard__steps li.is-complete { color: var(--color-primary); }
+.admin-tenant-wizard__steps li > span:last-child { display: grid; gap: 3px; }
+.admin-tenant-wizard__steps strong { font: 700 14px/1.3 var(--font-heading); }
+.admin-tenant-wizard__steps small { color: var(--color-text-muted); font-size: 11px; line-height: 1.35; }
+.admin-tenant-wizard__step-number { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #b8d7df; border-radius: 50%; background: #fff; color: #59727b; font: 800 13px/1 var(--font-heading); }
+.admin-tenant-wizard__steps li.is-active .admin-tenant-wizard__step-number { border-color: var(--color-primary); background: var(--color-primary); color: #fff; box-shadow: var(--shadow-focus); }
+.admin-tenant-wizard__steps li.is-complete .admin-tenant-wizard__step-number { border-color: #8fc9d8; background: #e5f5fa; color: var(--color-primary); }
+.admin-tenant-wizard__stage { padding: clamp(20px, 3vw, 32px); }
+.admin-tenant-wizard__stage[hidden],
+.admin-tenant-plan-panel[hidden],
+.admin-tenant-plan-error[hidden] { display: none; }
+.admin-field-optional { margin-left: 4px; color: var(--color-text-muted); font-size: 11px; font-weight: 500; }
+.admin-field-help { color: var(--color-text-muted); font-size: 11px; font-weight: 500; line-height: 1.4; }
+.admin-tenant-plan-heading { align-items: center; }
+.admin-tenant-grant-summary { min-width: 150px; display: grid; gap: 4px; padding: 12px 15px; border: 1px solid #add7e1; border-radius: 10px; background: #eef8fb; text-align: right; }
+.admin-tenant-grant-summary span { color: #356575; font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.admin-tenant-grant-summary strong { color: #004d60; font: 750 16px/1.3 var(--font-heading); }
+.admin-tenant-type-tabs { display: flex; gap: 8px; margin: 24px 0; padding: 5px; overflow-x: auto; border: 1px solid #dce9ed; border-radius: 12px; background: #f1f7f9; scrollbar-width: thin; }
+.admin-tenant-type-tab { min-width: 160px; display: grid; gap: 3px; padding: 11px 15px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #516a73; text-align: left; cursor: pointer; }
+.admin-tenant-type-tab strong { font: 700 13px/1.35 var(--font-heading); }
+.admin-tenant-type-tab small { overflow: hidden; color: #6b7f87; font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.admin-tenant-type-tab[aria-selected="true"] { border-color: #9bcbd7; background: #fff; color: #004d60; box-shadow: 0 2px 8px rgba(11,31,45,.05); }
+.admin-tenant-type-tab:focus-visible { outline: 0; box-shadow: var(--shadow-focus); }
+.admin-tenant-plan-grid { display: flex; align-items: stretch; gap: 18px; padding: 2px 2px 14px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: inline mandatory; scrollbar-color: #9bcbd7 #f1f7f9; scrollbar-width: thin; }
+.admin-tenant-plan-grid::-webkit-scrollbar { height: 8px; }
+.admin-tenant-plan-grid::-webkit-scrollbar-track { border-radius: 999px; background: #f1f7f9; }
+.admin-tenant-plan-grid::-webkit-scrollbar-thumb { border-radius: 999px; background: #9bcbd7; }
+.admin-tenant-plan-card { position: relative; min-width: 0; flex: 0 0 calc((100% - 18px) / 2); display: grid; align-content: start; gap: 16px; padding: 22px; overflow: hidden; scroll-snap-align: start; border: 1px solid #dce9ed; border-radius: 16px; background: #fff; color: var(--color-text); cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.admin-tenant-plan-card:hover { border-color: #9bcbd7; transform: translateY(-1px); }
+.admin-tenant-plan-card.is-selected { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(0,103,127,.12), 0 8px 24px rgba(11,31,45,.07); }
+.admin-tenant-plan-card > input { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.admin-tenant-plan-card:has(input:focus-visible) { border-color: var(--color-primary); box-shadow: var(--shadow-focus); }
+.admin-tenant-plan-card__check { position: absolute; top: 16px; right: 16px; width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid #b8d7df; border-radius: 50%; background: #fff; color: transparent; font-size: 13px; font-weight: 800; }
+.admin-tenant-plan-card.is-selected .admin-tenant-plan-card__check { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.admin-tenant-plan-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-right: 30px; }
+.admin-tenant-plan-card__header > span:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-tenant-plan-card__header > span:first-child > strong { color: var(--color-heading); font: 750 20px/1.25 var(--font-heading); }
+.admin-tenant-plan-card__price { display: grid; gap: 2px; text-align: right; }
+.admin-tenant-plan-card__price strong { color: #004d60; font: 750 15px/1.3 var(--font-heading); white-space: nowrap; }
+.admin-tenant-plan-card__price small { color: var(--color-text-muted); font-size: 9px; }
+.admin-tenant-plan-card__description { min-height: 40px; color: var(--color-text-muted); font-size: 13px; line-height: 1.55; }
+.admin-tenant-plan-card__grant { padding: 10px 12px; border-radius: 9px; background: #eef8fb; color: #356575; font-size: 12px; line-height: 1.45; }
+.admin-tenant-plan-card__grant strong { color: #167a3d; }
+.admin-tenant-plan-card__section-title { padding-top: 2px; color: #356575; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-tenant-plan-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-tenant-plan-limits > span { min-width: 0; display: grid; gap: 3px; padding: 10px; border: 1px solid #e1ecef; border-radius: 9px; background: #f8fbfc; }
+.admin-tenant-plan-limits small { overflow: hidden; color: var(--color-text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-tenant-plan-limits strong { color: var(--color-heading); font-size: 12px; }
+.admin-tenant-plan-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 14px; }
+.admin-tenant-plan-features > span { display: flex; align-items: flex-start; gap: 7px; color: #314c56; font-size: 11px; line-height: 1.4; }
+.admin-tenant-plan-features > span > span { color: #167a3d; font-weight: 900; }
+.admin-tenant-plan-card__no-features { color: var(--color-text-muted); font-size: 12px; }
+.admin-tenant-plan-error { margin: 14px 0 0; }
+.admin-tenant-plan-empty { display: grid; place-content: center; gap: 7px; text-align: center; }
+.admin-tenant-plan-empty h3,
+.admin-tenant-plan-empty p { margin: 0; }
+.admin-tenant-plan-empty h3 { color: var(--color-heading); font: 700 17px/1.35 var(--font-heading); }
+.admin-tenant-plan-empty p { max-width: 520px; color: var(--color-text-muted); font-size: 13px; line-height: 1.5; }
 
 .admin-finance-create-card { padding: clamp(18px, 2.2vw, 24px); }
 .admin-finance-list-card { padding: clamp(18px, 2.2vw, 24px); }
@@ -180,6 +246,18 @@ body.platform-admin-layout {
     .admin-tenant-create__actions { display: grid; grid-template-columns: 1fr; }
     .admin-tenant-create__actions .button,
     .admin-dialog-actions .button { width: 100%; }
+    .admin-tenant-wizard__steps li { min-height: 76px; padding: 15px 12px; gap: 9px; }
+    .admin-tenant-wizard__steps li::after { inset-inline: 12px; }
+    .admin-tenant-wizard__steps small { display: none; }
+    .admin-tenant-wizard__step-number { width: 30px; height: 30px; }
+    .admin-tenant-wizard__stage { padding: 18px 16px; }
+    .admin-tenant-plan-heading { display: grid; }
+    .admin-tenant-grant-summary { width: 100%; text-align: left; }
+    .admin-tenant-type-tabs { margin-block: 18px; }
+    .admin-tenant-plan-card { flex-basis: 86%; padding: 18px; }
+    .admin-tenant-plan-card__header { display: grid; gap: 10px; }
+    .admin-tenant-plan-card__price { text-align: left; }
+    .admin-tenant-plan-card__description { min-height: 0; }
     .admin-dialog-actions { display: grid; grid-template-columns: 1fr; }
     .admin-finance-create-actions { grid-column: 1 / -1; }
     .admin-finance-list-card { padding: 16px; }

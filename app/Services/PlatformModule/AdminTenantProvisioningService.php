@@ -23,24 +23,9 @@ class AdminTenantProvisioningService
 
     public function formOptions(): array
     {
-        $categories = $this->packageService->activeCategoriesWithPlans()
-            ->each(function ($category): void {
-                $category->setRelation(
-                    'packages',
-                    $category->packages
-                        ->filter(fn ($plan): bool => $this->packageService->planHasFeature(
-                            $plan->code,
-                            self::SUBDOMAIN_FEATURE,
-                        ))
-                        ->values(),
-                );
-            })
-            ->filter(fn ($category): bool => $category->packages->isNotEmpty())
-            ->values();
-
         return [
             'owners' => $this->platformUserService->activeOptions(),
-            'categories' => $categories,
+            'categories' => $this->packageService->activeCategoriesWithPlans(),
         ];
     }
 
@@ -56,7 +41,8 @@ class AdminTenantProvisioningService
             throw new InvalidTenantRequest('Select a plan belonging to the chosen tenant category.');
         }
 
-        if (! $this->packageService->planHasFeature($plan->code, self::SUBDOMAIN_FEATURE)) {
+        if ($request->subdomain !== null
+            && ! $this->packageService->planHasFeature($plan->code, self::SUBDOMAIN_FEATURE)) {
             throw new InvalidTenantRequest('The selected plan does not support tenant subdomains.');
         }
 
