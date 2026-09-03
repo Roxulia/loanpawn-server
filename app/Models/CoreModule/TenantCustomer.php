@@ -33,6 +33,7 @@ class TenantCustomer extends Model
         'trust_score',
         'note',
         'is_deleted',
+        'is_auto_generated',
         'created_by',
     ];
 
@@ -40,6 +41,7 @@ class TenantCustomer extends Model
     {
         return [
             'is_deleted' => 'boolean',
+            'is_auto_generated' => 'boolean',
         ];
     }
 

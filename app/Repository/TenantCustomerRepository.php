@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 
 class TenantCustomerRepository
 {
-    public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null, bool $showUnknownCustomer = false): LengthAwarePaginator
     {
         $query = TenantCustomer::query()
             ->withCount([
@@ -24,6 +24,10 @@ class TenantCustomerRepository
             ])
             ->where('is_deleted', false)
             ->orderByDesc('id');
+
+        if (! $showUnknownCustomer) {
+            $query->where('is_auto_generated', false);
+        }
 
         if ($search !== null) {
             $query->where(function ($query) use ($search) {
@@ -37,10 +41,14 @@ class TenantCustomerRepository
         return $query->paginate($perPage);
     }
 
-    public function customerListSummary(CarbonInterface $today, int $riskTrustScoreThreshold): array
+    public function customerListSummary(CarbonInterface $today, int $riskTrustScoreThreshold, bool $showUnknownCustomer = false): array
     {
         $customerQuery = TenantCustomer::query()
             ->where('is_deleted', false);
+
+        if (! $showUnknownCustomer) {
+            $customerQuery->where('is_auto_generated', false);
+        }
 
         return [
             'totalClients' => (clone $customerQuery)->count(),
@@ -48,6 +56,10 @@ class TenantCustomerRepository
             'activePawnLoans' => PawnLoanContractSlip::query()
                 ->where('is_deleted', false)
                 ->whereRaw('LOWER(status) = ?', ['active'])
+                ->when(! $showUnknownCustomer, fn ($query) => $query->whereHas(
+                    'customer',
+                    fn ($customerQuery) => $customerQuery->where('is_auto_generated', false),
+                ))
                 ->count(),
             'riskFlagged' => (clone $customerQuery)
                 ->where(function ($query) use ($today, $riskTrustScoreThreshold) {

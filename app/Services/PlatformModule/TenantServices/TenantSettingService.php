@@ -5,9 +5,11 @@ namespace App\Services\PlatformModule\TenantServices;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
 use App\DataObjects\RequestObjects\InterestProcessSettingsUpdate;
+use App\DataObjects\RequestObjects\LoanSlipCreationSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
 use App\DataObjects\RequestObjects\ReportingCurrencyAbortRequest;
 use App\DataObjects\ResponseObjects\InterestProcessSettingsResource;
+use App\DataObjects\ResponseObjects\LoanSlipCreationSettingsResource;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
@@ -40,6 +42,9 @@ class TenantSettingService extends BaseTenantService
             'interest_process_settings' => json_encode([
                 'compounding_enabled' => false,
                 'partial_principal_collection_enabled' => false,
+            ]),
+            'loan_slip_creation_settings' => json_encode([
+                'customer_info_required' => true,
             ]),
         ];
         foreach ($defaultSettings as $key => $value) {
@@ -84,6 +89,36 @@ class TenantSettingService extends BaseTenantService
                 'partial_principal_collection_enabled' => $request->partialPrincipalCollectionEnabled,
             ]),
             'category' => 'finance',
+            'update_key' => $setting->update_key + 1,
+        ]));
+    }
+
+    public function getCurrentTenantLoanSlipCreationSettings(): LoanSlipCreationSettingsResource
+    {
+        return LoanSlipCreationSettingsResource::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'loan_slip_creation_settings')
+        );
+    }
+
+    public function currentTenantRequiresLoanSlipCustomerInfo(): bool
+    {
+        return $this->getCurrentTenantLoanSlipCreationSettings()->customerInfoRequired;
+    }
+
+    public function updateCurrentTenantLoanSlipCreationSettings(LoanSlipCreationSettingsUpdate $request): LoanSlipCreationSettingsResource
+    {
+        $this->permissionService->authorizePermission('manage_slip_document');
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'loan_slip_creation_settings');
+
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return LoanSlipCreationSettingsResource::fromModel($this->repository->update($setting, [
+            'value' => json_encode([
+                'customer_info_required' => $request->customerInfoRequired,
+            ]),
+            'category' => 'tenant',
             'update_key' => $setting->update_key + 1,
         ]));
     }
@@ -283,6 +318,9 @@ class TenantSettingService extends BaseTenantService
                     'interest_process_settings' => json_encode([
                         'compounding_enabled' => false,
                         'partial_principal_collection_enabled' => false,
+                    ]),
+                    'loan_slip_creation_settings' => json_encode([
+                        'customer_info_required' => true,
                     ]),
                     default => null,
                 },

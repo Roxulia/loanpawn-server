@@ -13,6 +13,7 @@ use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
 use App\Services\PawnModule\PawnInterestProcessService;
+use App\Services\PlatformModule\TenantServices\TenantSettingService;
 use App\Services\TenantModule\FinancialUnitService;
 use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
@@ -30,6 +31,7 @@ class LoanContractSlipController extends Controller
         private FinancialUnitService $financialUnitService,
         private ReportingExchangeRateService $exchangeRateService,
         private PawnInterestProcessService $interestProcessService,
+        private TenantSettingService $tenantSettingService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -54,9 +56,10 @@ class LoanContractSlipController extends Controller
             '_nrc' => true,
         ]);
 
+        $customerInfoRequired = $this->tenantSettingService->currentTenantRequiresLoanSlipCustomerInfo();
         $validator = Validator::make($input, [
             'customer' => ['required', 'array'],
-            'customer.name' => ['required', 'string', 'max:120'],
+            'customer.name' => [$customerInfoRequired ? 'required' : 'nullable', 'string', 'max:120'],
             'customer.nrc_state' => ['nullable'],
             'customer.nrc_township' => ['nullable'],
             'customer.nrc_citizen' => ['nullable'],
@@ -108,6 +111,19 @@ class LoanContractSlipController extends Controller
             'created_by' => ['nullable', 'integer'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ]);
+        $validator->after(function ($validator) use ($customerInfoRequired, $input): void {
+            if (! $customerInfoRequired) {
+                return;
+            }
+
+            $nrc = NrcHelper::buildCustomerNrc((array) data_get($input, 'customer', []));
+            $email = trim((string) data_get($input, 'customer.email', ''));
+            $phone = trim((string) data_get($input, 'customer.phone', ''));
+
+            if ($nrc === null && $email === '' && $phone === '') {
+                $validator->errors()->add('customer', 'One of NRC, email, or phone is required.');
+            }
+        });
 
         if ($validator->fails()) {
             return $this->validationErrorResponse($validator->errors());

@@ -8,6 +8,7 @@ use App\DataObjects\RequestObjects\TenantBrandingUpdate;
 use App\DataObjects\RequestObjects\TenantContactUpdate;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
+use App\DataObjects\RequestObjects\LoanSlipCreationSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
 use App\Http\Controllers\Controller;
@@ -162,6 +163,26 @@ class TenantSettingsController extends Controller
         );
 
         return $this->successResponse($setting->toArray());
+    }
+
+    public function loanSlipCreationSettings(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingService->getCurrentTenantLoanSlipCreationSettings()->toArray());
+    }
+
+    public function updateLoanSlipCreationSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_info_required' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ]);
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantLoanSlipCreationSettings(
+            new LoanSlipCreationSettingsUpdate(
+                customerInfoRequired: (bool) $validated['customer_info_required'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
     }
 
     public function currencyPreferences(): JsonResponse

@@ -362,6 +362,10 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:manage_tenant_contact');
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
+                Route::get('loan-slip-creation', [TenantSettingsController::class, 'loanSlipCreationSettings'])
+                    ->middleware('tenant.permission:create_loan_contract,manage_slip_document');
+                Route::put('loan-slip-creation', [TenantSettingsController::class, 'updateLoanSlipCreationSettings'])
+                    ->middleware('tenant.permission:manage_slip_document');
                 Route::get('currencies', [TenantSettingsController::class, 'currencyPreferences'])
                     ->middleware(['tenant.feature:currency_management', 'tenant.permission:list_currency']);
                 Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])

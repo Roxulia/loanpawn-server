@@ -36,6 +36,7 @@ class TenantSettingsBootstrapService
             $sections['tenant_setting'] = [
                 'default_tenant_user_password' => $this->settingService->getCurrentTenantDefaultUserPassword(),
             ];
+            $sections['loan_slip_creation_settings'] = $this->settingService->getCurrentTenantLoanSlipCreationSettings()->toArray();
         }
 
         if ($this->hasPermission('manage_tenant_contact')) {
