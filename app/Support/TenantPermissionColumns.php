@@ -12,6 +12,7 @@ class TenantPermissionColumns
         'list_capital' => ['update_capital', 'delete_capital'],
         'list_debt' => ['update_debt', 'delete_debt'],
         'list_loan_contract' => ['delete_loan_contract'],
+        'manage_interest_process_settings' => ['manage_slip_compound_schedule', 'compound_slip_interest', 'collect_partial_principal'],
         'list_financial_account_type' => ['update_financial_account_type', 'delete_financial_account_type'],
         'list_financial_account' => ['update_financial_account', 'delete_financial_account', 'manage_financial_account_assignments'],
         'list_material_type' => ['update_material_type', 'delete_material_type'],

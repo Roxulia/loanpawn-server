@@ -149,6 +149,12 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_loan_contract');
                     Route::delete('{slipNo}', [LoanContractSlipController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_loan_contract');
+                    Route::put('{slipNo}/compound-schedule', [LoanContractSlipController::class, 'updateCompoundSchedule'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_slip_compound_schedule']);
+                    Route::post('{slipNo}/compound-interest', [LoanContractSlipController::class, 'compoundInterest'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:compound_slip_interest']);
+                    Route::post('{slipNo}/partial-principal', [LoanContractSlipController::class, 'collectPartialPrincipal'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:collect_partial_principal']);
                 });
 
             Route::prefix('loan-contract-slips')
@@ -340,7 +346,7 @@ Route::prefix('tenant')->group(function () {
                 Route::get('tenant', [TenantSettingsController::class, 'tenantBootstrap'])
                     ->middleware('tenant.permission:manage_slip_document,manage_tenant_contact,manage_tenant_timezone');
                 Route::get('finance', [TenantSettingsController::class, 'financeBootstrap'])
-                    ->middleware('tenant.permission:list_currency,update_default_currency,update_reporting_currency,update_default_financial_unit,manage_accounting_day_schedule,list_financial_account_type');
+                    ->middleware('tenant.permission:list_currency,update_default_currency,update_reporting_currency,update_default_financial_unit,manage_accounting_day_schedule,list_financial_account_type,manage_interest_process_settings');
                 Route::get('default-data', [TenantSettingsController::class, 'defaultDataBootstrap'])
                     ->middleware('tenant.permission:list_interest_type,list_expense_type,list_material_type,list_item_category_type');
                 Route::get('/', [TenantSettingsController::class, 'show'])
@@ -360,6 +366,10 @@ Route::prefix('tenant')->group(function () {
                     ->middleware(['tenant.feature:currency_management', 'tenant.permission:list_currency']);
                 Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])
                     ->middleware('tenant.feature:currency_management');
+                Route::get('interest-process', [TenantSettingsController::class, 'interestProcessSettings'])
+                    ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_interest_process_settings']);
+                Route::put('interest-process', [TenantSettingsController::class, 'updateInterestProcessSettings'])
+                    ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_interest_process_settings']);
                 Route::get('timezone', [TenantSettingsController::class, 'timezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])

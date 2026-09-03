@@ -130,4 +130,33 @@ class LoanContractSlipRepository
             ->get();
     }
 
+    public function compoundScheduleTenantIds(): Collection
+    {
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('compound_schedule_enabled', true)
+            ->whereNotNull('next_compound_at')
+            ->select('tenant_id')
+            ->distinct()
+            ->orderBy('tenant_id')
+            ->pluck('tenant_id');
+    }
+
+    public function dueCompoundScheduledSlipsForTenant(int $tenantId, CarbonInterface $currentDate): Collection
+    {
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->with(['interestType'])
+            ->where('tenant_id', $tenantId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('compound_schedule_enabled', true)
+            ->whereNotNull('next_compound_at')
+            ->whereDate('next_compound_at', '<=', $currentDate->toDateString())
+            ->orderBy('next_compound_at')
+            ->get();
+    }
+
 }

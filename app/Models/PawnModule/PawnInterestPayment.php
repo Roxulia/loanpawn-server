@@ -26,6 +26,7 @@ class PawnInterestPayment extends Model
         'start_period_at',
         'end_period_at',
         'is_paid',
+        'update_key',
     ];
 
     protected function casts(): array

@@ -122,6 +122,11 @@ return [
             'description' => 'Configure weekly accounting day opening and closing schedules.',
             'is_active' => true,
         ],
+        'advanced_interest_process' => [
+            'name' => 'Advanced interest process',
+            'description' => 'Configure interest compounding and partial principal collection.',
+            'is_active' => true,
+        ],
     ],
 
     'packages' => [
@@ -214,6 +219,7 @@ return [
                 'account_transferable',
                 'tenant_timezone_management',
                 'automatic_open_close',
+                'advanced_interest_process',
                 'multi_account_management',
                 'dashboard',
             ],

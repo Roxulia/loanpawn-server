@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\DefaultDataCreate;
+use App\DataObjects\RequestObjects\InterestProcessSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantBrandingUpdate;
 use App\DataObjects\RequestObjects\TenantContactUpdate;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
@@ -178,6 +179,28 @@ class TenantSettingsController extends Controller
             $this->tenantSettingService->updateCurrentTenantCurrencyPreferences($data)->toArray(),
             $this->responseMessage(\App\Utility\MessageCode::FinanceTenantCurrencyUpdated),
         );
+    }
+
+    public function interestProcessSettings(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingService->getCurrentTenantInterestProcessSettings()->toArray());
+    }
+
+    public function updateInterestProcessSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'compounding_enabled' => ['required', 'boolean'],
+            'partial_principal_collection_enabled' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ]);
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantInterestProcessSettings(
+            new InterestProcessSettingsUpdate(
+                compoundingEnabled: (bool) $validated['compounding_enabled'],
+                partialPrincipalCollectionEnabled: (bool) $validated['partial_principal_collection_enabled'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
     }
 
     public function timezone(): JsonResponse

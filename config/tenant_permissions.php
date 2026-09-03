@@ -85,6 +85,10 @@ return [
         'update_reporting_currency' => 'Allows changing the reporting currency and managing its recalculation.',
         'update_default_financial_unit' => 'Allows changing the default financial display unit.',
         'manage_accounting_day_schedule' => 'Allows viewing and updating the automatic accounting day schedule.',
+        'manage_interest_process_settings' => 'Allows configuring advanced interest process settings.',
+        'manage_slip_compound_schedule' => 'Allows configuring loan slip compounding schedules.',
+        'compound_slip_interest' => 'Allows manually compounding unpaid interest into principal.',
+        'collect_partial_principal' => 'Allows collecting partial principal from loan slips.',
     ],
     'roles' => [
         'Owner' => [
@@ -102,6 +106,10 @@ return [
                 'update_reporting_currency',
                 'update_default_financial_unit',
                 'manage_accounting_day_schedule',
+                'manage_interest_process_settings',
+                'manage_slip_compound_schedule',
+                'compound_slip_interest',
+                'collect_partial_principal',
             ],
         ],
         'Admin' => [
@@ -187,6 +195,10 @@ return [
                 'update_reporting_currency',
                 'update_default_financial_unit',
                 'manage_accounting_day_schedule',
+                'manage_interest_process_settings',
+                'manage_slip_compound_schedule',
+                'compound_slip_interest',
+                'collect_partial_principal',
             ],
         ],
         'User' => [

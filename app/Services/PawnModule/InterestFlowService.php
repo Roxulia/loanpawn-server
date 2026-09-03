@@ -18,6 +18,7 @@ use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\LoanContractSlipRepository;
 use App\Repository\PawnInterestPaymentRepository;
 use App\Services\BaseTenantService;
+use App\Services\Interest\FixedInterestCalculatorService;
 use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
 use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Services\TenantModule\CustomerTrustScoreService;
@@ -44,6 +45,7 @@ class InterestFlowService extends BaseTenantService
         private CustomerTrustScoreService $customerTrustScoreService,
         private MultiAccountManagement $multiAccountManagement,
         private FinancialAccountTransactionService $financialAccountTransactionService,
+        private FixedInterestCalculatorService $fixedInterestCalculatorService,
     ) {}
 
     public function getInterestPaymentHistory(int $perPage = 15): InterestPaymentHistoryListPage
@@ -409,15 +411,7 @@ class InterestFlowService extends BaseTenantService
 
     public function calculateExpireDate(CarbonInterface $currentDate, int $quota, string $quotaType): CarbonImmutable
     {
-        $date = CarbonImmutable::parse($currentDate)->startOfDay();
-
-        return match (ucfirst(strtolower(trim($quotaType)))) {
-            'Day' => $date->addDays($quota),
-            'Week' => $date->addWeeks($quota),
-            'Month' => $date->addMonthsNoOverflow($quota),
-            'Year' => $date->addYearsNoOverflow($quota),
-            default => throw new InvalidTenantRequest('Expiry quota type must be Day, Week, Month, or Year.'),
-        };
+        return $this->fixedInterestCalculatorService->nextPeriodStart($currentDate, $quotaType, $quota);
     }
 
     /** @return array{start_at: CarbonImmutable, expire_at: CarbonImmutable} */
@@ -457,7 +451,7 @@ class InterestFlowService extends BaseTenantService
         $slip->loadMissing('interestType');
 
         $tenantId = $this->resolveCurrentTenantId();
-        $interestAmount = ((float) $slip->loan_amount * (float) $slip->interest_rate) / 100;
+        $interestAmount = $this->fixedInterestCalculatorService->calculate((float) $slip->loan_amount, (float) $slip->interest_rate);
 
         while ($currentDate->lt($expireDate)) {
             $endDate = $this->calculateEndDate($currentDate, $slip);
@@ -542,7 +536,7 @@ class InterestFlowService extends BaseTenantService
         CarbonImmutable $expireDate,
     ): array {
         $slip->loadMissing('interestType');
-        $interestAmount = ((float) $slip->loan_amount * (float) $slip->interest_rate) / 100;
+        $interestAmount = $this->fixedInterestCalculatorService->calculate((float) $slip->loan_amount, (float) $slip->interest_rate);
         $currentStart = $startDate->startOfDay();
         $expireAt = $expireDate->startOfDay();
         $useInclusiveBoundary = in_array($this->resolveInterestIntervalUnit($slip), ['day', 'week'], true);
@@ -576,6 +570,43 @@ class InterestFlowService extends BaseTenantService
         ?int $createdBy = null,
     ): void {
         $this->createLoanContractInterestPayments($slip, $startDate, $expireDate, $createdBy);
+    }
+
+    public function recreateFutureSchedule(
+        PawnLoanContractSlip $slip,
+        CarbonImmutable $startDate,
+        ?int $createdBy = null,
+    ): void {
+        foreach ($this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $startDate->subDay()->toDateString()) as $payment) {
+            if (! $payment->is_paid) {
+                $this->repository->delete($payment);
+            }
+        }
+
+        $expireAt = CarbonImmutable::parse($slip->expire_at)->startOfDay();
+        if ($startDate->lte($expireAt)) {
+            $this->createLoanContractInterestPayments($slip, $startDate, $expireAt, $createdBy);
+        }
+    }
+
+    public function unpaidDuePaymentModelsWithLock(PawnLoanContractSlip $slip, CarbonImmutable $date): Collection
+    {
+        return $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $date->toDateString());
+    }
+
+    public function markPaymentsCompounded(Collection $payments, CarbonImmutable $compoundedAt, ?int $createdBy = null): void
+    {
+        foreach ($payments as $payment) {
+            $this->repository->update($payment, [
+                'is_paid' => true,
+                'payment_at' => $compoundedAt,
+                'payment_amount' => 0,
+                'change_amount' => 0,
+                'created_by' => $createdBy,
+                'notes' => trim(($payment->notes ? $payment->notes.PHP_EOL : '').'Compounded into principal at '.$compoundedAt->toDateTimeString()),
+                'update_key' => $payment->update_key + 1,
+            ]);
+        }
     }
 
     protected function resolveAccrualStartDate(PawnInterestPayment $lastPayment): CarbonImmutable

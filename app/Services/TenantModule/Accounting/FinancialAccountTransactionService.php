@@ -91,6 +91,11 @@ class FinancialAccountTransactionService
         return $this->recordType($account, FinancialAccountTransactionType::PawnRedemption, $amount, 'debit', $referenceNumber, $referenceType, $note, $createdBy, $relatedTransactionId);
     }
 
+    public function recordPawnPartialPrincipalCollection(FinancialAccount $account, float $amount, ?string $referenceNumber = null, ?string $referenceType = null, ?string $note = null, ?int $createdBy = null, ?int $relatedTransactionId = null): FinancialAccountTransaction
+    {
+        return $this->recordType($account, FinancialAccountTransactionType::PawnPartialPrincipalCollection, $amount, 'debit', $referenceNumber, $referenceType, $note, $createdBy, $relatedTransactionId);
+    }
+
     public function recordDebtCreation(FinancialAccount $account, float $amount, ?string $referenceNumber = null, ?string $referenceType = null, ?string $note = null, ?int $createdBy = null, ?int $relatedTransactionId = null): FinancialAccountTransaction
     {
         return $this->recordType($account, FinancialAccountTransactionType::DebtCreation, $amount, 'credit', $referenceNumber, $referenceType, $note, $createdBy, $relatedTransactionId);

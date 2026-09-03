@@ -60,6 +60,7 @@ class TenantSettingsBootstrapService
             'update_default_financial_unit',
             'manage_accounting_day_schedule',
             'list_financial_account_type',
+            'manage_interest_process_settings',
         ];
         $this->permissionService->authorizeAnyPermission($permissions);
         $sections = [];
@@ -82,6 +83,11 @@ class TenantSettingsBootstrapService
         if ($this->hasPermission('list_financial_account_type')
             && $this->licenseService->currentTenantHasFeature('accounting_management')) {
             $sections['financial_account_types'] = $this->financialAccountTypeService->list(5)->toArray();
+        }
+
+        if ($this->hasPermission('manage_interest_process_settings')
+            && $this->licenseService->currentTenantHasFeature('advanced_interest_process')) {
+            $sections['interest_process_settings'] = $this->settingService->getCurrentTenantInterestProcessSettings()->toArray();
         }
 
         return new TenantSettingsBootstrapResource($sections);

@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\PawnModule;
 
 use App\DataObjects\RequestObjects\LoanContractSlipCreate;
+use App\DataObjects\RequestObjects\PartialPrincipalCollectionCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
+use App\DataObjects\RequestObjects\SlipCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\Http\Controllers\Controller;
 use App\Models\CoreModule\TenantCustomer;
 use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
+use App\Services\PawnModule\PawnInterestProcessService;
 use App\Services\TenantModule\FinancialUnitService;
 use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
@@ -26,6 +29,7 @@ class LoanContractSlipController extends Controller
         private ManagementService $managementService,
         private FinancialUnitService $financialUnitService,
         private ReportingExchangeRateService $exchangeRateService,
+        private PawnInterestProcessService $interestProcessService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -154,6 +158,58 @@ class LoanContractSlipController extends Controller
         $this->managementService->deleteBySlipNo($slipNo);
 
         return $this->successResponse(message: $this->responseMessage(MessageCode::PawnLoanContractSlipDeleted));
+    }
+
+    public function updateCompoundSchedule(Request $request, string $slipNo): JsonResponse
+    {
+        $validated = $request->validate([
+            'slip_update_key' => ['required', 'integer', 'min:0'],
+            'enabled' => ['required', 'boolean'],
+            'compound_every' => ['nullable', 'integer', 'min:1'],
+            'compound_every_type' => ['nullable', 'string', 'in:Day,Week,Month,day,week,month'],
+            'next_compound_at' => ['nullable', 'date'],
+        ]);
+
+        return $this->successResponse($this->interestProcessService->updateSchedule(
+            $slipNo,
+            new SlipCompoundScheduleUpdate(
+                slipUpdateKey: (int) $validated['slip_update_key'],
+                enabled: (bool) $validated['enabled'],
+                compoundEvery: isset($validated['compound_every']) ? (int) $validated['compound_every'] : null,
+                compoundEveryType: $validated['compound_every_type'] ?? null,
+                nextCompoundAt: $validated['next_compound_at'] ?? null,
+            ),
+        ));
+    }
+
+    public function compoundInterest(string $slipNo): JsonResponse
+    {
+        return $this->successResponse($this->interestProcessService->compoundBySlipNo($slipNo));
+    }
+
+    public function collectPartialPrincipal(Request $request, string $slipNo): JsonResponse
+    {
+        $validated = $request->validate([
+            'slip_update_key' => ['required', 'integer', 'min:0'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount'],
+            'accept_account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
+        ]);
+
+        return $this->successResponse($this->interestProcessService->collectPartialPrincipal(
+            $slipNo,
+            new PartialPrincipalCollectionCreate(
+                slipUpdateKey: (int) $validated['slip_update_key'],
+                amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
+                acceptAccountId: isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
+                reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                    isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                    (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+                ),
+            ),
+        ));
     }
 
     protected function makeCollateralItemCreate(array $item): PawnCollateralItemCreate

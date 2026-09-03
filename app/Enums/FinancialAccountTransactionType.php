@@ -8,6 +8,7 @@ enum FinancialAccountTransactionType: string
     case PawnLoanCreation = 'PAWN_LOAN_CREATION';
     case PawnInterestPayment = 'PAWN_INTEREST_PAYMENT';
     case PawnRedemption = 'PAWN_REDEMPTION';
+    case PawnPartialPrincipalCollection = 'PAWN_PRINCIPAL_COLLECT';
     case DebtCreation = 'DEBT_CREATION';
     case DebtPayment = 'DEBT_PAYMENT';
     case BusinessLoanReceipt = 'BUSINESS_LOAN_RECEIPT';

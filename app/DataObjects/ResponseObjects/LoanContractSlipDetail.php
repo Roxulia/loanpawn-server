@@ -45,6 +45,16 @@ class LoanContractSlipDetail extends BaseDataObject
 
     public string $expiryQuotaType;
 
+    public bool $compoundScheduleEnabled;
+
+    public ?int $compoundEvery;
+
+    public ?string $compoundEveryType;
+
+    public ?string $nextCompoundAt;
+
+    public ?string $lastCompoundedAt;
+
     /**
      * @var LoanContractSlipItemDetail[]
      */
@@ -80,6 +90,11 @@ class LoanContractSlipDetail extends BaseDataObject
         $detail->createdBy = $slip->created_by;
         $detail->expiryQuota = (int) $slip->expiry_quota;
         $detail->expiryQuotaType = $slip->expiry_quota_type;
+        $detail->compoundScheduleEnabled = (bool) $slip->compound_schedule_enabled;
+        $detail->compoundEvery = $slip->compound_every === null ? null : (int) $slip->compound_every;
+        $detail->compoundEveryType = $slip->compound_every_type;
+        $detail->nextCompoundAt = $slip->next_compound_at?->toISOString();
+        $detail->lastCompoundedAt = $slip->last_compounded_at?->toISOString();
         $detail->items = $slip->relationLoaded('slipItems')
             ? $slip->slipItems->map(fn ($item) => LoanContractSlipItemDetail::fromModel($item))->all()
             : [];

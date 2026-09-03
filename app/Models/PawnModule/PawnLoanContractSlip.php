@@ -33,6 +33,11 @@ class PawnLoanContractSlip extends Model
         'created_by',
         'expiry_quota',
         'expiry_quota_type',
+        'compound_schedule_enabled',
+        'compound_every',
+        'compound_every_type',
+        'next_compound_at',
+        'last_compounded_at',
         'created_at',
         'updated_at',
     ];
@@ -45,6 +50,9 @@ class PawnLoanContractSlip extends Model
             'expire_at' => 'datetime',
             'last_interest_added_at' => 'datetime',
             'last_interest_paid_at' => 'datetime',
+            'compound_schedule_enabled' => 'boolean',
+            'next_compound_at' => 'datetime',
+            'last_compounded_at' => 'datetime',
         ];
     }
 

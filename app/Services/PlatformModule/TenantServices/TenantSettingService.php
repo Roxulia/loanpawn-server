@@ -4,8 +4,10 @@ namespace App\Services\PlatformModule\TenantServices;
 
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
+use App\DataObjects\RequestObjects\InterestProcessSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
 use App\DataObjects\RequestObjects\ReportingCurrencyAbortRequest;
+use App\DataObjects\ResponseObjects\InterestProcessSettingsResource;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
@@ -35,11 +37,15 @@ class TenantSettingService extends BaseTenantService
     {
         $defaultSettings = [
             'default_tenant_user_password' => '12345678',
+            'interest_process_settings' => json_encode([
+                'compounding_enabled' => false,
+                'partial_principal_collection_enabled' => false,
+            ]),
         ];
         foreach ($defaultSettings as $key => $value) {
             $this->repository->firstOrCreate($tenantId, $key, [
                 'value' => $value,
-                'category' => 'tenant',
+                'category' => $key === 'interest_process_settings' ? 'finance' : 'tenant',
             ]);
         }
 
@@ -54,6 +60,32 @@ class TenantSettingService extends BaseTenantService
             $setting,
             $this->reportingCurrencyRecalculationService->activeForTenant($setting->tenant_id),
         );
+    }
+
+    public function getCurrentTenantInterestProcessSettings(): InterestProcessSettingsResource
+    {
+        return InterestProcessSettingsResource::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'interest_process_settings')
+        );
+    }
+
+    public function updateCurrentTenantInterestProcessSettings(InterestProcessSettingsUpdate $request): InterestProcessSettingsResource
+    {
+        $this->permissionService->authorizePermission('manage_interest_process_settings');
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'interest_process_settings');
+
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return InterestProcessSettingsResource::fromModel($this->repository->update($setting, [
+            'value' => json_encode([
+                'compounding_enabled' => $request->compoundingEnabled,
+                'partial_principal_collection_enabled' => $request->partialPrincipalCollectionEnabled,
+            ]),
+            'category' => 'finance',
+            'update_key' => $setting->update_key + 1,
+        ]));
     }
 
     public function updateCurrentTenantCurrencyPreferences(TenantCurrencySettingsUpdate $request): TenantCurrencySettingsResource
@@ -248,9 +280,13 @@ class TenantSettingService extends BaseTenantService
                 'value' => match ($code) {
                     'default_tenant_user_password' => '12345678',
                     'timezone' => 'Asia/Yangon',
+                    'interest_process_settings' => json_encode([
+                        'compounding_enabled' => false,
+                        'partial_principal_collection_enabled' => false,
+                    ]),
                     default => null,
                 },
-                'category' => 'tenant',
+                'category' => $code === 'interest_process_settings' ? 'finance' : 'tenant',
             ],
         );
     }
