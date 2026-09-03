@@ -134,7 +134,7 @@ class LoanContractSlipController extends Controller
         $nrc = NrcHelper::buildCustomerNrc($customer);
         $slip = $this->managementService->create(new LoanContractSlipCreate(
             customer: new TenantCustomerCreate(
-                name: $customer['name'],
+                name: (string) ($customer['name'] ?? ''),
                 nrc: $nrc,
                 email: $customer['email'] ?? null,
                 phone: $customer['phone'] ?? null,
