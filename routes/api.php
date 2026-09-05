@@ -333,6 +333,10 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_debt');
                     Route::get('{debtCode}/payments', [TenantDebtController::class, 'paymentHistory'])
                         ->middleware('tenant.permission:list_debt');
+                    Route::put('{debtCode}/compound-schedule', [TenantDebtController::class, 'updateCompoundSchedule'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_debt_compound_schedule']);
+                    Route::post('{debtCode}/compound-interest', [TenantDebtController::class, 'compoundInterest'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:compound_debt_interest']);
                     Route::put('{debtCode}', [TenantDebtController::class, 'update'])
                         ->middleware('tenant.permission:update_debt');
                     Route::delete('{debtCode}', [TenantDebtController::class, 'destroy'])

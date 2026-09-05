@@ -138,8 +138,9 @@ class InterestScheduleRepairService
         foreach ($actualRows->values() as $index => $actual) {
             $expected = $expectedRows[$index];
             if (
-                ! CarbonImmutable::parse($actual->start_period_at)->startOfDay()->equalTo($expected['start_period_at'])
-                || ! CarbonImmutable::parse($actual->end_period_at)->startOfDay()->equalTo($expected['end_period_at'])
+                ! CarbonImmutable::parse($actual->start_period_at)->equalTo($expected['start_period_at'])
+                || ! CarbonImmutable::parse($actual->end_period_at)->equalTo($expected['end_period_at'])
+                || ($actual->period_timezone ?: null) !== ($expected['period_timezone'] ?? null)
                 || abs((float) $actual->calculated_interest - $expected['calculated_interest']) > 0.0001
                 || (int) $actual->created_account_id !== (int) $slip->account_id
             ) {

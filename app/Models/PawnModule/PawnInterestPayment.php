@@ -25,6 +25,7 @@ class PawnInterestPayment extends Model
         'created_by',
         'start_period_at',
         'end_period_at',
+        'period_timezone',
         'is_paid',
         'update_key',
     ];

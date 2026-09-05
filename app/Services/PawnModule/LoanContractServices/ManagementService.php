@@ -24,6 +24,7 @@ use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\DefaultDataService;
 use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
+use App\Services\TenantModule\AccountingDayBusinessClock;
 use App\Services\TenantModule\TenantCustomerService;
 use App\Services\TenantModule\TenantIdempotencyService;
 use App\Services\TenantModule\TenantUserPermissionService;
@@ -52,6 +53,7 @@ class ManagementService extends BaseTenantService
         private MultiAccountManagement $multiAccountManagement,
         private FinancialAccountTransactionService $financialAccountTransactionService,
         private TenantSettingService $tenantSettingService,
+        private AccountingDayBusinessClock $businessClock,
     ) {}
 
     public function create(LoanContractSlipCreate $request): LoanContractSlipDetail
@@ -65,7 +67,7 @@ class ManagementService extends BaseTenantService
         }
         $this->validateCreateRequest($request);
         $tenantId = $this->resolveCurrentTenantId();
-        $createdAt = CarbonImmutable::now();
+        $createdAt = $this->businessClock->now($tenantId);
         $expiryQuotaType = $this->normalizeExpiryQuotaType($request->expiryQuotaType);
         $expireAt = $this->interestFlowService->calculateExpireDate($createdAt, $request->expiryQuota, $expiryQuotaType);
         $this->validateExpiryDuration($request->interestTypeId, $createdAt, $expireAt);
@@ -101,10 +103,10 @@ class ManagementService extends BaseTenantService
                     'loan_amount' => $request->loanAmount,
                     'interest_rate' => $request->interestRate,
                     'interest_type_id' => $request->interestTypeId,
-                    'expire_at' => $expireAt,
-                    'last_interest_added_at' => $createdAt,
-                    'created_at' => $createdAt,
-                    'updated_at' => $createdAt,
+                    'expire_at' => $expireAt->utc(),
+                    'last_interest_added_at' => $createdAt->utc(),
+                    'created_at' => $createdAt->utc(),
+                    'updated_at' => $createdAt->utc(),
                     'status' => 'active',
                     'notes' => $request->notes,
                     'created_by' => $createdBy,

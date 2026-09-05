@@ -3,6 +3,7 @@
 namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantDebtCreate;
+use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantDebtPaymentCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\ResponseObjects\TenantDebtDetail;
@@ -584,6 +585,24 @@ class TenantDebtService extends BaseTenantService
         $this->permissionService->authorizeDebtList();
 
         return $this->debtInterestFlowService->history($debtId);
+    }
+
+    public function updateCompoundSchedule(int $debtId, DebtCompoundScheduleUpdate $request): TenantDebtDetail
+    {
+        $debt = $this->debtInterestFlowService->updateCompoundSchedule($debtId, $request);
+        $this->flushTenantDebtListCache();
+
+        return TenantDebtDetail::fromModel($debt);
+    }
+
+    public function compoundInterest(int $debtId): array
+    {
+        $result = $this->debtInterestFlowService->compound($debtId);
+        $this->flushTenantDebtListCache();
+
+        $result['debt'] = TenantDebtDetail::fromModel($this->findDebtForCurrentTenant($debtId))->toArray();
+
+        return $result;
     }
 
     public function markAsPaidWithoutAccounting(TenantDebt $debt, FinancialAccount $acceptAccount, ?int $acceptedBy = null): TenantDebt

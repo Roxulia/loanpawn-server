@@ -27,6 +27,11 @@ class TenantDebt extends Model
         'interest_type_id',
         'interest_anchor_at',
         'last_interest_paid_at',
+        'compound_schedule_enabled',
+        'compound_every',
+        'compound_every_type',
+        'next_compound_at',
+        'last_compounded_at',
         'description',
         'tag',
         'is_paid',
@@ -43,6 +48,9 @@ class TenantDebt extends Model
             'interest_rate' => 'decimal:4',
             'interest_anchor_at' => 'datetime',
             'last_interest_paid_at' => 'datetime',
+            'compound_schedule_enabled' => 'boolean',
+            'next_compound_at' => 'datetime',
+            'last_compounded_at' => 'datetime',
             'is_paid' => 'boolean',
         ];
     }

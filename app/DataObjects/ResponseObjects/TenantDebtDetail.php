@@ -41,6 +41,16 @@ class TenantDebtDetail extends BaseDataObject
 
     public ?string $interestTypeName;
 
+    public bool $compoundScheduleEnabled;
+
+    public ?int $compoundEvery;
+
+    public ?string $compoundEveryType;
+
+    public ?string $nextCompoundAt;
+
+    public ?string $lastCompoundedAt;
+
     public string $outstandingInterest;
 
     public string $totalOutstanding;
@@ -79,6 +89,11 @@ class TenantDebtDetail extends BaseDataObject
         $detail->interestRate = $debt->interest_rate === null ? null : (string) $debt->interest_rate;
         $detail->interestTypeId = $debt->interest_type_id;
         $detail->interestTypeName = $debt->interestType?->name;
+        $detail->compoundScheduleEnabled = (bool) $debt->compound_schedule_enabled;
+        $detail->compoundEvery = $debt->compound_every;
+        $detail->compoundEveryType = $debt->compound_every_type;
+        $detail->nextCompoundAt = $debt->next_compound_at?->toISOString();
+        $detail->lastCompoundedAt = $debt->last_compounded_at?->toISOString();
         $detail->outstandingInterest = number_format((float) ($debt->outstanding_interest ?? 0), 2, '.', '');
         $detail->totalOutstanding = number_format((float) $debt->principal_balance + (float) ($debt->outstanding_interest ?? 0), 2, '.', '');
         $detail->description = $debt->description;

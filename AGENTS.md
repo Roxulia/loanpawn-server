@@ -62,6 +62,7 @@ Only do the following if user didn't give you reference UI or UI description.
 - Do not change backend endpoints.
 - Do not change permission logic.
 - Do not change validation rules unless explicitly requested.
+- Never run migration even for tests.
 
 ## Must Do
 - If certain part of a function can be built into a seperate function build seperate function with proper naming to show clear understandablity of codes.

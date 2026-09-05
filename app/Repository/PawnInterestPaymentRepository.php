@@ -5,6 +5,8 @@ namespace App\Repository;
 use App\Models\PawnModule\PawnInterestPayment;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 class PawnInterestPaymentRepository
 {
@@ -74,26 +76,11 @@ class PawnInterestPaymentRepository
             ->first();
     }
 
-    /**
-     * @return Collection<int, PawnInterestPayment>
-     */
-    public function findInterestUntilDateBySlipId(int $slipId, string $date): Collection
+    /** @return Collection<int, PawnInterestPayment> */
+    public function allForSlipWithLock(int $slipId): Collection
     {
         return PawnInterestPayment::query()
-            ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
-            ->whereDate('start_period_at', '<=', $date)
-            ->orderBy('start_period_at')
-            ->orderBy('id')
-            ->get();
-    }
-
-    public function findInterestUntilDateBySlipIdWithLock(int $slipId, string $date): Collection
-    {
-        return PawnInterestPayment::query()
-            ->with(['createdAccount.currency', 'acceptAccount.currency'])
-            ->where('slip_id', $slipId)
-            ->whereDate('start_period_at', '<=', $date)
             ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
@@ -103,23 +90,23 @@ class PawnInterestPaymentRepository
     /**
      * @return Collection<int, PawnInterestPayment>
      */
-    public function findInterestAfterDateBySlipId(int $slipId, string $date): Collection
+    public function findInterestUntilDateBySlipId(int $slipId, CarbonInterface|string $date): Collection
     {
         return PawnInterestPayment::query()
             ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
-            ->whereDate('start_period_at', '>', $date)
+            ->where('start_period_at', '<=', $this->timestamp($date))
             ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
 
-    public function findInterestAfterDateBySlipIdWithLock(int $slipId, string $date): Collection
+    public function findInterestUntilDateBySlipIdWithLock(int $slipId, CarbonInterface|string $date): Collection
     {
         return PawnInterestPayment::query()
             ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
-            ->whereDate('start_period_at', '>', $date)
+            ->where('start_period_at', '<=', $this->timestamp($date))
             ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
@@ -129,25 +116,51 @@ class PawnInterestPaymentRepository
     /**
      * @return Collection<int, PawnInterestPayment>
      */
-    public function findUnpaidInterestUntilDateBySlipId(int $slipId, string $date): Collection
+    public function findInterestAfterDateBySlipId(int $slipId, CarbonInterface|string $date): Collection
     {
         return PawnInterestPayment::query()
             ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
-            ->where('is_paid', false)
-            ->whereDate('start_period_at', '<=', $date)
+            ->where('start_period_at', '>', $this->timestamp($date))
             ->orderBy('start_period_at')
             ->orderBy('id')
             ->get();
     }
 
-    public function findUnpaidInterestUntilDateBySlipIdWithLock(int $slipId, string $date): Collection
+    public function findInterestAfterDateBySlipIdWithLock(int $slipId, CarbonInterface|string $date): Collection
+    {
+        return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
+            ->where('slip_id', $slipId)
+            ->where('start_period_at', '>', $this->timestamp($date))
+            ->orderBy('start_period_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, PawnInterestPayment>
+     */
+    public function findUnpaidInterestUntilDateBySlipId(int $slipId, CarbonInterface|string $date): Collection
     {
         return PawnInterestPayment::query()
             ->with(['createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
-            ->whereDate('start_period_at', '<=', $date)
+            ->where('start_period_at', '<=', $this->timestamp($date))
+            ->orderBy('start_period_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function findUnpaidInterestUntilDateBySlipIdWithLock(int $slipId, CarbonInterface|string $date): Collection
+    {
+        return PawnInterestPayment::query()
+            ->with(['createdAccount.currency', 'acceptAccount.currency'])
+            ->where('slip_id', $slipId)
+            ->where('is_paid', false)
+            ->where('start_period_at', '<=', $this->timestamp($date))
             ->orderBy('start_period_at')
             ->orderBy('id')
             ->lockForUpdate()
@@ -163,10 +176,10 @@ class PawnInterestPaymentRepository
             ->where('slip_id', $slipId)
             ->where(function ($query) use ($payment) {
                 $paymentStart = $payment->start_period_at;
-                $query->whereDate('start_period_at', '>', $paymentStart)
+                    $query->where('start_period_at', '>', $paymentStart)
                     ->orWhere(function ($nested) use ($payment) {
                         $paymentStart = $payment->start_period_at;
-                        $nested->whereDate('start_period_at', '=', $paymentStart)
+                        $nested->where('start_period_at', '=', $paymentStart)
                             ->where('id', '>', $payment->id);
                     });
             })
@@ -181,10 +194,10 @@ class PawnInterestPaymentRepository
             ->where('slip_id', $slipId)
             ->where(function ($query) use ($payment) {
                 $paymentStart = $payment->start_period_at;
-                $query->whereDate('start_period_at', '>', $paymentStart)
+                    $query->where('start_period_at', '>', $paymentStart)
                     ->orWhere(function ($nested) use ($payment) {
                         $paymentStart = $payment->start_period_at;
-                        $nested->whereDate('start_period_at', '=', $paymentStart)
+                        $nested->where('start_period_at', '=', $paymentStart)
                             ->where('id', '>', $payment->id);
                     });
             })
@@ -192,5 +205,10 @@ class PawnInterestPaymentRepository
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
+    }
+
+    private function timestamp(CarbonInterface|string $value): CarbonImmutable
+    {
+        return CarbonImmutable::parse($value)->utc();
     }
 }

@@ -7,6 +7,8 @@ use App\Models\CoreModule\TenantDebtInterestAccrual;
 use App\Models\CoreModule\TenantDebtPayment;
 use App\Models\CoreModule\TenantDebtPaymentAllocation;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
+use Carbon\CarbonInterface;
 
 class TenantDebtInterestRepository
 {
@@ -84,5 +86,37 @@ class TenantDebtInterestRepository
                 'accept_account_id' => $payment->accept_account_id,
                 'payment_at' => $payment->payment_at?->toISOString(),
             ])->all();
+    }
+
+    /** @return SupportCollection<int, int> */
+    public function compoundScheduleTenantIds(): SupportCollection
+    {
+        return TenantDebt::query()
+            ->withoutGlobalScope('tenant')
+            ->where('is_deleted', false)
+            ->where('is_paid', false)
+            ->where('apply_interest', true)
+            ->where('compound_schedule_enabled', true)
+            ->whereNotNull('next_compound_at')
+            ->distinct()
+            ->orderBy('tenant_id')
+            ->pluck('tenant_id');
+    }
+
+    /** @return Collection<int, TenantDebt> */
+    public function dueCompoundScheduledDebtsForTenant(int $tenantId, CarbonInterface $now): Collection
+    {
+        return TenantDebt::query()
+            ->withoutGlobalScope('tenant')
+            ->with(['interestType', 'createdAccount.currency'])
+            ->where('tenant_id', $tenantId)
+            ->where('is_deleted', false)
+            ->where('is_paid', false)
+            ->where('apply_interest', true)
+            ->where('compound_schedule_enabled', true)
+            ->whereNotNull('next_compound_at')
+            ->where('next_compound_at', '<=', $now->utc())
+            ->orderBy('next_compound_at')
+            ->get();
     }
 }

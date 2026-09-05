@@ -130,6 +130,25 @@ class LoanContractSlipRepository
             ->get();
     }
 
+    public function expireCurrentTenantOverdueActiveSlips(CarbonInterface $localDayStart): int
+    {
+        return PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('expire_at', '<', $localDayStart->utc())
+            ->update(['status' => 'expired']);
+    }
+
+    public function expireSlipIfStillActive(int $slipId, CarbonInterface $localDayStart): bool
+    {
+        return PawnLoanContractSlip::query()
+            ->whereKey($slipId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('expire_at', '<', $localDayStart->utc())
+            ->update(['status' => 'expired']) === 1;
+    }
+
     public function compoundScheduleTenantIds(): Collection
     {
         return PawnLoanContractSlip::query()

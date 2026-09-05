@@ -9,6 +9,7 @@ use App\Models\PlatformModule\Tenant;
 use App\Services\TenantModule\DebtInterestFlowService;
 use App\Support\TenantContext;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -48,7 +49,17 @@ class DebtInterestFlowServiceTest extends TestCase
         $first = $service->calculate($debt->id);
 
         $this->assertSame('100.00', $first->outstandingInterest);
-        $this->assertSame('2026-01-15', substr($first->interestBreakdown[0]['start_period_at'], 0, 10));
+        $period = $first->interestBreakdown[0];
+        $timezone = $period['period_timezone'];
+        $this->assertNotEmpty($timezone);
+        $this->assertSame(
+            '2026-01-15 00:00:00',
+            CarbonImmutable::parse($period['start_period_at'])->setTimezone($timezone)->format('Y-m-d H:i:s'),
+        );
+        $this->assertSame(
+            '2026-02-14 23:59:59',
+            CarbonImmutable::parse($period['end_period_at'])->setTimezone($timezone)->format('Y-m-d H:i:s'),
+        );
 
         $row = $debt->interestAccruals()->firstOrFail();
         $row->update(['paid_amount' => 100, 'is_paid' => true]);

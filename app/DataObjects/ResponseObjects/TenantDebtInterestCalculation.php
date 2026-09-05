@@ -20,6 +20,7 @@ class TenantDebtInterestCalculation extends BaseDataObject
         public ?int $interestTypeId,
         public ?string $interestTypeName,
         public bool $allowPartialPayments,
+        public bool $compoundingEnabled,
         public array $interestBreakdown,
     ) {}
 }

@@ -26,6 +26,8 @@ use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\TenantIdempotencyService;
+use App\Services\TenantModule\AccountingDayBusinessClock;
+use App\Services\PawnModule\LoanContractServices\ExpirationService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -46,6 +48,8 @@ class InterestFlowService extends BaseTenantService
         private MultiAccountManagement $multiAccountManagement,
         private FinancialAccountTransactionService $financialAccountTransactionService,
         private FixedInterestCalculatorService $fixedInterestCalculatorService,
+        private AccountingDayBusinessClock $businessClock,
+        private ExpirationService $expirationService,
     ) {}
 
     public function getInterestPaymentHistory(int $perPage = 15): InterestPaymentHistoryListPage
@@ -63,10 +67,11 @@ class InterestFlowService extends BaseTenantService
     public function calculateInterestBySlipNo(string $slipNo): InterestCalculationResult
     {
         $slip = $this->resolveActiveSlipBySlipNo($slipNo);
+        $this->ensureInterestScheduleThroughExpiry($slip);
         if ($slip->account_id === null) {
             throw new InvalidTenantRequest('Loan creation account is required before interest can be calculated.');
         }
-        $currentAt = CarbonImmutable::now();
+        $currentAt = $this->businessClock->now((int) $slip->tenant_id);
         $currentDate = $currentAt->startOfDay();
         $payments = $this->dueUnpaidPayments($slip, $currentDate);
         $interestBreakdown = $payments
@@ -103,16 +108,18 @@ class InterestFlowService extends BaseTenantService
             $this->tenantIdempotencyService->replay($idempotencyRecord);
         }
 
-        $currentAt = CarbonImmutable::now();
+        $tenantId = $this->resolveCurrentTenantId();
+        $currentAt = $this->businessClock->now($tenantId);
         $currentDate = $currentAt->startOfDay();
 
         try {
             $result = DB::transaction(function () use ($slipNo, $request, $currentAt, $currentDate, $financialAccount): array {
                 $slip = $this->resolveActiveSlipBySlipNoWithLock($slipNo);
+                $this->ensureInterestScheduleThroughExpiry($slip);
                 if ($slip->update_key !== $request->slipUpdateKey) {
                     throw new AlreadyUpdatedException('This Slip is already updated by others.Please refresh');
                 }
-                $payments = $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $currentDate->toDateString());
+                $payments = $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $currentAt);
 
                 if ($payments->isEmpty()) {
                     throw new InvalidTenantRequest('No unpaid interest payment found for this slip.');
@@ -268,7 +275,7 @@ class InterestFlowService extends BaseTenantService
         DB::transaction(function () use ($slip, $isRedemptionProcess, $financialAccount): void {
             $this->loanContractSlipRepository->findByIdWithLock($slip->id);
             $paymentAt = CarbonImmutable::now();
-            $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
+            $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentAt);
             $this->assertPaymentsUseCurrency($payments, (int) $financialAccount->currency_id);
 
             foreach ($payments as $payment) {
@@ -293,7 +300,7 @@ class InterestFlowService extends BaseTenantService
                 return;
             }
 
-            $futurePayments = $this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentAt->toDateString());
+            $futurePayments = $this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentAt);
 
             foreach ($futurePayments as $payment) {
                 $this->repository->delete($payment);
@@ -306,9 +313,11 @@ class InterestFlowService extends BaseTenantService
      */
     public function interestPaymentProcess(PawnLoanContractSlip $slip): array
     {
+        $slip = $this->expirationService->refreshExpiration($slip);
         $this->validateActiveSlip($slip);
+        $this->ensureInterestScheduleThroughExpiry($slip);
 
-        $payments = $this->dueUnpaidPayments($slip, CarbonImmutable::now()->startOfDay());
+        $payments = $this->dueUnpaidPayments($slip, $this->businessClock->now((int) $slip->tenant_id));
         $interestBreakdown = $payments->map(fn (PawnInterestPayment $payment): array => [
             'id' => $payment->id,
             'start_period_at' => $payment->start_period_at?->toISOString(),
@@ -336,7 +345,7 @@ class InterestFlowService extends BaseTenantService
     {
         $targetDate = $date ?? CarbonImmutable::now()->startOfDay();
 
-        return $this->repository->findInterestUntilDateBySlipId($slip->id, $targetDate->toDateString())
+        return $this->repository->findInterestUntilDateBySlipId($slip->id, $targetDate)
             ->map(fn (PawnInterestPayment $payment): InterestPaymentHistoryItem => InterestPaymentHistoryItem::fromModel($payment))
             ->all();
     }
@@ -348,7 +357,7 @@ class InterestFlowService extends BaseTenantService
     {
         $targetDate = $date ?? CarbonImmutable::now()->startOfDay();
 
-        return $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $targetDate->toDateString())
+        return $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $targetDate)
             ->map(fn (PawnInterestPayment $payment): InterestPaymentHistoryItem => InterestPaymentHistoryItem::fromModel($payment))
             ->all();
     }
@@ -357,7 +366,7 @@ class InterestFlowService extends BaseTenantService
     {
         DB::transaction(function () use ($slip, $paymentDate, $acceptAccount, $createdBy, $interests): void {
             $this->loanContractSlipRepository->findByIdWithLock($slip->id);
-            $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentDate->toDateString());
+            $payments = $this->repository->findInterestUntilDateBySlipIdWithLock($slip->id, $paymentDate);
             $requestedBreakdownById = collect($interests)->keyBy('id');
             $this->assertPaymentsUseCurrency($payments, (int) $acceptAccount->currency_id);
 
@@ -387,7 +396,7 @@ class InterestFlowService extends BaseTenantService
                 ]);
             }
 
-            foreach ($this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentDate->toDateString()) as $futurePayment) {
+            foreach ($this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $paymentDate) as $futurePayment) {
                 $this->repository->delete($futurePayment);
             }
 
@@ -407,6 +416,36 @@ class InterestFlowService extends BaseTenantService
             CarbonImmutable::parse($slip->expire_at)->startOfDay(),
             $createdBy
         );
+    }
+
+    public function ensureInterestScheduleThroughExpiry(PawnLoanContractSlip $slip, ?int $createdBy = null): int
+    {
+        if ($slip->is_deleted || ! in_array(strtolower((string) $slip->status), ['active', 'expired'], true)
+            || $slip->interest_type_id === null || $slip->expire_at === null || (float) $slip->interest_rate <= 0) {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($slip, $createdBy): int {
+            $lockedSlip = $this->loanContractSlipRepository->findByIdWithLock((int) $slip->id);
+            if ($lockedSlip === null) return 0;
+
+            $timezone = $this->businessClock->timezone((int) $lockedSlip->tenant_id);
+            $start = CarbonImmutable::parse($lockedSlip->created_at)->setTimezone($timezone)->startOfDay();
+            $expire = CarbonImmutable::parse($lockedSlip->expire_at)->setTimezone($timezone)->startOfDay();
+            $expected = $this->expectedScheduleRows($lockedSlip, $start, $expire);
+            if ($expected === []) return 0;
+
+            $existing = $this->repository->allForSlipWithLock((int) $lockedSlip->id)
+                ->mapWithKeys(fn (PawnInterestPayment $row): array => [$this->periodKey($row->start_period_at, $row->end_period_at) => true]);
+            $created = 0;
+            foreach ($expected as $row) {
+                if ($existing->has($this->periodKey($row['start_period_at'], $row['end_period_at']))) continue;
+                $this->createScheduleRow($lockedSlip, $row, $createdBy);
+                $created++;
+            }
+
+            return $created;
+        });
     }
 
     public function calculateExpireDate(CarbonInterface $currentDate, int $quota, string $quotaType): CarbonImmutable
@@ -432,58 +471,6 @@ class InterestFlowService extends BaseTenantService
         ];
     }
 
-    public function calculateEndDate(CarbonInterface $currentDate, PawnLoanContractSlip $slip): CarbonImmutable
-    {
-        $date = CarbonImmutable::parse($currentDate);
-        $interestType = $slip->interestType;
-        $interestTypeName = $interestType?->name;
-
-        return match ($interestTypeName) {
-            'Daily' => $date->addDay(),
-            'Weekly' => $date->addWeek(),
-            'Monthly' => $date->addMonth(),
-            default => $date->addDays((int) ($interestType?->duration_in_days ?? 1)),
-        };
-    }
-
-    protected function createInterestPayments(PawnLoanContractSlip $slip, CarbonImmutable $currentDate, CarbonImmutable $expireDate): void
-    {
-        $slip->loadMissing('interestType');
-
-        $tenantId = $this->resolveCurrentTenantId();
-        $interestAmount = $this->fixedInterestCalculatorService->calculate((float) $slip->loan_amount, (float) $slip->interest_rate);
-
-        while ($currentDate->lt($expireDate)) {
-            $endDate = $this->calculateEndDate($currentDate, $slip);
-            $payment = $this->repository->create([
-                'tenant_id' => $tenantId,
-                'slip_id' => $slip->id,
-                'created_account_id' => $slip->account_id,
-                'payment_amount' => 0,
-                'change_amount' => 0,
-                'calculated_interest' => $interestAmount,
-                'created_by' => null,
-                'start_period_at' => $currentDate,
-                'end_period_at' => $endDate,
-                'is_paid' => false,
-            ]);
-
-            $this->tenantAuditLogService->log(
-                'pawn_interest_payment.created',
-                PawnInterestPayment::class,
-                $payment->id,
-                [
-                    'slip_id' => $slip->id,
-                    'start_period_at' => $payment->start_period_at?->toISOString(),
-                    'end_period_at' => $payment->end_period_at?->toISOString(),
-                    'calculated_interest' => (float) $payment->calculated_interest,
-                ]
-            );
-
-            $currentDate = $endDate;
-        }
-    }
-
     protected function createLoanContractInterestPayments(
         PawnLoanContractSlip $slip,
         CarbonImmutable $startDate,
@@ -496,36 +483,8 @@ class InterestFlowService extends BaseTenantService
             throw new TenantNotFound('Interest type not found.');
         }
 
-        $tenantId = $this->resolveCurrentTenantId();
-
         foreach ($this->expectedScheduleRows($slip, $startDate, $expireDate) as $row) {
-            $payment = $this->repository->create([
-                'tenant_id' => $tenantId,
-                'slip_id' => $slip->id,
-                'created_account_id' => $slip->account_id,
-                'payment_amount' => 0,
-                'change_amount' => 0,
-                'calculated_interest' => $row['calculated_interest'],
-                'notes' => null,
-                'created_by' => $createdBy,
-                'start_period_at' => $row['start_period_at'],
-                'end_period_at' => $row['end_period_at'],
-                'is_paid' => false,
-            ]);
-
-            $this->tenantAuditLogService->log(
-                'pawn_interest_payment.created',
-                PawnInterestPayment::class,
-                $payment->id,
-                [
-                    'slip_id' => $slip->id,
-                    'start_period_at' => $payment->start_period_at?->toISOString(),
-                    'end_period_at' => $payment->end_period_at?->toISOString(),
-                    'calculated_interest' => (float) $payment->calculated_interest,
-                ],
-                $createdBy
-            );
-
+            $this->createScheduleRow($slip, $row, $createdBy);
         }
     }
 
@@ -537,27 +496,31 @@ class InterestFlowService extends BaseTenantService
     ): array {
         $slip->loadMissing('interestType');
         $interestAmount = $this->fixedInterestCalculatorService->calculate((float) $slip->loan_amount, (float) $slip->interest_rate);
-        $currentStart = $startDate->startOfDay();
-        $expireAt = $expireDate->startOfDay();
-        $useInclusiveBoundary = in_array($this->resolveInterestIntervalUnit($slip), ['day', 'week'], true);
+        $timezone = $this->businessClock->timezone((int) $slip->tenant_id);
+        $currentStart = $startDate->setTimezone($timezone)->startOfDay();
+        $expireAt = $expireDate->setTimezone($timezone)->startOfDay();
+        $useInclusiveBoundary = in_array($this->resolveInterestIntervalUnit($slip), ['Day', 'Week'], true);
         $rows = [];
 
         while ($useInclusiveBoundary ? $currentStart->lte($expireAt) : $currentStart->lt($expireAt)) {
-            $endDate = $this->resolveNextInterestPeriodStart($currentStart, $slip)->subDay();
-            if ($endDate->gt($expireAt)) {
-                $endDate = $expireAt;
+            $bounds = $this->fixedInterestCalculatorService->periodBounds($currentStart, $this->resolveInterestIntervalUnit($slip), $timezone);
+            $endDate = $bounds['end'];
+            $expireEnd = $expireAt->endOfDay()->setMicrosecond(0);
+            if ($endDate->gt($expireEnd)) {
+                $endDate = $expireEnd;
             }
 
             $rows[] = [
-                'start_period_at' => $currentStart,
-                'end_period_at' => $endDate,
+                'start_period_at' => $currentStart->utc(),
+                'end_period_at' => $endDate->utc(),
                 'calculated_interest' => $interestAmount,
+                'period_timezone' => $timezone,
             ];
 
-            if ($endDate->gte($expireAt)) {
+            if ($endDate->gte($expireEnd)) {
                 break;
             }
-            $currentStart = $endDate->addDay();
+            $currentStart = $bounds['next'];
         }
 
         return $rows;
@@ -577,7 +540,7 @@ class InterestFlowService extends BaseTenantService
         CarbonImmutable $startDate,
         ?int $createdBy = null,
     ): void {
-        foreach ($this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $startDate->subDay()->toDateString()) as $payment) {
+        foreach ($this->repository->findInterestAfterDateBySlipIdWithLock($slip->id, $startDate->subSecond()) as $payment) {
             if (! $payment->is_paid) {
                 $this->repository->delete($payment);
             }
@@ -591,7 +554,8 @@ class InterestFlowService extends BaseTenantService
 
     public function unpaidDuePaymentModelsWithLock(PawnLoanContractSlip $slip, CarbonImmutable $date): Collection
     {
-        return $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $date->toDateString());
+        $this->ensureInterestScheduleThroughExpiry($slip);
+        return $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $date);
     }
 
     public function markPaymentsCompounded(Collection $payments, CarbonImmutable $compoundedAt, ?int $createdBy = null): void
@@ -757,26 +721,48 @@ class InterestFlowService extends BaseTenantService
 
     protected function resolveInterestIntervalUnit(PawnLoanContractSlip $slip): string
     {
-        $interestType = $slip->interestType;
-        $unit = strtolower(trim((string) ($interestType?->code ?: $interestType?->name)));
-
-        return match ($unit) {
-            'daily', 'day' => 'day',
-            'weekly', 'week' => 'week',
-            'monthly', 'month' => 'month',
-            'yearly', 'year' => 'year',
-            default => ((int) ($interestType?->duration_in_days ?? 1)) === 7 ? 'week' : 'day',
-        };
+        return $this->fixedInterestCalculatorService->resolveInterestPeriodType(
+            $slip->interestType?->code,
+            $slip->interestType?->name,
+            $slip->interestType?->duration_in_days,
+        );
     }
 
     protected function resolveNextInterestPeriodStart(CarbonImmutable $currentStart, PawnLoanContractSlip $slip): CarbonImmutable
     {
-        return match ($this->resolveInterestIntervalUnit($slip)) {
-            'day' => $currentStart->addDay(),
-            'week' => $currentStart->addWeek(),
-            'month' => $currentStart->addMonthNoOverflow(),
-            'year' => $currentStart->addYearNoOverflow(),
-        };
+        return $this->fixedInterestCalculatorService->nextPeriodStart($currentStart, $this->resolveInterestIntervalUnit($slip));
+    }
+
+    private function createScheduleRow(PawnLoanContractSlip $slip, array $row, ?int $createdBy): PawnInterestPayment
+    {
+        $payment = $this->repository->create([
+            'tenant_id' => $slip->tenant_id,
+            'slip_id' => $slip->id,
+            'created_account_id' => $slip->account_id,
+            'payment_amount' => 0,
+            'change_amount' => 0,
+            'calculated_interest' => $row['calculated_interest'],
+            'notes' => null,
+            'created_by' => $createdBy,
+            'start_period_at' => $row['start_period_at'],
+            'end_period_at' => $row['end_period_at'],
+            'period_timezone' => $row['period_timezone'],
+            'is_paid' => false,
+        ]);
+        $this->tenantAuditLogService->log('pawn_interest_payment.created', PawnInterestPayment::class, $payment->id, [
+            'slip_id' => $slip->id,
+            'start_period_at' => $payment->start_period_at?->toISOString(),
+            'end_period_at' => $payment->end_period_at?->toISOString(),
+            'period_timezone' => $payment->period_timezone,
+            'calculated_interest' => (float) $payment->calculated_interest,
+        ], $createdBy);
+
+        return $payment;
+    }
+
+    private function periodKey($start, $end): string
+    {
+        return CarbonImmutable::parse($start)->utc()->format('Y-m-d H:i:s').'|'.CarbonImmutable::parse($end)->utc()->format('Y-m-d H:i:s');
     }
 
     protected function resolveCurrentTenantUserId(): ?int
@@ -792,6 +778,7 @@ class InterestFlowService extends BaseTenantService
             throw new InvalidTenantRequest('Loan contract slip not found or inactive.');
         }
 
+        $slip = $this->expirationService->refreshExpiration($slip);
         $this->validateActiveSlip($slip);
 
         return $slip;
@@ -805,6 +792,7 @@ class InterestFlowService extends BaseTenantService
             throw new InvalidTenantRequest('Loan contract slip not found or inactive.');
         }
 
+        $slip = $this->expirationService->refreshExpiration($slip);
         $this->validateActiveSlip($slip);
 
         return $slip;
@@ -822,6 +810,6 @@ class InterestFlowService extends BaseTenantService
      */
     protected function dueUnpaidPayments(PawnLoanContractSlip $slip, CarbonImmutable $date): Collection
     {
-        return $this->repository->findUnpaidInterestUntilDateBySlipId($slip->id, $date->toDateString());
+        return $this->repository->findUnpaidInterestUntilDateBySlipId($slip->id, $date);
     }
 }

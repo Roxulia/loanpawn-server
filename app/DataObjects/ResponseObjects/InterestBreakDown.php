@@ -21,6 +21,8 @@ class InterestBreakDown extends BaseDataObject
 
     public ?string $endPeriodAt;
 
+    public ?string $periodTimezone;
+
     public static function fromValues(
         int $id,
         int $updateKey,
@@ -29,6 +31,7 @@ class InterestBreakDown extends BaseDataObject
         ?string $endPeriodAt = null,
         ?int $createdAccountId = null,
         ?int $acceptAccountId = null,
+        ?string $periodTimezone = null,
     ): self {
         $breakDown = new self;
         $breakDown->id = $id;
@@ -38,6 +41,7 @@ class InterestBreakDown extends BaseDataObject
         $breakDown->endPeriodAt = $endPeriodAt;
         $breakDown->createdAccountId = $createdAccountId;
         $breakDown->acceptAccountId = $acceptAccountId;
+        $breakDown->periodTimezone = $periodTimezone;
 
         return $breakDown;
     }
@@ -52,6 +56,7 @@ class InterestBreakDown extends BaseDataObject
             endPeriodAt: $payment->end_period_at?->toISOString(),
             createdAccountId: $payment->created_account_id,
             acceptAccountId: $payment->accept_account_id,
+            periodTimezone: $payment->period_timezone,
         );
     }
 }

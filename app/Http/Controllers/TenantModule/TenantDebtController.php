@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantDebtCreate;
+use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantDebtPaymentCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\Http\Controllers\Controller;
@@ -155,6 +156,33 @@ class TenantDebtController extends Controller
     public function paymentHistory(string $debtCode): JsonResponse
     {
         return $this->successResponse($this->debtService->paymentHistory($this->debtService->resolveIdByCode($debtCode)));
+    }
+
+    public function updateCompoundSchedule(Request $request, string $debtCode): JsonResponse
+    {
+        $validated = $request->validate([
+            'debt_update_key' => ['required', 'integer', 'min:0'],
+            'enabled' => ['required', 'boolean'],
+            'compound_every' => ['nullable', 'integer', 'min:1'],
+            'compound_every_type' => ['nullable', 'string', 'in:Day,Week,Month,day,week,month'],
+            'next_compound_at' => ['nullable', 'date'],
+        ]);
+
+        return $this->successResponse($this->debtService->updateCompoundSchedule(
+            $this->debtService->resolveIdByCode($debtCode),
+            new DebtCompoundScheduleUpdate(
+                debtUpdateKey: (int) $validated['debt_update_key'],
+                enabled: (bool) $validated['enabled'],
+                compoundEvery: isset($validated['compound_every']) ? (int) $validated['compound_every'] : null,
+                compoundEveryType: $validated['compound_every_type'] ?? null,
+                nextCompoundAt: $validated['next_compound_at'] ?? null,
+            ),
+        )->toArray());
+    }
+
+    public function compoundInterest(string $debtCode): JsonResponse
+    {
+        return $this->successResponse($this->debtService->compoundInterest($this->debtService->resolveIdByCode($debtCode)));
     }
 
     protected function rules(bool $isCreate = true): array

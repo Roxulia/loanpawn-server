@@ -88,6 +88,7 @@ class PawnInterestProcessService extends BaseTenantService
     public function compoundBySlipNo(string $slipNo): array
     {
         $this->permissionService->authorizePermission('compound_slip_interest');
+        $this->assertCompoundingEnabled();
         $slip = $this->lookUpService->findModelBySlipNo($slipNo);
 
         return $this->compoundSlip($slip, $this->currentTenantBusinessDate(), false);
@@ -209,10 +210,16 @@ class PawnInterestProcessService extends BaseTenantService
             $this->validateActiveSlip($lockedSlip, $compoundDate);
             $payments = $this->interestFlowService->unpaidDuePaymentModelsWithLock($lockedSlip, $compoundDate);
             if ($payments->isEmpty()) {
+                if ($scheduled && $lockedSlip->compound_every !== null && $lockedSlip->compound_every_type !== null) {
+                    $lockedSlip = $this->repository->update($lockedSlip, [
+                        'next_compound_at' => $this->fixedInterestCalculatorService->nextPeriodStart($compoundDate, (string) $lockedSlip->compound_every_type, (int) $lockedSlip->compound_every),
+                        'update_key' => $lockedSlip->update_key + 1,
+                    ]);
+                }
                 return ['slip' => $lockedSlip->toArray(), 'compounded_interest' => 0.0];
             }
 
-            $amount = round($payments->sum(fn (PawnInterestPayment $payment): float => (float) $payment->calculated_interest), 2);
+            $amount = round($payments->sum(fn (PawnInterestPayment $payment): float => $this->fixedInterestCalculatorService->remainingInterest((float) $payment->calculated_interest, (float) $payment->payment_amount)), 2);
             $createdBy = $scheduled ? null : $this->resolveCurrentTenantUserId();
             $lastEnd = $payments
                 ->map(fn (PawnInterestPayment $payment) => CarbonImmutable::parse($payment->end_period_at)->startOfDay())
