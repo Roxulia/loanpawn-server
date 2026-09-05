@@ -3,6 +3,7 @@
 namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantDebtCreate;
+use App\DataObjects\RequestObjects\TenantDebtPaymentCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\DataObjects\ResponseObjects\TenantDebtDetail;
 use App\DataObjects\ResponseObjects\TenantDebtListPage;
@@ -43,6 +44,8 @@ class TenantDebtService extends BaseTenantService
         private TenantCustomerService $tenantCustomerService,
         private MultiAccountManagement $multiAccountManagement,
         private FinancialAccountTransactionService $financialAccountTransactionService,
+        private DefaultDataService $defaultDataService,
+        private DebtInterestFlowService $debtInterestFlowService,
     ) {}
 
     public function list(int $perPage = 15): TenantDebtListPage
@@ -58,6 +61,13 @@ class TenantDebtService extends BaseTenantService
         );
     }
 
+    public function detailByCode(string $code): TenantDebtDetail
+    {
+        $this->permissionService->authorizeDebtList();
+
+        return TenantDebtDetail::fromModel($this->findDebtForCurrentTenantByCode($code));
+    }
+
     public function createExternalDebt(TenantDebtCreate $request): TenantDebtDetail
     {
         $this->permissionService->authorizeDebtCreate();
@@ -67,6 +77,8 @@ class TenantDebtService extends BaseTenantService
         if ($request->slipCode !== null && $request->customerCode !== null) {
             throw new InvalidTenantRequest('Debt can be linked to either a slip or a customer, not both.');
         }
+
+        $this->validateInterestConfiguration($request);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_debt.create',
@@ -133,6 +145,7 @@ class TenantDebtService extends BaseTenantService
     {
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
+        $this->validateInterestConfiguration($request);
 
         if ($request->slipId === null) {
             throw new InvalidTenantRequest('Slip ID is required for internal debt creation.');
@@ -160,12 +173,19 @@ class TenantDebtService extends BaseTenantService
                 'slip_id' => $slip === null ? null : $slip->getKey(),
                 'customer_id' => $customerId,
                 'amount' => $request->amount,
+                'apply_interest' => $request->applyInterest,
+                'principal_balance' => $request->amount,
+                'interest_rate' => $request->applyInterest ? $request->interestRate : null,
+                'interest_type_id' => $request->applyInterest ? $request->interestTypeId : null,
+                'interest_anchor_at' => $request->applyInterest ? CarbonImmutable::now() : null,
                 'description' => $request->description,
                 'tag' => $request->tag,
                 'is_paid' => false,
                 'accepted_by' => null,
                 'created_by' => $request->createdBy,
             ]);
+
+            $this->debtInterestFlowService->initialize($debt);
 
             $accountingTransaction = $this->tenantAccountingService->recordDebtCreation(
                 $debt,
@@ -203,7 +223,7 @@ class TenantDebtService extends BaseTenantService
                 ]
             );
 
-            return $debt;
+            return $debt->refresh()->load(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency']);
         });
 
         $this->recalculateTrustScoreForDebt($debt);
@@ -223,8 +243,28 @@ class TenantDebtService extends BaseTenantService
             'slip_code' => $request->slipCode,
             'customer_code' => $request->customerCode,
             'tag' => $request->tag,
+            'apply_interest' => $request->applyInterest,
+            'interest_rate' => $request->interestRate,
+            'interest_type_id' => $request->interestTypeId,
             'created_by' => $request->createdBy,
         ];
+    }
+
+    protected function validateInterestConfiguration(TenantDebtCreate $request): void
+    {
+        if (! $request->applyInterest) {
+            if ($request->interestRate !== null || $request->interestTypeId !== null) {
+                throw new InvalidTenantRequest('Interest rate and type require apply_interest.');
+            }
+            return;
+        }
+
+        if ($request->interestRate === null || $request->interestRate <= 0 || $request->interestTypeId === null) {
+            throw new InvalidTenantRequest('Interest rate and interest type are required when interest is enabled.');
+        }
+        if ($this->defaultDataService->getInterestTypeById($request->interestTypeId) === null) {
+            throw new TenantNotFound('Interest type not found.');
+        }
     }
 
     public function update(TenantDebtUpdate $request): TenantDebtDetail
@@ -244,7 +284,11 @@ class TenantDebtService extends BaseTenantService
         }
 
         if ($request->amount !== null) {
+            if ($debt->apply_interest) {
+                throw new InvalidTenantRequest('The principal of an interest-bearing debt cannot be edited.');
+            }
             $data['amount'] = $request->amount;
+            $data['principal_balance'] = $request->amount;
         }
 
         if ($request->description !== null) {
@@ -317,6 +361,10 @@ class TenantDebtService extends BaseTenantService
     {
         $this->permissionService->authorizeDebtDelete();
         $debt = $this->findDebtForCurrentTenant($debtId);
+
+        if ($this->debtInterestFlowService->hasPayments($debt->id)) {
+            throw new InvalidTenantRequest('A debt with payment history cannot be deleted.');
+        }
 
         DB::transaction(function () use ($debt) {
             $debt = $this->repository->findByIdWithLock($debt->id);
@@ -407,6 +455,14 @@ class TenantDebtService extends BaseTenantService
 
     public function markAsPaid(int $debtId, float $amountPaid, ?int $acceptAccountId = null, ?float $reportingExchangeRate = null): array
     {
+        return $this->recordPayment(new TenantDebtPaymentCreate(
+            debtId: $debtId,
+            paymentAmount: $amountPaid,
+            acceptAccountId: $acceptAccountId,
+            reportingExchangeRate: $reportingExchangeRate,
+        ));
+
+        /* Legacy implementation retained below temporarily for source compatibility. */
         $this->permissionService->authorizeDebtUpdate();
         $acceptAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($acceptAccountId);
         $updatedDebt = DB::transaction(function () use ($debtId, $amountPaid, $acceptAccount, $reportingExchangeRate) {
@@ -434,6 +490,7 @@ class TenantDebtService extends BaseTenantService
 
             $updatedDebt = $this->repository->update($debt, [
                 'is_paid' => true,
+                'principal_balance' => 0,
                 'accept_account_id' => $acceptAccount->id,
                 'accepted_by' => $this->resolveCurrentTenantUserId(),
             ]);
@@ -506,6 +563,29 @@ class TenantDebtService extends BaseTenantService
         return $updatedDebt;
     }
 
+    public function recordPayment(TenantDebtPaymentCreate $request): array
+    {
+        $this->permissionService->authorizeDebtUpdate();
+        $result = $this->debtInterestFlowService->pay($request);
+        $this->flushTenantDebtListCache();
+
+        return $result->toArray();
+    }
+
+    public function calculateInterest(int $debtId): array
+    {
+        $this->permissionService->authorizeDebtList();
+
+        return $this->debtInterestFlowService->calculate($debtId)->toArray();
+    }
+
+    public function paymentHistory(int $debtId): array
+    {
+        $this->permissionService->authorizeDebtList();
+
+        return $this->debtInterestFlowService->history($debtId);
+    }
+
     public function markAsPaidWithoutAccounting(TenantDebt $debt, FinancialAccount $acceptAccount, ?int $acceptedBy = null): TenantDebt
     {
         $updatedDebt = DB::transaction(function () use ($debt, $acceptAccount, $acceptedBy): TenantDebt {
@@ -530,6 +610,7 @@ class TenantDebtService extends BaseTenantService
 
             $updatedDebt = $this->repository->update($debt, [
                 'is_paid' => true,
+                'principal_balance' => 0,
                 'accept_account_id' => $acceptAccount->id,
                 'accepted_by' => $acceptedBy,
             ]);

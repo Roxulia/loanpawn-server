@@ -63,6 +63,7 @@ return [
         'create_debt' => 'Allows creating tenant debt records.',
         'update_debt' => 'Allows updating tenant debt records.',
         'delete_debt' => 'Allows deleting tenant debt records.',
+        'manage_debt_settings' => 'Allows configuring tenant debt payment policy.',
         'list_loan_contract' => 'Allows viewing loan contract slips.',
         'create_loan_contract' => 'Allows creating loan contract slips.',
         'delete_loan_contract' => 'Allows deleting loan contract slips.',
@@ -110,6 +111,7 @@ return [
                 'manage_slip_compound_schedule',
                 'compound_slip_interest',
                 'collect_partial_principal',
+                'manage_debt_settings',
             ],
         ],
         'Admin' => [
@@ -173,6 +175,7 @@ return [
                 'create_debt',
                 'update_debt',
                 'delete_debt',
+                'manage_debt_settings',
                 'list_loan_contract',
                 'create_loan_contract',
                 'delete_loan_contract',

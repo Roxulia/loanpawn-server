@@ -106,6 +106,11 @@ class FinancialAccountTransactionService
         return $this->recordType($account, FinancialAccountTransactionType::DebtPayment, $amount, 'debit', $referenceNumber, $referenceType, $note, $createdBy, $relatedTransactionId);
     }
 
+    public function recordDebtInterestPayment(FinancialAccount $account, float $amount, ?string $referenceNumber = null, ?string $referenceType = null, ?string $note = null, ?int $createdBy = null, ?int $relatedTransactionId = null): FinancialAccountTransaction
+    {
+        return $this->recordType($account, FinancialAccountTransactionType::DebtInterestPayment, $amount, 'debit', $referenceNumber, $referenceType, $note, $createdBy, $relatedTransactionId);
+    }
+
     public function recordBusinessLoanReceipt(FinancialAccount $account, float $amount, ?string $referenceNumber = null, ?string $referenceType = null, ?string $note = null, ?int $createdBy = null, ?int $relatedTransactionId = null): FinancialAccountTransaction
     {
         return $this->recordType($account, FinancialAccountTransactionType::BusinessLoanReceipt, $amount, 'debit', $referenceNumber, $referenceType, $note, $createdBy, $relatedTransactionId);

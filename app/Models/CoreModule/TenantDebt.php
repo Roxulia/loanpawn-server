@@ -7,6 +7,7 @@ use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TenantDebt extends Model
 {
@@ -20,6 +21,12 @@ class TenantDebt extends Model
         'slip_id',
         'customer_id',
         'amount',
+        'apply_interest',
+        'principal_balance',
+        'interest_rate',
+        'interest_type_id',
+        'interest_anchor_at',
+        'last_interest_paid_at',
         'description',
         'tag',
         'is_paid',
@@ -31,6 +38,11 @@ class TenantDebt extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'apply_interest' => 'boolean',
+            'principal_balance' => 'decimal:2',
+            'interest_rate' => 'decimal:4',
+            'interest_anchor_at' => 'datetime',
+            'last_interest_paid_at' => 'datetime',
             'is_paid' => 'boolean',
         ];
     }
@@ -53,6 +65,32 @@ class TenantDebt extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(TenantCustomer::class, 'customer_id');
+    }
+
+    public function interestType(): BelongsTo
+    {
+        return $this->belongsTo(InterestType::class, 'interest_type_id');
+    }
+
+    public function interestAccruals(): HasMany
+    {
+        return $this->hasMany(TenantDebtInterestAccrual::class, 'debt_id');
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(TenantDebtPayment::class, 'debt_id');
+    }
+
+    public function getOutstandingInterestAttribute(): float
+    {
+        if ($this->relationLoaded('interestAccruals')) {
+            return (float) $this->interestAccruals->sum(
+                fn (TenantDebtInterestAccrual $row): float => max((float) $row->calculated_interest - (float) $row->paid_amount, 0)
+            );
+        }
+
+        return max((float) ($this->total_interest_accrued ?? 0) - (float) ($this->total_interest_paid ?? 0), 0);
     }
 
     public function acceptedByUser(): BelongsTo

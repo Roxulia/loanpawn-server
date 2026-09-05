@@ -9,6 +9,7 @@ use App\DataObjects\RequestObjects\TenantContactUpdate;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
 use App\DataObjects\RequestObjects\LoanSlipCreationSettingsUpdate;
+use App\DataObjects\RequestObjects\TenantDebtPaymentPolicyUpdate;
 use App\DataObjects\RequestObjects\TenantSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
 use App\Http\Controllers\Controller;
@@ -180,6 +181,21 @@ class TenantSettingsController extends Controller
         return $this->successResponse($this->tenantSettingService->updateCurrentTenantLoanSlipCreationSettings(
             new LoanSlipCreationSettingsUpdate(
                 customerInfoRequired: (bool) $validated['customer_info_required'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
+    }
+
+    public function updateDebtPaymentPolicy(Request $request): JsonResponse
+    {
+        $validated = Validator::make($request->all(), [
+            'allow_partial_payments' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ])->validate();
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantDebtPaymentPolicy(
+            new TenantDebtPaymentPolicyUpdate(
+                allowPartialPayments: (bool) $validated['allow_partial_payments'],
                 updateKey: (int) $validated['update_key'],
             )
         )->toArray());

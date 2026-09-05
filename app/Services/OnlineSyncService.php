@@ -502,6 +502,10 @@ class OnlineSyncService extends BaseTenantService
                 'fields' => [
                     'slip_id' => 'slip_id',
                     'amount' => 'amount',
+                    'apply_interest' => 'apply_interest',
+                    'principal_balance' => 'principal_balance',
+                    'interest_rate' => 'interest_rate',
+                    'interest_type_id' => 'interest_type_id',
                     'description' => 'description',
                     'tag' => 'tag',
                     'is_paid' => 'is_paid',

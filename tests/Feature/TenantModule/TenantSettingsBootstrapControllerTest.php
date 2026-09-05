@@ -55,6 +55,32 @@ class TenantSettingsBootstrapControllerTest extends TestCase
         $this->tenantGetJson($tenant, '/api/tenant/settings/default-data')->assertForbidden();
     }
 
+    public function test_debt_payment_policy_defaults_off_and_can_be_enabled_by_authorized_user(): void
+    {
+        [$tenant] = $this->tenantUserContext(['manage_debt_settings'], 'debt-policy');
+
+        $this->tenantGetJson($tenant, '/api/tenant/settings/tenant')
+            ->assertOk()
+            ->assertJsonPath('data.debt_payment_policy.allow_partial_payments', false)
+            ->assertJsonPath('data.debt_payment_policy.update_key', 0);
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->putJson('/api/tenant/settings/debt-payment-policy', [
+                'allow_partial_payments' => true,
+                'update_key' => 0,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.allow_partial_payments', true)
+            ->assertJsonPath('data.update_key', 1);
+
+        $this->assertDatabaseHas('tenant_settings', [
+            'tenant_id' => $tenant->id,
+            'key' => 'allow_partial_debt_payments',
+            'value' => 'true',
+            'update_key' => 1,
+        ]);
+    }
+
     private function tenantGetJson(Tenant $tenant, string $uri): \Illuminate\Testing\TestResponse
     {
         return $this->withHeader('X-Tenant-Code', $tenant->tenant_code)->getJson($uri);

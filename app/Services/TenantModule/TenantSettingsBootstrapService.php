@@ -25,7 +25,7 @@ class TenantSettingsBootstrapService
 
     public function tenant(): TenantSettingsBootstrapResource
     {
-        $permissions = ['manage_slip_document', 'manage_tenant_contact', 'manage_tenant_timezone'];
+        $permissions = ['manage_slip_document', 'manage_tenant_contact', 'manage_tenant_timezone', 'manage_debt_settings'];
         $this->permissionService->authorizeAnyPermission($permissions);
         $sections = [];
 
@@ -47,6 +47,10 @@ class TenantSettingsBootstrapService
             && $this->licenseService->currentTenantHasFeature('tenant_timezone_management')) {
             $sections['timezone'] = $this->settingService->getCurrentTenantTimezone()->toArray();
             $sections['timezone_options'] = array_values(timezone_identifiers_list());
+        }
+
+        if ($this->hasPermission('manage_debt_settings')) {
+            $sections['debt_payment_policy'] = $this->settingService->getCurrentTenantDebtPaymentPolicy()->toArray();
         }
 
         return new TenantSettingsBootstrapResource($sections);

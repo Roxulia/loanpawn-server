@@ -62,3 +62,20 @@ Only do the following if user didn't give you reference UI or UI description.
 - Do not change backend endpoints.
 - Do not change permission logic.
 - Do not change validation rules unless explicitly requested.
+
+## Must Do
+- If certain part of a function can be built into a seperate function build seperate function with proper naming to show clear understandablity of codes.
+- functions should follow this sequence pattern : mainly used public functions first, public helpers, private helpers with sequence of usage in public functions. 
+- Comment out each step or phrase for every codes edited or added. for example : 
+    // Calculation of allocated payment and leftover
+    if ($request->allocationOrder === 'interest_first') {
+        $interestPaid = min($left, $interestDue);
+        $left -= $interestPaid;
+        $principalPaid = min($left, $principalDue);
+        $left -= $principalPaid;
+    } else {
+        $principalPaid = min($left, $principalDue);
+        $left -= $principalPaid;
+        $interestPaid = min($left, $interestDue);
+        $left -= $interestPaid;
+    }

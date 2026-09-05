@@ -31,6 +31,20 @@ class TenantDebtDetail extends BaseDataObject
 
     public string $amount;
 
+    public bool $applyInterest;
+
+    public string $principalBalance;
+
+    public ?string $interestRate;
+
+    public ?int $interestTypeId;
+
+    public ?string $interestTypeName;
+
+    public string $outstandingInterest;
+
+    public string $totalOutstanding;
+
     public string $description;
 
     public ?string $tag;
@@ -60,6 +74,13 @@ class TenantDebtDetail extends BaseDataObject
         $detail->customerCode = $debt->customer?->code;
         $detail->customerName = $debt->customer?->name;
         $detail->amount = (string) $debt->amount;
+        $detail->applyInterest = (bool) $debt->apply_interest;
+        $detail->principalBalance = (string) $debt->principal_balance;
+        $detail->interestRate = $debt->interest_rate === null ? null : (string) $debt->interest_rate;
+        $detail->interestTypeId = $debt->interest_type_id;
+        $detail->interestTypeName = $debt->interestType?->name;
+        $detail->outstandingInterest = number_format((float) ($debt->outstanding_interest ?? 0), 2, '.', '');
+        $detail->totalOutstanding = number_format((float) $debt->principal_balance + (float) ($debt->outstanding_interest ?? 0), 2, '.', '');
         $detail->description = $debt->description;
         $detail->tag = $debt->tag;
         $detail->isPaid = (bool) $debt->is_paid;

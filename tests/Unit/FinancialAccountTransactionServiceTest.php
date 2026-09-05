@@ -161,6 +161,7 @@ class FinancialAccountTransactionServiceTest extends TestCase
             ['recordPawnRedemption', FinancialAccountTransactionType::PawnRedemption, 'debit'],
             ['recordDebtCreation', FinancialAccountTransactionType::DebtCreation, 'credit'],
             ['recordDebtPayment', FinancialAccountTransactionType::DebtPayment, 'debit'],
+            ['recordDebtInterestPayment', FinancialAccountTransactionType::DebtInterestPayment, 'debit'],
             ['recordBusinessLoanReceipt', FinancialAccountTransactionType::BusinessLoanReceipt, 'debit'],
             ['recordBusinessLoanPayment', FinancialAccountTransactionType::BusinessLoanPayment, 'credit'],
             ['recordExpensePayment', FinancialAccountTransactionType::ExpensePayment, 'credit'],

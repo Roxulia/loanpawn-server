@@ -7,9 +7,11 @@ use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
 use App\DataObjects\RequestObjects\InterestProcessSettingsUpdate;
 use App\DataObjects\RequestObjects\LoanSlipCreationSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
+use App\DataObjects\RequestObjects\TenantDebtPaymentPolicyUpdate;
 use App\DataObjects\RequestObjects\ReportingCurrencyAbortRequest;
 use App\DataObjects\ResponseObjects\InterestProcessSettingsResource;
 use App\DataObjects\ResponseObjects\LoanSlipCreationSettingsResource;
+use App\DataObjects\ResponseObjects\TenantDebtPaymentPolicy;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
@@ -46,6 +48,7 @@ class TenantSettingService extends BaseTenantService
             'loan_slip_creation_settings' => json_encode([
                 'customer_info_required' => true,
             ]),
+            'allow_partial_debt_payments' => 'false',
         ];
         foreach ($defaultSettings as $key => $value) {
             $this->repository->firstOrCreate($tenantId, $key, [
@@ -261,6 +264,34 @@ class TenantSettingService extends BaseTenantService
         return $this->getSetting($this->resolveCurrentTenantId(), 'timezone');
     }
 
+    public function getCurrentTenantDebtPaymentPolicy(): TenantDebtPaymentPolicy
+    {
+        return TenantDebtPaymentPolicy::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_debt_payments')
+        );
+    }
+
+    public function currentTenantAllowsPartialDebtPayments(): bool
+    {
+        return $this->getCurrentTenantDebtPaymentPolicy()->allowPartialPayments;
+    }
+
+    public function updateCurrentTenantDebtPaymentPolicy(TenantDebtPaymentPolicyUpdate $request): TenantDebtPaymentPolicy
+    {
+        $this->permissionService->authorizePermission('manage_debt_settings');
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_debt_payments');
+
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return TenantDebtPaymentPolicy::fromModel($this->repository->update($setting, [
+            'value' => $request->allowPartialPayments ? 'true' : 'false',
+            'category' => 'debt',
+            'update_key' => $setting->update_key + 1,
+        ]));
+    }
+
     public function updateCurrentTenantTimezone(TenantTimezoneUpdate $request): TenantSetting
     {
         $this->accountingDayService->assertTimezoneChangeAllowed();
@@ -322,6 +353,7 @@ class TenantSettingService extends BaseTenantService
                     'loan_slip_creation_settings' => json_encode([
                         'customer_info_required' => true,
                     ]),
+                    'allow_partial_debt_payments' => 'false',
                     default => null,
                 },
                 'category' => $code === 'interest_process_settings' ? 'finance' : 'tenant',
