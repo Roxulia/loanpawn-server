@@ -84,7 +84,7 @@ class InterestFlowServiceTest extends TestCase
         $this->assertDatabaseCount('pawn_interest_payments', 2);
     }
 
-    public function test_it_records_debt_updates_slip_dates_and_defers_the_next_interest_row(): void
+    public function test_it_records_debt_updates_slip_dates_and_creates_one_next_interest_row(): void
     {
         $tenant = $this->createTenant();
         $tenantUser = $this->actingTenantUser($tenant, ['access_all']);
@@ -143,7 +143,7 @@ class InterestFlowServiceTest extends TestCase
         $this->assertDatabaseHas('pawn_loan_contract_slips', [
             'id' => $created->id,
             'last_interest_paid_at' => '2026-04-04 10:00:00',
-            'expire_at' => '2026-08-05 00:00:00',
+            'expire_at' => '2026-09-04 00:00:00',
         ]);
 
         $this->assertDatabaseHas('pawn_interest_payments', [
@@ -158,14 +158,10 @@ class InterestFlowServiceTest extends TestCase
             'payment_amount' => '5000.00',
             'is_paid' => true,
         ]);
-        $this->assertDatabaseCount('pawn_interest_payments', 2);
-
-        // The next row is deferred until its tenant-local start day.
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-05 00:01:00'));
-        app(InterestFlowService::class)->calculateInterestBySlipNo($created->slipNo);
+        // Payment immediately creates exactly one row at the next monthly boundary.
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period_at' => '2026-04-05 00:00:00',
+            'start_period_at' => '2026-05-04 00:00:00',
             'is_paid' => false,
         ]);
         $this->assertDatabaseCount('pawn_interest_payments', 3);
@@ -407,14 +403,15 @@ class InterestFlowServiceTest extends TestCase
             'daily interest, week quota' => ['daily', 1, 'Week', 2, '2026-02-01', '2026-02-15'],
             'daily interest, month quota' => ['daily', 1, 'Month', 2, '2026-02-01', '2026-04-01'],
             'daily interest, year quota' => ['daily', 1, 'Year', 1, '2026-02-01', '2027-02-01'],
-            'weekly interest, day quota' => ['weekly', 7, 'Day', 5, '2026-02-01', '2026-02-06'],
-            'weekly interest, week quota' => ['weekly', 7, 'Week', 2, '2026-02-01', '2026-02-15'],
-            'weekly interest, month quota' => ['weekly', 7, 'Month', 2, '2026-02-01', '2026-04-01'],
-            'weekly interest, year quota' => ['weekly', 7, 'Year', 1, '2026-02-01', '2027-02-01'],
-            'monthly interest, day quota' => ['monthly', 30, 'Day', 5, '2026-02-01', '2026-02-06'],
-            'monthly interest, week quota' => ['monthly', 30, 'Week', 2, '2026-02-01', '2026-02-15'],
-            'monthly interest, month quota' => ['monthly', 30, 'Month', 2, '2026-02-01', '2026-04-01'],
-            'monthly interest, year quota' => ['monthly', 30, 'Year', 1, '2026-02-01', '2027-02-01'],
+            'weekly interest, day quota' => ['weekly', 7, 'Day', 5, '2026-02-07', '2026-02-12'],
+            'weekly interest, week quota' => ['weekly', 7, 'Week', 2, '2026-02-07', '2026-02-21'],
+            'weekly interest, month quota' => ['weekly', 7, 'Month', 2, '2026-02-07', '2026-04-07'],
+            'weekly interest, year quota' => ['weekly', 7, 'Year', 1, '2026-02-07', '2027-02-07'],
+            'monthly interest, day quota' => ['monthly', 30, 'Day', 5, '2026-02-28', '2026-03-05'],
+            'monthly interest, week quota' => ['monthly', 30, 'Week', 2, '2026-02-28', '2026-03-14'],
+            'monthly interest, month quota' => ['monthly', 30, 'Month', 2, '2026-02-28', '2026-04-28'],
+            'monthly interest, year quota' => ['monthly', 30, 'Year', 1, '2026-02-28', '2027-02-28'],
+            'custom duration interest' => ['custom-fifteen-days', 15, 'Month', 2, '2026-02-15', '2026-04-15'],
         ];
     }
 

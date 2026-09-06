@@ -215,13 +215,21 @@ class InterestFlowService extends BaseTenantService
                     $this->recordInterestPaymentChangeAccounting($lastPaidPayment, $financialAccount, $request->reportingExchangeRate);
                 }
 
-                // Move the renewed contract window to the next tenant-local day.
+                // Move the renewed contract window by the configured interest interval.
                 $renewalWindow = $this->calculateRenewalWindow($slip, $currentDate);
                 $updatedSlip = $this->loanContractSlipRepository->update($slip, [
                     'last_interest_paid_at' => $currentAt,
+                    'last_interest_added_at' => $currentAt,
                     'expire_at' => $renewalWindow['expire_at'],
                     'update_key' => $slip->update_key + 1,
                 ]);
+                // Create exactly one next-period row as part of the payment transaction.
+                $this->createSingleInterestRow(
+                    $updatedSlip,
+                    $renewalWindow['start_at'],
+                    $renewalWindow['expire_at'],
+                    $this->resolveCurrentTenantUserId(),
+                );
 
                 $this->customerTrustScoreService->recalculateForCustomer((int) $updatedSlip->customer_id);
 
@@ -410,15 +418,12 @@ class InterestFlowService extends BaseTenantService
         }
 
         // Create only the first period instead of pre-scheduling the full slip lifetime.
-        $rows = $this->expectedScheduleRows(
+        $this->createSingleInterestRow(
             $slip,
             CarbonImmutable::parse($slip->created_at)->startOfDay(),
             CarbonImmutable::parse($slip->expire_at)->startOfDay(),
+            $createdBy,
         );
-
-        if ($rows !== []) {
-            $this->createScheduleRow($slip, $rows[0], $createdBy);
-        }
     }
 
     public function materializeDueInterestRows(
@@ -465,8 +470,8 @@ class InterestFlowService extends BaseTenantService
                 $start = CarbonImmutable::parse($lockedSlip->created_at)->setTimezone($timezone)->startOfDay();
             }
 
-            $intervalUnit = $this->resolveInterestIntervalUnit($lockedSlip);
-            $useInclusiveBoundary = in_array($intervalUnit, ['Day', 'Week'], true);
+            $interestInterval = $this->resolveInterestInterval($lockedSlip);
+            $useInclusiveBoundary = in_array($interestInterval['type'], ['Day', 'Week'], true);
             $interestAmount = $this->fixedInterestCalculatorService->calculate(
                 (float) $lockedSlip->loan_amount,
                 (float) $lockedSlip->interest_rate,
@@ -478,7 +483,12 @@ class InterestFlowService extends BaseTenantService
 
             // Materialize every missing period that is due, while respecting expiry.
             while ($start->lte($throughDate) && ($useInclusiveBoundary ? $start->lte($expire) : $start->lt($expire))) {
-                $bounds = $this->fixedInterestCalculatorService->periodBounds($start, $intervalUnit, $timezone);
+                $bounds = $this->fixedInterestCalculatorService->periodBounds(
+                    $start,
+                    $interestInterval['type'],
+                    $timezone,
+                    $interestInterval['count'],
+                );
                 $end = $bounds['end']->min($expire->endOfDay()->setMicrosecond(0));
                 $startKey = $start->utc()->format('Y-m-d H:i:s');
 
@@ -518,8 +528,14 @@ class InterestFlowService extends BaseTenantService
         $timezone = $slip->tenant_id === null
             ? config('app.timezone')
             : $this->businessClock->timezone((int) $slip->tenant_id);
-        // Renew from the day after payment at tenant-local midnight.
-        $startAt = CarbonImmutable::parse($paymentDate)->setTimezone($timezone)->addDay()->startOfDay();
+        $paymentDate = CarbonImmutable::parse($paymentDate)->setTimezone($timezone)->startOfDay();
+        $interestInterval = $this->resolveInterestInterval($slip);
+        // Renew from the next configured interest boundary at tenant-local midnight.
+        $startAt = $this->fixedInterestCalculatorService->nextPeriodStart(
+            $paymentDate,
+            $interestInterval['type'],
+            $interestInterval['count'],
+        );
 
         return [
             'start_at' => $startAt,
@@ -542,11 +558,17 @@ class InterestFlowService extends BaseTenantService
         $timezone = $this->businessClock->timezone((int) $slip->tenant_id);
         $currentStart = $startDate->setTimezone($timezone)->startOfDay();
         $expireAt = $expireDate->setTimezone($timezone)->startOfDay();
-        $useInclusiveBoundary = in_array($this->resolveInterestIntervalUnit($slip), ['Day', 'Week'], true);
+        $interestInterval = $this->resolveInterestInterval($slip);
+        $useInclusiveBoundary = in_array($interestInterval['type'], ['Day', 'Week'], true);
         $rows = [];
 
         while ($useInclusiveBoundary ? $currentStart->lte($expireAt) : $currentStart->lt($expireAt)) {
-            $bounds = $this->fixedInterestCalculatorService->periodBounds($currentStart, $this->resolveInterestIntervalUnit($slip), $timezone);
+            $bounds = $this->fixedInterestCalculatorService->periodBounds(
+                $currentStart,
+                $interestInterval['type'],
+                $timezone,
+                $interestInterval['count'],
+            );
             $endDate = $bounds['end'];
             $expireEnd = $expireAt->endOfDay()->setMicrosecond(0);
             if ($endDate->gt($expireEnd)) {
@@ -718,13 +740,32 @@ class InterestFlowService extends BaseTenantService
         }
     }
 
-    protected function resolveInterestIntervalUnit(PawnLoanContractSlip $slip): string
+    /** @return array{type: string, count: int} */
+    protected function resolveInterestInterval(PawnLoanContractSlip $slip): array
     {
-        return $this->fixedInterestCalculatorService->resolveInterestPeriodType(
-            $slip->interestType?->code,
-            $slip->interestType?->name,
-            $slip->interestType?->duration_in_days,
-        );
+        $interestCode = strtolower(trim((string) ($slip->interestType?->code ?: $slip->interestType?->name)));
+
+        return match ($interestCode) {
+            'daily', 'day' => ['type' => 'Day', 'count' => 1],
+            'weekly', 'week' => ['type' => 'Week', 'count' => 1],
+            'monthly', 'month' => ['type' => 'Month', 'count' => 1],
+            'yearly', 'year' => ['type' => 'Year', 'count' => 1],
+            default => ['type' => 'Day', 'count' => max(1, (int) ($slip->interestType?->duration_in_days))],
+        };
+    }
+
+    private function createSingleInterestRow(
+        PawnLoanContractSlip $slip,
+        CarbonImmutable $startDate,
+        CarbonImmutable $expireDate,
+        ?int $createdBy,
+    ): void {
+        // Reuse the established period-end and expiry-boundary calculation.
+        $rows = $this->expectedScheduleRows($slip, $startDate, $expireDate);
+
+        if ($rows !== []) {
+            $this->createScheduleRow($slip, $rows[0], $createdBy);
+        }
     }
 
     private function createScheduleRow(PawnLoanContractSlip $slip, array $row, ?int $createdBy): PawnInterestPayment

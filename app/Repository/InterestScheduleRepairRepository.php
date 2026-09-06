@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Models\PawnModule\PawnLoanContractSlip;
+use App\Models\PawnModule\PawnInterestPayment;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
