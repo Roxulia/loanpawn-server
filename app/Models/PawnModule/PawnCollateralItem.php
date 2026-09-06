@@ -5,14 +5,22 @@ namespace App\Models\PawnModule;
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\ItemCategoryType;
 use App\Traits\BelongToTenant;
+use Database\Factories\PawnCollateralItemFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PawnCollateralItem extends Model
 {
     use BelongToTenant;
+    use HasFactory;
     use SoftDeletes;
+
+    protected static function newFactory(): PawnCollateralItemFactory
+    {
+        return PawnCollateralItemFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',

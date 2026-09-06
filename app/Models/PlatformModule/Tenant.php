@@ -5,13 +5,22 @@ namespace App\Models\PlatformModule;
 use App\Models\CoreModule\TenantBranding;
 use App\Models\CoreModule\TenantContact;
 use App\Models\CoreModule\TenantSetting;
+use Database\Factories\TenantFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
+    use HasFactory;
+
+    protected static function newFactory(): TenantFactory
+    {
+        return TenantFactory::new();
+    }
+
     protected $fillable = [
         'platform_user_id',
         'category_id',

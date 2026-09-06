@@ -3,7 +3,9 @@
 namespace App\Models\CoreModule;
 
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantUserFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,8 +16,14 @@ use Laravel\Sanctum\HasApiTokens;
 class TenantUser extends Authenticatable
 {
     use BelongToTenant;
+    use HasFactory;
     use HasApiTokens;
     use Notifiable;
+
+    protected static function newFactory(): TenantUserFactory
+    {
+        return TenantUserFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',

@@ -3,12 +3,21 @@
 namespace App\Models;
 
 use App\Enums\AccountingCategory;
+use Database\Factories\TenantAccountingTransactionFactory;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\TenantAccounting;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class TenantAccountingTransactions extends TenantAccounting
 {
+    use HasFactory;
+
+    protected static function newFactory(): TenantAccountingTransactionFactory
+    {
+        return TenantAccountingTransactionFactory::new();
+    }
+
     protected $table = 'tenant_accounting_transactions';
 
     protected $fillable = [

@@ -4,7 +4,9 @@ namespace App\Models\CoreModule;
 
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantCustomerFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -12,7 +14,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class TenantCustomer extends Model
 {
     use BelongToTenant;
+    use HasFactory;
     use SoftDeletes;
+
+    protected static function newFactory(): TenantCustomerFactory
+    {
+        return TenantCustomerFactory::new();
+    }
 
     public const MAX_TRUST_SCORE = 255;
     public const DEFAULT_TRUST_SCORE = 128;

@@ -5,13 +5,21 @@ namespace App\Models\CoreModule;
 use App\Models\FinancialAccount;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantDebtFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TenantDebt extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): TenantDebtFactory
+    {
+        return TenantDebtFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',
