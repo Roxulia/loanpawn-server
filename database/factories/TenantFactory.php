@@ -20,7 +20,6 @@ class TenantFactory extends Factory
             'name' => fake()->company().' Performance',
             'tenant_code' => fake()->unique()->bothify('perf-tenant-###'),
             'subdomain' => fake()->unique()->bothify('perf-###'),
-            'plan_type' => 'premium',
             'status' => 'active',
         ];
     }

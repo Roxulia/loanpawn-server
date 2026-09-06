@@ -17,7 +17,8 @@ class TenantLicenseFactory extends Factory
         $this->ensureTestingEnvironment();
 
         return [
-            'license_key' => fake()->unique()->uuid(),
+            // Generate a unique 16-character license key that matches the database column limit.
+            'license_key' => fake()->unique()->regexify('[A-Z0-9]{16}'),
             'plan_type' => 'premium',
             'status' => 'active',
             'starts_at' => now()->subYear(),

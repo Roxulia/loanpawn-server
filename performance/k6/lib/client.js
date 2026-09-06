@@ -6,8 +6,9 @@ import { apiHeaders, settings } from './config.js';
 let authenticated = false;
 
 // Laravel Sanctum requires a CSRF cookie before the session-based login request.
-export function authenticate() {
-    if (authenticated) return;
+export function authenticate(forceLogin = false) {
+    // Reuse the current session unless the caller detected that it is no longer authenticated.
+    if (authenticated && !forceLogin) return;
 
     const csrfResponse = http.get(`${settings.baseUrl}/sanctum/csrf-cookie`, {
         headers: apiHeaders(),

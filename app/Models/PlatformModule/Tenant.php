@@ -26,7 +26,6 @@ class Tenant extends Model
         'category_id',
         'name',
         'tenant_code',
-        'plan_type',
         'subdomain',
         'status',
         'update_key',

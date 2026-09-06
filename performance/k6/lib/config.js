@@ -1,7 +1,7 @@
 // Centralizing settings keeps every scenario runnable with the same command-line variables.
 export const settings = {
-    baseUrl: (__ENV.BASE_URL || 'https://loanpawntest.1morebit.tech').replace(/\/$/, ''),
-    origin: __ENV.ORIGIN || 'https://app.loanpawntest.1morebit.tech',
+    baseUrl: (__ENV.BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, ''),
+    origin: __ENV.ORIGIN || 'http://127.0.0.1:5173',
     tenantCode: __ENV.TENANT_CODE || 'perf-tenant-001',
     email: __ENV.EMAIL || 'owner001@performance.test',
     password: __ENV.PASSWORD || 'Performance123!',
