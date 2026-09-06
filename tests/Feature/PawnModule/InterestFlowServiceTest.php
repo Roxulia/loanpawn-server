@@ -15,6 +15,7 @@ use App\Models\PlatformModule\Tenant;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Services\PawnModule\InterestFlowService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
+use App\Services\PawnModule\PawnInterestProcessService;
 use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -77,9 +78,13 @@ class InterestFlowServiceTest extends TestCase
         $this->assertSame('2026-02-28', CarbonImmutable::parse($result->interestBreakdown[0]->startPeriodAt)->toDateString());
         $this->assertSame('2026-03-28', CarbonImmutable::parse($result->interestBreakdown[1]->startPeriodAt)->toDateString());
         $this->assertIsInt($result->interestBreakdown[0]->updateKey);
+
+        // Repeated lazy materialization must not duplicate an existing period.
+        app(InterestFlowService::class)->calculateInterestBySlipNo($created->slipNo);
+        $this->assertDatabaseCount('pawn_interest_payments', 2);
     }
 
-    public function test_it_records_debt_updates_slip_dates_and_regenerates_interest_schedule(): void
+    public function test_it_records_debt_updates_slip_dates_and_defers_the_next_interest_row(): void
     {
         $tenant = $this->createTenant();
         $tenantUser = $this->actingTenantUser($tenant, ['access_all']);
@@ -138,8 +143,7 @@ class InterestFlowServiceTest extends TestCase
         $this->assertDatabaseHas('pawn_loan_contract_slips', [
             'id' => $created->id,
             'last_interest_paid_at' => '2026-04-04 10:00:00',
-            'last_interest_added_at' => '2026-04-04 10:00:00',
-            'expire_at' => '2026-09-04 00:00:00',
+            'expire_at' => '2026-08-05 00:00:00',
         ]);
 
         $this->assertDatabaseHas('pawn_interest_payments', [
@@ -154,14 +158,17 @@ class InterestFlowServiceTest extends TestCase
             'payment_amount' => '5000.00',
             'is_paid' => true,
         ]);
+        $this->assertDatabaseCount('pawn_interest_payments', 2);
+
+        // The next row is deferred until its tenant-local start day.
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-05 00:01:00'));
+        app(InterestFlowService::class)->calculateInterestBySlipNo($created->slipNo);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
-            'start_period_at' => '2026-05-04 00:00:00',
-            'end_period_at' => '2026-06-03 00:00:00',
+            'start_period_at' => '2026-04-05 00:00:00',
             'is_paid' => false,
         ]);
-
-        $this->assertDatabaseCount('pawn_interest_payments', 6);
+        $this->assertDatabaseCount('pawn_interest_payments', 3);
         $this->assertDatabaseHas('tenant_accounting_transactions', [
             'description' => 'Interest Payment Transaction',
             'transaction_direction' => 'incoming',
@@ -315,6 +322,50 @@ class InterestFlowServiceTest extends TestCase
         ]);
     }
 
+    public function test_scheduled_accrual_catches_up_due_rows_without_duplicates(): void
+    {
+        $tenant = $this->createTenant();
+        $this->actingTenantUser($tenant, ['access_all']);
+        $interestType = InterestType::query()->create([
+            'tenant_id' => null,
+            'code' => 'daily',
+            'name' => 'Daily',
+            'duration_in_days' => 1,
+            'is_default' => true,
+        ]);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-01 09:30:00'));
+        app(ManagementService::class)->create(new LoanContractSlipCreate(
+            customer: new TenantCustomerCreate(
+                name: 'Scheduled Interest Customer',
+                phone: '09900000106',
+            ),
+            collateralItems: [
+                new PawnCollateralItemCreate(
+                    type: 'Normal',
+                    name: 'Tablet',
+                    estimatedValue: 180000,
+                    itemStatus: 'pawned'
+                ),
+            ],
+            loanAmount: 100000,
+            interestRate: 1,
+            interestTypeId: $interestType->id,
+            expiryQuota: 5,
+            expiryQuotaType: 'Day',
+        ));
+
+        // Catch up both local-midnight periods missed since creation.
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-03 00:05:00'));
+        $service = app(PawnInterestProcessService::class);
+        $this->assertSame(2, $service->processDueInterestAccruals());
+        $this->assertDatabaseCount('pawn_interest_payments', 3);
+
+        // A retry in the same tenant-local day remains idempotent.
+        $this->assertSame(0, $service->processDueInterestAccruals());
+        $this->assertDatabaseCount('pawn_interest_payments', 3);
+    }
+
     #[DataProvider('renewalWindowProvider')]
     public function test_renewal_window_uses_interest_interval_then_quota_duration(
         string $interestCode,
@@ -356,14 +407,14 @@ class InterestFlowServiceTest extends TestCase
             'daily interest, week quota' => ['daily', 1, 'Week', 2, '2026-02-01', '2026-02-15'],
             'daily interest, month quota' => ['daily', 1, 'Month', 2, '2026-02-01', '2026-04-01'],
             'daily interest, year quota' => ['daily', 1, 'Year', 1, '2026-02-01', '2027-02-01'],
-            'weekly interest, day quota' => ['weekly', 7, 'Day', 5, '2026-02-07', '2026-02-12'],
-            'weekly interest, week quota' => ['weekly', 7, 'Week', 2, '2026-02-07', '2026-02-21'],
-            'weekly interest, month quota' => ['weekly', 7, 'Month', 2, '2026-02-07', '2026-04-07'],
-            'weekly interest, year quota' => ['weekly', 7, 'Year', 1, '2026-02-07', '2027-02-07'],
-            'monthly interest, day quota' => ['monthly', 30, 'Day', 5, '2026-02-28', '2026-03-05'],
-            'monthly interest, week quota' => ['monthly', 30, 'Week', 2, '2026-02-28', '2026-03-14'],
-            'monthly interest, month quota' => ['monthly', 30, 'Month', 2, '2026-02-28', '2026-04-28'],
-            'monthly interest, year quota' => ['monthly', 30, 'Year', 1, '2026-02-28', '2027-02-28'],
+            'weekly interest, day quota' => ['weekly', 7, 'Day', 5, '2026-02-01', '2026-02-06'],
+            'weekly interest, week quota' => ['weekly', 7, 'Week', 2, '2026-02-01', '2026-02-15'],
+            'weekly interest, month quota' => ['weekly', 7, 'Month', 2, '2026-02-01', '2026-04-01'],
+            'weekly interest, year quota' => ['weekly', 7, 'Year', 1, '2026-02-01', '2027-02-01'],
+            'monthly interest, day quota' => ['monthly', 30, 'Day', 5, '2026-02-01', '2026-02-06'],
+            'monthly interest, week quota' => ['monthly', 30, 'Week', 2, '2026-02-01', '2026-02-15'],
+            'monthly interest, month quota' => ['monthly', 30, 'Month', 2, '2026-02-01', '2026-04-01'],
+            'monthly interest, year quota' => ['monthly', 30, 'Year', 1, '2026-02-01', '2027-02-01'],
         ];
     }
 

@@ -119,7 +119,7 @@ class LoanContractSlipServiceTest extends TestCase
             'current_id' => 1,
         ]);
 
-        $this->assertDatabaseCount('pawn_interest_payments', 3);
+        $this->assertDatabaseCount('pawn_interest_payments', 1);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'tenant_id' => $tenant->id,
             'slip_id' => $created->id,
@@ -287,7 +287,7 @@ class LoanContractSlipServiceTest extends TestCase
         ));
 
         $this->assertSame('2026-06-28', CarbonImmutable::parse($created->expireAt)->toDateString());
-        $this->assertDatabaseCount('pawn_interest_payments', 4);
+        $this->assertDatabaseCount('pawn_interest_payments', 1);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
             'start_period_at' => '2026-02-28 00:00:00',
@@ -295,7 +295,7 @@ class LoanContractSlipServiceTest extends TestCase
         ]);
     }
 
-    public function test_it_creates_weekly_interest_rows_with_an_extra_row_for_remaining_days(): void
+    public function test_it_creates_only_the_initial_weekly_interest_row(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-02-28 09:30:00'));
 
@@ -329,21 +329,11 @@ class LoanContractSlipServiceTest extends TestCase
         ));
 
         $this->assertSame('2026-06-28', CarbonImmutable::parse($created->expireAt)->toDateString());
-        $this->assertDatabaseCount('pawn_interest_payments', 18);
+        $this->assertDatabaseCount('pawn_interest_payments', 1);
         $this->assertDatabaseHas('pawn_interest_payments', [
             'slip_id' => $created->id,
             'start_period_at' => '2026-02-28 00:00:00',
             'end_period_at' => '2026-03-06 00:00:00',
-        ]);
-        $this->assertDatabaseHas('pawn_interest_payments', [
-            'slip_id' => $created->id,
-            'start_period_at' => '2026-03-07 00:00:00',
-            'end_period_at' => '2026-03-13 00:00:00',
-        ]);
-        $this->assertDatabaseHas('pawn_interest_payments', [
-            'slip_id' => $created->id,
-            'start_period_at' => '2026-06-27 00:00:00',
-            'end_period_at' => '2026-06-28 00:00:00',
         ]);
     }
 

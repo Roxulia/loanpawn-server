@@ -2,8 +2,9 @@
 
 namespace App\Repository;
 
-use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 
 class InterestScheduleRepairRepository
@@ -42,29 +43,21 @@ class InterestScheduleRepairRepository
             ->first();
     }
 
-    public function latestPaidPayment(int $slipId, int $tenantId, bool $lock = false): ?PawnInterestPayment
-    {
-        return PawnInterestPayment::query()
-            ->withoutGlobalScope('tenant')
-            ->where('tenant_id', $tenantId)
-            ->where('slip_id', $slipId)
-            ->where('is_paid', true)
-            ->whereNotNull('payment_at')
-            ->orderByDesc('payment_at')
-            ->orderByDesc('id')
-            ->when($lock, fn ($query) => $query->lockForUpdate())
-            ->first();
-    }
-
     /** @return Collection<int, PawnInterestPayment> */
-    public function unpaidAfterPayment(int $slipId, int $tenantId, string $paymentDate, bool $lock = false): Collection
+    public function unpaidStartingAfter(
+        int $slipId,
+        int $tenantId,
+        CarbonInterface|string $boundary,
+        bool $lock = false,
+    ): Collection
     {
+        // Compare UTC timestamps so tenant-local day boundaries remain exact.
         return PawnInterestPayment::query()
             ->withoutGlobalScope('tenant')
             ->where('tenant_id', $tenantId)
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
-            ->whereDate('start_period_at', '>', $paymentDate)
+            ->where('start_period_at', '>', CarbonImmutable::parse($boundary)->utc())
             ->orderBy('start_period_at')
             ->orderBy('id')
             ->when($lock, fn ($query) => $query->lockForUpdate())
@@ -81,10 +74,4 @@ class InterestScheduleRepairRepository
         return $count;
     }
 
-    public function updateSlip(PawnLoanContractSlip $slip, array $data): PawnLoanContractSlip
-    {
-        $slip->forceFill($data)->save();
-
-        return $slip->refresh()->load('interestType');
-    }
 }

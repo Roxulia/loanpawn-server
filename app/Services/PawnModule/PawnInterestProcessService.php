@@ -145,7 +145,7 @@ class PawnInterestProcessService extends BaseTenantService
                 $createdBy,
                 $accounting->id,
             );
-            $this->interestFlowService->recreateFutureSchedule($updatedSlip, $this->currentTenantBusinessDate()->addDay(), $createdBy);
+            // Future interest rows are created incrementally by the scheduled or lazy flow.
             $this->logSlipProcess('pawn_principal_collected', $updatedSlip, ['amount' => $request->amount]);
 
             return [
@@ -195,6 +195,48 @@ class PawnInterestProcessService extends BaseTenantService
         return $processed;
     }
 
+    public function processDueInterestAccruals(): int
+    {
+        $createdRows = 0;
+        $tenantContext = app(TenantContext::class);
+        $originalTenantId = $tenantContext->id();
+
+        try {
+            // Process each tenant using its own business timezone and date.
+            foreach ($this->repository->interestAccrualTenantIds() as $tenantId) {
+                $tenantId = (int) $tenantId;
+
+                try {
+                    $tenantContext->set($tenantId);
+                    $tenantNow = $this->businessClock->now($tenantId);
+
+                    // Materialize all periods due through the tenant's current local day.
+                    foreach ($this->repository->activeInterestSlipsForTenant($tenantId) as $slip) {
+                        try {
+                            $createdRows += $this->interestFlowService->materializeDueInterestRows($slip, $tenantNow);
+                        } catch (Throwable $exception) {
+                            Log::error('Pawn interest accrual failed for slip.', [
+                                'tenant_id' => $tenantId,
+                                'slip_id' => $slip->id,
+                                'exception' => $exception,
+                            ]);
+                        }
+                    }
+                } catch (Throwable $exception) {
+                    Log::error('Pawn interest accrual failed for tenant.', [
+                        'tenant_id' => $tenantId,
+                        'exception' => $exception,
+                    ]);
+                }
+            }
+        } finally {
+            // Restore the context used before scheduled processing began.
+            $tenantContext->set($originalTenantId);
+        }
+
+        return $createdRows;
+    }
+
     private function compoundSlip(PawnLoanContractSlip $slip, CarbonImmutable $compoundDate, bool $scheduled): array
     {
         $this->validateActiveSlip($slip, $compoundDate);
@@ -221,11 +263,6 @@ class PawnInterestProcessService extends BaseTenantService
 
             $amount = round($payments->sum(fn (PawnInterestPayment $payment): float => $this->fixedInterestCalculatorService->remainingInterest((float) $payment->calculated_interest, (float) $payment->payment_amount)), 2);
             $createdBy = $scheduled ? null : $this->resolveCurrentTenantUserId();
-            $lastEnd = $payments
-                ->map(fn (PawnInterestPayment $payment) => CarbonImmutable::parse($payment->end_period_at)->startOfDay())
-                ->sortBy(fn (CarbonImmutable $date): int => $date->getTimestamp())
-                ->last();
-
             $this->interestFlowService->markPaymentsCompounded($payments, $compoundDate, $createdBy);
 
             $update = [
@@ -248,7 +285,7 @@ class PawnInterestProcessService extends BaseTenantService
                 $amount,
                 $createdBy,
             );
-            $this->interestFlowService->recreateFutureSchedule($updatedSlip, ($lastEnd ?? $compoundDate)->addDay(), $createdBy);
+            // Future interest rows are created incrementally by the scheduled or lazy flow.
             $this->logSlipProcess('pawn_interest_compounded', $updatedSlip, [
                 'amount' => $amount,
                 'scheduled' => $scheduled,

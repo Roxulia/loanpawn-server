@@ -9,11 +9,11 @@ class RepairInterestSchedules extends Command
 {
     protected $signature = 'pawn:repair-interest-schedules
         {--dry-run : Analyze and report without writing (default)}
-        {--apply : Delete and recreate incorrect unpaid schedules}
+        {--apply : Delete future unpaid rows and restore due rows}
         {--tenant= : Limit processing to one tenant ID}
         {--slip= : Limit processing to one slip number}';
 
-    protected $description = 'Repair active pawn-slip interest schedules using the payment-date renewal formula';
+    protected $description = 'Repair active pawn-slip interest schedules using incremental accrual rules';
 
     public function handle(InterestScheduleRepairService $service): int
     {
@@ -40,7 +40,7 @@ class RepairInterestSchedules extends Command
         );
 
         $this->table(
-            ['Scanned active', $apply ? 'Repaired' : 'Would repair', 'Already correct', 'Skipped status', 'Skipped no payment', 'Failed'],
+            ['Scanned active', $apply ? 'Repaired' : 'Would clean future rows', 'Already correct', 'Skipped status', 'Skipped no payment', 'Failed'],
             [[
                 $summary->scanned,
                 $summary->repaired,

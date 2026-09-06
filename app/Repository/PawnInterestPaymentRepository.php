@@ -167,46 +167,6 @@ class PawnInterestPaymentRepository
             ->get();
     }
 
-    /**
-     * @return Collection<int, PawnInterestPayment>
-     */
-    public function findPaymentsAfterPayment(int $slipId, PawnInterestPayment $payment): Collection
-    {
-        return PawnInterestPayment::query()
-            ->where('slip_id', $slipId)
-            ->where(function ($query) use ($payment) {
-                $paymentStart = $payment->start_period_at;
-                    $query->where('start_period_at', '>', $paymentStart)
-                    ->orWhere(function ($nested) use ($payment) {
-                        $paymentStart = $payment->start_period_at;
-                        $nested->where('start_period_at', '=', $paymentStart)
-                            ->where('id', '>', $payment->id);
-                    });
-            })
-            ->orderBy('start_period_at')
-            ->orderBy('id')
-            ->get();
-    }
-
-    public function findPaymentsAfterPaymentWithLock(int $slipId, PawnInterestPayment $payment): Collection
-    {
-        return PawnInterestPayment::query()
-            ->where('slip_id', $slipId)
-            ->where(function ($query) use ($payment) {
-                $paymentStart = $payment->start_period_at;
-                    $query->where('start_period_at', '>', $paymentStart)
-                    ->orWhere(function ($nested) use ($payment) {
-                        $paymentStart = $payment->start_period_at;
-                        $nested->where('start_period_at', '=', $paymentStart)
-                            ->where('id', '>', $payment->id);
-                    });
-            })
-            ->orderBy('start_period_at')
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get();
-    }
-
     private function timestamp(CarbonInterface|string $value): CarbonImmutable
     {
         return CarbonImmutable::parse($value)->utc();

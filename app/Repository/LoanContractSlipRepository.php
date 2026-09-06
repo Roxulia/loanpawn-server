@@ -178,4 +178,38 @@ class LoanContractSlipRepository
             ->get();
     }
 
+    /** @return Collection<int, int> */
+    public function interestAccrualTenantIds(): Collection
+    {
+        // Select tenants that currently own slips eligible for interest accrual.
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereNotNull('interest_type_id')
+            ->whereNotNull('expire_at')
+            ->where('interest_rate', '>', 0)
+            ->select('tenant_id')
+            ->distinct()
+            ->orderBy('tenant_id')
+            ->pluck('tenant_id');
+    }
+
+    /** @return Collection<int, PawnLoanContractSlip> */
+    public function activeInterestSlipsForTenant(int $tenantId): Collection
+    {
+        // Load only active interest-bearing slips for the selected tenant.
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->with('interestType')
+            ->where('tenant_id', $tenantId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereNotNull('interest_type_id')
+            ->whereNotNull('expire_at')
+            ->where('interest_rate', '>', 0)
+            ->orderBy('id')
+            ->get();
+    }
+
 }

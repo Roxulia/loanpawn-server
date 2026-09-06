@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\ProcessDuePawnInterestCompoundingJob;
+use App\Jobs\ProcessDuePawnInterestAccrualsJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -15,3 +16,6 @@ Schedule::call(function () {
 })->everyMinute();
 
 Schedule::job(new ProcessDuePawnInterestCompoundingJob)->everyFifteenMinutes();
+
+// Materialize pawn interest periods according to each tenant's local business date.
+Schedule::job(new ProcessDuePawnInterestAccrualsJob)->everyFifteenMinutes();

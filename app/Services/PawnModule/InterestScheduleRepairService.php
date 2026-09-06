@@ -4,13 +4,11 @@ namespace App\Services\PawnModule;
 
 use App\DataObjects\ResponseObjects\InterestScheduleRepairSummary;
 use App\Exceptions\InvalidTenantRequest;
-use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Repository\InterestScheduleRepairRepository;
+use App\Services\TenantModule\AccountingDayBusinessClock;
 use App\Services\TenantModule\TenantAuditLogService;
 use App\Support\TenantContext;
-use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -23,6 +21,7 @@ class InterestScheduleRepairService
         private InterestFlowService $interestFlowService,
         private TenantAuditLogService $tenantAuditLogService,
         private TenantContext $tenantContext,
+        private AccountingDayBusinessClock $businessClock,
     ) {}
 
     public function repair(bool $apply, ?int $tenantId = null, ?string $slipNo = null): InterestScheduleRepairSummary
@@ -33,23 +32,17 @@ class InterestScheduleRepairService
         $this->repository->chunkActiveSlips(self::CHUNK_SIZE, function ($slips) use ($summary, $apply): void {
             foreach ($slips as $slip) {
                 $summary->scanned++;
-                $latestPayment = $this->repository->latestPaidPayment((int) $slip->id, (int) $slip->tenant_id);
-                if ($latestPayment === null) {
-                    $summary->skippedWithoutPayment++;
-                    continue;
-                }
 
                 try {
-                    if ($this->scheduleIsCorrect($slip, $latestPayment)) {
-                        $summary->alreadyCorrect++;
-                        continue;
-                    }
-
                     if ($apply) {
+                        // Apply cleanup and due-row recovery together for the selected slip.
                         if (! $this->repairSlip((int) $slip->id, (int) $slip->tenant_id)) {
                             $summary->alreadyCorrect++;
                             continue;
                         }
+                    } elseif ($this->scheduleIsCorrect($slip)) {
+                        $summary->alreadyCorrect++;
+                        continue;
                     }
                     $summary->repaired++;
                 } catch (Throwable $exception) {
@@ -69,38 +62,30 @@ class InterestScheduleRepairService
             return DB::transaction(function () use ($slipId, $tenantId): bool {
                 $slip = $this->repository->lockActiveSlip($slipId, $tenantId)
                     ?? throw new InvalidTenantRequest('Active loan contract slip was not found.');
-                $latestPayment = $this->repository->latestPaidPayment($slipId, $tenantId, true)
-                    ?? throw new InvalidTenantRequest('No paid interest row with a payment date was found.');
-                $paymentDate = CarbonImmutable::parse($latestPayment->payment_at)->startOfDay();
-                $window = $this->interestFlowService->calculateRenewalWindow($slip, $paymentDate);
-                $futureRows = $this->repository->unpaidAfterPayment($slipId, $tenantId, $paymentDate->toDateString(), true);
+                $tenantNow = $this->businessClock->now($tenantId);
+                // Remove only unpaid rows that have not started in the tenant's current day.
+                $futureRows = $this->repository->unpaidStartingAfter(
+                    $slipId,
+                    $tenantId,
+                    $tenantNow->endOfDay(),
+                    true,
+                );
+                $deletedCount = $this->repository->deletePayments($futureRows);
+                // Restore only rows due through today under the incremental rules.
+                $createdCount = $this->interestFlowService->materializeDueInterestRows($slip, $tenantNow);
 
-                if ($this->matchesExpectedSchedule($slip, $futureRows, $window['start_at'], $window['expire_at'])) {
+                if ($deletedCount === 0 && $createdCount === 0) {
                     return false;
                 }
-
-                $oldExpireAt = $slip->expire_at?->toDateString();
-                $deletedCount = $this->repository->deletePayments($futureRows);
-                $updatedSlip = $this->repository->updateSlip($slip, [
-                    'expire_at' => $window['expire_at'],
-                    'last_interest_paid_at' => $latestPayment->payment_at,
-                    'last_interest_added_at' => $latestPayment->payment_at,
-                    'update_key' => (int) $slip->update_key + 1,
-                ]);
-                $expectedRows = $this->interestFlowService->expectedScheduleRows($updatedSlip, $window['start_at'], $window['expire_at']);
-                $this->interestFlowService->recreateRenewedSchedule($updatedSlip, $window['start_at'], $window['expire_at']);
 
                 $this->tenantAuditLogService->log(
                     'pawn_interest_schedule.repaired',
                     PawnLoanContractSlip::class,
-                    (int) $updatedSlip->id,
+                    (int) $slip->id,
                     [
-                        'payment_at' => $paymentDate->toDateString(),
-                        'old_expire_at' => $oldExpireAt,
-                        'new_start_at' => $window['start_at']->toDateString(),
-                        'new_expire_at' => $window['expire_at']->toDateString(),
+                        'through_date' => $tenantNow->toDateString(),
                         'deleted_row_count' => $deletedCount,
-                        'created_row_count' => count($expectedRows),
+                        'created_row_count' => $createdCount,
                     ],
                 );
 
@@ -111,43 +96,13 @@ class InterestScheduleRepairService
         }
     }
 
-    private function scheduleIsCorrect(PawnLoanContractSlip $slip, PawnInterestPayment $latestPayment): bool
+    private function scheduleIsCorrect(PawnLoanContractSlip $slip): bool
     {
-        $paymentDate = CarbonImmutable::parse($latestPayment->payment_at)->startOfDay();
-        $window = $this->interestFlowService->calculateRenewalWindow($slip, $paymentDate);
-        $futureRows = $this->repository->unpaidAfterPayment((int) $slip->id, (int) $slip->tenant_id, $paymentDate->toDateString());
-
-        return $this->matchesExpectedSchedule($slip, $futureRows, $window['start_at'], $window['expire_at']);
-    }
-
-    private function matchesExpectedSchedule(
-        PawnLoanContractSlip $slip,
-        Collection $actualRows,
-        CarbonImmutable $startAt,
-        CarbonImmutable $expireAt,
-    ): bool {
-        if ($slip->expire_at === null || ! CarbonImmutable::parse($slip->expire_at)->startOfDay()->equalTo($expireAt)) {
-            return false;
-        }
-
-        $expectedRows = $this->interestFlowService->expectedScheduleRows($slip, $startAt, $expireAt);
-        if ($actualRows->count() !== count($expectedRows)) {
-            return false;
-        }
-
-        foreach ($actualRows->values() as $index => $actual) {
-            $expected = $expectedRows[$index];
-            if (
-                ! CarbonImmutable::parse($actual->start_period_at)->equalTo($expected['start_period_at'])
-                || ! CarbonImmutable::parse($actual->end_period_at)->equalTo($expected['end_period_at'])
-                || ($actual->period_timezone ?: null) !== ($expected['period_timezone'] ?? null)
-                || abs((float) $actual->calculated_interest - $expected['calculated_interest']) > 0.0001
-                || (int) $actual->created_account_id !== (int) $slip->account_id
-            ) {
-                return false;
-            }
-        }
-
-        return true;
+        // A valid incremental schedule must not contain unpaid future rows.
+        return $this->repository->unpaidStartingAfter(
+            (int) $slip->id,
+            (int) $slip->tenant_id,
+            $this->businessClock->now((int) $slip->tenant_id)->endOfDay(),
+        )->isEmpty();
     }
 }

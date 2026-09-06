@@ -115,6 +115,7 @@ class ManagementService extends BaseTenantService
                 ]);
 
                 $this->collateralItemService->createForSlip($slip, $request->collateralItems);
+                // Materialize only the first interest period during slip creation.
                 $this->interestFlowService->createInitialSchedule($slip, $createdBy);
                 $this->tenantLicenseService->incrementCurrentMonthSlipCount($tenantId);
                 $accountingTransaction = $this->tenantAccountingService->recordLoanCreation(
