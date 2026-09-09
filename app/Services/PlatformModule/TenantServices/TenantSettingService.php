@@ -49,6 +49,7 @@ class TenantSettingService extends BaseTenantService
                 'customer_info_required' => true,
             ]),
             'allow_partial_debt_payments' => 'false',
+            'allow_partial_business_loan_payments' => 'false',
         ];
         foreach ($defaultSettings as $key => $value) {
             $this->repository->firstOrCreate($tenantId, $key, [
@@ -276,6 +277,36 @@ class TenantSettingService extends BaseTenantService
         return $this->getCurrentTenantDebtPaymentPolicy()->allowPartialPayments;
     }
 
+    public function currentTenantAllowsPartialBusinessLoanPayments(): bool
+    {
+        return filter_var(
+            $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_business_loan_payments')->value,
+            FILTER_VALIDATE_BOOLEAN,
+        );
+    }
+
+    public function getCurrentTenantBusinessLoanPaymentPolicy(): TenantDebtPaymentPolicy
+    {
+        return TenantDebtPaymentPolicy::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_business_loan_payments')
+        );
+    }
+
+    public function updateCurrentTenantBusinessLoanPaymentPolicy(TenantDebtPaymentPolicyUpdate $request): TenantDebtPaymentPolicy
+    {
+        // Authorization and optimistic update of the independent business loan policy
+        $this->permissionService->authorizeBusinessLoanUpdate();
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_business_loan_payments');
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+        return TenantDebtPaymentPolicy::fromModel($this->repository->update($setting, [
+            'value' => $request->allowPartialPayments ? 'true' : 'false',
+            'category' => 'business_loan',
+            'update_key' => $setting->update_key + 1,
+        ]));
+    }
+
     public function updateCurrentTenantDebtPaymentPolicy(TenantDebtPaymentPolicyUpdate $request): TenantDebtPaymentPolicy
     {
         $this->permissionService->authorizePermission('manage_debt_settings');
@@ -354,6 +385,7 @@ class TenantSettingService extends BaseTenantService
                         'customer_info_required' => true,
                     ]),
                     'allow_partial_debt_payments' => 'false',
+                    'allow_partial_business_loan_payments' => 'false',
                     default => null,
                 },
                 'category' => $code === 'interest_process_settings' ? 'finance' : 'tenant',

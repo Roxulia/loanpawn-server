@@ -303,6 +303,46 @@ class TenantUserPermissionService extends BaseTenantService
         $this->authorizeTenantPermission('delete_debt');
     }
 
+    public function authorizeBusinessLoanList(): void
+    {
+        $this->authorizeTenantPermission('list_business_loan');
+    }
+
+    public function authorizeBusinessLoanCreate(): void
+    {
+        $this->authorizeTenantPermission('create_business_loan');
+    }
+
+    public function authorizeBusinessLoanUpdate(): void
+    {
+        $this->authorizeTenantPermission('update_business_loan');
+    }
+
+    public function authorizeBusinessLoanDelete(): void
+    {
+        $this->authorizeTenantPermission('delete_business_loan');
+    }
+
+    public function authorizeLenderList(): void
+    {
+        $this->authorizeTenantPermission('list_lender');
+    }
+
+    public function authorizeLenderCreate(): void
+    {
+        $this->authorizeTenantPermission('create_lender');
+    }
+
+    public function authorizeLenderUpdate(): void
+    {
+        $this->authorizeTenantPermission('update_lender');
+    }
+
+    public function authorizeLenderDelete(): void
+    {
+        $this->authorizeTenantPermission('delete_lender');
+    }
+
     public function authorizeLoanContractList(): void
     {
         $this->authorizeTenantPermission('list_loan_contract');

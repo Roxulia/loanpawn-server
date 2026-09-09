@@ -25,7 +25,7 @@ class TenantSettingsBootstrapService
 
     public function tenant(): TenantSettingsBootstrapResource
     {
-        $permissions = ['manage_slip_document', 'manage_tenant_contact', 'manage_tenant_timezone', 'manage_debt_settings'];
+        $permissions = ['manage_slip_document', 'manage_tenant_contact', 'manage_tenant_timezone', 'manage_debt_settings', 'update_business_loan'];
         $this->permissionService->authorizeAnyPermission($permissions);
         $sections = [];
 
@@ -51,6 +51,11 @@ class TenantSettingsBootstrapService
 
         if ($this->hasPermission('manage_debt_settings')) {
             $sections['debt_payment_policy'] = $this->settingService->getCurrentTenantDebtPaymentPolicy()->toArray();
+        }
+
+        if ($this->hasPermission('update_business_loan')
+            && $this->licenseService->currentTenantHasFeature('business_loan_management')) {
+            $sections['business_loan_payment_policy'] = $this->settingService->getCurrentTenantBusinessLoanPaymentPolicy()->toArray();
         }
 
         return new TenantSettingsBootstrapResource($sections);

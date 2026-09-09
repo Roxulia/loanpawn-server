@@ -3,6 +3,8 @@
 namespace App\Repository;
 
 use App\Models\CoreModule\TenantCustomer;
+use App\Models\CoreModule\TenantLender;
+use App\Models\CoreModule\TenantPerson;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Exceptions\RequiredValueMissing;
 use App\Support\TenantContext;
@@ -104,6 +106,56 @@ class TenantCustomerRepository
         $this->requireValue($data, 'code');
 
         return TenantCustomer::query()->create($data);
+    }
+
+    public function createPerson(array $data): TenantPerson
+    {
+        return TenantPerson::query()->create($data);
+    }
+
+    public function updatePerson(TenantPerson $person, array $data): TenantPerson
+    {
+        $person->update($data);
+
+        return $person->refresh();
+    }
+
+    public function createLender(array $data): TenantLender
+    {
+        return TenantLender::query()->create($data);
+    }
+
+    public function findPersonForIdentity(int $tenantId, ?string $email, ?string $phone, ?string $nrc): ?TenantPerson
+    {
+        $values = array_filter(['email' => $email, 'phone' => $phone, 'nrc' => $nrc], fn ($value) => $value !== null && $value !== '');
+        if ($values === []) return null;
+        return TenantPerson::query()->withoutGlobalScopes()->where('tenant_id', $tenantId)->where(function ($query) use ($values): void {
+            foreach ($values as $field => $value) $query->orWhere($field, $value);
+        })->first();
+    }
+
+    public function customerForPerson(int $personId): ?TenantCustomer
+    {
+        return TenantCustomer::withTrashed()->where('person_id', $personId)->first();
+    }
+
+    public function lenderForPerson(int $personId): ?TenantLender
+    {
+        return TenantLender::withTrashed()->where('person_id', $personId)->first();
+    }
+
+    public function restoreCustomer(TenantCustomer $customer): TenantCustomer
+    {
+        $customer->restore();
+        $customer->update(['is_deleted' => false, 'update_key' => $customer->update_key + 1]);
+        return $customer->refresh();
+    }
+
+    public function restoreLender(TenantLender $lender): TenantLender
+    {
+        $lender->restore();
+        $lender->update(['is_deleted' => false, 'update_key' => $lender->update_key + 1]);
+        return $lender->refresh();
     }
 
     protected function requireValue(array $data, string $key): void

@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Models\CoreModule\TenantCapital;
 use App\Models\CoreModule\TenantDebt;
 use App\Models\CoreModule\TenantExpense;
+use App\Models\CoreModule\TenantBusinessLoan;
+use App\Models\CoreModule\TenantBusinessLoanPayment;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Models\PawnModule\PawnRedemption;
@@ -31,6 +33,8 @@ class AccountingReferenceMapper
         TenantCapital::class => 'Capital',
         TenantDebt::class => 'Debt',
         TenantExpense::class => 'Expense',
+        TenantBusinessLoan::class => 'Business Loan',
+        TenantBusinessLoanPayment::class => 'Business Loan Payment',
     ];
 
     public static function label(?string $referenceType): ?string

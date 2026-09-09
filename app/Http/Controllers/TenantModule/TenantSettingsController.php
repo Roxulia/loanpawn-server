@@ -201,6 +201,22 @@ class TenantSettingsController extends Controller
         )->toArray());
     }
 
+    public function updateBusinessLoanPaymentPolicy(Request $request): JsonResponse
+    {
+        // Validation of the independent business loan payment policy
+        $validated = Validator::make($request->all(), [
+            'allow_partial_payments' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ])->validate();
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantBusinessLoanPaymentPolicy(
+            new TenantDebtPaymentPolicyUpdate(
+                allowPartialPayments: (bool) $validated['allow_partial_payments'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
+    }
+
     public function currencyPreferences(): JsonResponse
     {
         return $this->successResponse($this->tenantSettingService->getCurrentTenantCurrencyPreferences()->toArray());

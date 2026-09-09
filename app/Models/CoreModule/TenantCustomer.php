@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TenantCustomer extends Model
@@ -31,6 +32,7 @@ class TenantCustomer extends Model
 
     protected $fillable = [
         'tenant_id',
+        'person_id',
         'code',
         'update_key',
         'name',
@@ -61,6 +63,16 @@ class TenantCustomer extends Model
     public function pawnSlips(): HasMany
     {
         return $this->hasMany(PawnLoanContractSlip::class, 'customer_id');
+    }
+
+    public function person(): BelongsTo
+    {
+        return $this->belongsTo(TenantPerson::class, 'person_id');
+    }
+
+    public function lender(): HasOne
+    {
+        return $this->hasOne(TenantLender::class, 'person_id', 'person_id');
     }
 
 }
