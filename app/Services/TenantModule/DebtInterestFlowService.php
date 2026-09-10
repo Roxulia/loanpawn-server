@@ -328,13 +328,33 @@ class DebtInterestFlowService extends BaseTenantService
         $through = $through->setTimezone($timezone);
         $rows = $this->repository->accruals($debt->id, true);
         $last = $rows->last();
-        $allMaterializedInterestPaid = $last !== null && $rows->every(fn (TenantDebtInterestAccrual $row): bool => $this->rowOutstanding($row) <= 0);
-        if ($allMaterializedInterestPaid && $debt->last_interest_paid_at !== null) {
+        // Resolution of the first period after all stored accruals
+        $nextAfterLastAccrual = $last === null
+            ? null
+            : CarbonImmutable::parse($last->end_period_at)
+                ->setTimezone($last->period_timezone ?: $timezone)
+                ->addSecond()
+                ->startOfDay();
+
+        // Detection of accruals settled by either payment or compounding
+        $allMaterializedInterestSettled = $last !== null && $rows->every(
+            fn (TenantDebtInterestAccrual $row): bool => $this->rowOutstanding($row) <= 0
+        );
+
+        if ($allMaterializedInterestSettled && $debt->last_interest_paid_at !== null) {
+            // Calculation of the reset period following the last full interest payment
             $anchor = CarbonImmutable::parse($debt->interest_anchor_at)->setTimezone($timezone)->startOfDay();
             $start = $this->fixedInterestCalculatorService->nextPeriodStart($anchor, $this->interestPeriodType($debt));
-        } elseif ($last !== null) {
-            $start = CarbonImmutable::parse($last->end_period_at)->setTimezone($last->period_timezone ?: $timezone)->addSecond()->startOfDay();
+
+            // Prevention of restarting inside an already materialized period after compounding
+            if ($nextAfterLastAccrual !== null && $start->lt($nextAfterLastAccrual)) {
+                $start = $nextAfterLastAccrual;
+            }
+        } elseif ($nextAfterLastAccrual !== null) {
+            // Continuation directly after the latest stored period
+            $start = $nextAfterLastAccrual;
         } else {
+            // Initialization from the debt interest anchor
             $start = CarbonImmutable::parse($debt->interest_anchor_at ?? $debt->created_at)->setTimezone($timezone)->startOfDay();
         }
 

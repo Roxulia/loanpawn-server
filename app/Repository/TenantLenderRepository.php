@@ -6,6 +6,7 @@ use App\Models\CoreModule\TenantCustomer;
 use App\Models\CoreModule\TenantLender;
 use App\Models\CoreModule\TenantPerson;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\LazyCollection;
 
 class TenantLenderRepository
 {
@@ -56,4 +57,28 @@ class TenantLenderRepository
     public function mirrorCustomerIdentity(TenantCustomer $customer, TenantPerson $person): void { $customer->update(['name' => $person->name, 'nrc' => $person->nrc, 'email' => $person->email, 'phone' => $person->phone, 'address' => $person->address, 'note' => $person->note]); }
     public function hasUnpaidLoans(TenantLender $lender): bool { return $lender->businessLoans()->where('is_paid', false)->exists(); }
     public function delete(TenantLender $lender): void { $lender->update(['is_deleted' => true, 'update_key' => $lender->update_key + 1]); $lender->delete(); }
+
+    /**
+     * @return LazyCollection<int, TenantLender>
+     */
+    public function legacyCodeLenders(?int $tenantId = null): LazyCollection
+    {
+        // Selection of legacy migration codes without applying the request tenant scope
+        return TenantLender::query()
+            ->withoutGlobalScopes()
+            ->withTrashed()
+            ->where('code', 'like', 'LDR-%')
+            ->when($tenantId !== null, fn ($query) => $query->where('tenant_id', $tenantId))
+            ->orderBy('id')
+            ->lazyById();
+    }
+
+    public function updateCode(TenantLender $lender, string $code): void
+    {
+        // Replacement of only the legacy code while preserving lender history
+        $lender->newQueryWithoutScopes()
+            ->whereKey($lender->id)
+            ->where('tenant_id', $lender->tenant_id)
+            ->update(['code' => $code]);
+    }
 }

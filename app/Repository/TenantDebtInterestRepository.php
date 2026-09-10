@@ -24,7 +24,12 @@ class TenantDebtInterestRepository
 
     public function createAccrual(array $data): TenantDebtInterestAccrual
     {
-        return TenantDebtInterestAccrual::query()->create($data);
+        // Idempotent creation by the database period identity
+        return TenantDebtInterestAccrual::query()->firstOrCreate([
+            'tenant_id' => $data['tenant_id'],
+            'debt_id' => $data['debt_id'],
+            'start_period_at' => $data['start_period_at'],
+        ], $data);
     }
 
     /** @return Collection<int, TenantDebtInterestAccrual> */

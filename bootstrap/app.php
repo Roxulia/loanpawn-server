@@ -7,6 +7,7 @@ use App\Console\Commands\MigrateLegacyAccounting;
 use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
 use App\Console\Commands\RepairInterestSchedules;
+use App\Console\Commands\RepairTenantLenderCodes;
 use App\Console\Commands\SummarizeMonthlyFinancialMovements;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
@@ -54,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
         BackfillCustomerTrustScores::class,
         RepairAccountingChange::class,
         RepairInterestSchedules::class,
+        RepairTenantLenderCodes::class,
         EnsureDefaultFinancialAccounts::class,
         EnsureTenantCurrencySettings::class,
         SummarizeMonthlyFinancialMovements::class,
