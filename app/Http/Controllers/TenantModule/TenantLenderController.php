@@ -18,14 +18,18 @@ class TenantLenderController extends Controller
     public function index(Request $request): JsonResponse
     {
         // Validation of lender directory filters
-        $validated = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'search' => ['nullable', 'string', 'max:120']]);
+        $validated = $request->validate(
+            [
+                'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+                'search' => ['nullable', 'string', 'max:120']
+            ]);
         return $this->successResponse($this->lenderService->list((int) ($validated['per_page'] ?? 15), $validated['search'] ?? null));
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $this->validatedIdentity($request);
-        return $this->successResponse($this->lenderService->create($this->toData($request, $data))->toArray(), status: 201);
+        return $this->successResponse($this->lenderService->create($this->toData($request, $data))->toArray(), statusCode: 201);
     }
 
     public function show(string $lenderCode): JsonResponse
@@ -49,11 +53,16 @@ class TenantLenderController extends Controller
     {
         // Reuse of the established NRC validation contract
         $validator = Validator::make(array_merge($request->all(), ['_nrc' => true]), [
-            'name' => ['required', 'string', 'max:120'], 'nrc_state' => ['nullable'], 'nrc_township' => ['nullable'],
-            'nrc_citizen' => ['nullable'], 'nrc_number' => ['nullable', 'string'],
+            'name' => ['required', 'string', 'max:120'],
+            'nrc_state' => ['nullable'],
+            'nrc_township' => ['nullable'],
+            'nrc_citizen' => ['nullable'],
+            'nrc_number' => ['nullable', 'string'],
             '_nrc' => [new NrcRules($request->input('nrc_state'), $request->input('nrc_township'), $request->input('nrc_citizen'), $request->input('nrc_number'))],
-            'email' => ['nullable', 'email', 'max:255'], 'phone' => ['nullable', 'string', 'max:30'],
-            'address' => ['nullable', 'string'], 'note' => ['nullable', 'string'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'address' => ['nullable', 'string'],
+            'note' => ['nullable', 'string'],
             'update_key' => [$updating ? 'required' : 'nullable', 'integer', 'min:0'],
         ]);
         return $validator->validate();
@@ -62,8 +71,12 @@ class TenantLenderController extends Controller
     private function toData(Request $request, array $validated): TenantLenderUpsert
     {
         return new TenantLenderUpsert(
-            name: $validated['name'], nrc: NrcHelper::buildNrcFromRequest($request), email: $validated['email'] ?? null,
-            phone: $validated['phone'] ?? null, address: $validated['address'] ?? null, note: $validated['note'] ?? null,
+            name: $validated['name'],
+            nrc: NrcHelper::buildNrcFromRequest($request),
+            email: $validated['email'] ?? null,
+            phone: $validated['phone'] ?? null,
+            address: $validated['address'] ?? null,
+            note: $validated['note'] ?? null,
             updateKey: (int) ($validated['update_key'] ?? 0),
         );
     }
