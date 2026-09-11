@@ -275,7 +275,9 @@
                     @foreach ($document['items'] as $index => $item)
                         <tr>
                             <td>{{ $index + 1 }}</td>
-                            <td>{{ $item['name'] }}</td>
+                            <td>{{ $item['name'] }}
+                                @include('pawn.slips.pack-contents', ['children' => $item['subItems'] ?? []])
+                            </td>
                             <td>{{ $item['type'] }}</td>
                             <td>{{ $item['quantity'] }}</td>
                             <td>{{ $item['description'] }}</td>
@@ -292,6 +294,7 @@
                             <div class="item-card-type">{{ $item['type'] }}</div>
                         </div>
                         <div class="item-card-description">{{ $item['description'] }}</div>
+                        @include('pawn.slips.pack-contents', ['children' => $item['subItems'] ?? []])
                     </article>
                 @endforeach
             </div>

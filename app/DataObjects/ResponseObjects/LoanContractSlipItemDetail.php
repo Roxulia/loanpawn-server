@@ -31,6 +31,8 @@ class LoanContractSlipItemDetail extends BaseDataObject
     public string $minimumRetailPrice;
     public bool $isDeleted;
     public int $updateKey;
+    public ?string $materialPricePerKyat;
+    public array $subItems;
 
     public static function fromModel(PawnCollateralItem $item): self
     {
@@ -59,6 +61,8 @@ class LoanContractSlipItemDetail extends BaseDataObject
         $detail->minimumRetailPrice = (string) $item->minimum_retail_price;
         $detail->isDeleted = (bool) $item->is_deleted;
         $detail->updateKey = (int) $item->update_key;
+        $detail->materialPricePerKyat = $item->material_price_per_kyat;
+        $detail->subItems = $item->subItems->map(fn ($child) => CollateralPackItemDetail::fromModel($child))->all();
         return $detail;
     }
 }

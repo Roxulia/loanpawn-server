@@ -78,7 +78,15 @@ class LoanContractSlipController extends Controller
             'customer.trust_score' => ['nullable', 'integer', 'min:0'],
             'customer.note' => ['nullable', 'string'],
             'collateral_items' => ['required', 'array', 'min:1'],
-            'collateral_items.*.type' => ['required', 'string', 'in:Jewellery,Normal,jewellery,normal'],
+            'collateral_items.*.type' => ['required', 'string', function ($attribute, $value, $fail) {
+                if (\App\Enums\CollateralItemType::normalize($value) === null) {
+                    $fail('Invalid collateral item type.');
+                }
+            }],
+            'collateral_items.*.sub_items' => ['sometimes', 'array'],
+            'collateral_items.*.sub_items.*' => ['array:name,quantity'],
+            'collateral_items.*.sub_items.*.name' => ['required', 'string', 'max:120'],
+            'collateral_items.*.sub_items.*.quantity' => ['required', 'integer', 'min:1'],
             'collateral_items.*.name' => ['required', 'string', 'max:120'],
             'collateral_items.*.description' => ['nullable', 'string'],
             'collateral_items.*.brand_name' => ['nullable', 'string', 'max:80'],
@@ -232,6 +240,7 @@ class LoanContractSlipController extends Controller
     {
         return new PawnCollateralItemCreate(
             type: $item['type'],
+            subItems: $item['sub_items'] ?? [],
             name: $item['name'],
             description: $item['description'] ?? null,
             brandName: $item['brand_name'] ?? null,

@@ -3,6 +3,7 @@
 namespace App\Services\PawnModule\LoanContractServices;
 
 use App\DataObjects\RequestObjects\SlipDocumentRenderRequest;
+use App\Enums\CollateralItemType;
 use App\DataObjects\ResponseObjects\SlipDocumentLayoutConfig;
 use App\Models\CoreModule\TenantBranding;
 use App\Models\PawnModule\PawnCollateralItem;
@@ -93,7 +94,17 @@ class LoanContractSlipDocumentService
             ->map(function (PawnCollateralItem $item): array {
                 return [
                     'name' => $item->name,
-                    'type' => $item->type===self::JEWELLERY_TYPE ? $item->materialType->name." Jewellery" : $item->itemCategoryType->name,
+                    'type' => CollateralItemType::normalize($item->type) === CollateralItemType::Normal
+                        ? ($item->itemCategoryType?->name ?? 'Normal')
+                        : ($item->materialType?->name ?? self::UNKNOWN_MATERIAL).' '.$item->type,
+                    'subItems' => $item->subItems->map(fn ($child) => [
+                        'name' => $child->name,
+                        'quantity' => $child->quantity,
+                        'material' => $child->materialType?->name,
+                        'kyat' => $child->kyat,
+                        'pal' => $child->pal,
+                        'yway' => $child->yway,
+                    ])->all(),
                     'quantity' => (int) $item->quantity,
                     'minimumRetailPrice' => number_format((float) $item->minimum_retail_price, self::DEFAULT_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
                     'estimatedValue' => number_format((float) $item->estimated_value, self::DEFAULT_DECIMAL_PLACES, self::DECIMAL_POINT, self::EMPTY_BINARY_RESPONSE),
@@ -188,7 +199,7 @@ class LoanContractSlipDocumentService
 
     protected function collateralDescription(PawnCollateralItem $item): string
     {
-        if ($item->type === self::JEWELLERY_TYPE) {
+        if (CollateralItemType::normalize($item->type) !== CollateralItemType::Normal) {
             $material = $item->materialType?->name ?? self::UNKNOWN_MATERIAL;
 
             return trim(sprintf(

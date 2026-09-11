@@ -136,6 +136,8 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_collateral');
                     Route::get('{itemCode}', [CollateralItemController::class, 'show'])
                         ->middleware('tenant.permission:list_collateral');
+                    Route::put('{itemCode}', [CollateralItemController::class, 'update'])
+                        ->middleware('tenant.permission:update_collateral');
                     Route::delete('{itemCode}', [CollateralItemController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_collateral');
                 });

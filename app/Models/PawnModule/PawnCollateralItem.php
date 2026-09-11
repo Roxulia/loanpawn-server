@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PawnCollateralItem extends Model
 {
+    protected $with = ['subItems.materialType'];
+
     use BelongToTenant;
     use HasFactory;
     use SoftDeletes;
@@ -25,6 +27,7 @@ class PawnCollateralItem extends Model
     protected $fillable = [
         'tenant_id',
         'code',
+        'update_key',
         'loan_contract_id',
         'type',
         'name',
@@ -33,6 +36,7 @@ class PawnCollateralItem extends Model
         'image_url',
         'estimated_value',
         'material_type_id',
+        'material_price_per_kyat',
         'item_category_type_id',
         'kyat',
         'pal',
@@ -49,6 +53,7 @@ class PawnCollateralItem extends Model
     {
         return [
             'estimated_value' => 'decimal:2',
+            'material_price_per_kyat' => 'decimal:2',
             'kyat' => 'decimal:2',
             'pal' => 'decimal:2',
             'yway' => 'decimal:2',
@@ -62,6 +67,11 @@ class PawnCollateralItem extends Model
     public function materialType(): BelongsTo
     {
         return $this->belongsTo(MaterialType::class);
+    }
+
+    public function subItems(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PawnCollateralPackItem::class)->orderBy('id');
     }
 
     public function itemCategoryType(): BelongsTo

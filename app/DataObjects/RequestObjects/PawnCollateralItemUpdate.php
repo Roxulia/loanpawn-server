@@ -26,6 +26,7 @@ class PawnCollateralItemUpdate extends BaseDataObject
         public ?int $quantity = null,
         public ?float $minimumRetailPrice = null,
         public int $updateKey = 0,
+        public array $fields = [],
     ) {
     }
 }

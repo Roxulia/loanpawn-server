@@ -35,6 +35,8 @@ class PawnCollateralItemDetail extends BaseDataObject
     public ?string $createdAt;
     public ?string $updatedAt;
     public int $updateKey;
+    public ?string $materialPricePerKyat;
+    public array $subItems;
 
     public static function fromModel(
         PawnCollateralItem $item,
@@ -71,6 +73,8 @@ class PawnCollateralItemDetail extends BaseDataObject
         $detail->createdAt = $item->created_at?->toISOString();
         $detail->updatedAt = $item->updated_at?->toISOString();
         $detail->updateKey = (int) $item->update_key;
+        $detail->materialPricePerKyat = $item->material_price_per_kyat;
+        $detail->subItems = $item->subItems->map(fn ($child) => CollateralPackItemDetail::fromModel($child))->all();
         return $detail;
     }
 }
