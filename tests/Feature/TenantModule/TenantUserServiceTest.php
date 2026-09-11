@@ -22,6 +22,60 @@ class TenantUserServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_new_platform_and_tenant_users_default_to_myanmar_locale(): void
+    {
+        $platformUser = PlatformUser::query()->create([
+            'code' => 'PU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'name' => 'Myanmar Locale Owner',
+            'email' => 'mm-locale-owner@example.com',
+            'phone' => '09111111111',
+            'password' => 'secret123',
+            'status' => 'active',
+        ]);
+
+        $tenant = Tenant::query()->create([
+            'platform_user_id' => $platformUser->id,
+            'name' => 'Myanmar Locale Tenant',
+            'tenant_code' => 'mm-locale-tenant',
+            'subdomain' => 'mm-locale-tenant',
+            'status' => 'active',
+        ]);
+        $role = $this->createUserRole();
+
+        $tenantUser = TenantUser::query()->withoutGlobalScope('tenant')->create([
+            'code' => 'TU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'tenant_id' => $tenant->id,
+            'role_id' => $role->id,
+            'username' => 'MMLOCALE',
+            'name' => 'Myanmar Locale Staff',
+            'nrc' => '12/MMLCL(N)123456',
+            'email' => 'mm-locale-staff@example.com',
+            'phone' => '09222222222',
+            'password' => Hash::make('secret123'),
+            'status' => 'active',
+            'is_deleted' => false,
+        ]);
+
+        $englishTenantUser = TenantUser::query()->withoutGlobalScope('tenant')->create([
+            'code' => 'TU'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'tenant_id' => $tenant->id,
+            'role_id' => $role->id,
+            'username' => 'ENLOCALE',
+            'name' => 'English Locale Staff',
+            'nrc' => '12/ENLCL(N)123456',
+            'email' => 'en-locale-staff@example.com',
+            'phone' => '09333333333',
+            'password' => Hash::make('secret123'),
+            'status' => 'active',
+            'is_deleted' => false,
+            'prefer_lang' => 'en',
+        ]);
+
+        $this->assertSame('mm', $platformUser->refresh()->prefer_lang);
+        $this->assertSame('mm', $tenantUser->refresh()->prefer_lang);
+        $this->assertSame('en', $englishTenantUser->refresh()->prefer_lang);
+    }
+
     public function test_repository_find_methods_exclude_soft_deleted_users(): void
     {
         $tenant = $this->createTenant();

@@ -24,6 +24,7 @@ class PlatformUserFactory extends Factory
             'password' => config('performance-testing.password'),
             'status' => 'active',
             'email_verified_at' => now(),
+            'prefer_lang' => 'mm',
         ];
     }
 }

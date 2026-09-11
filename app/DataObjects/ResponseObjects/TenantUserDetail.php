@@ -66,7 +66,7 @@ class TenantUserDetail extends BaseDataObject
                 ...TenantPermissionColumns::enabledFromModel($user->permission),
             ])
         );
-        $detail->preferLang = $user->prefer_lang ?? 'en';
+        $detail->preferLang = $user->prefer_lang ?? 'mm';
         $detail->financialAccounts = $financialAccounts ?? ($user->relationLoaded('financialAccounts')
             ? $user->financialAccounts
                 ->filter(fn ($account) => ! $account->is_deleted)

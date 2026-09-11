@@ -26,6 +26,7 @@ class TenantUserFactory extends Factory
             'password' => config('performance-testing.password'),
             'status' => 'active',
             'is_deleted' => false,
+            'prefer_lang' => 'mm',
         ];
     }
 }

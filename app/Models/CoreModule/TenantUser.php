@@ -20,6 +20,17 @@ class TenantUser extends Authenticatable
     use HasApiTokens;
     use Notifiable;
 
+    private const DEFAULT_PREFER_LANG = 'mm';
+
+    protected static function booted(): void
+    {
+        static::creating(function (TenantUser $user): void {
+            if (! is_string($user->prefer_lang) || $user->prefer_lang === '') {
+                $user->prefer_lang = self::DEFAULT_PREFER_LANG;
+            }
+        });
+    }
+
     protected static function newFactory(): TenantUserFactory
     {
         return TenantUserFactory::new();
