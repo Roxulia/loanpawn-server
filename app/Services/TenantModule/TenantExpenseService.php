@@ -62,7 +62,26 @@ class TenantExpenseService extends BaseTenantService
         $this->permissionService->authorizeExpenseCreate();
         $request->tenantId = $this->resolveCurrentTenantId();
         $request->createdBy = $request->createdBy ?? $this->resolveCurrentTenantUserId();
-        $financialAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId);
+
+        return $this->createExpense($request, true);
+    }
+
+    public function createFromSchedule(TenantExpenseCreate $request): TenantExpenseDetail
+    {
+        // System execution is still tenant-scoped, but has no human actor.
+        $request->tenantId = $this->resolveCurrentTenantId();
+        $request->createdBy = null;
+
+        return $this->createExpense($request, false);
+    }
+
+    private function createExpense(TenantExpenseCreate $request, bool $enforceAccountAssignment): TenantExpenseDetail
+    {
+        // Manual requests enforce user account assignments; trusted scheduled
+        // execution uses the system lookup while preserving all other checks.
+        $financialAccount = $enforceAccountAssignment
+            ? $this->multiAccountManagement->findActiveCurrentTenantAccount($request->accountId)
+            : $this->multiAccountManagement->findActiveCurrentTenantAccountForSystem((int) $request->accountId);
 
         $idempotencyRecord = $this->tenantIdempotencyService->reserveOptional(
             'tenant_expense.create',

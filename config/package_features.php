@@ -137,6 +137,11 @@ return [
             'description' => 'Configure interest compounding and partial principal collection.',
             'is_active' => true,
         ],
+        'scheduled_expense_management' => [
+            'name' => 'Scheduled expense management',
+            'description' => 'Configure and automatically pay one-time and recurring expenses.',
+            'is_active' => true,
+        ],
     ],
 
     'packages' => [
@@ -236,6 +241,7 @@ return [
                 'tenant_timezone_management',
                 'automatic_open_close',
                 'advanced_interest_process',
+                'scheduled_expense_management',
                 'multi_account_management',
                 'dashboard',
             ],

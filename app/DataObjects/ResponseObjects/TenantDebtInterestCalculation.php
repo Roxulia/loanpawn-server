@@ -22,5 +22,6 @@ class TenantDebtInterestCalculation extends BaseDataObject
         public bool $allowPartialPayments,
         public bool $compoundingEnabled,
         public array $interestBreakdown,
+        public array $interestRows = [],
     ) {}
 }

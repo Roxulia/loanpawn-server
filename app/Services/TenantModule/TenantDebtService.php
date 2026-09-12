@@ -573,18 +573,18 @@ class TenantDebtService extends BaseTenantService
         return $result->toArray();
     }
 
-    public function calculateInterest(int $debtId): array
+    public function calculateInterest(int $debtId, int $page = 1, int $perPage = 5): array
     {
         $this->permissionService->authorizeDebtList();
 
-        return $this->debtInterestFlowService->calculate($debtId)->toArray();
+        return $this->debtInterestFlowService->calculate($debtId, $page, $perPage)->toArray();
     }
 
-    public function paymentHistory(int $debtId): array
+    public function paymentHistory(int $debtId, int $page = 1, int $perPage = 5): array
     {
         $this->permissionService->authorizeDebtList();
 
-        return $this->debtInterestFlowService->history($debtId);
+        return $this->debtInterestFlowService->history($debtId, $page, $perPage);
     }
 
     public function updateCompoundSchedule(int $debtId, DebtCompoundScheduleUpdate $request): TenantDebtDetail

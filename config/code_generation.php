@@ -15,6 +15,7 @@ return [
         'tenant_business_loans' => 'BL',
         'tenant_business_loan_payments' => 'BP',
         'tenant_expenses' => 'EX',
+        'tenant_scheduled_expenses' => 'SE',
         'tenant_requests' => 'TR',
         'tenant_users' => 'TU',
         'financial_accounts' => 'FA',

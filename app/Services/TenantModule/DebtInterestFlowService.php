@@ -54,21 +54,29 @@ class DebtInterestFlowService extends BaseTenantService
         $this->materializeAccruals($debt, $this->businessClock->now((int) $debt->tenant_id));
     }
 
-    public function calculate(int $debtId): TenantDebtInterestCalculation
+    public function calculate(int $debtId, int $page = 1, int $perPage = 5): TenantDebtInterestCalculation
     {
-        return DB::transaction(function () use ($debtId): TenantDebtInterestCalculation {
+        return DB::transaction(function () use ($debtId, $page, $perPage): TenantDebtInterestCalculation {
             $debt = $this->findDebt($debtId, true);
             $this->materializeAccruals($debt, $this->businessClock->now((int) $debt->tenant_id));
 
-            return $this->calculation($debt->refresh()->load(['interestType', 'interestAccruals']));
+            $debt = $debt->refresh()->load(['interestType', 'interestAccruals']);
+            $result = $this->calculation($debt);
+            $paginator = $this->repository->paginateAccruals($debtId, $perPage, $page);
+            $rowsById = collect($result->interestBreakdown)->keyBy('id');
+            $result->interestRows = $this->pagePayload($paginator, fn ($row): array => $rowsById->get($row->id));
+
+            return $result;
         });
     }
 
-    public function history(int $debtId): array
+    public function history(int $debtId, int $page = 1, int $perPage = 5): array
     {
         $this->findDebt($debtId);
 
-        return $this->repository->paymentHistory($debtId);
+        $paginator = $this->repository->paymentHistory($debtId, $perPage, $page);
+
+        return $this->pagePayload($paginator, fn (array $row): array => $row);
     }
 
     public function hasPayments(int $debtId): bool
@@ -416,6 +424,15 @@ class DebtInterestFlowService extends BaseTenantService
             compoundingEnabled: $this->tenantSettingService->getCurrentTenantInterestProcessSettings()->compoundingEnabled,
             interestBreakdown: $rows,
         );
+    }
+
+    private function pagePayload($paginator, callable $transform): array
+    {
+        return [
+            'items' => array_map($transform, $paginator->items()),
+            'current_page' => $paginator->currentPage(), 'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(), 'total' => $paginator->total(),
+        ];
     }
 
     private function allocateInterest(TenantDebtPayment $payment, $accruals, float $amount): void

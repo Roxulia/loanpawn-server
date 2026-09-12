@@ -504,6 +504,13 @@ return [
                 'updated' => 'Expense updated successfully.',
                 'deleted' => 'Expense deleted successfully.',
             ],
+            'scheduled_expense' => [
+                'created' => 'Scheduled expense created successfully.',
+                'updated' => 'Scheduled expense updated successfully.',
+                'deleted' => 'Scheduled expense deleted successfully.',
+                'paused' => 'Scheduled expense paused successfully.',
+                'resumed' => 'Scheduled expense resumed successfully.',
+            ],
             'capital' => [
                 'created' => 'Capital created successfully.',
                 'updated' => 'Capital updated successfully.',

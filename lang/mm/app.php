@@ -498,6 +498,13 @@ return [
                 'updated' => 'ကုန်ကျစရိတ် ပြင်ဆင်ပြီးပါပြီ။',
                 'deleted' => 'ကုန်ကျစရိတ် ဖျက်ပြီးပါပြီ။',
             ],
+            'scheduled_expense' => [
+                'created' => 'Scheduled expense created successfully.',
+                'updated' => 'Scheduled expense updated successfully.',
+                'deleted' => 'Scheduled expense deleted successfully.',
+                'paused' => 'Scheduled expense paused successfully.',
+                'resumed' => 'Scheduled expense resumed successfully.',
+            ],
             'capital' => [
                 'created' => 'Capital ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'Capital ပြင်ဆင်ပြီးပါပြီ။',

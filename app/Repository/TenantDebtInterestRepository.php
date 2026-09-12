@@ -9,6 +9,7 @@ use App\Models\CoreModule\TenantDebtPaymentAllocation;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Carbon\CarbonInterface;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class TenantDebtInterestRepository
 {
@@ -43,6 +44,12 @@ class TenantDebtInterestRepository
         return $query->get();
     }
 
+    public function paginateAccruals(int $debtId, int $perPage, int $page): LengthAwarePaginator
+    {
+        return TenantDebtInterestAccrual::query()->where('debt_id', $debtId)
+            ->orderBy('start_period_at')->orderBy('id')->paginate($perPage, ['*'], 'page', $page);
+    }
+
     public function updateAccrual(TenantDebtInterestAccrual $accrual, array $data): TenantDebtInterestAccrual
     {
         $accrual->update($data);
@@ -72,15 +79,14 @@ class TenantDebtInterestRepository
         return TenantDebtPayment::query()->where('debt_id', $debtId)->exists();
     }
 
-    public function paymentHistory(int $debtId): array
+    public function paymentHistory(int $debtId, int $perPage, int $page): LengthAwarePaginator
     {
         return TenantDebtPayment::query()
             ->with('acceptAccount.currency')
             ->where('debt_id', $debtId)
             ->orderByDesc('payment_at')
             ->orderByDesc('id')
-            ->get()
-            ->map(fn (TenantDebtPayment $payment): array => [
+            ->paginate($perPage, ['*'], 'page', $page)->through(fn (TenantDebtPayment $payment): array => [
                 'id' => $payment->id,
                 'code' => $payment->code,
                 'allocation_order' => $payment->allocation_order,
@@ -90,7 +96,7 @@ class TenantDebtInterestRepository
                 'change_amount' => (float) $payment->change_amount,
                 'accept_account_id' => $payment->accept_account_id,
                 'payment_at' => $payment->payment_at?->toISOString(),
-            ])->all();
+            ]);
     }
 
     /** @return SupportCollection<int, int> */

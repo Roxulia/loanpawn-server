@@ -144,23 +144,36 @@ class TenantBusinessLoanService extends BaseTenantService
         });
     }
 
-    public function calculation(string $code): array
+    public function calculation(string $code, int $page = 1, int $perPage = 5): array
     {
         $this->permissionService->authorizeBusinessLoanList();
         $loan = $this->find($code);
         $this->materializeAccruals($loan);
         $loan = $this->find($code);
-        return $this->calculationPayload($loan);
+        $result = $this->calculationPayload($loan);
+        $rowsById = collect($result['interest_breakdown'])->keyBy('id');
+        $result['interest_rows'] = $this->pagePayload(
+            $this->repository->paginateAccruals($loan, $perPage, $page),
+            fn ($row): array => $rowsById->get($row->id),
+        );
+        return $result;
     }
 
-    public function history(string $code): array
+    public function history(string $code, int $page = 1, int $perPage = 5): array
     {
         $this->permissionService->authorizeBusinessLoanList();
-        return $this->find($code)->payments->map(fn ($payment): array => [
+        $loan = $this->find($code);
+        return $this->pagePayload($this->repository->paginatePayments($loan, $perPage, $page), fn ($payment): array => [
             'id' => $payment->id, 'code' => $payment->code, 'payment_amount' => (string) $payment->payment_amount,
             'principal_paid' => (string) $payment->principal_paid, 'interest_paid' => (string) $payment->interest_paid,
             'allocation_order' => $payment->allocation_order, 'payment_at' => $payment->payment_at?->toISOString(),
-        ])->all();
+        ]);
+    }
+
+    private function pagePayload($paginator, callable $transform): array
+    {
+        return ['items' => array_map($transform, $paginator->items()), 'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(), 'per_page' => $paginator->perPage(), 'total' => $paginator->total()];
     }
 
     public function pay(string $code, TenantBusinessLoanPaymentCreate $request): array

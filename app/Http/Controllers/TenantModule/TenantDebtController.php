@@ -148,14 +148,21 @@ class TenantDebtController extends Controller
         return $this->successResponse($debt, $this->responseMessage(MessageCode::TenantDebtPaid));
     }
 
-    public function calculateInterest(string $debtCode): JsonResponse
+    public function calculateInterest(Request $request, string $debtCode): JsonResponse
     {
-        return $this->successResponse($this->debtService->calculateInterest($this->debtService->resolveIdByCode($debtCode)));
+        $page = $this->pageInput($request);
+        return $this->successResponse($this->debtService->calculateInterest($this->debtService->resolveIdByCode($debtCode), $page['page'], $page['per_page']));
     }
 
-    public function paymentHistory(string $debtCode): JsonResponse
+    public function paymentHistory(Request $request, string $debtCode): JsonResponse
     {
-        return $this->successResponse($this->debtService->paymentHistory($this->debtService->resolveIdByCode($debtCode)));
+        $page = $this->pageInput($request);
+        return $this->successResponse($this->debtService->paymentHistory($this->debtService->resolveIdByCode($debtCode), $page['page'], $page['per_page']));
+    }
+
+    private function pageInput(Request $request): array
+    {
+        return $request->validate(['page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]) + ['page' => 1, 'per_page' => 5];
     }
 
     public function updateCompoundSchedule(Request $request, string $debtCode): JsonResponse

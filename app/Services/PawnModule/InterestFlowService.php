@@ -63,7 +63,7 @@ class InterestFlowService extends BaseTenantService
         return $this->repository->findLastAccruedInterestPayment($slipId);
     }
 
-    public function calculateInterestBySlipNo(string $slipNo): InterestCalculationResult
+    public function calculateInterestBySlipNo(string $slipNo, int $page = 1, int $perPage = 5): InterestCalculationResult
     {
         $slip = $this->resolveActiveSlipBySlipNo($slipNo);
         if ($slip->account_id === null) {
@@ -84,6 +84,8 @@ class InterestFlowService extends BaseTenantService
             accountId: (int) $slip->account_id,
             currentDate: $currentDate->toDateString(),
             interestBreakdown: $interestBreakdown,
+            page: $page,
+            perPage: $perPage,
         );
     }
 

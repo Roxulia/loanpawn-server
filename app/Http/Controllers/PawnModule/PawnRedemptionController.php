@@ -44,9 +44,16 @@ class PawnRedemptionController extends Controller
         )->toArray());
     }
 
-    public function calculate(string $slipNo): JsonResponse
+    public function calculate(Request $request, string $slipNo): JsonResponse
     {
-        return $this->successResponse($this->redemptionService->getRedemptionResultBySlipNo($slipNo)->toArray());
+        $validated = $request->validate([
+            'interest_page' => ['nullable', 'integer', 'min:1'],
+            'interest_per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return $this->successResponse($this->redemptionService->getRedemptionResultBySlipNo(
+            $slipNo, (int) ($validated['interest_page'] ?? 1), (int) ($validated['interest_per_page'] ?? 5),
+        )->toArray());
     }
 
     public function store(Request $request): JsonResponse
@@ -63,12 +70,15 @@ class PawnRedemptionController extends Controller
             'account_id' => ['nullable', 'integer', 'min:1'],
             'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
-            'interests' => ['present', 'array'],
+            'interests' => ['nullable', 'array', 'present_without:interest_row_versions'],
             'interests.*.id' => ['required', 'integer', 'min:1'],
             'interests.*.update_key' => ['required', 'integer', 'min:0'],
             'interests.*.interest_amount' => ['required', 'numeric', 'min:0'],
             'interests.*.start_period_at' => ['nullable', 'date'],
             'interests.*.end_period_at' => ['nullable', 'date'],
+            'interest_row_versions' => ['nullable', 'array', 'present_without:interests'],
+            'interest_row_versions.*.id' => ['required', 'integer', 'min:1'],
+            'interest_row_versions.*.update_key' => ['required', 'integer', 'min:0'],
             'debts' => ['present', 'array'],
             'debts.*.id' => ['required', 'integer', 'min:1'],
             'debts.*.update_key' => ['required', 'integer', 'min:0'],
@@ -105,11 +115,11 @@ class PawnRedemptionController extends Controller
                 fn (array $breakdown): InterestBreakDown => InterestBreakDown::fromValues(
                     id: (int) $breakdown['id'],
                     updateKey: (int) $breakdown['update_key'],
-                    interestAmount: (float) $breakdown['interest_amount'],
+                            interestAmount: (float) ($breakdown['interest_amount'] ?? 0),
                     startPeriodAt: $breakdown['start_period_at'] ?? null,
                     endPeriodAt: $breakdown['end_period_at'] ?? null,
                 ),
-                $validated['interests']
+                $validated['interest_row_versions'] ?? $validated['interests']
             ),
             redemptionAt: isset($validated['redemption_at']) ? CarbonImmutable::parse($validated['redemption_at']) : null,
             notes: $validated['notes'] ?? null,

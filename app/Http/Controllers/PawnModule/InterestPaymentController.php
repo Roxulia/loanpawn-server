@@ -40,9 +40,16 @@ class InterestPaymentController extends Controller
         return $this->successResponse($history->toArray());
     }
 
-    public function calculate(string $slipNo): JsonResponse
+    public function calculate(Request $request, string $slipNo): JsonResponse
     {
-        return $this->successResponse($this->interestFlowService->calculateInterestBySlipNo($slipNo)->toArray());
+        $validated = $request->validate([
+            'interest_page' => ['nullable', 'integer', 'min:1'],
+            'interest_per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return $this->successResponse($this->interestFlowService->calculateInterestBySlipNo(
+            $slipNo, (int) ($validated['interest_page'] ?? 1), (int) ($validated['interest_per_page'] ?? 5),
+        )->toArray());
     }
 
     public function pay(Request $request, string $slipNo): JsonResponse
@@ -59,12 +66,15 @@ class InterestPaymentController extends Controller
             'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'record_debt' => ['nullable', 'boolean'],
-            'interest_breakdown' => ['required', 'array'],
+            'interest_breakdown' => ['nullable', 'array', 'present_without:interest_row_versions'],
             'interest_breakdown.*.id' => ['required', 'integer', 'min:1'],
             'interest_breakdown.*.update_key' => ['required', 'integer', 'min:0'],
             'interest_breakdown.*.interest_amount' => ['required', 'numeric', 'min:0'],
             'interest_breakdown.*.start_period_at' => ['nullable', 'date'],
             'interest_breakdown.*.end_period_at' => ['nullable', 'date'],
+            'interest_row_versions' => ['nullable', 'array', 'present_without:interest_breakdown'],
+            'interest_row_versions.*.id' => ['required', 'integer', 'min:1'],
+            'interest_row_versions.*.update_key' => ['required', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -90,11 +100,11 @@ class InterestPaymentController extends Controller
                         fn (array $breakdown): InterestBreakDown => InterestBreakDown::fromValues(
                             id: (int) $breakdown['id'],
                             updateKey: (int) $breakdown['update_key'],
-                            interestAmount: (float) $breakdown['interest_amount'],
+                            interestAmount: (float) ($breakdown['interest_amount'] ?? 0),
                             startPeriodAt: $breakdown['start_period_at'] ?? null,
                             endPeriodAt: $breakdown['end_period_at'] ?? null,
                         ),
-                        $validated['interest_breakdown']
+                        $validated['interest_row_versions'] ?? $validated['interest_breakdown']
                     ),
                     idempotencyKey: $validated['idempotency_key'] ?? null,
                 ),

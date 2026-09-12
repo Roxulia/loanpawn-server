@@ -16,6 +16,7 @@ use App\Repository\TenantAccountingDayRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -125,6 +126,25 @@ class TenantAccountingDayService extends BaseTenantService
     public function isDayEditable(?TenantAccountingDay $day): bool
     {
         return $day?->status === AccountingDayStatus::Open;
+    }
+
+    public function allowsScheduledFinancialOperation(int $tenantId, CarbonInterface $now): bool
+    {
+        // Without automatic open/close, scheduled payments follow the existing
+        // first-transaction behavior that opens the accounting day lazily.
+        if (! $this->licenseService->tenantHasFeature($tenantId, 'automatic_open_close')) {
+            return true;
+        }
+
+        $schedule = $this->repository->scheduleForWeekday($tenantId, $now->dayOfWeek);
+        $time = $now->format('H:i:s');
+        if ($schedule === null || ! $schedule->is_enabled || $time < $schedule->open_time || $time >= $schedule->close_time) {
+            return false;
+        }
+
+        // Checking both the wall-clock interval and persisted day state avoids
+        // racing a payment against the asynchronous open/close job.
+        return $this->repository->findForTenantDate($tenantId, $now->toDateString())?->status === AccountingDayStatus::Open;
     }
 
     public function schedule(): AccountingDayScheduleResource

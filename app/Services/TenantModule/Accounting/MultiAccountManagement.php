@@ -87,6 +87,25 @@ class MultiAccountManagement extends BaseTenantService
         return $account;
     }
 
+    public function findActiveCurrentTenantAccountForSystem(int $accountId): FinancialAccount
+    {
+        // Scheduled jobs have no authenticated tenant user. Retain tenant,
+        // active-account, and currency checks while intentionally omitting the
+        // interactive user's account-assignment requirement.
+        $tenantId = $this->resolveCurrentTenantId();
+        $account = $this->repository->findActiveById($tenantId, $accountId);
+
+        if (! $account) {
+            throw new TenantAccessDenied('Active financial account not found for the current tenant.');
+        }
+
+        if ($account->currency === null || ! $account->currency->is_active) {
+            throw new InvalidTenantRequest('The selected financial account must have an active currency.');
+        }
+
+        return $account;
+    }
+
     public function findCurrentTenantAccountById(int $accountId): FinancialAccount
     {
         $account = $this->repository->findById($this->resolveCurrentTenantId(), $accountId);

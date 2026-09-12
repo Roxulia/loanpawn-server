@@ -82,13 +82,15 @@ class TenantBusinessLoanController extends Controller
         $this->businessLoanService->delete($loanCode);
         return $this->successResponse();
     }
-    public function interest(string $loanCode): JsonResponse
+    public function interest(Request $request, string $loanCode): JsonResponse
     {
-        return $this->successResponse($this->businessLoanService->calculation($loanCode));
+        $page = $request->validate(['page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]) + ['page' => 1, 'per_page' => 5];
+        return $this->successResponse($this->businessLoanService->calculation($loanCode, $page['page'], $page['per_page']));
     }
-    public function payments(string $loanCode): JsonResponse
+    public function payments(Request $request, string $loanCode): JsonResponse
     {
-        return $this->successResponse($this->businessLoanService->history($loanCode));
+        $page = $request->validate(['page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]) + ['page' => 1, 'per_page' => 5];
+        return $this->successResponse($this->businessLoanService->history($loanCode, $page['page'], $page['per_page']));
     }
 
     public function pay(Request $request, string $loanCode): JsonResponse

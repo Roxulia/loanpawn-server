@@ -31,6 +31,7 @@ use App\Http\Controllers\TenantModule\TenantLenderController;
 use App\Http\Controllers\TenantModule\TenantExchangeRateController;
 use App\Http\Controllers\TenantModule\TenantExchangeRatePairController;
 use App\Http\Controllers\TenantModule\TenantExpenseController;
+use App\Http\Controllers\TenantModule\TenantScheduledExpenseController;
 use App\Http\Controllers\TenantModule\TenantRoleController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
 use App\Http\Controllers\TenantModule\ReportingCurrencyRateRequirementController;
@@ -305,6 +306,19 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:update_expense');
                     Route::delete('{expenseCode}', [TenantExpenseController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_expense');
+                });
+
+            Route::prefix('scheduled-expenses')
+                ->middleware(['tenant.feature:expense_management', 'tenant.feature:scheduled_expense_management'])
+                ->group(function () {
+                    Route::get('/', [TenantScheduledExpenseController::class, 'index'])->middleware('tenant.permission:list_scheduled_expense');
+                    Route::post('/', [TenantScheduledExpenseController::class, 'store'])->middleware('tenant.permission:create_scheduled_expense');
+                    Route::get('{code}/occurrences', [TenantScheduledExpenseController::class, 'occurrences'])->middleware('tenant.permission:list_scheduled_expense');
+                    Route::get('{code}', [TenantScheduledExpenseController::class, 'show'])->middleware('tenant.permission:list_scheduled_expense');
+                    Route::put('{code}', [TenantScheduledExpenseController::class, 'update'])->middleware('tenant.permission:update_scheduled_expense');
+                    Route::post('{code}/pause', [TenantScheduledExpenseController::class, 'pause'])->middleware('tenant.permission:update_scheduled_expense');
+                    Route::post('{code}/resume', [TenantScheduledExpenseController::class, 'resume'])->middleware('tenant.permission:update_scheduled_expense');
+                    Route::delete('{code}', [TenantScheduledExpenseController::class, 'destroy'])->middleware('tenant.permission:delete_scheduled_expense');
                 });
 
             Route::prefix('capitals')

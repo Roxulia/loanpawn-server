@@ -39,6 +39,14 @@ class TenantBusinessLoanRepository
     public function updateAccrual(TenantBusinessLoanInterestAccrual $accrual, array $data): void { $accrual->update($data); }
     public function delete(TenantBusinessLoan $loan): void { $loan->update(['is_deleted' => true]); $loan->delete(); }
     public function hasPayments(TenantBusinessLoan $loan): bool { return $loan->payments()->exists(); }
+    public function paginateAccruals(TenantBusinessLoan $loan, int $perPage, int $page): LengthAwarePaginator
+    {
+        return $loan->interestAccruals()->orderBy('start_period_at')->orderBy('id')->paginate($perPage, ['*'], 'page', $page);
+    }
+    public function paginatePayments(TenantBusinessLoan $loan, int $perPage, int $page): LengthAwarePaginator
+    {
+        return $loan->payments()->orderByDesc('payment_at')->orderByDesc('id')->paginate($perPage, ['*'], 'page', $page);
+    }
 
     public function compoundScheduleTenantIds(): SupportCollection
     {
