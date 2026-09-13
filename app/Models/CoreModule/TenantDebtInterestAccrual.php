@@ -3,12 +3,20 @@
 namespace App\Models\CoreModule;
 
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantDebtInterestAccrualFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TenantDebtInterestAccrual extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): TenantDebtInterestAccrualFactory
+    {
+        return TenantDebtInterestAccrualFactory::new();
+    }
 
     protected $fillable = ['tenant_id', 'debt_id', 'principal_amount', 'calculated_interest', 'paid_amount', 'compounded_amount', 'compounded_at', 'start_period_at', 'end_period_at', 'period_timezone', 'is_paid'];
 

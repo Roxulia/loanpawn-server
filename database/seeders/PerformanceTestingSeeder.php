@@ -4,6 +4,18 @@ namespace Database\Seeders;
 
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\InterestType;
+use App\Models\CoreModule\TenantBusinessLoan;
+use App\Models\CoreModule\TenantBusinessLoanInterestAccrual;
+use App\Models\CoreModule\TenantBusinessLoanPayment;
+use App\Models\CoreModule\TenantBusinessLoanPaymentAllocation;
+use App\Models\CoreModule\TenantDebtInterestAccrual;
+use App\Models\CoreModule\TenantDebtPayment;
+use App\Models\CoreModule\TenantDebtPaymentAllocation;
+use App\Models\CoreModule\TenantExpense;
+use App\Models\CoreModule\TenantLender;
+use App\Models\CoreModule\TenantPerson;
+use App\Models\CoreModule\TenantScheduledExpense;
+use App\Models\CoreModule\TenantScheduledExpenseOccurrence;
 use App\Models\CoreModule\TenantRole;
 use App\Models\CoreModule\TenantUser;
 use App\Models\FinancialAccount;
@@ -82,6 +94,21 @@ class PerformanceTestingSeeder extends Seeder
                 throw new RuntimeException("performance-testing.{$key} must be greater than zero.");
             }
         }
+
+        foreach ([
+            'lenders_per_tenant',
+            'business_loans_per_tenant',
+            'business_loan_accruals_per_loan',
+            'business_loan_payments_per_loan',
+            'scheduled_expenses_per_tenant',
+            'debt_accruals_per_debt',
+            'debt_payments_per_debt',
+            'scheduled_occurrences_per_expense',
+        ] as $key) {
+            if ((int) config("performance-testing.{$key}") < 0) {
+                throw new RuntimeException("performance-testing.{$key} may not be negative.");
+            }
+        }
     }
 
     /** Delete only the clearly marked performance tenants, leaving all other test fixtures intact. */
@@ -96,8 +123,43 @@ class PerformanceTestingSeeder extends Seeder
         $tenantIds = $tenants->pluck('id')->all();
         $ownerIds = $tenants->pluck('platform_user_id')->all();
 
-        // This table intentionally restricts tenant deletion, so remove its scoped history first.
-        DB::table('tenant_accounting_transactions')->whereIn('tenant_id', $tenantIds)->delete();
+        // Remove new dependent financial rows explicitly because SQLite test
+        // connections enforce restrict-on-delete relationships differently
+        // from the production database engine.
+        foreach ([
+            'tenant_business_loan_payment_allocations',
+            'tenant_business_loan_payments',
+            'tenant_business_loan_interest_accruals',
+            'tenant_business_loans',
+            'tenant_scheduled_expense_occurrences',
+            'tenant_scheduled_expenses',
+            'tenant_debt_payment_allocations',
+            'tenant_debt_payments',
+            'tenant_debt_interest_accruals',
+            'pawn_redemptions',
+            'pawn_interest_payments',
+            'pawn_collateral_items',
+            'tenant_debts',
+            'pawn_loan_contract_slips',
+            'tenant_lenders',
+            'tenant_people',
+            'tenant_expenses',
+            'tenant_accounting_transactions',
+            'financial_account_transfers',
+        ] as $table) {
+            DB::table($table)->whereIn('tenant_id', $tenantIds)->delete();
+        }
+
+        $accountIds = DB::table('financial_accounts')->whereIn('tenant_id', $tenantIds)->pluck('id');
+        if ($accountIds->isNotEmpty()) {
+            DB::table('financial_account_transfers')
+                ->whereIn('from_account_id', $accountIds)
+                ->orWhereIn('to_account_id', $accountIds)
+                ->orWhereIn('fee_account_id', $accountIds)
+                ->delete();
+            DB::table('financial_accounts')->whereIn('id', $accountIds)->delete();
+        }
+
         DB::table('tenants')->whereIn('id', $tenantIds)->delete();
         DB::table('platform_users')->whereIn('id', $ownerIds)->where('email', 'like', '%@performance.test')->delete();
     }
@@ -114,7 +176,9 @@ class PerformanceTestingSeeder extends Seeder
             throw new RuntimeException('Daily, weekly, and monthly interest types must be seeded first.');
         }
 
-        return compact('package', 'role', 'currency', 'accountType', 'interestTypes');
+        $expenseTypes = \App\Models\CoreModule\ExpenseType::query()->whereNull('tenant_id')->get()->keyBy('code');
+
+        return compact('package', 'role', 'currency', 'accountType', 'interestTypes', 'expenseTypes');
     }
 
     private function seedTenant(int $number, int $slipCount, array $references): void
@@ -151,8 +215,263 @@ class PerformanceTestingSeeder extends Seeder
         $this->seedSettings($tenant, $timezone, $references['currency']);
         $customerIds = $this->seedCustomers($tenant, $suffix, $users, (int) config('performance-testing.customers_per_tenant'));
         $this->seedSlips($tenant, $suffix, $users, $accounts, $customerIds, $references['interestTypes'], $timezone, $slipCount);
+        $lenders = $this->seedLenders($tenant, $suffix, $users);
+        $this->seedBusinessLoans($tenant, $suffix, $users, $accounts, $lenders, $references['interestTypes'], $timezone);
+        $this->seedScheduledExpenses($tenant, $suffix, $users, $accounts, $references['expenseTypes']);
 
         $this->command?->info("Seeded {$tenantCode}: {$slipCount} slips.");
+    }
+
+    /** Seed shared people and lender profiles used by business-loan workflows. */
+    private function seedLenders(Tenant $tenant, string $suffix, array $users): array
+    {
+        $count = (int) config('performance-testing.lenders_per_tenant');
+        if ($count === 0) {
+            return [];
+        }
+
+        $now = now();
+        $people = [];
+        $emails = [];
+        for ($index = 1; $index <= $count; $index++) {
+            $code = str_pad((string) $index, 5, '0', STR_PAD_LEFT);
+            $email = "lender{$suffix}{$code}@performance.test";
+            $emails[] = $email;
+            $people[] = array_merge(TenantPerson::factory()->raw([
+                'name' => "Performance Lender {$suffix}-{$code}",
+                'nrc' => "PERF/L/{$suffix}{$code}",
+                'email' => $email,
+                'phone' => '093'.substr($suffix.$code, -8),
+            ]), [
+                'tenant_id' => $tenant->id,
+                'created_by' => $users[0]->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+        DB::table('tenant_people')->insert($people);
+
+        $personRows = DB::table('tenant_people')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('email', $emails)
+            ->orderBy('id')
+            ->get();
+        $lenders = [];
+        foreach ($personRows as $position => $person) {
+            $code = str_pad((string) ($position + 1), 5, '0', STR_PAD_LEFT);
+            $lenders[] = array_merge(TenantLender::factory()->raw([
+                'code' => "PERFL{$suffix}{$code}",
+            ]), [
+                'tenant_id' => $tenant->id,
+                'person_id' => $person->id,
+                'created_by' => $users[0]->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+        DB::table('tenant_lenders')->insert($lenders);
+
+        return DB::table('tenant_lenders')->where('tenant_id', $tenant->id)->orderBy('id')->get()->all();
+    }
+
+    /** Seed business-loan principals and their interest/payment history. */
+    private function seedBusinessLoans(Tenant $tenant, string $suffix, array $users, array $accounts, array $lenders, $interestTypes, string $timezone): void
+    {
+        $count = (int) config('performance-testing.business_loans_per_tenant');
+        if ($count === 0) {
+            return;
+        }
+
+        $now = CarbonImmutable::now($timezone);
+        $loanRows = [];
+        $codes = [];
+        for ($index = 1; $index <= $count; $index++) {
+            $sequence = str_pad((string) $index, 8, '0', STR_PAD_LEFT);
+            $amount = 500_000 + (($index % 100) * 25_000);
+            $code = "PERFBL-{$suffix}-{$sequence}";
+            $codes[] = $code;
+            $loanRows[] = array_merge(TenantBusinessLoan::factory()->raw([
+                'code' => $code,
+                'amount' => $amount,
+                'principal_balance' => $amount - (($index % 5) * 10_000),
+                'lender_id' => $lenders === [] ? null : $lenders[($index - 1) % count($lenders)]->id,
+                'receipt_account_id' => $accounts[$index % count($accounts)]->id,
+                'apply_interest' => true,
+                'interest_rate' => 5,
+                'interest_type_id' => $interestTypes['monthly']->id,
+                'interest_anchor_at' => $now->subMonths(2)->utc(),
+                'last_interest_paid_at' => $index % 4 === 0 ? $now->subMonth()->utc() : null,
+            ]), [
+                'tenant_id' => $tenant->id,
+                'created_by' => $users[$index % count($users)]->id,
+                'created_at' => $now->subDays($index % 180)->utc(),
+                'updated_at' => $now->subDays($index % 30)->utc(),
+            ]);
+        }
+        DB::table('tenant_business_loans')->insert($loanRows);
+
+        $loans = DB::table('tenant_business_loans')->where('tenant_id', $tenant->id)->whereIn('code', $codes)->orderBy('id')->get();
+        $accrualRows = [];
+        foreach ($loans as $loan) {
+            $accrualCount = (int) config('performance-testing.business_loan_accruals_per_loan');
+            for ($index = 0; $index < $accrualCount; $index++) {
+                $start = CarbonImmutable::parse($loan->interest_anchor_at, 'UTC')->subMonths($accrualCount - $index - 1)->startOfDay();
+                $interest = round((float) $loan->principal_balance * 0.05, 2);
+                $paid = $index === 0 && $loan->last_interest_paid_at !== null ? $interest : 0;
+                $accrualRows[] = array_merge(TenantBusinessLoanInterestAccrual::factory()->raw([
+                    'principal_amount' => $loan->principal_balance,
+                    'calculated_interest' => $interest,
+                    'paid_amount' => $paid,
+                    'start_period_at' => $start->utc(),
+                    'end_period_at' => $start->addMonth()->subSecond()->utc(),
+                    'period_timezone' => $timezone,
+                    'is_paid' => $paid >= $interest,
+                ]), [
+                    'tenant_id' => $tenant->id,
+                    'business_loan_id' => $loan->id,
+                    'created_at' => $loan->created_at,
+                    'updated_at' => $loan->updated_at,
+                ]);
+            }
+        }
+        if ($accrualRows !== []) {
+            DB::table('tenant_business_loan_interest_accruals')->insert($accrualRows);
+        }
+
+        $accruals = DB::table('tenant_business_loan_interest_accruals')->where('tenant_id', $tenant->id)->orderBy('id')->get()->groupBy('business_loan_id');
+        $paymentRows = [];
+        foreach ($loans as $loan) {
+            $paymentCount = (int) config('performance-testing.business_loan_payments_per_loan');
+            for ($index = 1; $index <= $paymentCount; $index++) {
+                $paymentRows[] = array_merge(TenantBusinessLoanPayment::factory()->raw([
+                    'code' => "PERFBLP-{$suffix}-{$loan->id}-{$index}",
+                    'payment_amount' => 25_000,
+                    'principal_paid' => 25_000,
+                    'payment_at' => CarbonImmutable::parse($loan->created_at, 'UTC')->addDays(10 + $index),
+                ]), [
+                    'tenant_id' => $tenant->id,
+                    'business_loan_id' => $loan->id,
+                    'payment_account_id' => $accounts[0]->id,
+                    'created_by' => $users[0]->id,
+                    'created_at' => $loan->created_at,
+                    'updated_at' => $loan->updated_at,
+                ]);
+            }
+        }
+        if ($paymentRows !== []) {
+            DB::table('tenant_business_loan_payments')->insert($paymentRows);
+        }
+
+        $payments = DB::table('tenant_business_loan_payments')->where('tenant_id', $tenant->id)->orderBy('id')->get();
+        $allocations = [];
+        foreach ($payments as $payment) {
+            $accrual = $accruals->get($payment->business_loan_id)?->first();
+            if ($accrual === null) {
+                continue;
+            }
+            $allocations[] = array_merge(TenantBusinessLoanPaymentAllocation::factory()->raw([
+                'amount' => $payment->interest_paid,
+            ]), [
+                'tenant_id' => $tenant->id,
+                'payment_id' => $payment->id,
+                'accrual_id' => $accrual->id,
+                'created_at' => $payment->created_at,
+                'updated_at' => $payment->updated_at,
+            ]);
+        }
+        if ($allocations !== []) {
+            DB::table('tenant_business_loan_payment_allocations')->insert($allocations);
+        }
+    }
+
+    /** Seed active schedules plus pending and completed occurrence rows. */
+    private function seedScheduledExpenses(Tenant $tenant, string $suffix, array $users, array $accounts, $expenseTypes): void
+    {
+        $count = (int) config('performance-testing.scheduled_expenses_per_tenant');
+        if ($count === 0) {
+            return;
+        }
+
+        $now = CarbonImmutable::now();
+        $scheduleRows = [];
+        $codes = [];
+        $expenseTypeId = $expenseTypes->get('rent')?->id ?? $expenseTypes->first()?->id;
+        for ($index = 1; $index <= $count; $index++) {
+            $sequence = str_pad((string) $index, 6, '0', STR_PAD_LEFT);
+            $start = $now->addDays(1 + ($index % 10))->startOfDay();
+            $code = "PERFSE-{$suffix}-{$sequence}";
+            $codes[] = $code;
+            $scheduleRows[] = array_merge(TenantScheduledExpense::factory()->raw([
+                'code' => $code,
+                'account_id' => $accounts[$index % count($accounts)]->id,
+                'expense_type_id' => $expenseTypeId,
+                'start_date' => $start->toDateString(),
+                'next_due_date' => $start->toDateString(),
+                'monthly_anchor_day' => $start->day,
+            ]), [
+                'tenant_id' => $tenant->id,
+                'created_by' => $users[$index % count($users)]->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+        DB::table('tenant_scheduled_expenses')->insert($scheduleRows);
+
+        $schedules = DB::table('tenant_scheduled_expenses')->where('tenant_id', $tenant->id)->whereIn('code', $codes)->orderBy('id')->get();
+        $expenseRows = [];
+        $occurrenceInputs = [];
+        foreach ($schedules as $schedule) {
+            $occurrenceCount = (int) config('performance-testing.scheduled_occurrences_per_expense');
+            for ($index = 0; $index < $occurrenceCount; $index++) {
+                $executed = $index > 0;
+                $dueDate = CarbonImmutable::parse($schedule->start_date)->addMonths($index);
+                $expenseCode = "PERFEX-{$suffix}-{$schedule->id}-{$index}";
+                if ($executed) {
+                    $expenseRows[] = array_merge(TenantExpense::factory()->raw([
+                        'code' => $expenseCode,
+                        'amount' => $schedule->amount,
+                        'expense_type_id' => $schedule->expense_type_id,
+                        'description' => $schedule->description,
+                    ]), [
+                        'tenant_id' => $tenant->id,
+                        'created_by' => $schedule->created_by,
+                        'created_at' => $dueDate->setTime(9, 0),
+                        'updated_at' => $dueDate->setTime(9, 0),
+                    ]);
+                }
+                $occurrenceInputs[] = compact('schedule', 'dueDate', 'executed', 'expenseCode');
+            }
+        }
+        if ($expenseRows !== []) {
+            DB::table('tenant_expenses')->insert($expenseRows);
+        }
+
+        $expenseIds = DB::table('tenant_expenses')->where('tenant_id', $tenant->id)->whereIn('code', array_column($expenseRows, 'code'))->pluck('id', 'code');
+        $occurrences = [];
+        foreach ($occurrenceInputs as $input) {
+            $schedule = $input['schedule'];
+            $dueDate = $input['dueDate'];
+            $executed = $input['executed'];
+            $occurrences[] = array_merge(TenantScheduledExpenseOccurrence::factory()->raw([
+                'description' => $schedule->description,
+                'amount' => $schedule->amount,
+                'account_id' => $schedule->account_id,
+                'expense_type_id' => $schedule->expense_type_id,
+                'due_date' => $dueDate->toDateString(),
+                'due_time' => $schedule->scheduled_time,
+                'status' => $executed ? 'completed' : 'pending',
+                'executed_at' => $executed ? $dueDate->setTime(9, 0) : null,
+            ]), [
+                'tenant_id' => $tenant->id,
+                'scheduled_expense_id' => $schedule->id,
+                'expense_id' => $executed ? $expenseIds->get($input['expenseCode']) : null,
+                'created_at' => $dueDate->setTime(9, 0),
+                'updated_at' => $dueDate->setTime(9, 0),
+            ]);
+        }
+        if ($occurrences !== []) {
+            DB::table('tenant_scheduled_expense_occurrences')->insert($occurrences);
+        }
     }
 
     private function seedUsers(Tenant $tenant, string $suffix, TenantRole $role): array
@@ -361,6 +680,10 @@ class PerformanceTestingSeeder extends Seeder
                     'customer_id' => $slip->customer_id,
                     'amount' => $debtAmount,
                     'principal_balance' => $debtAmount,
+                    'apply_interest' => true,
+                    'interest_rate' => 5,
+                    'interest_type_id' => $interestTypes->firstWhere('code', 'monthly')->id,
+                    'interest_anchor_at' => CarbonImmutable::parse($slip->created_at, $timezone)->subMonth()->utc(),
                     'accepted_by' => $creator->id,
                     'created_by' => $creator->id,
                     'created_at' => $slip->created_at,
@@ -414,6 +737,92 @@ class PerformanceTestingSeeder extends Seeder
             if ($rows !== []) {
                 DB::table($table)->insert($rows);
             }
+        }
+
+        $this->seedDebtRelations($tenant, $debts, $users, $accounts, $timezone);
+    }
+
+    /** Seed debt interest rows, payments, and payment allocations after debt IDs exist. */
+    private function seedDebtRelations(Tenant $tenant, array $debtRows, array $users, array $accounts, string $timezone): void
+    {
+        if ($debtRows === []) {
+            return;
+        }
+
+        $codes = array_column($debtRows, 'code');
+        $debts = DB::table('tenant_debts')->where('tenant_id', $tenant->id)->whereIn('code', $codes)->orderBy('id')->get();
+        $accrualRows = [];
+        foreach ($debts as $debt) {
+            $accrualCount = (int) config('performance-testing.debt_accruals_per_debt');
+            for ($index = 0; $index < $accrualCount; $index++) {
+                $start = CarbonImmutable::parse($debt->interest_anchor_at ?: $debt->created_at, $timezone)
+                    ->addMonths($index)
+                    ->startOfDay();
+                $interest = round((float) $debt->principal_balance * 0.05, 2);
+                $accrualRows[] = array_merge(TenantDebtInterestAccrual::factory()->raw([
+                    'principal_amount' => $debt->principal_balance,
+                    'calculated_interest' => $interest,
+                    'paid_amount' => $index === 0 ? $interest : 0,
+                    'start_period_at' => $start->utc(),
+                    'end_period_at' => $start->addMonth()->subSecond()->utc(),
+                    'period_timezone' => $timezone,
+                    'is_paid' => $index === 0,
+                ]), [
+                    'tenant_id' => $tenant->id,
+                    'debt_id' => $debt->id,
+                    'created_at' => $debt->created_at,
+                    'updated_at' => $debt->updated_at,
+                ]);
+            }
+        }
+        if ($accrualRows !== []) {
+            DB::table('tenant_debt_interest_accruals')->insert($accrualRows);
+        }
+
+        $accruals = DB::table('tenant_debt_interest_accruals')->where('tenant_id', $tenant->id)->whereIn('debt_id', $debts->pluck('id'))->orderBy('id')->get()->groupBy('debt_id');
+        $paymentRows = [];
+        foreach ($debts as $debt) {
+            $paymentCount = (int) config('performance-testing.debt_payments_per_debt');
+            for ($index = 1; $index <= $paymentCount; $index++) {
+                $paymentRows[] = array_merge(TenantDebtPayment::factory()->raw([
+                    'code' => "PERFDP-{$tenant->id}-{$debt->id}-{$index}",
+                    'payment_amount' => 1_000,
+                    'principal_paid' => 1_000,
+                    'interest_paid' => 0,
+                    'payment_at' => CarbonImmutable::parse($debt->created_at, 'UTC')->addDays(10 + $index),
+                ]), [
+                    'tenant_id' => $tenant->id,
+                    'debt_id' => $debt->id,
+                    'accept_account_id' => $accounts[0]->id,
+                    'created_by' => $users[0]->id,
+                    'created_at' => $debt->created_at,
+                    'updated_at' => $debt->updated_at,
+                ]);
+            }
+        }
+        if ($paymentRows !== []) {
+            DB::table('tenant_debt_payments')->insert($paymentRows);
+        }
+
+        $payments = DB::table('tenant_debt_payments')->where('tenant_id', $tenant->id)->whereIn('debt_id', $debts->pluck('id'))->orderBy('id')->get();
+        $allocations = [];
+        foreach ($payments as $payment) {
+            $accrual = $accruals->get($payment->debt_id)?->first();
+            if ($accrual === null) {
+                continue;
+            }
+            $allocations[] = array_merge(TenantDebtPaymentAllocation::factory()->raw([
+                'amount' => $payment->interest_paid,
+            ]), [
+                'tenant_id' => $tenant->id,
+                'payment_id' => $payment->id,
+                'accrual_id' => $accrual->id,
+                'created_at' => $payment->created_at,
+                'updated_at' => $payment->updated_at,
+            ]);
+        }
+        if ($allocations !== []) {
+            DB::table('tenant_debt_payment_allocations')->insert($allocations);
         }
     }
 }

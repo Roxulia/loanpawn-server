@@ -19,10 +19,13 @@ class TenantDebtFactory extends Factory
         return [
             'code' => fake()->unique()->bothify('PERFD########'),
             'amount' => fake()->numberBetween(1_000, 100_000),
+            'principal_balance' => fake()->numberBetween(1_000, 100_000),
             'description' => 'Performance-test partial interest balance',
             'tag' => 'InterestPayment',
             'is_paid' => false,
-            'apply_interest' => false,
+            'apply_interest' => true,
+            'interest_rate' => 5,
+            'compound_schedule_enabled' => false,
         ];
     }
 }

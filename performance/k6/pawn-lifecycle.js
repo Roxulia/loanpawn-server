@@ -1,6 +1,7 @@
 import { check, fail, sleep } from 'k6';
 import { apiGet, apiWrite, findRecordByCode, responseData } from './lib/client.js';
 import { numberSetting } from './lib/config.js';
+import { routes } from './lib/routes.js';
 
 // Keep the write test deliberately smaller because every iteration creates financial history.
 export const options = {
@@ -14,7 +15,7 @@ export const options = {
 
 export default function () {
     // Resolve current master-data IDs through the API because database IDs change after reseeding.
-    const bootstrapResponse = apiGet('/api/tenant/settings/default-data', 'default-data-bootstrap');
+    const bootstrapResponse = apiGet(routes.settings.defaultData(), 'default-data-bootstrap');
     const bootstrap = responseData(bootstrapResponse, 'default-data bootstrap');
     const interestType = findRecordByCode(bootstrap, 'monthly');
     if (!interestType) fail('Monthly interest type was not present in default-data bootstrap.');
@@ -22,7 +23,7 @@ export default function () {
     // The VU, iteration, and timestamp make customer data and idempotency keys collision-resistant.
     const unique = `${__VU}-${__ITER}-${Date.now()}`;
     const createKey = `k6-create-${unique}`;
-    const createResponse = apiWrite('POST', '/api/tenant/loan-contract-slips', {
+    const createResponse = apiWrite('POST', routes.slips.list(), {
         customer: {
             name: `k6 Customer ${unique}`,
             email: `k6-${unique}@performance.test`,
@@ -50,9 +51,9 @@ export default function () {
     if (!slipNo) fail('Slip creation response did not contain a slip number.');
 
     // Calculation provides optimistic-lock keys and the exact breakdown required by payment.
-    const calculationResponse = apiGet(`/api/tenant/interest-payments/${encodeURIComponent(slipNo)}/calculate`, 'interest-calculate');
+    const calculationResponse = apiGet(routes.interest.calculate(slipNo), 'interest-calculate');
     const calculation = responseData(calculationResponse, 'interest calculation');
-    const paymentResponse = apiWrite('POST', `/api/tenant/interest-payments/${encodeURIComponent(slipNo)}/pay`, {
+    const paymentResponse = apiWrite('POST', routes.interest.pay(slipNo), {
         slip_update_key: calculation.slip_update_key,
         payment_amount: calculation.total_interest_amount,
         record_debt: false,
@@ -63,9 +64,9 @@ export default function () {
     }
 
     // Redemption is calculated immediately before posting to avoid stale financial values.
-    const redemptionCalculationResponse = apiGet(`/api/tenant/redemptions/${encodeURIComponent(slipNo)}/calculate`, 'redemption-calculate');
+    const redemptionCalculationResponse = apiGet(routes.redemptions.calculate(slipNo), 'redemption-calculate');
     const redemption = responseData(redemptionCalculationResponse, 'redemption calculation');
-    const redemptionResponse = apiWrite('POST', '/api/tenant/redemptions', {
+    const redemptionResponse = apiWrite('POST', routes.redemptions.list(), {
         slip_no: slipNo,
         calculated_total: redemption.total_amount_to_pay,
         payment_amount: redemption.total_amount_to_pay,

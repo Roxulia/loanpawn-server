@@ -4,7 +4,9 @@ namespace App\Models\CoreModule;
 
 use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantScheduledExpenseFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -12,6 +14,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class TenantScheduledExpense extends Model
 {
     use BelongToTenant, SoftDeletes;
+    use HasFactory;
+
+    protected static function newFactory(): TenantScheduledExpenseFactory
+    {
+        return TenantScheduledExpenseFactory::new();
+    }
 
     protected $guarded = ['id'];
 

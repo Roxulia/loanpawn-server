@@ -1,6 +1,7 @@
 import { check, fail, sleep } from 'k6';
 import { apiGet, authenticate, responseData } from './lib/client.js';
 import { numberSetting } from './lib/config.js';
+import { routes } from './lib/routes.js';
 
 // Safe defaults can be overridden with VUS and DURATION without editing this file.
 export const options = {
@@ -14,7 +15,7 @@ export const options = {
 
 export default function () {
     // Start from a real paginated response so detail requests never depend on database IDs.
-    const slipList = apiGetWithAuthenticationRetry('/api/tenant/loan-contract-slips?per_page=100', 'slip-list');
+    const slipList = apiGetWithAuthenticationRetry(routes.slips.list({ per_page: 100 }), 'slip-list');
     // Stop the iteration with response details when the prerequisite list request fails.
     if (!check(slipList, { 'slip list succeeds': (response) => response.status === 200 })) {
         fail(`Slip list failed: HTTP ${slipList.status} ${slipList.body}`);
@@ -27,20 +28,28 @@ export default function () {
     // Weight common navigation endpoints more heavily than individual detail calculations.
     const roll = Math.random();
     let response;
-    if (roll < 0.25) {
-        response = apiGetWithAuthenticationRetry('/api/tenant/dashboard/summary', 'dashboard-summary');
-    } else if (roll < 0.45) {
-        response = apiGetWithAuthenticationRetry('/api/tenant/customers?per_page=50', 'customer-list');
-    } else if (roll < 0.60) {
-        response = apiGetWithAuthenticationRetry('/api/tenant/collateral-items?per_page=50', 'collateral-list');
-    } else if (roll < 0.75) {
-        response = apiGetWithAuthenticationRetry('/api/tenant/interest-payments?per_page=50', 'interest-history');
+    if (roll < 0.20) {
+        response = apiGetWithAuthenticationRetry(routes.dashboard.summary(), 'dashboard-summary');
+    } else if (roll < 0.32) {
+        response = apiGetWithAuthenticationRetry(routes.customers.list({ per_page: 50 }), 'customer-list');
+    } else if (roll < 0.44) {
+        response = apiGetWithAuthenticationRetry(routes.collateral.list({ per_page: 50 }), 'collateral-list');
+    } else if (roll < 0.56) {
+        response = apiGetWithAuthenticationRetry(routes.interest.history({ per_page: 50 }), 'interest-history');
+    } else if (roll < 0.66) {
+        response = apiGetWithAuthenticationRetry(routes.redemptions.list({ per_page: 50 }), 'redemption-list');
+    } else if (roll < 0.74) {
+        response = apiGetWithAuthenticationRetry(routes.debts.list({ per_page: 50 }), 'debt-list');
+    } else if (roll < 0.82) {
+        response = apiGetWithAuthenticationRetry(routes.lenders.list({ per_page: 50 }), 'lender-list');
     } else if (roll < 0.90) {
-        response = apiGetWithAuthenticationRetry('/api/tenant/redemptions?per_page=50', 'redemption-list');
+        response = apiGetWithAuthenticationRetry(routes.businessLoans.list({ per_page: 50 }), 'business-loan-list');
+    } else if (roll < 0.96) {
+        response = apiGetWithAuthenticationRetry(routes.scheduledExpenses.list({ per_page: 50 }), 'scheduled-expense-list');
     } else if (slips.length > 0) {
         const slip = slips[Math.floor(Math.random() * slips.length)];
-        const slipNo = encodeURIComponent(slip.slip_no || slip.slipNo);
-        response = apiGetWithAuthenticationRetry(`/api/tenant/interest-payments/${slipNo}/calculate`, 'interest-calculate');
+        const slipNo = slip.slip_no || slip.slipNo;
+        response = apiGetWithAuthenticationRetry(routes.interest.calculate(slipNo), 'interest-calculate');
     } else {
         response = slipList;
     }

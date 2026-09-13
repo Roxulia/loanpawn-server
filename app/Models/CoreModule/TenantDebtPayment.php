@@ -4,12 +4,20 @@ namespace App\Models\CoreModule;
 
 use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantDebtPaymentFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TenantDebtPayment extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): TenantDebtPaymentFactory
+    {
+        return TenantDebtPaymentFactory::new();
+    }
 
     protected $fillable = ['tenant_id', 'code', 'debt_id', 'accept_account_id', 'allocation_order', 'payment_amount', 'principal_paid', 'interest_paid', 'change_amount', 'payment_at', 'created_by'];
 

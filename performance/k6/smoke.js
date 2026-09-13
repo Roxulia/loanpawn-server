@@ -1,5 +1,6 @@
 import { check, sleep } from 'k6';
 import { apiGet } from './lib/client.js';
+import { routes } from './lib/routes.js';
 
 // A smoke run confirms configuration and authentication before applying meaningful load.
 export const options = {
@@ -14,11 +15,16 @@ export const options = {
 export default function () {
     // Each check names the business capability that a failed request represents.
     const requests = [
-        ['/api/tenant/me', 'current-user'],
-        ['/api/tenant/dashboard/summary', 'dashboard-summary'],
-        ['/api/tenant/customers?per_page=10', 'customer-list'],
-        ['/api/tenant/loan-contract-slips?per_page=10', 'slip-list'],
-        ['/api/tenant/interest-payments?per_page=10', 'interest-history'],
+        [routes.auth.me(), 'current-user'],
+        [routes.dashboard.summary(), 'dashboard-summary'],
+        [routes.customers.list({ per_page: 10 }), 'customer-list'],
+        [routes.slips.list({ per_page: 10 }), 'slip-list'],
+        [routes.interest.history({ per_page: 10 }), 'interest-history'],
+        [routes.debts.list({ per_page: 10 }), 'debt-list'],
+        [routes.lenders.list({ per_page: 10 }), 'lender-list'],
+        [routes.businessLoans.list({ per_page: 10 }), 'business-loan-list'],
+        [routes.scheduledExpenses.list({ per_page: 10 }), 'scheduled-expense-list'],
+        [routes.settings.interestProcess(), 'interest-process-settings'],
     ];
 
     for (const [path, endpoint] of requests) {

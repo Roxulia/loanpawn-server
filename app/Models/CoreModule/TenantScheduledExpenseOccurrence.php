@@ -3,13 +3,21 @@
 namespace App\Models\CoreModule;
 
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantScheduledExpenseOccurrenceFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\FinancialAccount;
 
 class TenantScheduledExpenseOccurrence extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): TenantScheduledExpenseOccurrenceFactory
+    {
+        return TenantScheduledExpenseOccurrenceFactory::new();
+    }
 
     protected $guarded = ['id'];
 

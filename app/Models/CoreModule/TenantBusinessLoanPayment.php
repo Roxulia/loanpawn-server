@@ -4,12 +4,20 @@ namespace App\Models\CoreModule;
 
 use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantBusinessLoanPaymentFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TenantBusinessLoanPayment extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): TenantBusinessLoanPaymentFactory
+    {
+        return TenantBusinessLoanPaymentFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',

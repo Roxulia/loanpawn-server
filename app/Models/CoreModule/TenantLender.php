@@ -3,7 +3,9 @@
 namespace App\Models\CoreModule;
 
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantLenderFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -12,6 +14,12 @@ class TenantLender extends Model
 {
     use BelongToTenant;
     use SoftDeletes;
+    use HasFactory;
+
+    protected static function newFactory(): TenantLenderFactory
+    {
+        return TenantLenderFactory::new();
+    }
 
     protected $fillable = ['tenant_id', 'person_id', 'code', 'update_key', 'is_deleted', 'created_by'];
 
