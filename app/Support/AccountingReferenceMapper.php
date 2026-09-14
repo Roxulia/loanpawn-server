@@ -14,18 +14,6 @@ use Illuminate\Support\Str;
 
 class AccountingReferenceMapper
 {
-    private const DASHBOARD_INCOME_REFERENCE_TYPES = [
-        PawnInterestPayment::class,
-    ];
-
-    private const DASHBOARD_EXPENSE_REFERENCE_TYPES = [
-        TenantExpense::class,
-    ];
-
-    private const DASHBOARD_NET_PROFIT_EXCLUDED_REFERENCE_TYPES = [
-        TenantCapital::class,
-    ];
-
     private const LABELS = [
         PawnLoanContractSlip::class => 'Loan Contract',
         PawnInterestPayment::class => 'Interest Payment',
@@ -48,20 +36,5 @@ class AccountingReferenceMapper
         }
 
         return Str::headline(class_basename($referenceType));
-    }
-
-    public static function dashboardIncomeReferenceTypes(): array
-    {
-        return self::DASHBOARD_INCOME_REFERENCE_TYPES;
-    }
-
-    public static function dashboardExpenseReferenceTypes(): array
-    {
-        return self::DASHBOARD_EXPENSE_REFERENCE_TYPES;
-    }
-
-    public static function dashboardNetProfitExcludedReferenceTypes(): array
-    {
-        return self::DASHBOARD_NET_PROFIT_EXCLUDED_REFERENCE_TYPES;
     }
 }
