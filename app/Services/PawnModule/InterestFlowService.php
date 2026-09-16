@@ -600,6 +600,36 @@ class InterestFlowService extends BaseTenantService
         return $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $date);
     }
 
+    public function refreshUnpaidInterestRowsFromDate(PawnLoanContractSlip $slip, CarbonImmutable $fromDate): void
+    {
+        // Lock all rows before recalculating any current or future row after compounding.
+        $rows = $this->repository->allForSlipWithLock((int) $slip->id);
+        $timezone = $this->businessClock->timezone((int) $slip->tenant_id);
+        $from = $fromDate->setTimezone($timezone)->startOfDay();
+        $interestAmount = $this->fixedInterestCalculatorService->calculate(
+            (float) $slip->loan_amount,
+            (float) $slip->interest_rate,
+        );
+
+        foreach ($rows as $row) {
+            // Rebase only unpaid rows so historical and settled payment records remain unchanged.
+            $rowStart = CarbonImmutable::parse($row->start_period_at)
+                ->setTimezone($row->period_timezone ?: $timezone)
+                ->setTimezone($timezone)
+                ->startOfDay();
+            if ($row->is_paid || $rowStart->lt($from)) {
+                continue;
+            }
+
+            // Recalculate today's interest from the compounded principal.
+            $this->repository->update($row, [
+                'principal_amount' => $slip->loan_amount,
+                'calculated_interest' => $interestAmount,
+                'update_key' => (int) $row->update_key + 1,
+            ]);
+        }
+    }
+
     public function markPaymentsCompounded(Collection $payments, CarbonImmutable $compoundedAt, ?int $createdBy = null): void
     {
         foreach ($payments as $payment) {

@@ -213,7 +213,11 @@ class PawnInterestProcessService extends BaseTenantService
                     // Materialize all periods due through the tenant's current local day.
                     foreach ($this->repository->activeInterestSlipsForTenant($tenantId) as $slip) {
                         try {
-                            $createdRows += $this->interestFlowService->materializeDueInterestRows($slip, $tenantNow);
+                            // Leave today's row to the compounding flow when compounding is due today.
+                            $accrualThrough = $this->isCompoundDue($slip, $tenantNow)
+                                ? $tenantNow->subDay()
+                                : $tenantNow;
+                            $createdRows += $this->interestFlowService->materializeDueInterestRows($slip, $accrualThrough);
                         } catch (Throwable $exception) {
                             Log::error('Pawn interest accrual failed for slip.', [
                                 'tenant_id' => $tenantId,
@@ -250,8 +254,13 @@ class PawnInterestProcessService extends BaseTenantService
                 throw new InvalidTenantRequest('Loan contract slip not found or inactive.');
             }
             $this->validateActiveSlip($lockedSlip, $compoundDate);
-            $payments = $this->interestFlowService->unpaidDuePaymentModelsWithLock($lockedSlip, $compoundDate);
+            // Compound only completed periods; today's interest must use the new principal.
+            $compoundThrough = $compoundDate->subDay()->startOfDay();
+            $payments = $this->interestFlowService->unpaidDuePaymentModelsWithLock($lockedSlip, $compoundThrough);
             if ($payments->isEmpty()) {
+                // Create or refresh today's row even when there is nothing to compound.
+                $this->interestFlowService->refreshUnpaidInterestRowsFromDate($lockedSlip, $compoundDate);
+                $this->interestFlowService->materializeDueInterestRows($lockedSlip, $compoundDate);
                 if ($scheduled && $lockedSlip->compound_every !== null && $lockedSlip->compound_every_type !== null) {
                     $lockedSlip = $this->repository->update($lockedSlip, [
                         'next_compound_at' => $this->fixedInterestCalculatorService->nextPeriodStart($compoundDate, (string) $lockedSlip->compound_every_type, (int) $lockedSlip->compound_every),
@@ -279,6 +288,9 @@ class PawnInterestProcessService extends BaseTenantService
             }
 
             $updatedSlip = $this->repository->update($lockedSlip, $update);
+            // Recalculate today's interest from the principal after compounding completed.
+            $this->interestFlowService->refreshUnpaidInterestRowsFromDate($updatedSlip, $compoundDate);
+            $this->interestFlowService->materializeDueInterestRows($updatedSlip, $compoundDate);
             $this->tenantAccountingService->createInternalTransfer(
                 $updatedSlip,
                 $scheduled ? 'Scheduled Interest Compounding' : 'Manual Interest Compounding',
@@ -361,6 +373,17 @@ class PawnInterestProcessService extends BaseTenantService
     private function currentTenantBusinessDate(): CarbonImmutable
     {
         return $this->businessClock->now($this->resolveCurrentTenantId())->startOfDay();
+    }
+
+    private function isCompoundDue(PawnLoanContractSlip $slip, CarbonImmutable $tenantNow): bool
+    {
+        // Identify scheduled slips whose current local business day is a compound boundary.
+        return (bool) $slip->compound_schedule_enabled
+            && $slip->next_compound_at !== null
+            && CarbonImmutable::parse($slip->next_compound_at)
+                ->setTimezone($tenantNow->getTimezone())
+                ->startOfDay()
+                ->lte($tenantNow->startOfDay());
     }
 
     private function resolveCurrentTenantUserId(): ?int
