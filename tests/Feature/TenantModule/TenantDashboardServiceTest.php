@@ -256,7 +256,7 @@ class TenantDashboardServiceTest extends TestCase
         $this->assertSame(300.0, $summary['financial']['interestCollected']);
         $this->assertSame(300.0, $summary['financial']['totalIncome']);
         $this->assertSame(1000.0, $summary['financial']['totalExpenses']);
-        $this->assertSame(-1050.0, $summary['financial']['netProfit']);
+        $this->assertSame(-700.0, $summary['financial']['netProfit']);
         $this->assertSame(1200000.0, $summary['financial']['chart'][0]['loanAmount']);
         $this->assertSame(
             ['MMK' => 1000000.0, 'USD' => 200000.0],
