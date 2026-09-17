@@ -58,11 +58,12 @@
     @php
         $currentPlan = $tenant->license?->plan?->code ?? $tenant->license?->plan_type ?? 'trial';
         $currentPlanRank = (int) ($tenant->license?->plan?->rank ?? 0);
-        $canExtendLicense = ! ($tenant->license?->plan?->is_trial ?? ($currentPlan === 'trial'));
+        $isFreePlan = (bool) ($tenant->license?->plan?->is_trial ?? ($currentPlan === 'trial'));
+        $canExtendLicense = ! $isFreePlan;
         $licenseExpiresAt = $tenant->license?->expires_at;
         $upgradeBillingMonths = 1;
 
-        if ($licenseExpiresAt !== null && $licenseExpiresAt->isFuture()) {
+        if (! $isFreePlan && $licenseExpiresAt !== null && $licenseExpiresAt->isFuture()) {
             $monthsUntilExpiry = max(1, now()->startOfDay()->diffInMonth($licenseExpiresAt->copy()->startOfDay()));
             $upgradeBillingMonths = max(1, (int) ceil($monthsUntilExpiry));
         }
@@ -106,7 +107,7 @@
                 @endif
                 <div>
                     <label>License</label>
-                    <input value="{{ $tenant->license?->plan_type ?? 'trial' }} / {{ $tenant->license?->status ?? $tenant->status }}" disabled>
+                    <input value="{{ $tenant->license?->plan?->name ?? ($isFreePlan ? 'Free' : ($tenant->license?->plan_type ?? '-')) }} / {{ $tenant->license?->status ?? $tenant->status }}" disabled>
                 </div>
                 <div>
                     <label>Plan Request</label>
@@ -261,6 +262,15 @@
                         @endforeach
                     </select>
                 </div>
+                    <div id="upgrade-term-field" hidden>
+                        <label for="upgrade_extension_months">License duration</label>
+                        <select id="upgrade_extension_months" name="upgrade_extension_months">
+                            <option value="">Select license duration</option>
+                            @foreach (config('pricing.extension_discounts') as $months => $discount)
+                                <option value="{{ $months }}" data-discount="{{ $discount }}">{{ $months }} month{{ $months === 1 ? '' : 's' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div id="downgrade-term-field" hidden>
                         <label for="downgrade_extension_months">New plan duration</label>
                         <select id="downgrade_extension_months" name="extension_months">
@@ -272,7 +282,7 @@
                     </div>
                 <div>
                     <label>Billing Months</label>
-                    <input value="{{ $upgradeBillingMonths }} month{{ $upgradeBillingMonths === 1 ? '' : 's' }} until {{ $licenseExpiresAt?->format('Y-m-d') ?? 'license expiry' }}" disabled>
+                    <input id="upgrade_billing_months" value="{{ $isFreePlan ? 'Select duration' : $upgradeBillingMonths.' month'.($upgradeBillingMonths === 1 ? '' : 's').' until '.$licenseExpiresAt?->format('Y-m-d') }}" disabled>
                 </div>
                 <div>
                     <label>Monthly Price</label>
@@ -328,6 +338,7 @@
         const upgradeBillingMonths = {{ $upgradeBillingMonths }};
         const currentPlan = @json($currentPlan);
         const currentPlanRank = {{ $currentPlanRank }};
+        const currentPlanIsFree = @json($isFreePlan);
         const currencyFormatter = new Intl.NumberFormat('en-US', {
             maximumFractionDigits: 0,
         });
@@ -344,11 +355,16 @@
             const selectedOption = planSelect.options[planSelect.selectedIndex];
             const monthlyPrice = Number(selectedOption?.dataset.monthlyPrice || 0);
             const downgradeTerm = document.getElementById('downgrade_extension_months');
+            const upgradeTerm = document.getElementById('upgrade_extension_months');
             const isDeferredDowngrade = Number(selectedOption?.dataset.rank || 0) < currentPlanRank;
             const selectedTerm = downgradeTerm?.options[downgradeTerm.selectedIndex];
-            const months = isDeferredDowngrade ? Number(selectedTerm?.value || 0) : upgradeBillingMonths;
+            const isFreeUpgrade = currentPlanIsFree && !isDeferredDowngrade;
+            const selectedUpgradeTerm = upgradeTerm?.options[upgradeTerm.selectedIndex];
+            const months = isDeferredDowngrade
+                ? Number(selectedTerm?.value || 0)
+                : (isFreeUpgrade ? Number(selectedUpgradeTerm?.value || 0) : upgradeBillingMonths);
             const discount = isDeferredDowngrade ? Number(selectedTerm?.dataset.discount || 0) : 0;
-            const totalPrice = monthlyPrice * months * (1 - discount);
+            const totalPrice = monthlyPrice * months * (1 - (isFreeUpgrade ? Number(selectedUpgradeTerm?.dataset.discount || 0) : discount));
 
             monthlyPriceInput.value = currencyFormatter.format(monthlyPrice) + ' MMK';
             totalPriceInput.value = currencyFormatter.format(totalPrice) + ' MMK';
@@ -356,6 +372,13 @@
             if (downgradeTerm) {
                 downgradeTerm.required = isDeferredDowngrade;
                 document.getElementById('downgrade-term-field').hidden = !isDeferredDowngrade;
+            }
+            if (upgradeTerm) {
+                upgradeTerm.required = isFreeUpgrade;
+                document.getElementById('upgrade-term-field').hidden = !isFreeUpgrade;
+                document.getElementById('upgrade_billing_months').value = isFreeUpgrade
+                    ? (months > 0 ? months + ' month' + (months === 1 ? '' : 's') : 'Select duration')
+                    : document.getElementById('upgrade_billing_months').defaultValue;
             }
         }
 
@@ -383,6 +406,7 @@
 
         document.getElementById('requested_plan_type')?.addEventListener('change', updateUpgradePricePreview);
         document.getElementById('downgrade_extension_months')?.addEventListener('change', updateUpgradePricePreview);
+        document.getElementById('upgrade_extension_months')?.addEventListener('change', updateUpgradePricePreview);
         updateUpgradePricePreview();
 
         document.querySelectorAll('[data-character-counter]').forEach(function (input) {

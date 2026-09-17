@@ -144,7 +144,7 @@ return [
                 'created' => 'Tenant created successfully with name :name.',
                 'updated' => 'Tenant updated successfully.',
                 'deleted' => 'Tenant deleted successfully.',
-                'trial_upgrade_required' => 'Trial tenants must upgrade before requesting license extension.',
+                'trial_upgrade_required' => 'Free tenants must upgrade before requesting license extension.',
             ],
             'plan_change_request' => [
                 'created' => 'Upgrade payment request created. Submit the payment attachment from billing management.',

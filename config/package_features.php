@@ -146,8 +146,8 @@ return [
 
     'packages' => [
         'trial' => [
-            'name' => 'Trial',
-            'description' => 'Trial package for evaluating the pawnshop system.',
+            'name' => 'Free',
+            'description' => 'Free package for using the pawnshop system.',
             'price' => 0,
             'max_slip_per_month' => 30,
             'max_staff_count' => 2,
@@ -250,8 +250,8 @@ return [
 
     'budgeting_packages' => [
         'budgeting-trial' => [
-            'name' => 'Budgeting Trial',
-            'description' => 'Trial package for evaluating budgeting and accounting features.',
+            'name' => 'Budgeting Free',
+            'description' => 'Free package for budgeting and accounting features.',
             'price' => 0,
             'rank' => 0,
             'is_trial' => true,

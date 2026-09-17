@@ -12,7 +12,7 @@
     <div class="lp-tenant-card-meta">
         <div class="lp-inline-meta">
             <span aria-hidden="true">◆</span>
-            <strong>{{ ucfirst($tenant->license?->plan_type ?? 'trial') }}</strong>
+            <strong>{{ $tenant->license?->plan?->name ?? (($tenant->license?->plan_type ?? 'trial') === 'trial' ? 'Free' : ucfirst((string) ($tenant->license?->plan_type ?? '-'))) }}</strong>
         </div>
         <div class="lp-inline-meta">
             <span aria-hidden="true">◷</span>

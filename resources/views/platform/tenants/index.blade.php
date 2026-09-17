@@ -83,7 +83,7 @@
                             <td data-label="{{ __('app.common.view.labels.name') }}">{{ $tenant->name }}</td>
                             <td data-label="{{ __('app.common.view.labels.code') }}">{{ $tenant->tenant_code }}</td>
                             <td data-label="{{ __('app.platform.view.subdomain') }}">{{ $tenant->subdomain ?? '-' }}</td>
-                            <td data-label="{{ __('app.common.view.labels.plan') }}">{{ $tenant->license?->plan_type ?? 'trial' }}</td>
+                            <td data-label="{{ __('app.common.view.labels.plan') }}">{{ $tenant->license?->plan?->name ?? (($tenant->license?->plan_type ?? 'trial') === 'trial' ? 'Free' : ucfirst((string) ($tenant->license?->plan_type ?? '-'))) }}</td>
                             <td data-label="Type">{{ $tenant->category?->name ?? 'Pawn Shop' }}</td>
                             <td data-label="{{ __('app.platform.view.expiry') }}">{{ $tenant->license?->expires_at?->format('Y-m-d') ?? '-' }}</td>
                             <td data-label="{{ __('app.common.view.labels.status') }}"><span class="badge">{{ $tenant->status }}</span></td>

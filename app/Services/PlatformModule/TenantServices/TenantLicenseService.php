@@ -106,7 +106,9 @@ class TenantLicenseService extends BaseTenantService
             return LicenseValidationResult::invalid('License is not active.', $license);
         }
 
-        if ($license->expires_at === null || $license->expires_at->lte(now())) {
+        $license->loadMissing('plan');
+
+        if (! $license->plan?->is_trial && ($license->expires_at === null || $license->expires_at->lte(now()))) {
             return LicenseValidationResult::invalid('License is expired.', $license);
         }
 
@@ -195,9 +197,12 @@ class TenantLicenseService extends BaseTenantService
         $issuedAt = now();
         $startsAt = $request->status === 'active' ? $issuedAt : null;
         $activatedAt = $request->status === 'active' ? $issuedAt : null;
-        $expiresAt = $request->expireAt
-            ? Carbon::parse($request->expireAt)
-            : $issuedAt->copy()->addMonths(4);
+        $plan = $this->packageService->findByCode($request->planType);
+        $expiresAt = $plan->is_trial
+            ? null
+            : ($request->expireAt
+                ? Carbon::parse($request->expireAt)
+                : $issuedAt->copy()->addMonths(4));
         $license = TenantLicense::query()->create([
             'tenant_id' => $tenantId,
             'plan_id' => $request->planId,
@@ -240,12 +245,16 @@ class TenantLicenseService extends BaseTenantService
 
         $resetLicenseTerm = (bool) ($tenantRequest->business_info['reset_license_term'] ?? false);
 
+        $targetPlan = $tenantRequest->requestedPlan;
+        $targetIsFree = (bool) ($targetPlan?->is_trial);
+        $currentIsFree = (bool) ($license->plan?->is_trial);
+
         if ($resetLicenseTerm && $tenantRequest->request_type === 'plan_change') {
             $data['plan_id'] = $tenantRequest->requested_plan_id;
             $data['plan_type'] = $tenantRequest->requestedPlan?->code ?? $tenantRequest->requested_plan_type;
             $data['starts_at'] = now();
             $data['activated_at'] = now();
-            $data['expires_at'] = now()->addMonths((int) $tenantRequest->extension_months);
+            $data['expires_at'] = $targetIsFree ? null : now()->addMonths((int) $tenantRequest->extension_months);
             if ($tenantRequest->requested_category_id !== null) {
                 $tenantRequest->tenant()->update(['category_id' => $tenantRequest->requested_category_id]);
             }
@@ -254,7 +263,6 @@ class TenantLicenseService extends BaseTenantService
             $data['expires_at'] = $baseDate->copy()->addMonths((int) $tenantRequest->extension_months);
         }
 
-        $targetPlan = $tenantRequest->requestedPlan;
         $isDowngrade = $targetPlan !== null
             && $license->plan !== null
             && $targetPlan->rank < $license->plan->rank;
@@ -264,6 +272,11 @@ class TenantLicenseService extends BaseTenantService
         } elseif (! $resetLicenseTerm && $tenantRequest->request_type === 'plan_change') {
             $data['plan_id'] = $tenantRequest->requested_plan_id;
             $data['plan_type'] = $tenantRequest->requested_plan_type;
+            if ($currentIsFree) {
+                $data['starts_at'] = now();
+                $data['activated_at'] = now();
+                $data['expires_at'] = $targetIsFree ? null : now()->addMonths((int) $tenantRequest->extension_months);
+            }
             if ($tenantRequest->requested_category_id !== null) {
                 $tenantRequest->tenant()->update(['category_id' => $tenantRequest->requested_category_id]);
             }
@@ -478,7 +491,10 @@ class TenantLicenseService extends BaseTenantService
             'from_plan_type' => $license->plan_type,
             'to_plan_type' => $tenantRequest->requested_plan_type,
             'starts_at' => $startsAt,
-            'expires_at' => $startsAt->copy()->addMonths((int) $tenantRequest->extension_months),
+            // Transition expiry is required by the transition table; activation clears it for Free plans.
+            'expires_at' => $tenantRequest->requestedPlan?->is_trial
+                ? $startsAt
+                : $startsAt->copy()->addMonths((int) $tenantRequest->extension_months),
             'status' => 'scheduled',
             'approved_by' => $approvedBy,
         ]);

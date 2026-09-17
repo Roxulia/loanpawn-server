@@ -218,7 +218,7 @@
                                             <span class="admin-tenant-plan-card__check" aria-hidden="true">&#10003;</span>
                                             <span class="admin-tenant-plan-card__header">
                                                 <span>
-                                                    @if ($plan->is_trial) <span class="badge">Trial</span> @endif
+                                                    @if ($plan->is_trial) <span class="badge">Free</span> @endif
                                                     <strong>{{ $plan->name }}</strong>
                                                 </span>
                                                 <span class="admin-tenant-plan-card__price">

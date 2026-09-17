@@ -36,7 +36,7 @@ class AdminPlanManagementController extends Controller
 
         TenantCategory::query()->create($validated + ['is_active' => false]);
 
-        return back()->with('status', 'Tenant category created. Add its trial plan before using it.');
+        return back()->with('status', 'Tenant category created. Add its Free plan before using it.');
     }
 
     public function updateCategory(Request $request, TenantCategory $category): RedirectResponse
@@ -48,7 +48,7 @@ class AdminPlanManagementController extends Controller
         ]);
 
         if ((bool) $validated['is_active'] && ! $category->packages()->where('is_trial', true)->where('is_active', true)->where('is_deleted', false)->exists()) {
-            return back()->with('error', 'An active category must have one active trial plan.');
+            return back()->with('error', 'An active category must have one active Free plan.');
         }
 
         $category->update($validated + ['update_key' => $category->update_key + 1]);
@@ -88,7 +88,7 @@ class AdminPlanManagementController extends Controller
     public function destroyPlan(Package $plan): RedirectResponse
     {
         if ($plan->is_trial && $plan->category?->is_active) {
-            return back()->with('error', 'Create a replacement trial before removing this category trial.');
+            return back()->with('error', 'Create a replacement Free plan before removing this category Free plan.');
         }
 
         if ($plan->licenses()->exists() || $plan->requestedBy()->exists() || $plan->incomingTransitions()->exists()) {
@@ -122,7 +122,7 @@ class AdminPlanManagementController extends Controller
     private function planInvariantError(array $data, TenantCategory $category, ?Package $plan = null): ?string
     {
         if ((bool) $data['is_trial'] && (float) $data['price'] !== 0.0) {
-            return 'A trial plan must have a zero price.';
+            return 'A Free plan must have a zero price.';
         }
         if (! (bool) $data['is_trial'] && (bool) $data['is_active'] && (float) $data['price'] <= 0) {
             return 'Set a positive price before activating a paid plan.';
@@ -131,10 +131,10 @@ class AdminPlanManagementController extends Controller
             return 'Plan rank must be unique within its category.';
         }
         if ((bool) $data['is_trial'] && $category->packages()->where('is_trial', true)->when($plan, fn ($query) => $query->whereKeyNot($plan->id))->where('is_deleted', false)->exists()) {
-            return 'A category can have only one trial plan.';
+            return 'A category can have only one Free plan.';
         }
         if ($plan?->is_trial && (! (bool) $data['is_trial'] || ! (bool) $data['is_active']) && $category->is_active) {
-            return 'An active category must retain an active trial plan.';
+            return 'An active category must retain an active Free plan.';
         }
         return null;
     }

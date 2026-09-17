@@ -144,7 +144,7 @@ return [
                 'created' => ':name အမည်ဖြင့် Tenant ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'Tenant ပြင်ဆင်ပြီးပါပြီ။',
                 'deleted' => 'Tenant ဖျက်ပြီးပါပြီ။',
-                'trial_upgrade_required' => 'Trial tenant များသည် license သက်တမ်းတိုးရန် မတောင်းဆိုမီ upgrade လုပ်ရန် လိုအပ်ပါသည်။',
+                'trial_upgrade_required' => 'Free tenant များသည် license သက်တမ်းတိုးရန် မတောင်းဆိုမီ upgrade လုပ်ရန် လိုအပ်ပါသည်။',
             ],
             'plan_change_request' => [
                 'created' => 'Upgrade ငွေပေးချေမှု တောင်းဆိုချက် ဖန်တီးပြီးပါပြီ။ Billing management မှ ပေးချေမှု attachment ကို ပေးပို့ပါ။',

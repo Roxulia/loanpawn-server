@@ -203,19 +203,25 @@ class TenantManagementController extends Controller
     public function requestPlanChange(Request $request, int $tenant): RedirectResponse
     {
         try {
-            $this->tenantPageService->findOwnedTenant($tenant);
+            $ownedTenant = $this->tenantPageService->findOwnedTenant($tenant);
+            $isFreePlan = (bool) ($ownedTenant->license?->plan?->is_trial ?? $ownedTenant->license?->plan_type === 'trial');
 
             $validated = $request->validate([
                 'requested_plan_type' => ['required', 'string', 'max:40'],
                 'extension_months' => ['nullable', 'integer', 'in:1,3,6,12'],
+                'upgrade_extension_months' => [$isFreePlan ? 'required' : 'nullable', 'integer', 'in:1,3,6,12'],
                 'note' => ['nullable', 'string', 'max:1000'],
             ], [], __('validation.attributes'));
+
+            $extensionMonths = $isFreePlan
+                ? ($validated['upgrade_extension_months'] ?? null)
+                : ($validated['extension_months'] ?? null);
 
             $tenantRequest = $this->tenantRequestService->createRequest(new TenantRequestCreate(
                 tenantId: $tenant,
                 requestType: 'plan_change',
                 requestedPlanType: $validated['requested_plan_type'],
-                extensionMonths: isset($validated['extension_months']) ? (int) $validated['extension_months'] : null,
+                extensionMonths: $extensionMonths !== null ? (int) $extensionMonths : null,
                 note: $validated['note'] ?? null,
             ));
 
