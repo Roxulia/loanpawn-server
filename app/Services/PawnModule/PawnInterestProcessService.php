@@ -254,12 +254,23 @@ class PawnInterestProcessService extends BaseTenantService
                 throw new InvalidTenantRequest('Loan contract slip not found or inactive.');
             }
             $this->validateActiveSlip($lockedSlip, $compoundDate);
-            // Compound only completed periods; today's interest must use the new principal.
-            $compoundThrough = $compoundDate->subDay()->startOfDay();
-            $payments = $this->interestFlowService->unpaidDuePaymentModelsWithLock($lockedSlip, $compoundThrough);
+            // Read existing rows only; today's accrual must not be materialized before compounding.
+            $compoundDate = $compoundDate->startOfDay();
+            $timezone = $this->businessClock->timezone((int) $lockedSlip->tenant_id);
+            $payments = $this->interestFlowService->unpaidDuePaymentModelsWithLock(
+                $lockedSlip,
+                $compoundDate->subSecond(),
+            )->filter(fn (PawnInterestPayment $payment): bool => $this->fixedInterestCalculatorService->isEligibleForCompounding(
+                (bool) $payment->is_paid,
+                (float) $payment->calculated_interest,
+                (float) $payment->payment_amount,
+                (float) $payment->compounded_amount,
+                $payment->start_period_at,
+                $compoundDate,
+                $timezone,
+            ));
             if ($payments->isEmpty()) {
-                // Create or refresh today's row even when there is nothing to compound.
-                $this->interestFlowService->refreshUnpaidInterestRowsFromDate($lockedSlip, $compoundDate);
+                // Materialize interest only after the compounding decision is complete.
                 $this->interestFlowService->materializeDueInterestRows($lockedSlip, $compoundDate);
                 if ($scheduled && $lockedSlip->compound_every !== null && $lockedSlip->compound_every_type !== null) {
                     $lockedSlip = $this->repository->update($lockedSlip, [
@@ -270,7 +281,12 @@ class PawnInterestProcessService extends BaseTenantService
                 return ['slip' => $lockedSlip->toArray(), 'compounded_interest' => 0.0];
             }
 
-            $amount = round($payments->sum(fn (PawnInterestPayment $payment): float => $this->fixedInterestCalculatorService->remainingInterest((float) $payment->calculated_interest, (float) $payment->payment_amount)), 2);
+            // Capitalize the remaining amount from every eligible accrual row.
+            $amount = round($payments->sum(fn (PawnInterestPayment $payment): float => $this->fixedInterestCalculatorService->remainingInterest(
+                (float) $payment->calculated_interest,
+                (float) $payment->payment_amount,
+                (float) $payment->compounded_amount,
+            )), 2);
             $createdBy = $scheduled ? null : $this->resolveCurrentTenantUserId();
             $this->interestFlowService->markPaymentsCompounded($payments, $compoundDate, $createdBy);
 
@@ -288,8 +304,9 @@ class PawnInterestProcessService extends BaseTenantService
             }
 
             $updatedSlip = $this->repository->update($lockedSlip, $update);
-            // Recalculate today's interest from the principal after compounding completed.
+            // Recalculate any already-created current row from the new principal after compounding.
             $this->interestFlowService->refreshUnpaidInterestRowsFromDate($updatedSlip, $compoundDate);
+            // Materialize the next period only after compounding and recalculation are complete.
             $this->interestFlowService->materializeDueInterestRows($updatedSlip, $compoundDate);
             $this->tenantAccountingService->createInternalTransfer(
                 $updatedSlip,

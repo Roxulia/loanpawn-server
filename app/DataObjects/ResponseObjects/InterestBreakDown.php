@@ -17,6 +17,16 @@ class InterestBreakDown extends BaseDataObject
 
     public float $interestAmount;
 
+    public float $paidAmount;
+
+    public float $compoundedAmount;
+
+    public float $outstandingAmount;
+
+    public bool $isPaid;
+
+    public ?string $compoundedAt;
+
     public ?string $startPeriodAt;
 
     public ?string $endPeriodAt;
@@ -27,6 +37,11 @@ class InterestBreakDown extends BaseDataObject
         int $id,
         int $updateKey,
         float $interestAmount,
+        float $paidAmount = 0,
+        float $compoundedAmount = 0,
+        float $outstandingAmount = 0,
+        bool $isPaid = false,
+        ?string $compoundedAt = null,
         ?string $startPeriodAt = null,
         ?string $endPeriodAt = null,
         ?int $createdAccountId = null,
@@ -37,6 +52,11 @@ class InterestBreakDown extends BaseDataObject
         $breakDown->id = $id;
         $breakDown->updateKey = $updateKey;
         $breakDown->interestAmount = $interestAmount;
+        $breakDown->paidAmount = $paidAmount;
+        $breakDown->compoundedAmount = $compoundedAmount;
+        $breakDown->outstandingAmount = $outstandingAmount;
+        $breakDown->isPaid = $isPaid;
+        $breakDown->compoundedAt = $compoundedAt;
         $breakDown->startPeriodAt = $startPeriodAt;
         $breakDown->endPeriodAt = $endPeriodAt;
         $breakDown->createdAccountId = $createdAccountId;
@@ -52,6 +72,11 @@ class InterestBreakDown extends BaseDataObject
             id: $payment->id,
             updateKey: (int) $payment->update_key,
             interestAmount: (float) $payment->calculated_interest,
+            paidAmount: (float) $payment->payment_amount,
+            compoundedAmount: (float) $payment->compounded_amount,
+            outstandingAmount: max((float) $payment->calculated_interest - (float) $payment->payment_amount - (float) $payment->compounded_amount, 0),
+            isPaid: (bool) $payment->is_paid,
+            compoundedAt: $payment->compounded_at?->toISOString(),
             startPeriodAt: $payment->start_period_at?->toISOString(),
             endPeriodAt: $payment->end_period_at?->toISOString(),
             createdAccountId: $payment->created_account_id,

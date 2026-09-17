@@ -142,7 +142,12 @@ class InterestFlowService extends BaseTenantService
                     }
                 }
 
-                $totalInterestAmount = $payments->sum(fn (PawnInterestPayment $payment): float => (float) $payment->calculated_interest);
+                // Calculate the remaining customer-payable amount after prior compounding.
+                $totalInterestAmount = $payments->sum(fn (PawnInterestPayment $payment): float => $this->fixedInterestCalculatorService->remainingInterest(
+                    (float) $payment->calculated_interest,
+                    (float) $payment->payment_amount,
+                    (float) $payment->compounded_amount,
+                ));
 
                 if ($request->paymentAmount < $totalInterestAmount && ! $request->recordDebt) {
                     throw new InvalidTenantRequest('Payment amount is not enough to satisfy total interest amount.');
@@ -158,7 +163,12 @@ class InterestFlowService extends BaseTenantService
                         break;
                     }
 
-                    $calculatedInterest = (float) $payment->calculated_interest;
+                    // Allocate only the interest that has not already been paid or compounded.
+                    $calculatedInterest = $this->fixedInterestCalculatorService->remainingInterest(
+                        (float) $payment->calculated_interest,
+                        (float) $payment->payment_amount,
+                        (float) $payment->compounded_amount,
+                    );
                     $appliedAmount = min($leftAmount, $calculatedInterest);
                     $changeAmount = 0.0;
 
@@ -595,8 +605,7 @@ class InterestFlowService extends BaseTenantService
 
     public function unpaidDuePaymentModelsWithLock(PawnLoanContractSlip $slip, CarbonImmutable $date): Collection
     {
-        // Lazily restore rows missed by scheduling before compounding queries them.
-        $this->materializeDueInterestRows($slip, $date);
+        // Return only rows already materialized so compounding never creates interest first.
         return $this->repository->findUnpaidInterestUntilDateBySlipIdWithLock($slip->id, $date);
     }
 
@@ -633,10 +642,18 @@ class InterestFlowService extends BaseTenantService
     public function markPaymentsCompounded(Collection $payments, CarbonImmutable $compoundedAt, ?int $createdBy = null): void
     {
         foreach ($payments as $payment) {
+            // Capitalize only the outstanding portion while preserving cash payment history.
+            $remainingInterest = $this->fixedInterestCalculatorService->remainingInterest(
+                (float) $payment->calculated_interest,
+                (float) $payment->payment_amount,
+                (float) $payment->compounded_amount,
+            );
+
             $this->repository->update($payment, [
+                'compounded_amount' => round((float) $payment->compounded_amount + $remainingInterest, 2),
+                'compounded_at' => $compoundedAt,
                 'is_paid' => true,
                 'payment_at' => $compoundedAt,
-                'payment_amount' => 0,
                 'change_amount' => 0,
                 'created_by' => $createdBy,
                 'notes' => trim(($payment->notes ? $payment->notes.PHP_EOL : '').'Compounded into principal at '.$compoundedAt->toDateTimeString()),

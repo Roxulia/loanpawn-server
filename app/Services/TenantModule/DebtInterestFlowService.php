@@ -289,16 +289,27 @@ class DebtInterestFlowService extends BaseTenantService
         return DB::transaction(function () use ($debt, $now, $scheduled): array {
             $debt = $this->findDebt((int) $debt->id, true);
             $this->validateCompoundableDebt($debt);
-            $this->materializeAccruals($debt, $now);
+            // Use only rows already materialized before compounding.
             $rows = $this->repository->accruals((int) $debt->id, true);
-            $amount = round($rows->sum(fn (TenantDebtInterestAccrual $row): float => $this->rowOutstanding($row)), 2);
+            $timezone = $this->businessClock->timezone((int) $debt->tenant_id);
+            $eligibleRows = $rows->filter(fn (TenantDebtInterestAccrual $row): bool => $this->fixedInterestCalculatorService->isEligibleForCompounding(
+                (bool) $row->is_paid,
+                (float) $row->calculated_interest,
+                (float) $row->paid_amount,
+                (float) $row->compounded_amount,
+                $row->start_period_at,
+                $now,
+                $timezone,
+            ));
+            $amount = round($eligibleRows->sum(fn (TenantDebtInterestAccrual $row): float => $this->rowOutstanding($row)), 2);
 
-            foreach ($rows as $row) {
+            foreach ($eligibleRows as $row) {
                 $remaining = $this->rowOutstanding($row);
-                if ($remaining <= 0) continue;
+                // Record capitalization separately from customer cash payments.
                 $this->repository->updateAccrual($row, [
                     'compounded_amount' => round((float) $row->compounded_amount + $remaining, 2),
                     'compounded_at' => $now->utc(),
+                    'is_paid' => true,
                     'update_key' => (int) $row->update_key + 1,
                 ]);
             }
@@ -318,11 +329,14 @@ class DebtInterestFlowService extends BaseTenantService
                 $this->tenantAuditLogService->log('tenant_debt.interest_compounded', TenantDebt::class, $updated->id, ['amount' => $amount, 'scheduled' => $scheduled], $scheduled ? null : Auth::guard('tenantuser')->id());
             }
 
+            // Materialize the continuation only after the principal has been updated.
+            $this->materializeAccruals($updated, $now, true);
+
             return ['debt' => $updated->toArray(), 'compounded_interest' => $amount];
         });
     }
 
-    private function materializeAccruals(TenantDebt $debt, CarbonImmutable $through): void
+    private function materializeAccruals(TenantDebt $debt, CarbonImmutable $through, bool $continueFromLatestPeriod = false): void
     {
         if (! $debt->apply_interest || (float) $debt->principal_balance <= 0) {
             return;
@@ -349,7 +363,10 @@ class DebtInterestFlowService extends BaseTenantService
             fn (TenantDebtInterestAccrual $row): bool => $this->rowOutstanding($row) <= 0
         );
 
-        if ($allMaterializedInterestSettled && $debt->last_interest_paid_at !== null) {
+        if ($continueFromLatestPeriod && $nextAfterLastAccrual !== null) {
+            // Compounding continues after the latest stored period without resetting the anchor.
+            $start = $nextAfterLastAccrual;
+        } elseif ($allMaterializedInterestSettled && $debt->last_interest_paid_at !== null) {
             // Calculation of the reset period following the last full interest payment
             $anchor = CarbonImmutable::parse($debt->interest_anchor_at)->setTimezone($timezone)->startOfDay();
             $start = $this->fixedInterestCalculatorService->nextPeriodStart($anchor, $this->interestPeriodType($debt));

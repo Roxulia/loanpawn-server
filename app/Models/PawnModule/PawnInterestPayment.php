@@ -26,6 +26,8 @@ class PawnInterestPayment extends Model
         'created_account_id',
         'accept_account_id',
         'payment_amount',
+        'compounded_amount',
+        'compounded_at',
         'change_amount',
         'calculated_interest',
         'payment_at',
@@ -42,6 +44,8 @@ class PawnInterestPayment extends Model
     {
         return [
             'payment_amount' => 'decimal:2',
+            'compounded_amount' => 'decimal:2',
+            'compounded_at' => 'datetime',
             'change_amount' => 'decimal:2',
             'calculated_interest' => 'decimal:2',
             'payment_at' => 'datetime',

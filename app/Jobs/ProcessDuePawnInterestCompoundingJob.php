@@ -29,6 +29,8 @@ class ProcessDuePawnInterestCompoundingJob implements ShouldQueue
                 $service->processDueSchedules();
                 $debtInterestFlowService->processDueSchedules();
                 $businessLoanService->processDueSchedules();
+                // Materialize pawn interest only after every due compounding decision is complete.
+                $service->processDueInterestAccruals();
             },
         );
     }

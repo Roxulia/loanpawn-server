@@ -60,6 +60,31 @@ class FixedInterestCalculatorService
         return round(max($calculated - $paid - $compounded, 0), 2);
     }
 
+    public function isEligibleForCompounding(
+        bool $isPaid,
+        float $calculatedInterest,
+        float $paidAmount,
+        float $compoundedAmount,
+        CarbonInterface|string $startPeriodAt,
+        CarbonInterface|string $compoundingAt,
+        string $timezone,
+    ): bool {
+        // Exclude rows that are already fully settled by payment or compounding.
+        if ($isPaid || $this->remainingInterest($calculatedInterest, $paidAmount, $compoundedAmount) <= 0) {
+            return false;
+        }
+
+        // Only a period that started before the compounding business date is eligible.
+        return CarbonImmutable::parse($startPeriodAt)
+            ->setTimezone($timezone)
+            ->startOfDay()
+            ->lt(
+                CarbonImmutable::parse($compoundingAt)
+                    ->setTimezone($timezone)
+                    ->startOfDay(),
+            );
+    }
+
     public function normalizePeriodType(string $periodType): string
     {
         $normalized = ucfirst(strtolower(trim($periodType)));

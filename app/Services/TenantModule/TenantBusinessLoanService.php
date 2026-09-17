@@ -264,16 +264,39 @@ class TenantBusinessLoanService extends BaseTenantService
         }
         return DB::transaction(function () use ($code, $scheduled): array {
             $loan = $this->repository->findByCode($code, true) ?? throw new TenantNotFound('Business loan not found.');
-            $this->materializeAccruals($loan);
-            $loan = $this->repository->findByCode($code, true);
-            $amount = $loan->outstanding_interest;
-            if ($amount <= 0) throw new InvalidTenantRequest('No business loan interest is available to compound.');
-            foreach ($loan->interestAccruals as $row) $this->repository->updateAccrual($row, ['compounded_amount' => $row->calculated_interest - $row->paid_amount, 'compounded_at' => now(), 'is_paid' => true]);
+            // Use only rows already materialized before compounding.
+            $now = $this->businessClock->now((int) $loan->tenant_id);
+            $timezone = $this->businessClock->timezone((int) $loan->tenant_id);
+            $eligibleRows = $loan->interestAccruals->filter(fn (TenantBusinessLoanInterestAccrual $row): bool => $this->interestCalculator->isEligibleForCompounding(
+                (bool) $row->is_paid,
+                (float) $row->calculated_interest,
+                (float) $row->paid_amount,
+                (float) $row->compounded_amount,
+                $row->start_period_at,
+                $now,
+                $timezone,
+            ));
+            $amount = round($eligibleRows->sum(fn (TenantBusinessLoanInterestAccrual $row): float => $this->rowOutstanding($row)), 2);
+            // Continue the schedule even when no existing row is eligible today.
+            foreach ($eligibleRows as $row) {
+                // Record capitalization separately from customer cash payments.
+                $remaining = $this->rowOutstanding($row);
+                $this->repository->updateAccrual($row, [
+                    'compounded_amount' => round((float) $row->compounded_amount + $remaining, 2),
+                    'compounded_at' => $now->utc(),
+                    'is_paid' => true,
+                ]);
+            }
             $nextCompoundAt = $scheduled && $loan->compound_every && $loan->compound_every_type
-                ? $this->interestCalculator->nextPeriodStart($this->businessClock->now((int) $loan->tenant_id), $loan->compound_every_type, (int) $loan->compound_every)->utc()
+                ? $this->interestCalculator->nextPeriodStart($now, $loan->compound_every_type, (int) $loan->compound_every)->utc()
                 : $loan->next_compound_at;
-            $loan = $this->repository->update($loan, ['principal_balance' => (float) $loan->principal_balance + $amount, 'last_compounded_at' => now(), 'next_compound_at' => $nextCompoundAt, 'update_key' => $loan->update_key + 1]);
-            $this->accountingService->createInternalTransfer($loan, $scheduled ? 'Scheduled Business Loan Interest Compounding' : 'Manual Business Loan Interest Compounding', $amount, $scheduled ? null : Auth::guard('tenantuser')->id(), $loan->receiptAccount->currency);
+            $loan = $this->repository->update($loan, ['principal_balance' => (float) $loan->principal_balance + $amount, 'last_compounded_at' => $now->utc(), 'next_compound_at' => $nextCompoundAt, 'update_key' => $loan->update_key + 1]);
+            if ($amount > 0) {
+                // Record accounting only when interest was actually capitalized.
+                $this->accountingService->createInternalTransfer($loan, $scheduled ? 'Scheduled Business Loan Interest Compounding' : 'Manual Business Loan Interest Compounding', $amount, $scheduled ? null : Auth::guard('tenantuser')->id(), $loan->receiptAccount->currency);
+            }
+            // Materialize the continuation only after the principal has been updated.
+            $this->materializeAccruals($loan);
             return ['compounded_interest' => $amount, 'loan' => TenantBusinessLoanDetail::fromModel($loan)->toArray()];
         });
     }
