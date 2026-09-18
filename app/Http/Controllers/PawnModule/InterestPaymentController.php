@@ -66,13 +66,15 @@ class InterestPaymentController extends Controller
             'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'record_debt' => ['nullable', 'boolean'],
-            'interest_breakdown' => ['nullable', 'array', 'present_without:interest_row_versions'],
+            // Require the detailed breakdown when row versions are not provided.
+            'interest_breakdown' => ['nullable', 'array', 'required_without:interest_row_versions'],
             'interest_breakdown.*.id' => ['required', 'integer', 'min:1'],
             'interest_breakdown.*.update_key' => ['required', 'integer', 'min:0'],
             'interest_breakdown.*.interest_amount' => ['required', 'numeric', 'min:0'],
             'interest_breakdown.*.start_period_at' => ['nullable', 'date'],
             'interest_breakdown.*.end_period_at' => ['nullable', 'date'],
-            'interest_row_versions' => ['nullable', 'array', 'present_without:interest_breakdown'],
+            // Require row versions when the detailed breakdown is not provided.
+            'interest_row_versions' => ['nullable', 'array', 'required_without:interest_breakdown'],
             'interest_row_versions.*.id' => ['required', 'integer', 'min:1'],
             'interest_row_versions.*.update_key' => ['required', 'integer', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
