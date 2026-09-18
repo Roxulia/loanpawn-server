@@ -97,31 +97,37 @@ class TenantScheduledExpenseService extends BaseTenantService
     public function update(string $code, TenantScheduledExpenseWrite $request): TenantScheduledExpenseDetail
     {
         $this->permissionService->authorizePermission('update_scheduled_expense');
-        $this->accountManagement->findActiveCurrentTenantAccount($request->accountId);
-        $this->ensureRecurrenceDatesMatch($request);
 
         $schedule = DB::transaction(function () use ($code, $request): TenantScheduledExpense {
             $schedule = $this->find($code, true);
-            $this->ensureFutureStart($request, $this->clock->now($schedule->tenant_id));
             if ((int) $schedule->update_key !== $request->updateKey) {
                 throw new AlreadyUpdatedException('This schedule was already updated. Please refresh.');
             }
-            $nextDueDate = $this->firstFutureDate($request, $this->clock->now($schedule->tenant_id));
-            return $this->repository->update($schedule, [
-                'account_id' => $request->accountId,
-                'description' => $request->description,
-                'amount' => $request->amount,
-                'expense_type_id' => $request->expenseTypeId,
-                'recurrence_type' => $request->recurrenceType,
-                'start_date' => $request->startDate,
-                'scheduled_time' => $request->scheduledTime,
-                'end_date' => $request->endDate,
-                'weekly_day' => $request->weeklyDay,
-                'monthly_anchor_day' => $request->monthlyAnchorDay,
-                'next_due_date' => $nextDueDate,
-                'status' => $nextDueDate === null ? 'completed' : ($schedule->status === 'completed' ? 'active' : $schedule->status),
-                'update_key' => $schedule->update_key + 1,
+
+            $changes = $this->changedAttributes($schedule, $request);
+            if (array_key_exists('account_id', $changes)) {
+                $this->accountManagement->findActiveCurrentTenantAccount($request->accountId);
+            }
+
+            $scheduleFields = array_flip([
+                'recurrence_type', 'start_date', 'scheduled_time', 'end_date', 'weekly_day', 'monthly_anchor_day',
             ]);
+            if (array_intersect_key($changes, $scheduleFields) !== []) {
+                $this->ensureRecurrenceDatesMatch($request);
+                $now = $this->clock->now($schedule->tenant_id);
+                $this->ensureFutureStart($request, $now);
+                $nextDueDate = $this->firstFutureDate($request, $now);
+                $changes['next_due_date'] = $nextDueDate;
+                $changes['status'] = $nextDueDate === null
+                    ? 'completed'
+                    : ($schedule->status === 'completed' ? 'active' : $schedule->status);
+            }
+
+            // Optimistic concurrency advances for every accepted update, even
+            // when the submitted business values are identical.
+            $changes['update_key'] = (int) $schedule->update_key + 1;
+
+            return $this->repository->update($schedule, $changes);
         });
 
         return TenantScheduledExpenseDetail::fromModel($schedule);
@@ -194,21 +200,26 @@ class TenantScheduledExpenseService extends BaseTenantService
             while ($remaining > 0 && $schedule->next_due_date !== null) {
                 $due = CarbonImmutable::parse($schedule->next_due_date->toDateString().' '.$schedule->scheduled_time, $now->timezone);
                 if ($due->isAfter($now)) { break; }
-                DB::transaction(function () use ($schedule, $due): void {
-                    // Lock and re-check because another worker may have advanced
-                    // this schedule after the initial due-schedule query.
-                    $locked = $this->find($schedule->code, true);
-                    if ($locked->status !== 'active' || $locked->next_due_date?->toDateString() !== $due->toDateString()) { return; }
-                    $this->repository->createOccurrence(
-                        ['scheduled_expense_id' => $locked->id, 'due_date' => $due->toDateString(), 'due_time' => $locked->scheduled_time],
-                        ['tenant_id' => $locked->tenant_id, 'account_id' => $locked->account_id, 'description' => $locked->description,
-                            'amount' => $locked->amount, 'expense_type_id' => $locked->expense_type_id, 'status' => 'pending'],
-                    );
-                    $next = $this->nextDate($locked, $due);
-                    $this->repository->update($locked, ['last_due_date' => $due->toDateString(), 'next_due_date' => $next?->toDateString(),
-                        'status' => 'active', 'update_key' => $locked->update_key + 1]);
-                });
                 $remaining--;
+                try {
+                    DB::transaction(function () use ($schedule, $due): void {
+                        // Lock and re-check because another worker may have advanced
+                        // this schedule after the initial due-schedule query.
+                        $locked = $this->find($schedule->code, true);
+                        if ($locked->status !== 'active' || $locked->next_due_date?->toDateString() !== $due->toDateString()) { return; }
+                        $this->repository->createOccurrence(
+                            ['scheduled_expense_id' => $locked->id, 'due_date' => $due->toDateString(), 'due_time' => $locked->scheduled_time],
+                            ['tenant_id' => $locked->tenant_id, 'account_id' => $locked->account_id, 'description' => $locked->description,
+                                'amount' => $locked->amount, 'expense_type_id' => $locked->expense_type_id, 'status' => 'pending'],
+                        );
+                        $next = $this->nextDate($locked, $due);
+                        $this->repository->update($locked, ['last_due_date' => $due->toDateString(), 'next_due_date' => $next?->toDateString(),
+                            'status' => 'active', 'update_key' => $locked->update_key + 1]);
+                    });
+                } catch (Throwable $exception) {
+                    $this->recordMaterializationFailure($schedule, $due, $exception);
+                    break;
+                }
                 $schedule = $this->find($schedule->code);
             }
             if ($remaining === 0) { break; }
@@ -241,11 +252,62 @@ class TenantScheduledExpenseService extends BaseTenantService
             // Keep failed occurrences retryable; the deterministic idempotency
             // key prevents a retry from creating a duplicate expense.
             Log::error('Scheduled expense payment failed.', ['occurrence_id' => $occurrence->id, 'exception' => $exception]);
-            $this->repository->updateOccurrence($occurrence, ['status' => 'failed', 'attempt_count' => $occurrence->attempt_count + 1,
-                'last_error' => mb_substr($exception->getMessage(), 0, 2000)]);
-            $schedule = $this->find($occurrence->schedule->code);
-            $this->repository->update($schedule, ['last_result' => 'failed', 'last_error' => mb_substr($exception->getMessage(), 0, 2000)]);
+            try {
+                DB::transaction(function () use ($occurrence, $exception): void {
+                    $failed = $this->repository->lockOccurrence($occurrence->id);
+                    if ($failed === null || in_array($failed->status, ['paid', 'cancelled'], true)) { return; }
+                    $error = mb_substr($exception->getMessage(), 0, 2000);
+                    $this->repository->updateOccurrence($failed, ['status' => 'failed', 'attempt_count' => $failed->attempt_count + 1,
+                        'last_error' => $error]);
+                    $schedule = $this->find($failed->schedule->code, true);
+                    $this->repository->update($schedule, ['last_result' => 'failed', 'last_error' => $error]);
+                });
+            } catch (Throwable $persistenceException) {
+                Log::error('Could not persist scheduled expense payment failure.', [
+                    'occurrence_id' => $occurrence->id,
+                    'original_exception' => $exception,
+                    'persistence_exception' => $persistenceException,
+                ]);
+            }
             return false;
+        }
+    }
+
+    private function recordMaterializationFailure(
+        TenantScheduledExpense $schedule,
+        CarbonImmutable $due,
+        Throwable $exception,
+    ): void {
+        Log::error('Scheduled expense occurrence materialization failed.', [
+            'tenant_id' => $schedule->tenant_id,
+            'schedule_id' => $schedule->id,
+            'due_at' => $due->toIso8601String(),
+            'exception' => $exception,
+        ]);
+
+        try {
+            DB::transaction(function () use ($schedule, $due, $exception): void {
+                $locked = $this->find($schedule->code, true);
+                $error = mb_substr($exception->getMessage(), 0, 2000);
+                $occurrence = $this->repository->createOccurrence(
+                    ['scheduled_expense_id' => $locked->id, 'due_date' => $due->toDateString(), 'due_time' => $locked->scheduled_time],
+                    ['tenant_id' => $locked->tenant_id, 'account_id' => $locked->account_id, 'description' => $locked->description,
+                        'amount' => $locked->amount, 'expense_type_id' => $locked->expense_type_id, 'status' => 'failed',
+                        'attempt_count' => 1, 'last_error' => $error],
+                );
+                if (! $occurrence->wasRecentlyCreated && ! in_array($occurrence->status, ['paid', 'cancelled'], true)) {
+                    $this->repository->updateOccurrence($occurrence, ['status' => 'failed',
+                        'attempt_count' => (int) $occurrence->attempt_count + 1, 'last_error' => $error]);
+                }
+                $this->repository->update($locked, ['last_result' => 'failed', 'last_error' => $error]);
+            });
+        } catch (Throwable $persistenceException) {
+            Log::error('Could not persist scheduled expense materialization failure.', [
+                'tenant_id' => $schedule->tenant_id,
+                'schedule_id' => $schedule->id,
+                'original_exception' => $exception,
+                'persistence_exception' => $persistenceException,
+            ]);
         }
     }
 
@@ -276,6 +338,46 @@ class TenantScheduledExpenseService extends BaseTenantService
             default => null,
         };
         return $next !== null && ($schedule->end_date === null || $next->toDateString() <= $schedule->end_date->toDateString()) ? $next : null;
+    }
+
+    /**
+     * Return only submitted business values that differ from the persisted
+     * template. Normalize database casts so formatting alone is not a change.
+     */
+    private function changedAttributes(TenantScheduledExpense $schedule, TenantScheduledExpenseWrite $request): array
+    {
+        $requested = [
+            'account_id' => $request->accountId,
+            'description' => $request->description,
+            'amount' => $request->amount,
+            'expense_type_id' => $request->expenseTypeId,
+            'recurrence_type' => $request->recurrenceType,
+            'start_date' => $request->startDate,
+            'scheduled_time' => $request->scheduledTime,
+            'end_date' => $request->endDate,
+            'weekly_day' => $request->weeklyDay,
+            'monthly_anchor_day' => $request->monthlyAnchorDay,
+        ];
+        $persisted = [
+            'account_id' => (int) $schedule->account_id,
+            'description' => (string) $schedule->description,
+            'amount' => (float) $schedule->amount,
+            'expense_type_id' => $schedule->expense_type_id === null ? null : (int) $schedule->expense_type_id,
+            'recurrence_type' => (string) $schedule->recurrence_type,
+            'start_date' => $schedule->start_date?->toDateString(),
+            'scheduled_time' => substr((string) $schedule->scheduled_time, 0, 5),
+            'end_date' => $schedule->end_date?->toDateString(),
+            'weekly_day' => $schedule->weekly_day === null ? null : (int) $schedule->weekly_day,
+            'monthly_anchor_day' => $schedule->monthly_anchor_day === null ? null : (int) $schedule->monthly_anchor_day,
+        ];
+
+        return array_filter(
+            $requested,
+            static fn (mixed $value, string $field): bool => $field === 'amount'
+                ? number_format((float) $value, 2, '.', '') !== number_format((float) $persisted[$field], 2, '.', '')
+                : $value !== $persisted[$field],
+            ARRAY_FILTER_USE_BOTH,
+        );
     }
 
     private function ensureRecurrenceDatesMatch(TenantScheduledExpenseWrite $request): void

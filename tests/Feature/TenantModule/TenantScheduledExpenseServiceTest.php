@@ -3,6 +3,7 @@
 namespace Tests\Feature\TenantModule;
 
 use App\DataObjects\ResponseObjects\TenantExpenseDetail;
+use App\DataObjects\RequestObjects\TenantScheduledExpenseWrite;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\TenantExpense;
 use App\Models\CoreModule\TenantScheduledExpense;
@@ -14,7 +15,11 @@ use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantExpenseService;
 use App\Services\TenantModule\TenantScheduledExpenseService;
+use App\Services\TenantModule\AccountingDayBusinessClock;
 use App\Services\TenantModule\Accounting\MultiAccountManagement;
+use App\Services\TenantModule\TenantUserPermissionService;
+use App\Repository\TenantScheduledExpenseRepository;
+use App\Services\TableIdGenerationService;
 use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -75,6 +80,71 @@ class TenantScheduledExpenseServiceTest extends TestCase
 
         $this->assertSame(0, app(TenantScheduledExpenseService::class)->processDueSchedules());
         $this->assertDatabaseHas('tenant_scheduled_expense_occurrences', ['scheduled_expense_id' => $schedule->id, 'status' => 'pending']);
+    }
+
+    public function test_amount_only_update_does_not_revalidate_or_reset_past_schedule_boundary(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-12 10:00:00', 'Asia/Yangon'));
+        [$tenant, $account] = $this->financeContext();
+        $schedule = $this->schedule($tenant->id, $account->id);
+
+        $permissions = Mockery::mock(TenantUserPermissionService::class);
+        $permissions->shouldReceive('authorizePermission')->once()->with('update_scheduled_expense');
+        $clock = Mockery::mock(AccountingDayBusinessClock::class);
+        $clock->shouldNotReceive('now');
+        $accounts = Mockery::mock(MultiAccountManagement::class);
+        $accounts->shouldNotReceive('findActiveCurrentTenantAccount');
+
+        $service = new TenantScheduledExpenseService(
+            app(TenantScheduledExpenseRepository::class),
+            $permissions,
+            Mockery::mock(TenantLicenseService::class),
+            $clock,
+            Mockery::mock(TenantAccountingDayService::class),
+            Mockery::mock(TenantExpenseService::class),
+            $accounts,
+            Mockery::mock(TableIdGenerationService::class),
+        );
+        $result = $service->update($schedule->code, new TenantScheduledExpenseWrite(
+            description: 'Rent', amount: 2500, accountId: $account->id, expenseTypeId: null,
+            recurrenceType: 'one_time', startDate: '2026-09-12', scheduledTime: '09:00',
+            endDate: null, weeklyDay: null, monthlyAnchorDay: null, updateKey: 0,
+        ))->toArray();
+
+        $this->assertSame('2500.00', $result['amount']);
+        $this->assertSame(1, $result['update_key']);
+        $this->assertSame('2026-09-12', $result['next_due_date']);
+        $this->assertSame('active', $result['status']);
+    }
+
+    public function test_payment_failure_is_recorded_on_occurrence_and_schedule(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-12 10:00:00', 'Asia/Yangon'));
+        [$tenant, $account] = $this->financeContext();
+        $schedule = $this->schedule($tenant->id, $account->id);
+        $license = Mockery::mock(TenantLicenseService::class);
+        $license->shouldReceive('tenantHasFeature')->andReturnTrue();
+        $this->app->instance(TenantLicenseService::class, $license);
+        $accountingDay = Mockery::mock(TenantAccountingDayService::class);
+        $accountingDay->shouldReceive('allowsScheduledFinancialOperation')->andReturnTrue();
+        $this->app->instance(TenantAccountingDayService::class, $accountingDay);
+        $expenses = Mockery::mock(TenantExpenseService::class);
+        $expenses->shouldReceive('createFromSchedule')->once()->andThrow(new \RuntimeException('Insufficient account balance.'));
+        $this->app->instance(TenantExpenseService::class, $expenses);
+
+        $this->assertSame(0, app(TenantScheduledExpenseService::class)->processDueSchedules());
+        $this->assertDatabaseHas('tenant_scheduled_expense_occurrences', [
+            'scheduled_expense_id' => $schedule->id,
+            'status' => 'failed',
+            'attempt_count' => 1,
+            'last_error' => 'Insufficient account balance.',
+        ]);
+        $this->assertDatabaseHas('tenant_scheduled_expenses', [
+            'id' => $schedule->id,
+            'last_result' => 'failed',
+            'last_error' => 'Insufficient account balance.',
+        ]);
+        $this->assertDatabaseCount('tenant_expenses', 0);
     }
 
     private function financeContext(): array

@@ -50,6 +50,32 @@ class ScheduledExpenseConfigurationTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_amount_only_edit_does_not_mark_schedule_fields_as_changed(): void
+    {
+        $service = (new ReflectionClass(TenantScheduledExpenseService::class))->newInstanceWithoutConstructor();
+        $method = (new ReflectionClass($service))->getMethod('changedAttributes');
+        $schedule = new TenantScheduledExpense();
+        $schedule->setRawAttributes([
+            'account_id' => 1,
+            'description' => 'Rent',
+            'amount' => '1000.00',
+            'expense_type_id' => null,
+            'recurrence_type' => 'one_time',
+            'start_date' => '2026-09-12',
+            'scheduled_time' => '09:00:00',
+            'end_date' => null,
+            'weekly_day' => null,
+            'monthly_anchor_day' => null,
+        ], true);
+        $request = new TenantScheduledExpenseWrite(
+            description: 'Rent', amount: 2500, accountId: 1, expenseTypeId: null,
+            recurrenceType: 'one_time', startDate: '2026-09-12', scheduledTime: '09:00',
+            endDate: null, weeklyDay: null, monthlyAnchorDay: null,
+        );
+
+        $this->assertSame(['amount' => 2500.0], $method->invoke($service, $schedule, $request));
+    }
+
     public function test_permissions_and_queue_are_registered(): void
     {
         foreach (['list', 'create', 'update', 'delete'] as $action) {
