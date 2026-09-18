@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\TenantModule;
 
-use App\DataObjects\ResponseObjects\TenantExpenseDetail;
 use App\DataObjects\RequestObjects\TenantScheduledExpenseWrite;
+use App\DataObjects\ResponseObjects\TenantExpenseDetail;
+use App\Enums\AccountingDayOpeningSource;
+use App\Enums\AccountingDayStatus;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\TenantExpense;
 use App\Models\CoreModule\TenantScheduledExpense;
@@ -11,15 +13,16 @@ use App\Models\FinancialAccount;
 use App\Models\FinancialAccountTypes;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
+use App\Models\TenantAccountingDay;
+use App\Repository\TenantScheduledExpenseRepository;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
+use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Accounting\MultiAccountManagement;
+use App\Services\TenantModule\AccountingDayBusinessClock;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantExpenseService;
 use App\Services\TenantModule\TenantScheduledExpenseService;
-use App\Services\TenantModule\AccountingDayBusinessClock;
-use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Services\TenantModule\TenantUserPermissionService;
-use App\Repository\TenantScheduledExpenseRepository;
-use App\Services\TableIdGenerationService;
 use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,6 +56,7 @@ class TenantScheduledExpenseServiceTest extends TestCase
         $expenses->shouldReceive('createFromSchedule')->once()->andReturnUsing(function ($request) use ($tenant, $account): TenantExpenseDetail {
             $expense = TenantExpense::query()->create(['tenant_id' => $tenant->id, 'code' => 'AUTO-1', 'account_id' => $account->id,
                 'description' => $request->description, 'amount' => $request->amount, 'expense_type_id' => null, 'created_by' => null]);
+
             return TenantExpenseDetail::fromModel($expense);
         });
         $this->app->instance(TenantExpenseService::class, $expenses);
@@ -80,6 +84,53 @@ class TenantScheduledExpenseServiceTest extends TestCase
 
         $this->assertSame(0, app(TenantScheduledExpenseService::class)->processDueSchedules());
         $this->assertDatabaseHas('tenant_scheduled_expense_occurrences', ['scheduled_expense_id' => $schedule->id, 'status' => 'pending']);
+    }
+
+    public function test_open_manual_accounting_day_processes_due_schedule_when_automatic_schedule_is_disabled(): void
+    {
+        $now = CarbonImmutable::parse('2026-09-12 10:00:00', 'Asia/Yangon');
+        CarbonImmutable::setTestNow($now);
+        [$tenant, $account] = $this->financeContext();
+        $schedule = $this->schedule($tenant->id, $account->id);
+        TenantAccountingDay::query()->create([
+            'tenant_id' => $tenant->id,
+            'business_date' => $now->toDateString(),
+            'timezone' => $now->timezoneName,
+            'status' => AccountingDayStatus::Open,
+            'opened_at' => $now->utc(),
+            'opening_source' => AccountingDayOpeningSource::Manual,
+        ]);
+
+        $license = Mockery::mock(TenantLicenseService::class);
+        $license->shouldReceive('tenantHasFeature')
+            ->with($tenant->id, 'scheduled_expense_management')
+            ->andReturnTrue();
+        $license->shouldReceive('tenantHasFeature')
+            ->with($tenant->id, 'automatic_open_close')
+            ->andReturnTrue();
+        $this->app->instance(TenantLicenseService::class, $license);
+
+        $expenses = Mockery::mock(TenantExpenseService::class);
+        $expenses->shouldReceive('createFromSchedule')->once()->andReturnUsing(function ($request) use ($tenant, $account): TenantExpenseDetail {
+            $expense = TenantExpense::query()->create([
+                'tenant_id' => $tenant->id,
+                'code' => 'AUTO-MANUAL-DAY',
+                'account_id' => $account->id,
+                'description' => $request->description,
+                'amount' => $request->amount,
+                'expense_type_id' => null,
+                'created_by' => null,
+            ]);
+
+            return TenantExpenseDetail::fromModel($expense);
+        });
+        $this->app->instance(TenantExpenseService::class, $expenses);
+
+        $this->assertSame(1, app(TenantScheduledExpenseService::class)->processDueSchedules());
+        $this->assertDatabaseHas('tenant_scheduled_expense_occurrences', [
+            'scheduled_expense_id' => $schedule->id,
+            'status' => 'paid',
+        ]);
     }
 
     public function test_amount_only_update_does_not_revalidate_or_reset_past_schedule_boundary(): void
@@ -156,6 +207,7 @@ class TenantScheduledExpenseServiceTest extends TestCase
         $account = FinancialAccount::query()->create(['tenant_id' => $tenant->id, 'account_type_id' => $type->id, 'currency_id' => $currency->id,
             'account_number' => 'CASH-1', 'account_name' => 'Cash', 'account_code' => 'cash-1', 'balance' => 100000, 'is_active' => true, 'is_default' => true, 'allow_negative_balance' => false]);
         app(TenantContext::class)->set($tenant);
+
         return [$tenant, $account];
     }
 
