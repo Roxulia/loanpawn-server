@@ -291,6 +291,7 @@ class DebtInterestFlowService extends BaseTenantService
             $this->validateCompoundableDebt($debt);
             // Use only rows already materialized before compounding.
             $rows = $this->repository->accruals((int) $debt->id, true);
+            $eligibilityCutoff = $scheduled ? $now->startOfDay() : $now;
             $timezone = $this->businessClock->timezone((int) $debt->tenant_id);
             $eligibleRows = $rows->filter(fn (TenantDebtInterestAccrual $row): bool => $this->fixedInterestCalculatorService->isEligibleForCompounding(
                 (bool) $row->is_paid,
@@ -298,7 +299,7 @@ class DebtInterestFlowService extends BaseTenantService
                 (float) $row->paid_amount,
                 (float) $row->compounded_amount,
                 $row->start_period_at,
-                $now,
+                $eligibilityCutoff,
                 $timezone,
             ));
             $amount = round($eligibleRows->sum(fn (TenantDebtInterestAccrual $row): float => $this->rowOutstanding($row)), 2);

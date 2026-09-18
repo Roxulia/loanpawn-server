@@ -266,6 +266,7 @@ class TenantBusinessLoanService extends BaseTenantService
             $loan = $this->repository->findByCode($code, true) ?? throw new TenantNotFound('Business loan not found.');
             // Use only rows already materialized before compounding.
             $now = $this->businessClock->now((int) $loan->tenant_id);
+            $eligibilityCutoff = $scheduled ? $now->startOfDay() : $now;
             $timezone = $this->businessClock->timezone((int) $loan->tenant_id);
             $eligibleRows = $loan->interestAccruals->filter(fn (TenantBusinessLoanInterestAccrual $row): bool => $this->interestCalculator->isEligibleForCompounding(
                 (bool) $row->is_paid,
@@ -273,7 +274,7 @@ class TenantBusinessLoanService extends BaseTenantService
                 (float) $row->paid_amount,
                 (float) $row->compounded_amount,
                 $row->start_period_at,
-                $now,
+                $eligibilityCutoff,
                 $timezone,
             ));
             $amount = round($eligibleRows->sum(fn (TenantBusinessLoanInterestAccrual $row): float => $this->rowOutstanding($row)), 2);

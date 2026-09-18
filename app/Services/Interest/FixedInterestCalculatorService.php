@@ -74,14 +74,14 @@ class FixedInterestCalculatorService
             return false;
         }
 
-        // Only a period that started before the compounding business date is eligible.
+        // Only a period that started before the exact compounding request time is eligible.
+        // A scheduled request is supplied at midnight, which continues to exclude
+        // rows starting on that schedule boundary.
         return CarbonImmutable::parse($startPeriodAt)
             ->setTimezone($timezone)
-            ->startOfDay()
             ->lt(
                 CarbonImmutable::parse($compoundingAt)
                     ->setTimezone($timezone)
-                    ->startOfDay(),
             );
     }
 
