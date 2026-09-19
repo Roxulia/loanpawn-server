@@ -12,14 +12,17 @@ use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\TenantAccountingDay;
+use App\Models\TenantAccountingDaySchedule;
 use App\Models\TenantAccountingTransactions;
 use App\Repository\TenantAccountingDayRepository;
+use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Services\TenantModule\TenantAccountingDayService;
 use App\Services\TenantModule\TenantAccountingTransactionService;
 use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Mockery;
 use Tests\TestCase;
 
 class TenantAccountingDayServiceTest extends TestCase
@@ -118,6 +121,84 @@ class TenantAccountingDayServiceTest extends TestCase
 
         $this->assertSame(5000.0, $summary['category_totals']['internal']);
         $this->assertSame(0.0, $summary['closing_balance']);
+    }
+
+    public function test_open_manual_day_allows_scheduled_operation_when_automatic_schedule_is_missing(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-12 10:00:00', 'Asia/Yangon');
+        CarbonImmutable::setTestNow($now);
+        [$tenant] = $this->actingTenant([]);
+        $this->mockAutomaticOpenCloseFeature($tenant->id);
+        $this->createOpenDay($tenant->id, $now);
+
+        $this->assertTrue(app(TenantAccountingDayService::class)->allowsScheduledFinancialOperation($tenant->id, $now));
+    }
+
+    public function test_open_manual_day_allows_scheduled_operation_when_automatic_schedule_is_disabled(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-12 10:00:00', 'Asia/Yangon');
+        CarbonImmutable::setTestNow($now);
+        [$tenant] = $this->actingTenant([]);
+        $this->mockAutomaticOpenCloseFeature($tenant->id);
+        $this->createOpenDay($tenant->id, $now);
+        TenantAccountingDaySchedule::query()->create([
+            'tenant_id' => $tenant->id,
+            'weekday' => $now->dayOfWeek,
+            'is_enabled' => false,
+            'open_time' => '09:00:00',
+            'close_time' => '17:00:00',
+        ]);
+
+        $this->assertTrue(app(TenantAccountingDayService::class)->allowsScheduledFinancialOperation($tenant->id, $now));
+    }
+
+    public function test_manual_mode_rejects_scheduled_operation_when_day_is_not_open(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-12 10:00:00', 'Asia/Yangon');
+        CarbonImmutable::setTestNow($now);
+        [$tenant] = $this->actingTenant([]);
+        $this->mockAutomaticOpenCloseFeature($tenant->id);
+
+        $this->assertFalse(app(TenantAccountingDayService::class)->allowsScheduledFinancialOperation($tenant->id, $now));
+    }
+
+    public function test_enabled_automatic_schedule_still_enforces_its_interval(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-12 18:00:00', 'Asia/Yangon');
+        CarbonImmutable::setTestNow($now);
+        [$tenant] = $this->actingTenant([]);
+        $this->mockAutomaticOpenCloseFeature($tenant->id);
+        $this->createOpenDay($tenant->id, $now);
+        TenantAccountingDaySchedule::query()->create([
+            'tenant_id' => $tenant->id,
+            'weekday' => $now->dayOfWeek,
+            'is_enabled' => true,
+            'open_time' => '09:00:00',
+            'close_time' => '17:00:00',
+        ]);
+
+        $this->assertFalse(app(TenantAccountingDayService::class)->allowsScheduledFinancialOperation($tenant->id, $now));
+    }
+
+    private function mockAutomaticOpenCloseFeature(int $tenantId): void
+    {
+        $license = Mockery::mock(TenantLicenseService::class);
+        $license->shouldReceive('tenantHasFeature')
+            ->with($tenantId, 'automatic_open_close')
+            ->andReturnTrue();
+        $this->app->instance(TenantLicenseService::class, $license);
+    }
+
+    private function createOpenDay(int $tenantId, CarbonImmutable $now): TenantAccountingDay
+    {
+        return TenantAccountingDay::query()->create([
+            'tenant_id' => $tenantId,
+            'business_date' => $now->toDateString(),
+            'timezone' => $now->timezoneName,
+            'status' => AccountingDayStatus::Open,
+            'opened_at' => $now->utc(),
+            'opening_source' => AccountingDayOpeningSource::Manual,
+        ]);
     }
 
     private function actingTenant(array $permissions): array

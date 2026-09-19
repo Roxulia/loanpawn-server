@@ -16,7 +16,7 @@ class PlatformUserDetail extends BaseDataObject
     public function __construct(
         string $email,
         string $name,
-        string $preferLang = 'en',
+        string $preferLang = 'mm',
     ) {
         $this->name = $name;
         $this->email = $email;

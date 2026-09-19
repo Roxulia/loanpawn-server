@@ -2,13 +2,32 @@
 
 namespace App\Models\PlatformModule;
 
+use Database\Factories\PlatformUserFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class PlatformUser extends Authenticatable
 {
+    use HasFactory;
     use Notifiable;
+
+    private const DEFAULT_PREFER_LANG = 'mm';
+
+    protected static function booted(): void
+    {
+        static::creating(function (PlatformUser $user): void {
+            if (! is_string($user->prefer_lang) || $user->prefer_lang === '') {
+                $user->prefer_lang = self::DEFAULT_PREFER_LANG;
+            }
+        });
+    }
+
+    protected static function newFactory(): PlatformUserFactory
+    {
+        return PlatformUserFactory::new();
+    }
 
     protected $fillable = [
         'name',

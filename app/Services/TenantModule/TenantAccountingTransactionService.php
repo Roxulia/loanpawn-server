@@ -14,6 +14,9 @@ use App\Exports\TenantAccountingLedgerExport;
 use App\Models\CoreModule\Currency;
 use App\Models\CoreModule\TenantCapital;
 use App\Models\CoreModule\TenantDebt;
+use App\Models\CoreModule\TenantDebtPayment;
+use App\Models\CoreModule\TenantBusinessLoan;
+use App\Models\CoreModule\TenantBusinessLoanPayment;
 use App\Models\CoreModule\TenantExpense;
 use App\Models\PawnModule\PawnInterestPayment;
 use App\Models\PawnModule\PawnLoanContractSlip;
@@ -237,6 +240,21 @@ class TenantAccountingTransactionService extends BaseTenantService
         return $this->recordOperation($debt, $description, $isInternal ? 'internal' : 'outgoing', $isInternal ? AccountingCategory::Internal : AccountingCategory::Asset, $amount, $createdBy, $currency, $exchangeRate);
     }
 
+    public function recordBusinessLoanReceipt(TenantBusinessLoan $loan, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
+    {
+        return $this->recordOperation($loan, $description, 'incoming', AccountingCategory::Liability, $amount, $createdBy, $currency, $exchangeRate);
+    }
+
+    public function recordBusinessLoanPrincipalPayment(TenantBusinessLoanPayment $payment, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
+    {
+        return $this->recordOperation($payment, $description, 'outgoing', AccountingCategory::Liability, $amount, $createdBy, $currency, $exchangeRate);
+    }
+
+    public function recordBusinessLoanInterestPayment(TenantBusinessLoanPayment $payment, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
+    {
+        return $this->recordOperation($payment, $description, 'outgoing', AccountingCategory::Expense, $amount, $createdBy, $currency, $exchangeRate);
+    }
+
     public function recordLoanRedemption(PawnRedemption $redemption, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
     {
         return $this->recordOperation($redemption, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy, $currency, $exchangeRate);
@@ -265,6 +283,11 @@ class TenantAccountingTransactionService extends BaseTenantService
     public function recordDebtPayment(TenantDebt $debt, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
     {
         return $this->recordOperation($debt, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy, $currency, $exchangeRate);
+    }
+
+    public function recordDebtInterestPayment(TenantDebtPayment $payment, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
+    {
+        return $this->recordOperation($payment, $description, 'incoming', AccountingCategory::Revenue, $amount, $createdBy, $currency, $exchangeRate);
     }
 
     public function recordDebtPaymentChange(TenantDebt $debt, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions

@@ -20,12 +20,14 @@ class LookUpService extends BaseTenantService
         private LoanContractSlipRepository $repository,
         private TenantUserPermissionService $permissionService,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
+        private ExpirationService $expirationService,
     ) {
     }
 
     public function list(int $perPage = 15): LoanContractSlipListPage
     {
         $this->permissionService->authorizeLoanContractList();
+        $this->expirationService->checkCurrentTenant();
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('loan-contract-slip-list');
 
@@ -45,12 +47,12 @@ class LookUpService extends BaseTenantService
             throw new TenantNotFound('Loan contract slip not found.');
         }
 
-        return LoanContractSlipDetail::fromModel($slip);
+        return LoanContractSlipDetail::fromModel($this->expirationService->refreshExpiration($slip));
     }
 
     public function findModelById(int $slipId): PawnLoanContractSlip
     {
-        return $this->findSlipForCurrentTenant($slipId);
+        return $this->expirationService->refreshExpiration($this->findSlipForCurrentTenant($slipId));
     }
 
     public function findModelByIdWithLock(int $slipId): PawnLoanContractSlip
@@ -61,7 +63,7 @@ class LookUpService extends BaseTenantService
             throw new TenantNotFound('Loan contract slip not found.');
         }
 
-        return $slip;
+        return $this->expirationService->refreshExpiration($slip);
     }
 
     public function findModelBySlipNo(string $slipNo): PawnLoanContractSlip
@@ -72,7 +74,7 @@ class LookUpService extends BaseTenantService
             throw new TenantNotFound('Loan contract slip not found.');
         }
 
-        return $slip;
+        return $this->expirationService->refreshExpiration($slip);
     }
 
     public function findModelBySlipNoWithLock(string $slipNo): PawnLoanContractSlip
@@ -83,7 +85,7 @@ class LookUpService extends BaseTenantService
             throw new TenantNotFound('Loan contract slip not found.');
         }
 
-        return $slip;
+        return $this->expirationService->refreshExpiration($slip);
     }
 
     protected function findSlipForCurrentTenant(int $slipId): PawnLoanContractSlip

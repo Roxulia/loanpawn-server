@@ -292,7 +292,7 @@ class TenantDashboardService extends BaseTenantService
 
     protected function isJewellery(PawnCollateralItem $item): bool
     {
-        return strtolower((string) $item->type) === 'jewellery';
+        return in_array(\App\Enums\CollateralItemType::normalize($item->type), [\App\Enums\CollateralItemType::Jewellery, \App\Enums\CollateralItemType::Pack], true);
     }
 
     protected function riskLevel(int $overdueDays, float $trustPercent, ?Carbon $dueDate, Carbon $today): string

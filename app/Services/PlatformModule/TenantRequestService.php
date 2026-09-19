@@ -413,6 +413,16 @@ class TenantRequestService extends BaseTenantService
                 ];
             }
 
+            if ($currentLicense->plan?->is_trial) {
+                $months = $this->validateExtensionMonths($request->extensionMonths);
+
+                return [
+                    $request->requestedPlanType,
+                    $months,
+                    $this->discountedPackageCost($package, $months),
+                ];
+            }
+
             $billingMonths = $this->monthsUntilLicenseExpiry($tenant);
 
             return [

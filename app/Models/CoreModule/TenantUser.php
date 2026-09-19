@@ -3,7 +3,9 @@
 namespace App\Models\CoreModule;
 
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantUserFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,8 +16,25 @@ use Laravel\Sanctum\HasApiTokens;
 class TenantUser extends Authenticatable
 {
     use BelongToTenant;
+    use HasFactory;
     use HasApiTokens;
     use Notifiable;
+
+    private const DEFAULT_PREFER_LANG = 'mm';
+
+    protected static function booted(): void
+    {
+        static::creating(function (TenantUser $user): void {
+            if (! is_string($user->prefer_lang) || $user->prefer_lang === '') {
+                $user->prefer_lang = self::DEFAULT_PREFER_LANG;
+            }
+        });
+    }
+
+    protected static function newFactory(): TenantUserFactory
+    {
+        return TenantUserFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',

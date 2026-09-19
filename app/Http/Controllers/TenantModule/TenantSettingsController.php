@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\DefaultDataCreate;
+use App\DataObjects\RequestObjects\InterestProcessSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantBrandingUpdate;
 use App\DataObjects\RequestObjects\TenantContactUpdate;
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
+use App\DataObjects\RequestObjects\LoanSlipCreationSettingsUpdate;
+use App\DataObjects\RequestObjects\TenantDebtPaymentPolicyUpdate;
 use App\DataObjects\RequestObjects\TenantSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
 use App\Http\Controllers\Controller;
@@ -163,6 +166,57 @@ class TenantSettingsController extends Controller
         return $this->successResponse($setting->toArray());
     }
 
+    public function loanSlipCreationSettings(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingService->getCurrentTenantLoanSlipCreationSettings()->toArray());
+    }
+
+    public function updateLoanSlipCreationSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_info_required' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ]);
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantLoanSlipCreationSettings(
+            new LoanSlipCreationSettingsUpdate(
+                customerInfoRequired: (bool) $validated['customer_info_required'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
+    }
+
+    public function updateDebtPaymentPolicy(Request $request): JsonResponse
+    {
+        $validated = Validator::make($request->all(), [
+            'allow_partial_payments' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ])->validate();
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantDebtPaymentPolicy(
+            new TenantDebtPaymentPolicyUpdate(
+                allowPartialPayments: (bool) $validated['allow_partial_payments'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
+    }
+
+    public function updateBusinessLoanPaymentPolicy(Request $request): JsonResponse
+    {
+        // Validation of the independent business loan payment policy
+        $validated = Validator::make($request->all(), [
+            'allow_partial_payments' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ])->validate();
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantBusinessLoanPaymentPolicy(
+            new TenantDebtPaymentPolicyUpdate(
+                allowPartialPayments: (bool) $validated['allow_partial_payments'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
+    }
+
     public function currencyPreferences(): JsonResponse
     {
         return $this->successResponse($this->tenantSettingService->getCurrentTenantCurrencyPreferences()->toArray());
@@ -178,6 +232,28 @@ class TenantSettingsController extends Controller
             $this->tenantSettingService->updateCurrentTenantCurrencyPreferences($data)->toArray(),
             $this->responseMessage(\App\Utility\MessageCode::FinanceTenantCurrencyUpdated),
         );
+    }
+
+    public function interestProcessSettings(): JsonResponse
+    {
+        return $this->successResponse($this->tenantSettingService->getCurrentTenantInterestProcessSettings()->toArray());
+    }
+
+    public function updateInterestProcessSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'compounding_enabled' => ['required', 'boolean'],
+            'partial_principal_collection_enabled' => ['required', 'boolean'],
+            'update_key' => ['required', 'integer', 'min:0'],
+        ]);
+
+        return $this->successResponse($this->tenantSettingService->updateCurrentTenantInterestProcessSettings(
+            new InterestProcessSettingsUpdate(
+                compoundingEnabled: (bool) $validated['compounding_enabled'],
+                partialPrincipalCollectionEnabled: (bool) $validated['partial_principal_collection_enabled'],
+                updateKey: (int) $validated['update_key'],
+            )
+        )->toArray());
     }
 
     public function timezone(): JsonResponse

@@ -50,6 +50,7 @@ class SlipDocumentService
 
     public function __construct(
         private SlipDocumentBarcodeService $barcodeService,
+        private SlipDocumentLayoutValidator $layoutValidator,
     ) {}
 
     public function getLayoutConfig(): SlipDocumentLayoutConfig
@@ -114,7 +115,7 @@ class SlipDocumentService
 
     public function renderLayout(array $layout, string $zone, array $context): string
     {
-        $components = $layout['components'] ?? [];
+        $components = $this->componentsForRendering($layout, $zone);
 
         return implode('', array_map(
             fn (array $component): string => $this->renderComponent($component, $zone, $context),
@@ -185,6 +186,46 @@ class SlipDocumentService
         }, $component['children'] ?? []);
 
         return '<table style="'.$style.' width: '.self::TABLE_WIDTH_PERCENT.'%; border-collapse: collapse;"><tr>'.implode('', $children).'</tr></table>';
+    }
+
+    protected function componentsForRendering(array $layout, string $zone): array
+    {
+        $components = $layout['components'] ?? [];
+
+        if ($zone !== 'header') {
+            return $components;
+        }
+
+        $defaultHeaderLayout = $this->layoutValidator->defaultHeaderLayout();
+        $tenantNameComponent = null;
+        $legacyDefaultComponents = [];
+
+        foreach ($defaultHeaderLayout['components'] as $component) {
+            if ($component['type'] === 'tenant_name') {
+                $tenantNameComponent = $component;
+
+                continue;
+            }
+
+            $legacyDefaultComponents[] = $component;
+        }
+
+        $legacyDefaultLayout = $defaultHeaderLayout;
+        $legacyDefaultLayout['components'] = $legacyDefaultComponents;
+
+        if ($tenantNameComponent === null || $layout != $legacyDefaultLayout) {
+            return $components;
+        }
+
+        foreach ($components as $index => $component) {
+            if ($component['type'] === 'barcode') {
+                array_splice($components, $index, 0, [$tenantNameComponent]);
+
+                break;
+            }
+        }
+
+        return $components;
     }
 
     protected function styleToString(array $style): string

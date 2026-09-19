@@ -21,6 +21,8 @@ class InterestPaymentHistoryItem extends BaseDataObject
 
     public ?string $endPeriodAt;
 
+    public ?string $periodTimezone;
+
     public float $interestAmount;
 
     public float $paymentAmount;
@@ -43,6 +45,7 @@ class InterestPaymentHistoryItem extends BaseDataObject
         $item->slipNo = $payment->slip?->slip_no;
         $item->startPeriodAt = $payment->start_period_at?->toISOString();
         $item->endPeriodAt = $payment->end_period_at?->toISOString();
+        $item->periodTimezone = $payment->period_timezone;
         $item->interestAmount = (float) $payment->calculated_interest;
         $item->paymentAmount = (float) $payment->payment_amount;
         $item->changeAmount = (float) $payment->change_amount;

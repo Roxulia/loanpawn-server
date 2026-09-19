@@ -32,7 +32,7 @@
         ],
         [
             'question' => 'Can a new shop try LonePawn before choosing a paid plan?',
-            'answer' => 'Yes. Every new tenant starts with a four-month trial, allowing the shop to evaluate the platform before activating a paid plan.',
+            'answer' => 'Yes. Every new tenant starts with a free plan, allowing the shop to use LonePawn before activating a paid plan.',
         ],
     ];
     $structuredData = [
@@ -353,7 +353,7 @@
     <div class="landing-section-inner">
         <div class="landing-cta-card">
             <h2>Ready to simplify your pawn shop operations?</h2>
-            <p>Create your account and start a four-month tenant trial with LonePawn.</p>
+            <p>Create your account and start using LonePawn with a free plan.</p>
             <a class="landing-primary-button landing-primary-button-large landing-cta-button" href="{{ $registerUrl }}">
                 Create Your Account
             </a>

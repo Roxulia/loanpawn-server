@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\PawnModule;
 
 use App\DataObjects\RequestObjects\LoanContractSlipCreate;
+use App\DataObjects\RequestObjects\PartialPrincipalCollectionCreate;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
+use App\DataObjects\RequestObjects\SlipCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantCustomerCreate;
 use App\Http\Controllers\Controller;
 use App\Models\CoreModule\TenantCustomer;
 use App\Rules\NrcRules;
 use App\Services\PawnModule\LoanContractServices\LookUpService;
 use App\Services\PawnModule\LoanContractServices\ManagementService;
+use App\Services\PawnModule\PawnInterestProcessService;
+use App\Services\PlatformModule\TenantServices\TenantSettingService;
 use App\Services\TenantModule\FinancialUnitService;
 use App\Services\ExchangeRate\ReportingExchangeRateService;
 use App\Utility\MessageCode;
@@ -26,6 +30,8 @@ class LoanContractSlipController extends Controller
         private ManagementService $managementService,
         private FinancialUnitService $financialUnitService,
         private ReportingExchangeRateService $exchangeRateService,
+        private PawnInterestProcessService $interestProcessService,
+        private TenantSettingService $tenantSettingService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -50,9 +56,10 @@ class LoanContractSlipController extends Controller
             '_nrc' => true,
         ]);
 
+        $customerInfoRequired = $this->tenantSettingService->currentTenantRequiresLoanSlipCustomerInfo();
         $validator = Validator::make($input, [
             'customer' => ['required', 'array'],
-            'customer.name' => ['required', 'string', 'max:120'],
+            'customer.name' => [$customerInfoRequired ? 'required' : 'nullable', 'string', 'max:120'],
             'customer.nrc_state' => ['nullable'],
             'customer.nrc_township' => ['nullable'],
             'customer.nrc_citizen' => ['nullable'],
@@ -71,7 +78,15 @@ class LoanContractSlipController extends Controller
             'customer.trust_score' => ['nullable', 'integer', 'min:0'],
             'customer.note' => ['nullable', 'string'],
             'collateral_items' => ['required', 'array', 'min:1'],
-            'collateral_items.*.type' => ['required', 'string', 'in:Jewellery,Normal,jewellery,normal'],
+            'collateral_items.*.type' => ['required', 'string', function ($attribute, $value, $fail) {
+                if (\App\Enums\CollateralItemType::normalize($value) === null) {
+                    $fail('Invalid collateral item type.');
+                }
+            }],
+            'collateral_items.*.sub_items' => ['sometimes', 'array'],
+            'collateral_items.*.sub_items.*' => ['array:name,quantity'],
+            'collateral_items.*.sub_items.*.name' => ['required', 'string', 'max:120'],
+            'collateral_items.*.sub_items.*.quantity' => ['required', 'integer', 'min:1'],
             'collateral_items.*.name' => ['required', 'string', 'max:120'],
             'collateral_items.*.description' => ['nullable', 'string'],
             'collateral_items.*.brand_name' => ['nullable', 'string', 'max:80'],
@@ -104,6 +119,19 @@ class LoanContractSlipController extends Controller
             'created_by' => ['nullable', 'integer'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
         ]);
+        $validator->after(function ($validator) use ($customerInfoRequired, $input): void {
+            if (! $customerInfoRequired) {
+                return;
+            }
+
+            $nrc = NrcHelper::buildCustomerNrc((array) data_get($input, 'customer', []));
+            $email = trim((string) data_get($input, 'customer.email', ''));
+            $phone = trim((string) data_get($input, 'customer.phone', ''));
+
+            if ($nrc === null && $email === '' && $phone === '') {
+                $validator->errors()->add('customer', 'One of NRC, email, or phone is required.');
+            }
+        });
 
         if ($validator->fails()) {
             return $this->validationErrorResponse($validator->errors());
@@ -114,7 +142,7 @@ class LoanContractSlipController extends Controller
         $nrc = NrcHelper::buildCustomerNrc($customer);
         $slip = $this->managementService->create(new LoanContractSlipCreate(
             customer: new TenantCustomerCreate(
-                name: $customer['name'],
+                name: (string) ($customer['name'] ?? ''),
                 nrc: $nrc,
                 email: $customer['email'] ?? null,
                 phone: $customer['phone'] ?? null,
@@ -156,10 +184,63 @@ class LoanContractSlipController extends Controller
         return $this->successResponse(message: $this->responseMessage(MessageCode::PawnLoanContractSlipDeleted));
     }
 
+    public function updateCompoundSchedule(Request $request, string $slipNo): JsonResponse
+    {
+        $validated = $request->validate([
+            'slip_update_key' => ['required', 'integer', 'min:0'],
+            'enabled' => ['required', 'boolean'],
+            'compound_every' => ['nullable', 'integer', 'min:1'],
+            'compound_every_type' => ['nullable', 'string', 'in:Day,Week,Month,day,week,month'],
+            'next_compound_at' => ['nullable', 'date'],
+        ]);
+
+        return $this->successResponse($this->interestProcessService->updateSchedule(
+            $slipNo,
+            new SlipCompoundScheduleUpdate(
+                slipUpdateKey: (int) $validated['slip_update_key'],
+                enabled: (bool) $validated['enabled'],
+                compoundEvery: isset($validated['compound_every']) ? (int) $validated['compound_every'] : null,
+                compoundEveryType: $validated['compound_every_type'] ?? null,
+                nextCompoundAt: $validated['next_compound_at'] ?? null,
+            ),
+        ));
+    }
+
+    public function compoundInterest(string $slipNo): JsonResponse
+    {
+        return $this->successResponse($this->interestProcessService->compoundBySlipNo($slipNo));
+    }
+
+    public function collectPartialPrincipal(Request $request, string $slipNo): JsonResponse
+    {
+        $validated = $request->validate([
+            'slip_update_key' => ['required', 'integer', 'min:0'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount'],
+            'accept_account_id' => ['nullable', 'integer', 'min:1'],
+            'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
+            'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
+        ]);
+
+        return $this->successResponse($this->interestProcessService->collectPartialPrincipal(
+            $slipNo,
+            new PartialPrincipalCollectionCreate(
+                slipUpdateKey: (int) $validated['slip_update_key'],
+                amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
+                acceptAccountId: isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
+                reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
+                    isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
+                    (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
+                ),
+            ),
+        ));
+    }
+
     protected function makeCollateralItemCreate(array $item): PawnCollateralItemCreate
     {
         return new PawnCollateralItemCreate(
             type: $item['type'],
+            subItems: $item['sub_items'] ?? [],
             name: $item['name'],
             description: $item['description'] ?? null,
             brandName: $item['brand_name'] ?? null,

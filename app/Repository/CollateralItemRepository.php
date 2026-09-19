@@ -49,6 +49,21 @@ class CollateralItemRepository
         return $item->refresh()->load(['materialType', 'itemCategoryType']);
     }
 
+    public function saveSubItems(PawnCollateralItem $item, array $rows): void
+    {
+        // Child IDs have already been checked against the locked parent by the service.
+        foreach ($rows as $row) {
+            $id = $row['id'] ?? null;
+            unset($row['id']);
+            $row['tenant_id'] = $item->tenant_id;
+            if ($id === null) {
+                $item->subItems()->create($row);
+            } else {
+                $item->subItems()->whereKey($id)->firstOrFail()->update($row);
+            }
+        }
+    }
+
     public function updateWithLock(PawnCollateralItem $item, array $data): PawnCollateralItem
     {
         $lockedItem = PawnCollateralItem::query()

@@ -13,7 +13,9 @@ class TenantDebtRepository
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->withSum('interestAccruals as total_interest_accrued', 'calculated_interest')
+            ->withSum('interestAccruals as total_interest_paid', 'paid_amount')
             ->orderByDesc('id')
             ->paginate($perPage);
     }
@@ -24,7 +26,7 @@ class TenantDebtRepository
 
         return TenantDebt::query()
             ->create($data)
-            ->load(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency']);
+            ->load(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency']);
     }
 
     protected function requireValue(array $data, string $key): void
@@ -38,7 +40,7 @@ class TenantDebtRepository
     {
         $debt->update($data);
 
-        return $debt->refresh()->load(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency']);
+        return $debt->refresh()->load(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency']);
     }
 
     public function updateWithLock(TenantDebt $debt, array $data): TenantDebt
@@ -59,14 +61,14 @@ class TenantDebtRepository
     public function findById(int $debtId): ?TenantDebt
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->find($debtId);
     }
 
     public function findByCode(string $code): ?TenantDebt
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('code', $code)
             ->first();
     }
@@ -74,7 +76,7 @@ class TenantDebtRepository
     public function findByIdWithLock(int $debtId): ?TenantDebt
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->whereKey($debtId)
             ->lockForUpdate()
             ->first();
@@ -83,7 +85,7 @@ class TenantDebtRepository
     public function findByCodeWithLock(string $code): ?TenantDebt
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('code', $code)
             ->lockForUpdate()
             ->first();
@@ -95,7 +97,7 @@ class TenantDebtRepository
     public function findBySlipId(int $slipId): Collection
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->orderBy('id')
             ->get();
@@ -104,7 +106,7 @@ class TenantDebtRepository
     public function findBySlipIdWithLock(int $slipId): Collection
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->orderBy('id')
             ->lockForUpdate()
@@ -117,7 +119,7 @@ class TenantDebtRepository
     public function findUnpaidBySlipId(int $slipId): Collection
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
             ->orderBy('id')
@@ -127,7 +129,7 @@ class TenantDebtRepository
     public function findUnpaidBySlipIdWithLock(int $slipId): Collection
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
             ->orderBy('id')
@@ -165,13 +167,13 @@ class TenantDebtRepository
         return (float) TenantDebt::query()
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
-            ->sum('amount');
+            ->sum('principal_balance');
     }
 
     private function redemptionDebtQuery(int $slipId): Builder
     {
         return TenantDebt::query()
-            ->with(['slip', 'customer', 'createdAccount.currency', 'acceptAccount.currency'])
+            ->with(['slip', 'customer', 'interestType', 'interestAccruals', 'createdAccount.currency', 'acceptAccount.currency'])
             ->where('slip_id', $slipId)
             ->where('is_paid', false)
             ->orderBy('id');

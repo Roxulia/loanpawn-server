@@ -16,6 +16,7 @@ use App\Repository\TenantAccountingDayRepository;
 use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -125,6 +126,62 @@ class TenantAccountingDayService extends BaseTenantService
     public function isDayEditable(?TenantAccountingDay $day): bool
     {
         return $day?->status === AccountingDayStatus::Open;
+    }
+
+    public function allowsScheduledFinancialOperation(int $tenantId, CarbonInterface $now): bool
+    {
+        // Without automatic open/close, scheduled payments follow the existing
+        // first-transaction behavior that opens the accounting day lazily.
+        if (! $this->licenseService->tenantHasFeature($tenantId, 'automatic_open_close')) {
+            return true;
+        }
+
+        $schedule = $this->repository->scheduleForWeekday($tenantId, $now->dayOfWeek);
+        $day = $this->repository->findForTenantDate($tenantId, $now->toDateString());
+
+        // An unavailable or disabled weekday schedule means the tenant is
+        // operating the accounting day manually. In that mode, scheduled
+        // financial operations may use an already-open day, but must never
+        // create or reopen one themselves.
+        if ($schedule === null || ! $schedule->is_enabled) {
+            $allowed = $day?->status === AccountingDayStatus::Open;
+            if (! $allowed) {
+                Log::info('Scheduled financial operation deferred.', [
+                    'tenant_id' => $tenantId,
+                    'business_date' => $now->toDateString(),
+                    'reason' => 'manual_accounting_day_not_open',
+                ]);
+            }
+
+            return $allowed;
+        }
+
+        $time = $now->format('H:i:s');
+        if ($time < $schedule->open_time || $time >= $schedule->close_time) {
+            Log::info('Scheduled financial operation deferred.', [
+                'tenant_id' => $tenantId,
+                'business_date' => $now->toDateString(),
+                'local_time' => $time,
+                'open_time' => $schedule->open_time,
+                'close_time' => $schedule->close_time,
+                'reason' => 'outside_automatic_interval',
+            ]);
+
+            return false;
+        }
+
+        // Checking both the wall-clock interval and persisted day state avoids
+        // racing a payment against the asynchronous open/close job.
+        $allowed = $day?->status === AccountingDayStatus::Open;
+        if (! $allowed) {
+            Log::info('Scheduled financial operation deferred.', [
+                'tenant_id' => $tenantId,
+                'business_date' => $now->toDateString(),
+                'reason' => 'automatic_accounting_day_not_open',
+            ]);
+        }
+
+        return $allowed;
     }
 
     public function schedule(): AccountingDayScheduleResource

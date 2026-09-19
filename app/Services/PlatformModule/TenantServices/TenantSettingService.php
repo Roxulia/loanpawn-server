@@ -4,8 +4,14 @@ namespace App\Services\PlatformModule\TenantServices;
 
 use App\DataObjects\RequestObjects\TenantCurrencySettingsUpdate;
 use App\DataObjects\RequestObjects\TenantDefaultUserPasswordUpdate;
+use App\DataObjects\RequestObjects\InterestProcessSettingsUpdate;
+use App\DataObjects\RequestObjects\LoanSlipCreationSettingsUpdate;
 use App\DataObjects\RequestObjects\TenantTimezoneUpdate;
+use App\DataObjects\RequestObjects\TenantDebtPaymentPolicyUpdate;
 use App\DataObjects\RequestObjects\ReportingCurrencyAbortRequest;
+use App\DataObjects\ResponseObjects\InterestProcessSettingsResource;
+use App\DataObjects\ResponseObjects\LoanSlipCreationSettingsResource;
+use App\DataObjects\ResponseObjects\TenantDebtPaymentPolicy;
 use App\DataObjects\ResponseObjects\TenantCurrencySettingsResource;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Models\CoreModule\TenantSetting;
@@ -35,11 +41,20 @@ class TenantSettingService extends BaseTenantService
     {
         $defaultSettings = [
             'default_tenant_user_password' => '12345678',
+            'interest_process_settings' => json_encode([
+                'compounding_enabled' => false,
+                'partial_principal_collection_enabled' => false,
+            ]),
+            'loan_slip_creation_settings' => json_encode([
+                'customer_info_required' => true,
+            ]),
+            'allow_partial_debt_payments' => 'false',
+            'allow_partial_business_loan_payments' => 'false',
         ];
         foreach ($defaultSettings as $key => $value) {
             $this->repository->firstOrCreate($tenantId, $key, [
                 'value' => $value,
-                'category' => 'tenant',
+                'category' => $key === 'interest_process_settings' ? 'finance' : 'tenant',
             ]);
         }
 
@@ -54,6 +69,62 @@ class TenantSettingService extends BaseTenantService
             $setting,
             $this->reportingCurrencyRecalculationService->activeForTenant($setting->tenant_id),
         );
+    }
+
+    public function getCurrentTenantInterestProcessSettings(): InterestProcessSettingsResource
+    {
+        return InterestProcessSettingsResource::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'interest_process_settings')
+        );
+    }
+
+    public function updateCurrentTenantInterestProcessSettings(InterestProcessSettingsUpdate $request): InterestProcessSettingsResource
+    {
+        $this->permissionService->authorizePermission('manage_interest_process_settings');
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'interest_process_settings');
+
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return InterestProcessSettingsResource::fromModel($this->repository->update($setting, [
+            'value' => json_encode([
+                'compounding_enabled' => $request->compoundingEnabled,
+                'partial_principal_collection_enabled' => $request->partialPrincipalCollectionEnabled,
+            ]),
+            'category' => 'finance',
+            'update_key' => $setting->update_key + 1,
+        ]));
+    }
+
+    public function getCurrentTenantLoanSlipCreationSettings(): LoanSlipCreationSettingsResource
+    {
+        return LoanSlipCreationSettingsResource::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'loan_slip_creation_settings')
+        );
+    }
+
+    public function currentTenantRequiresLoanSlipCustomerInfo(): bool
+    {
+        return $this->getCurrentTenantLoanSlipCreationSettings()->customerInfoRequired;
+    }
+
+    public function updateCurrentTenantLoanSlipCreationSettings(LoanSlipCreationSettingsUpdate $request): LoanSlipCreationSettingsResource
+    {
+        $this->permissionService->authorizePermission('manage_slip_document');
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'loan_slip_creation_settings');
+
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return LoanSlipCreationSettingsResource::fromModel($this->repository->update($setting, [
+            'value' => json_encode([
+                'customer_info_required' => $request->customerInfoRequired,
+            ]),
+            'category' => 'tenant',
+            'update_key' => $setting->update_key + 1,
+        ]));
     }
 
     public function updateCurrentTenantCurrencyPreferences(TenantCurrencySettingsUpdate $request): TenantCurrencySettingsResource
@@ -194,6 +265,64 @@ class TenantSettingService extends BaseTenantService
         return $this->getSetting($this->resolveCurrentTenantId(), 'timezone');
     }
 
+    public function getCurrentTenantDebtPaymentPolicy(): TenantDebtPaymentPolicy
+    {
+        return TenantDebtPaymentPolicy::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_debt_payments')
+        );
+    }
+
+    public function currentTenantAllowsPartialDebtPayments(): bool
+    {
+        return $this->getCurrentTenantDebtPaymentPolicy()->allowPartialPayments;
+    }
+
+    public function currentTenantAllowsPartialBusinessLoanPayments(): bool
+    {
+        return filter_var(
+            $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_business_loan_payments')->value,
+            FILTER_VALIDATE_BOOLEAN,
+        );
+    }
+
+    public function getCurrentTenantBusinessLoanPaymentPolicy(): TenantDebtPaymentPolicy
+    {
+        return TenantDebtPaymentPolicy::fromModel(
+            $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_business_loan_payments')
+        );
+    }
+
+    public function updateCurrentTenantBusinessLoanPaymentPolicy(TenantDebtPaymentPolicyUpdate $request): TenantDebtPaymentPolicy
+    {
+        // Authorization and optimistic update of the independent business loan policy
+        $this->permissionService->authorizeBusinessLoanUpdate();
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_business_loan_payments');
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+        return TenantDebtPaymentPolicy::fromModel($this->repository->update($setting, [
+            'value' => $request->allowPartialPayments ? 'true' : 'false',
+            'category' => 'business_loan',
+            'update_key' => $setting->update_key + 1,
+        ]));
+    }
+
+    public function updateCurrentTenantDebtPaymentPolicy(TenantDebtPaymentPolicyUpdate $request): TenantDebtPaymentPolicy
+    {
+        $this->permissionService->authorizePermission('manage_debt_settings');
+        $setting = $this->getSetting($this->resolveCurrentTenantId(), 'allow_partial_debt_payments');
+
+        if ((int) $setting->update_key !== $request->updateKey) {
+            throw new AlreadyUpdatedException('This setting is already updated. Please refresh to see the update.');
+        }
+
+        return TenantDebtPaymentPolicy::fromModel($this->repository->update($setting, [
+            'value' => $request->allowPartialPayments ? 'true' : 'false',
+            'category' => 'debt',
+            'update_key' => $setting->update_key + 1,
+        ]));
+    }
+
     public function updateCurrentTenantTimezone(TenantTimezoneUpdate $request): TenantSetting
     {
         $this->accountingDayService->assertTimezoneChangeAllowed();
@@ -248,9 +377,18 @@ class TenantSettingService extends BaseTenantService
                 'value' => match ($code) {
                     'default_tenant_user_password' => '12345678',
                     'timezone' => 'Asia/Yangon',
+                    'interest_process_settings' => json_encode([
+                        'compounding_enabled' => false,
+                        'partial_principal_collection_enabled' => false,
+                    ]),
+                    'loan_slip_creation_settings' => json_encode([
+                        'customer_info_required' => true,
+                    ]),
+                    'allow_partial_debt_payments' => 'false',
+                    'allow_partial_business_loan_payments' => 'false',
                     default => null,
                 },
-                'category' => 'tenant',
+                'category' => $code === 'interest_process_settings' ? 'finance' : 'tenant',
             ],
         );
     }

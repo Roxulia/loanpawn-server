@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantDebtCreate;
+use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
+use App\DataObjects\RequestObjects\TenantDebtPaymentCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantDebtService;
@@ -37,6 +39,11 @@ class TenantDebtController extends Controller
         return $this->successResponse($this->debtService->list((int) ($validated['per_page'] ?? 15))->toArray());
     }
 
+    public function show(string $debtCode): JsonResponse
+    {
+        return $this->successResponse($this->debtService->detailByCode($debtCode)->toArray());
+    }
+
     public function store(Request $request): JsonResponse
     {
         $input = array_merge($request->all(), [
@@ -54,6 +61,9 @@ class TenantDebtController extends Controller
             amount: $this->financialUnitService->toBase($validated['amount'], $validated['amount_unit'] ?? null, 999_999_999_999.99),
             description: $validated['description'],
             createdAccountId: isset($validated['created_account_id']) ? (int) $validated['created_account_id'] : null,
+            applyInterest: (bool) ($validated['apply_interest'] ?? false),
+            interestRate: isset($validated['interest_rate']) ? (float) $validated['interest_rate'] : null,
+            interestTypeId: isset($validated['interest_type_id']) ? (int) $validated['interest_type_id'] : null,
             reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
                 isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
                 (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
@@ -105,12 +115,16 @@ class TenantDebtController extends Controller
 
     public function markAsPaid(Request $request, string $debtCode): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $input = array_merge($request->all(), ['idempotency_key' => $request->header('Idempotency-Key')]);
+        $validator = Validator::make($input, [
             'amount_paid' => ['required', 'numeric', 'min:0.01'],
             'amount_paid_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount_paid'],
             'accept_account_id' => ['nullable', 'integer', 'min:1'],
             'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
+            'allocation_order' => ['nullable', 'string', 'in:interest_first,principal_first'],
+            'debt_update_key' => ['nullable', 'integer', 'min:0'],
+            'idempotency_key' => ['nullable', 'string', 'max:120'],
         ]);
 
         if ($validator->fails()) {
@@ -118,17 +132,64 @@ class TenantDebtController extends Controller
         }
 
         $validated = $validator->validated();
-        $debt = $this->debtService->markAsPaid(
-            $this->debtService->resolveIdByCode($debtCode),
-            $this->financialUnitService->toBase($validated['amount_paid'], $validated['amount_paid_unit'] ?? null, 999_999_999_999.99),
-            isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
-            $this->exchangeRateService->manualMultiplier(
+        $debt = $this->debtService->recordPayment(new TenantDebtPaymentCreate(
+            debtId: $this->debtService->resolveIdByCode($debtCode),
+            paymentAmount: $this->financialUnitService->toBase($validated['amount_paid'], $validated['amount_paid_unit'] ?? null, 999_999_999_999.99),
+            allocationOrder: $validated['allocation_order'] ?? 'interest_first',
+            acceptAccountId: isset($validated['accept_account_id']) ? (int) $validated['accept_account_id'] : null,
+            reportingExchangeRate: $this->exchangeRateService->manualMultiplier(
                 isset($validated['reporting_exchange_rate']) ? (float) $validated['reporting_exchange_rate'] : null,
                 (bool) ($validated['reporting_exchange_rate_inversed'] ?? false),
             ),
-        );
+            debtUpdateKey: isset($validated['debt_update_key']) ? (int) $validated['debt_update_key'] : null,
+            idempotencyKey: $validated['idempotency_key'] ?? null,
+        ));
 
         return $this->successResponse($debt, $this->responseMessage(MessageCode::TenantDebtPaid));
+    }
+
+    public function calculateInterest(Request $request, string $debtCode): JsonResponse
+    {
+        $page = $this->pageInput($request);
+        return $this->successResponse($this->debtService->calculateInterest($this->debtService->resolveIdByCode($debtCode), $page['page'], $page['per_page']));
+    }
+
+    public function paymentHistory(Request $request, string $debtCode): JsonResponse
+    {
+        $page = $this->pageInput($request);
+        return $this->successResponse($this->debtService->paymentHistory($this->debtService->resolveIdByCode($debtCode), $page['page'], $page['per_page']));
+    }
+
+    private function pageInput(Request $request): array
+    {
+        return $request->validate(['page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]) + ['page' => 1, 'per_page' => 5];
+    }
+
+    public function updateCompoundSchedule(Request $request, string $debtCode): JsonResponse
+    {
+        $validated = $request->validate([
+            'debt_update_key' => ['required', 'integer', 'min:0'],
+            'enabled' => ['required', 'boolean'],
+            'compound_every' => ['nullable', 'integer', 'min:1'],
+            'compound_every_type' => ['nullable', 'string', 'in:Day,Week,Month,day,week,month'],
+            'next_compound_at' => ['nullable', 'date'],
+        ]);
+
+        return $this->successResponse($this->debtService->updateCompoundSchedule(
+            $this->debtService->resolveIdByCode($debtCode),
+            new DebtCompoundScheduleUpdate(
+                debtUpdateKey: (int) $validated['debt_update_key'],
+                enabled: (bool) $validated['enabled'],
+                compoundEvery: isset($validated['compound_every']) ? (int) $validated['compound_every'] : null,
+                compoundEveryType: $validated['compound_every_type'] ?? null,
+                nextCompoundAt: $validated['next_compound_at'] ?? null,
+            ),
+        )->toArray());
+    }
+
+    public function compoundInterest(string $debtCode): JsonResponse
+    {
+        return $this->successResponse($this->debtService->compoundInterest($this->debtService->resolveIdByCode($debtCode)));
     }
 
     protected function rules(bool $isCreate = true): array
@@ -143,6 +204,9 @@ class TenantDebtController extends Controller
             'slip_code' => ['nullable'],
             'customer_code' => ['nullable'],
             'tag' => ['nullable', 'string', 'max:120'],
+            'apply_interest' => [$isCreate ? 'nullable' : 'prohibited', 'boolean'],
+            'interest_rate' => [$isCreate ? 'nullable' : 'prohibited', 'numeric', 'min:0.01', 'required_if:apply_interest,true'],
+            'interest_type_id' => [$isCreate ? 'nullable' : 'prohibited', 'integer', 'min:1', 'required_if:apply_interest,true'],
             'is_paid' => ['prohibited'],
             'accepted_by' => ['prohibited'],
             'update_key' => ['nullable', 'integer', 'min:0'],

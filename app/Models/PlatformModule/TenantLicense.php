@@ -2,13 +2,22 @@
 
 namespace App\Models\PlatformModule;
 
+use Database\Factories\TenantLicenseFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TenantLicense extends Model
 {
+    use HasFactory;
+
+    protected static function newFactory(): TenantLicenseFactory
+    {
+        return TenantLicenseFactory::new();
+    }
+
     protected $fillable = [
         'tenant_id',
         'plan_id',

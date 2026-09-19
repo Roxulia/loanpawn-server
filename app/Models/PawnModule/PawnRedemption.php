@@ -5,12 +5,20 @@ namespace App\Models\PawnModule;
 use App\Models\CoreModule\TenantUser;
 use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
+use Database\Factories\PawnRedemptionFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PawnRedemption extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): PawnRedemptionFactory
+    {
+        return PawnRedemptionFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',

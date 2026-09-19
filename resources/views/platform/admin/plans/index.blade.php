@@ -45,7 +45,7 @@
                 <table><thead><tr><th>Plan</th><th>Rank</th><th>Price</th><th>Limits</th><th>Status</th><th></th></tr></thead><tbody>
                 @forelse($category->packages as $plan)
                     <tr>
-                        <td>{{ $plan->name }}<br><small>{{ $plan->code }}{{ $plan->is_trial ? ' · Trial' : '' }}</small></td>
+                        <td>{{ $plan->name }}<br><small>{{ $plan->code }}{{ $plan->is_trial ? ' · Free' : '' }}</small></td>
                         <td>{{ $plan->rank }}</td><td>{{ number_format((float)$plan->price) }} MMK</td>
 
                         <td>

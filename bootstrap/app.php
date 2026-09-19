@@ -7,6 +7,7 @@ use App\Console\Commands\MigrateLegacyAccounting;
 use App\Console\Commands\ReconcileFinancialAccountBalances;
 use App\Console\Commands\RepairAccountingChange;
 use App\Console\Commands\RepairInterestSchedules;
+use App\Console\Commands\RepairTenantLenderCodes;
 use App\Console\Commands\SummarizeMonthlyFinancialMovements;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
@@ -27,6 +28,7 @@ use App\Jobs\CheckExpirePawnLoanContractSlipJob;
 use App\Jobs\CheckExpireTenantLicenseJob;
 use App\Jobs\ExpireInactiveTenantUsersJob;
 use App\Jobs\ProcessAccountingDaysJob;
+use App\Jobs\ProcessScheduledExpensesJob;
 use App\Jobs\PurgeExpiredTenantUserNotificationsJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\SummarizeMonthlyFinancialMovementsJob;
@@ -54,6 +56,7 @@ return Application::configure(basePath: dirname(__DIR__))
         BackfillCustomerTrustScores::class,
         RepairAccountingChange::class,
         RepairInterestSchedules::class,
+        RepairTenantLenderCodes::class,
         EnsureDefaultFinancialAccounts::class,
         EnsureTenantCurrencySettings::class,
         SummarizeMonthlyFinancialMovements::class,
@@ -97,6 +100,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new ResetTenantLicenseMonthlySlipCountJob)->monthlyOn(1, '00:00');
         $schedule->job(new ExpireInactiveTenantUsersJob)->everyFiveMinutes()->withoutOverlapping();
         $schedule->job(new ProcessAccountingDaysJob)->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->job(new ProcessScheduledExpensesJob)->everyFifteenMinutes()->withoutOverlapping();
         $schedule->job(new PurgeExpiredTenantUserNotificationsJob)->dailyAt('02:00')->withoutOverlapping();
         $schedule->job(new SummarizeMonthlyFinancialMovementsJob)->monthlyOn(2, '00:30')->withoutOverlapping();
     })

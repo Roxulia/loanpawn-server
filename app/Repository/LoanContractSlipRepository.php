@@ -130,4 +130,86 @@ class LoanContractSlipRepository
             ->get();
     }
 
+    public function expireCurrentTenantOverdueActiveSlips(CarbonInterface $localDayStart): int
+    {
+        return PawnLoanContractSlip::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('expire_at', '<', $localDayStart->utc())
+            ->update(['status' => 'expired']);
+    }
+
+    public function expireSlipIfStillActive(int $slipId, CarbonInterface $localDayStart): bool
+    {
+        return PawnLoanContractSlip::query()
+            ->whereKey($slipId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('expire_at', '<', $localDayStart->utc())
+            ->update(['status' => 'expired']) === 1;
+    }
+
+    public function compoundScheduleTenantIds(): Collection
+    {
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('compound_schedule_enabled', true)
+            ->whereNotNull('next_compound_at')
+            ->select('tenant_id')
+            ->distinct()
+            ->orderBy('tenant_id')
+            ->pluck('tenant_id');
+    }
+
+    public function dueCompoundScheduledSlipsForTenant(int $tenantId, CarbonInterface $currentDate): Collection
+    {
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->with(['interestType'])
+            ->where('tenant_id', $tenantId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->where('compound_schedule_enabled', true)
+            ->whereNotNull('next_compound_at')
+            ->whereDate('next_compound_at', '<=', $currentDate->toDateString())
+            ->orderBy('next_compound_at')
+            ->get();
+    }
+
+    /** @return Collection<int, int> */
+    public function interestAccrualTenantIds(): Collection
+    {
+        // Select tenants that currently own slips eligible for interest accrual.
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereNotNull('interest_type_id')
+            ->whereNotNull('expire_at')
+            ->where('interest_rate', '>', 0)
+            ->select('tenant_id')
+            ->distinct()
+            ->orderBy('tenant_id')
+            ->pluck('tenant_id');
+    }
+
+    /** @return Collection<int, PawnLoanContractSlip> */
+    public function activeInterestSlipsForTenant(int $tenantId): Collection
+    {
+        // Load only active interest-bearing slips for the selected tenant.
+        return PawnLoanContractSlip::query()
+            ->withoutGlobalScope('tenant')
+            ->with('interestType')
+            ->where('tenant_id', $tenantId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->whereNotNull('interest_type_id')
+            ->whereNotNull('expire_at')
+            ->where('interest_rate', '>', 0)
+            ->orderBy('id')
+            ->get();
+    }
+
 }

@@ -66,7 +66,7 @@ class DynamicPlanOnboardingTest extends TestCase
         $this->assertAuthenticatedAs($user, 'platformuser');
     }
 
-    public function test_budgeting_tenant_starts_on_four_month_trial(): void
+    public function test_budgeting_tenant_starts_on_non_expiring_free_plan(): void
     {
         Carbon::setTestNow('2026-08-06 12:00:00');
         $this->seed(PackageSeeder::class);
@@ -100,7 +100,7 @@ class DynamicPlanOnboardingTest extends TestCase
             'tenant_id' => $tenantId,
             'plan_id' => $trial->id,
             'plan_type' => 'budgeting-trial',
-            'expires_at' => '2026-12-06 12:00:00',
+            'expires_at' => null,
         ]);
         Carbon::setTestNow();
     }

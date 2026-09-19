@@ -26,6 +26,7 @@ class TenantCustomerController extends Controller
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'search' => ['nullable', 'string', 'max:120'],
+            'show_unknown_customer' => ['nullable', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -36,6 +37,7 @@ class TenantCustomerController extends Controller
         $customers = $this->tenantCustomerService->list(
             (int) ($validated['per_page'] ?? 15),
             $validated['search'] ?? null,
+            $request->boolean('show_unknown_customer'),
         );
 
         return $this->successResponse($customers->toArray());

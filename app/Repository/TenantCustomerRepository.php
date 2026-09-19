@@ -3,6 +3,8 @@
 namespace App\Repository;
 
 use App\Models\CoreModule\TenantCustomer;
+use App\Models\CoreModule\TenantLender;
+use App\Models\CoreModule\TenantPerson;
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Exceptions\RequiredValueMissing;
 use App\Support\TenantContext;
@@ -14,7 +16,7 @@ use Illuminate\Support\Collection;
 
 class TenantCustomerRepository
 {
-    public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null, bool $showUnknownCustomer = false): LengthAwarePaginator
     {
         $query = TenantCustomer::query()
             ->withCount([
@@ -24,6 +26,10 @@ class TenantCustomerRepository
             ])
             ->where('is_deleted', false)
             ->orderByDesc('id');
+
+        if (! $showUnknownCustomer) {
+            $query->where('is_auto_generated', false);
+        }
 
         if ($search !== null) {
             $query->where(function ($query) use ($search) {
@@ -37,10 +43,14 @@ class TenantCustomerRepository
         return $query->paginate($perPage);
     }
 
-    public function customerListSummary(CarbonInterface $today, int $riskTrustScoreThreshold): array
+    public function customerListSummary(CarbonInterface $today, int $riskTrustScoreThreshold, bool $showUnknownCustomer = false): array
     {
         $customerQuery = TenantCustomer::query()
             ->where('is_deleted', false);
+
+        if (! $showUnknownCustomer) {
+            $customerQuery->where('is_auto_generated', false);
+        }
 
         return [
             'totalClients' => (clone $customerQuery)->count(),
@@ -48,6 +58,10 @@ class TenantCustomerRepository
             'activePawnLoans' => PawnLoanContractSlip::query()
                 ->where('is_deleted', false)
                 ->whereRaw('LOWER(status) = ?', ['active'])
+                ->when(! $showUnknownCustomer, fn ($query) => $query->whereHas(
+                    'customer',
+                    fn ($customerQuery) => $customerQuery->where('is_auto_generated', false),
+                ))
                 ->count(),
             'riskFlagged' => (clone $customerQuery)
                 ->where(function ($query) use ($today, $riskTrustScoreThreshold) {
@@ -92,6 +106,56 @@ class TenantCustomerRepository
         $this->requireValue($data, 'code');
 
         return TenantCustomer::query()->create($data);
+    }
+
+    public function createPerson(array $data): TenantPerson
+    {
+        return TenantPerson::query()->create($data);
+    }
+
+    public function updatePerson(TenantPerson $person, array $data): TenantPerson
+    {
+        $person->update($data);
+
+        return $person->refresh();
+    }
+
+    public function createLender(array $data): TenantLender
+    {
+        return TenantLender::query()->create($data);
+    }
+
+    public function findPersonForIdentity(int $tenantId, ?string $email, ?string $phone, ?string $nrc): ?TenantPerson
+    {
+        $values = array_filter(['email' => $email, 'phone' => $phone, 'nrc' => $nrc], fn ($value) => $value !== null && $value !== '');
+        if ($values === []) return null;
+        return TenantPerson::query()->withoutGlobalScopes()->where('tenant_id', $tenantId)->where(function ($query) use ($values): void {
+            foreach ($values as $field => $value) $query->orWhere($field, $value);
+        })->first();
+    }
+
+    public function customerForPerson(int $personId): ?TenantCustomer
+    {
+        return TenantCustomer::withTrashed()->where('person_id', $personId)->first();
+    }
+
+    public function lenderForPerson(int $personId): ?TenantLender
+    {
+        return TenantLender::withTrashed()->where('person_id', $personId)->first();
+    }
+
+    public function restoreCustomer(TenantCustomer $customer): TenantCustomer
+    {
+        $customer->restore();
+        $customer->update(['is_deleted' => false, 'update_key' => $customer->update_key + 1]);
+        return $customer->refresh();
+    }
+
+    public function restoreLender(TenantLender $lender): TenantLender
+    {
+        $lender->restore();
+        $lender->update(['is_deleted' => false, 'update_key' => $lender->update_key + 1]);
+        return $lender->refresh();
     }
 
     protected function requireValue(array $data, string $key): void

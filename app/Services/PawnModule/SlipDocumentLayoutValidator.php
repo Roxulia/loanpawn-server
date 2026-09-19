@@ -88,6 +88,14 @@ class SlipDocumentLayoutValidator
                     ],
                 ],
                 [
+                    'type' => 'tenant_name',
+                    'style' => [
+                        'font_size_pt' => 12,
+                        'font_weight' => 'bold',
+                        'align' => 'center',
+                    ],
+                ],
+                [
                     'type' => 'barcode',
                     'props' => ['height_mm' => self::DEFAULT_BARCODE_HEIGHT_MM, 'show_text' => true],
                     'style' => ['align' => 'center'],

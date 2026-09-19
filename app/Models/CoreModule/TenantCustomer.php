@@ -4,15 +4,24 @@ namespace App\Models\CoreModule;
 
 use App\Models\PawnModule\PawnLoanContractSlip;
 use App\Traits\BelongToTenant;
+use Database\Factories\TenantCustomerFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TenantCustomer extends Model
 {
     use BelongToTenant;
+    use HasFactory;
     use SoftDeletes;
+
+    protected static function newFactory(): TenantCustomerFactory
+    {
+        return TenantCustomerFactory::new();
+    }
 
     public const MAX_TRUST_SCORE = 255;
     public const DEFAULT_TRUST_SCORE = 128;
@@ -23,6 +32,7 @@ class TenantCustomer extends Model
 
     protected $fillable = [
         'tenant_id',
+        'person_id',
         'code',
         'update_key',
         'name',
@@ -33,6 +43,7 @@ class TenantCustomer extends Model
         'trust_score',
         'note',
         'is_deleted',
+        'is_auto_generated',
         'created_by',
     ];
 
@@ -40,6 +51,7 @@ class TenantCustomer extends Model
     {
         return [
             'is_deleted' => 'boolean',
+            'is_auto_generated' => 'boolean',
         ];
     }
 
@@ -51,6 +63,16 @@ class TenantCustomer extends Model
     public function pawnSlips(): HasMany
     {
         return $this->hasMany(PawnLoanContractSlip::class, 'customer_id');
+    }
+
+    public function person(): BelongsTo
+    {
+        return $this->belongsTo(TenantPerson::class, 'person_id');
+    }
+
+    public function lender(): HasOne
+    {
+        return $this->hasOne(TenantLender::class, 'person_id', 'person_id');
     }
 
 }

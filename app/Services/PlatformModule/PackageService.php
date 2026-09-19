@@ -67,7 +67,7 @@ class PackageService
         $package = $this->repository->trialForCategory($categoryId);
 
         if (! $package) {
-            throw new InvalidTenantRequest('The selected category has no active trial plan.');
+            throw new InvalidTenantRequest('The selected category has no active Free plan.');
         }
 
         return $package;

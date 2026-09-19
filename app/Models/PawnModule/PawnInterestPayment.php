@@ -5,12 +5,20 @@ namespace App\Models\PawnModule;
 use App\Models\CoreModule\TenantUser;
 use App\Models\FinancialAccount;
 use App\Traits\BelongToTenant;
+use Database\Factories\PawnInterestPaymentFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PawnInterestPayment extends Model
 {
     use BelongToTenant;
+    use HasFactory;
+
+    protected static function newFactory(): PawnInterestPaymentFactory
+    {
+        return PawnInterestPaymentFactory::new();
+    }
 
     protected $fillable = [
         'tenant_id',
@@ -18,6 +26,8 @@ class PawnInterestPayment extends Model
         'created_account_id',
         'accept_account_id',
         'payment_amount',
+        'compounded_amount',
+        'compounded_at',
         'change_amount',
         'calculated_interest',
         'payment_at',
@@ -25,13 +35,17 @@ class PawnInterestPayment extends Model
         'created_by',
         'start_period_at',
         'end_period_at',
+        'period_timezone',
         'is_paid',
+        'update_key',
     ];
 
     protected function casts(): array
     {
         return [
             'payment_amount' => 'decimal:2',
+            'compounded_amount' => 'decimal:2',
+            'compounded_at' => 'datetime',
             'change_amount' => 'decimal:2',
             'calculated_interest' => 'decimal:2',
             'payment_at' => 'datetime',

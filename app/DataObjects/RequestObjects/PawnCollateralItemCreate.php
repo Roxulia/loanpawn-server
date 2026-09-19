@@ -27,6 +27,7 @@ class PawnCollateralItemCreate extends BaseDataObject
         public float $minimumRetailPrice = 0,
         public ?string $code = null,
         public ?string $storedImagePath = null,
+        public array $subItems = [],
     ) {
     }
 }

@@ -2,7 +2,7 @@
 
 @section('title', __('app.common.view.actions.create_tenant'))
 @section('pageTitle', __('app.common.view.actions.create_tenant'))
-@section('pageDescription', 'Add the tenant information, then choose the preferred plan. Every new tenant starts with a four-month trial.')
+@section('pageDescription', 'Add the tenant information, then choose the preferred plan. Every new tenant starts with a free plan.')
 @section('pageAction')
     <a href="{{ route('platform.tenants.index') }}" class="button secondary">Back to tenants</a>
 @endsection
@@ -96,7 +96,7 @@
                     </div>
                     <div class="admin-tenant-grant-summary">
                         <span>New tenant access</span>
-                        <strong>4-month trial</strong>
+                        <strong>Free plan</strong>
                     </div>
                 </div>
 
@@ -152,7 +152,7 @@
                                             <span class="admin-tenant-plan-card__check" aria-hidden="true">&#10003;</span>
                                             <span class="admin-tenant-plan-card__header">
                                                 <span>
-                                                    @if ($plan->is_trial) <span class="badge">Trial</span> @endif
+                                                    @if ($plan->is_trial) <span class="badge">Free</span> @endif
                                                     <strong>{{ $plan->name }}</strong>
                                                 </span>
                                                 <span class="admin-tenant-plan-card__price">
@@ -164,7 +164,7 @@
                                                 <span class="admin-tenant-plan-card__description">{{ $plan->description }}</span>
                                             @endif
                                             <span class="admin-tenant-plan-card__grant">
-                                                {{ $plan->is_trial ? 'Starts immediately with the tenant trial.' : 'Activates after payment is completed and approved.' }}
+                                                {{ $plan->is_trial ? 'Starts immediately with the tenant free plan.' : 'Activates after payment is completed and approved.' }}
                                             </span>
                                             <span class="admin-tenant-plan-card__section-title">Plan limits</span>
                                             <span class="admin-tenant-plan-limits">
@@ -210,7 +210,7 @@
                 @error('category_id') <p class="field-error admin-tenant-plan-error">{{ $message }}</p> @enderror
 
                 <div class="payment-info-box" style="margin-top: 18px;">
-                    The tenant will open with the trial version. A selected paid plan will not become active until payment is completed and approved.
+                    The tenant will open with the Free plan. A selected paid plan will not become active until payment is completed and approved.
                 </div>
 
                 <div class="admin-tenant-create__actions">
@@ -232,7 +232,7 @@
                 <div><label>Password</label><input value="Use current password for login" readonly></div>
             </div>
             @if ($createdTenant['payment_request_id'])
-                <div class="flash" style="margin-top: 14px;">Tenant is active on Trial. {{ $createdTenant['selected_plan'] }} will activate only after payment approval.</div>
+                <div class="flash" style="margin-top: 14px;">Tenant is active on the Free plan. {{ $createdTenant['selected_plan'] }} will activate only after payment approval.</div>
             @endif
             <div style="margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap;">
                 @if ($createdTenant['payment_request_id'])

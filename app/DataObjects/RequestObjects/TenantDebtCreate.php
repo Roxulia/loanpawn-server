@@ -9,7 +9,10 @@ class TenantDebtCreate extends BaseDataObject
     public function __construct(
         public float $amount,
         public string $description,
-        public ?int $createdAccountId,
+        public ?int $createdAccountId = null,
+        public bool $applyInterest = false,
+        public ?float $interestRate = null,
+        public ?int $interestTypeId = null,
         public ?float $reportingExchangeRate = null,
         public ?int $slipId = null,
         public ?string $slipCode = null,

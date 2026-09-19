@@ -26,9 +26,12 @@ use App\Http\Controllers\TenantModule\TenantCurrencyController;
 use App\Http\Controllers\TenantModule\TenantCustomerController;
 use App\Http\Controllers\TenantModule\TenantDashboardController;
 use App\Http\Controllers\TenantModule\TenantDebtController;
+use App\Http\Controllers\TenantModule\TenantBusinessLoanController;
+use App\Http\Controllers\TenantModule\TenantLenderController;
 use App\Http\Controllers\TenantModule\TenantExchangeRateController;
 use App\Http\Controllers\TenantModule\TenantExchangeRatePairController;
 use App\Http\Controllers\TenantModule\TenantExpenseController;
+use App\Http\Controllers\TenantModule\TenantScheduledExpenseController;
 use App\Http\Controllers\TenantModule\TenantRoleController;
 use App\Http\Controllers\TenantModule\TenantSettingsController;
 use App\Http\Controllers\TenantModule\ReportingCurrencyRateRequirementController;
@@ -134,6 +137,8 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_collateral');
                     Route::get('{itemCode}', [CollateralItemController::class, 'show'])
                         ->middleware('tenant.permission:list_collateral');
+                    Route::put('{itemCode}', [CollateralItemController::class, 'update'])
+                        ->middleware('tenant.permission:update_collateral');
                     Route::delete('{itemCode}', [CollateralItemController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_collateral');
                 });
@@ -149,6 +154,12 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:list_loan_contract');
                     Route::delete('{slipNo}', [LoanContractSlipController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_loan_contract');
+                    Route::put('{slipNo}/compound-schedule', [LoanContractSlipController::class, 'updateCompoundSchedule'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_slip_compound_schedule']);
+                    Route::post('{slipNo}/compound-interest', [LoanContractSlipController::class, 'compoundInterest'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:compound_slip_interest']);
+                    Route::post('{slipNo}/partial-principal', [LoanContractSlipController::class, 'collectPartialPrincipal'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:collect_partial_principal']);
                 });
 
             Route::prefix('loan-contract-slips')
@@ -297,6 +308,19 @@ Route::prefix('tenant')->group(function () {
                         ->middleware('tenant.permission:delete_expense');
                 });
 
+            Route::prefix('scheduled-expenses')
+                ->middleware(['tenant.feature:expense_management', 'tenant.feature:scheduled_expense_management'])
+                ->group(function () {
+                    Route::get('/', [TenantScheduledExpenseController::class, 'index'])->middleware('tenant.permission:list_scheduled_expense');
+                    Route::post('/', [TenantScheduledExpenseController::class, 'store'])->middleware('tenant.permission:create_scheduled_expense');
+                    Route::get('{code}/occurrences', [TenantScheduledExpenseController::class, 'occurrences'])->middleware('tenant.permission:list_scheduled_expense');
+                    Route::get('{code}', [TenantScheduledExpenseController::class, 'show'])->middleware('tenant.permission:list_scheduled_expense');
+                    Route::put('{code}', [TenantScheduledExpenseController::class, 'update'])->middleware('tenant.permission:update_scheduled_expense');
+                    Route::post('{code}/pause', [TenantScheduledExpenseController::class, 'pause'])->middleware('tenant.permission:update_scheduled_expense');
+                    Route::post('{code}/resume', [TenantScheduledExpenseController::class, 'resume'])->middleware('tenant.permission:update_scheduled_expense');
+                    Route::delete('{code}', [TenantScheduledExpenseController::class, 'destroy'])->middleware('tenant.permission:delete_scheduled_expense');
+                });
+
             Route::prefix('capitals')
                 ->middleware('tenant.feature:capital_management')
                 ->group(function () {
@@ -317,14 +341,49 @@ Route::prefix('tenant')->group(function () {
                 ->group(function () {
                     Route::get('/', [TenantDebtController::class, 'index'])
                         ->middleware('tenant.permission:list_debt');
+                    Route::get('{debtCode}', [TenantDebtController::class, 'show'])
+                        ->middleware('tenant.permission:list_debt');
                     Route::post('/', [TenantDebtController::class, 'store'])
                         ->middleware('tenant.permission:create_debt');
                     Route::post('{debtCode}/paid', [TenantDebtController::class, 'markAsPaid'])
                         ->middleware('tenant.permission:update_debt');
+                    Route::get('{debtCode}/interest', [TenantDebtController::class, 'calculateInterest'])
+                        ->middleware('tenant.permission:list_debt');
+                    Route::get('{debtCode}/payments', [TenantDebtController::class, 'paymentHistory'])
+                        ->middleware('tenant.permission:list_debt');
+                    Route::put('{debtCode}/compound-schedule', [TenantDebtController::class, 'updateCompoundSchedule'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_debt_compound_schedule']);
+                    Route::post('{debtCode}/compound-interest', [TenantDebtController::class, 'compoundInterest'])
+                        ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:compound_debt_interest']);
                     Route::put('{debtCode}', [TenantDebtController::class, 'update'])
                         ->middleware('tenant.permission:update_debt');
                     Route::delete('{debtCode}', [TenantDebtController::class, 'destroy'])
                         ->middleware('tenant.permission:delete_debt');
+                });
+
+            Route::prefix('lenders')
+                ->middleware('tenant.feature:lender_management')
+                ->group(function () {
+                    Route::get('/', [TenantLenderController::class, 'index'])->middleware('tenant.permission:list_lender');
+                    Route::post('/', [TenantLenderController::class, 'store'])->middleware('tenant.permission:create_lender');
+                    Route::get('{lenderCode}', [TenantLenderController::class, 'show'])->middleware('tenant.permission:list_lender');
+                    Route::put('{lenderCode}', [TenantLenderController::class, 'update'])->middleware('tenant.permission:update_lender');
+                    Route::delete('{lenderCode}', [TenantLenderController::class, 'destroy'])->middleware('tenant.permission:delete_lender');
+                });
+
+            Route::prefix('business-loans')
+                ->middleware('tenant.feature:business_loan_management')
+                ->group(function () {
+                    Route::get('/', [TenantBusinessLoanController::class, 'index'])->middleware('tenant.permission:list_business_loan');
+                    Route::post('/', [TenantBusinessLoanController::class, 'store'])->middleware('tenant.permission:create_business_loan');
+                    Route::get('{loanCode}', [TenantBusinessLoanController::class, 'show'])->middleware('tenant.permission:list_business_loan');
+                    Route::put('{loanCode}', [TenantBusinessLoanController::class, 'update'])->middleware('tenant.permission:update_business_loan');
+                    Route::delete('{loanCode}', [TenantBusinessLoanController::class, 'destroy'])->middleware('tenant.permission:delete_business_loan');
+                    Route::get('{loanCode}/interest', [TenantBusinessLoanController::class, 'interest'])->middleware('tenant.permission:list_business_loan');
+                    Route::get('{loanCode}/payments', [TenantBusinessLoanController::class, 'payments'])->middleware('tenant.permission:list_business_loan');
+                    Route::post('{loanCode}/payments', [TenantBusinessLoanController::class, 'pay'])->middleware('tenant.permission:update_business_loan');
+                    Route::put('{loanCode}/compound-schedule', [TenantBusinessLoanController::class, 'updateCompoundSchedule'])->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:update_business_loan']);
+                    Route::post('{loanCode}/compound-interest', [TenantBusinessLoanController::class, 'compound'])->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:update_business_loan']);
                 });
 
             Route::prefix('branding')->group(function () {
@@ -338,9 +397,9 @@ Route::prefix('tenant')->group(function () {
 
             Route::prefix('settings')->group(function () {
                 Route::get('tenant', [TenantSettingsController::class, 'tenantBootstrap'])
-                    ->middleware('tenant.permission:manage_slip_document,manage_tenant_contact,manage_tenant_timezone');
+                    ->middleware('tenant.permission:manage_slip_document,manage_tenant_contact,manage_tenant_timezone,manage_debt_settings,update_business_loan');
                 Route::get('finance', [TenantSettingsController::class, 'financeBootstrap'])
-                    ->middleware('tenant.permission:list_currency,update_default_currency,update_reporting_currency,update_default_financial_unit,manage_accounting_day_schedule,list_financial_account_type');
+                    ->middleware('tenant.permission:list_currency,update_default_currency,update_reporting_currency,update_default_financial_unit,manage_accounting_day_schedule,list_financial_account_type,manage_interest_process_settings');
                 Route::get('default-data', [TenantSettingsController::class, 'defaultDataBootstrap'])
                     ->middleware('tenant.permission:list_interest_type,list_expense_type,list_material_type,list_item_category_type');
                 Route::get('/', [TenantSettingsController::class, 'show'])
@@ -356,10 +415,22 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:manage_tenant_contact');
                 Route::put('default-user-password', [TenantSettingsController::class, 'updateTenantDefaultUserPassword'])
                     ->middleware('tenant.permission:manage_slip_document');
+                Route::get('loan-slip-creation', [TenantSettingsController::class, 'loanSlipCreationSettings'])
+                    ->middleware('tenant.permission:create_loan_contract,manage_slip_document');
+                Route::put('loan-slip-creation', [TenantSettingsController::class, 'updateLoanSlipCreationSettings'])
+                    ->middleware('tenant.permission:manage_slip_document');
+                Route::put('debt-payment-policy', [TenantSettingsController::class, 'updateDebtPaymentPolicy'])
+                    ->middleware('tenant.permission:manage_debt_settings');
+                Route::put('business-loan-payment-policy', [TenantSettingsController::class, 'updateBusinessLoanPaymentPolicy'])
+                    ->middleware(['tenant.feature:business_loan_management', 'tenant.permission:update_business_loan']);
                 Route::get('currencies', [TenantSettingsController::class, 'currencyPreferences'])
                     ->middleware(['tenant.feature:currency_management', 'tenant.permission:list_currency']);
                 Route::put('currencies', [TenantSettingsController::class, 'updateCurrencyPreferences'])
                     ->middleware('tenant.feature:currency_management');
+                Route::get('interest-process', [TenantSettingsController::class, 'interestProcessSettings'])
+                    ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_interest_process_settings']);
+                Route::put('interest-process', [TenantSettingsController::class, 'updateInterestProcessSettings'])
+                    ->middleware(['tenant.feature:advanced_interest_process', 'tenant.permission:manage_interest_process_settings']);
                 Route::get('timezone', [TenantSettingsController::class, 'timezone'])
                     ->middleware(['tenant.feature:tenant_timezone_management', 'tenant.permission:manage_tenant_timezone']);
                 Route::get('timezone-options', [TenantSettingsController::class, 'timezoneOptions'])

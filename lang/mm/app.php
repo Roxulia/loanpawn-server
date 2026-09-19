@@ -144,7 +144,7 @@ return [
                 'created' => ':name အမည်ဖြင့် Tenant ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'Tenant ပြင်ဆင်ပြီးပါပြီ။',
                 'deleted' => 'Tenant ဖျက်ပြီးပါပြီ။',
-                'trial_upgrade_required' => 'Trial tenant များသည် license သက်တမ်းတိုးရန် မတောင်းဆိုမီ upgrade လုပ်ရန် လိုအပ်ပါသည်။',
+                'trial_upgrade_required' => 'Free tenant များသည် license သက်တမ်းတိုးရန် မတောင်းဆိုမီ upgrade လုပ်ရန် လိုအပ်ပါသည်။',
             ],
             'plan_change_request' => [
                 'created' => 'Upgrade ငွေပေးချေမှု တောင်းဆိုချက် ဖန်တီးပြီးပါပြီ။ Billing management မှ ပေးချေမှု attachment ကို ပေးပို့ပါ။',
@@ -497,6 +497,13 @@ return [
                 'created' => 'ကုန်ကျစရိတ် ဖန်တီးပြီးပါပြီ။',
                 'updated' => 'ကုန်ကျစရိတ် ပြင်ဆင်ပြီးပါပြီ။',
                 'deleted' => 'ကုန်ကျစရိတ် ဖျက်ပြီးပါပြီ။',
+            ],
+            'scheduled_expense' => [
+                'created' => 'Scheduled expense created successfully.',
+                'updated' => 'Scheduled expense updated successfully.',
+                'deleted' => 'Scheduled expense deleted successfully.',
+                'paused' => 'Scheduled expense paused successfully.',
+                'resumed' => 'Scheduled expense resumed successfully.',
             ],
             'capital' => [
                 'created' => 'Capital ဖန်တီးပြီးပါပြီ။',

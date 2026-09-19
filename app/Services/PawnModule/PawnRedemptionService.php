@@ -216,12 +216,12 @@ class PawnRedemptionService extends BaseTenantService
         return $this->buildRedemptionResult($slip);
     }
 
-    public function getRedemptionResultBySlipNo(string $slipNo): PawnRedemptionResult
+    public function getRedemptionResultBySlipNo(string $slipNo, int $interestPage = 1, int $interestPerPage = 5): PawnRedemptionResult
     {
         $this->permissionService->authorizeLoanContractList();
         $slip = $this->loanContractLookUpService->findModelBySlipNo($slipNo);
 
-        return $this->buildRedemptionResult($slip);
+        return $this->buildRedemptionResult($slip, interestPage: $interestPage, interestPerPage: $interestPerPage);
     }
 
     public function findById(int $redemptionId): PawnRedemptionDetail
@@ -257,7 +257,7 @@ class PawnRedemptionService extends BaseTenantService
             ->all();
     }
 
-    protected function buildRedemptionResult(PawnLoanContractSlip $slip, ?CarbonImmutable $date = null, bool $lockRows = false): PawnRedemptionResult
+    protected function buildRedemptionResult(PawnLoanContractSlip $slip, ?CarbonImmutable $date = null, bool $lockRows = false, int $interestPage = 1, int $interestPerPage = 5): PawnRedemptionResult
     {
         $this->validateRedeemableSlip($slip, $date);
         if ($slip->account_id === null) {
@@ -286,7 +286,9 @@ class PawnRedemptionService extends BaseTenantService
             $interestPayments,
             $debts->all(),
             $excludedDebts->all(),
-            $this->collateralItemService->getItemsBySlip($slip)
+            $this->collateralItemService->getItemsBySlip($slip),
+            $interestPage,
+            $interestPerPage,
         );
     }
 

@@ -144,7 +144,7 @@ return [
                 'created' => 'Tenant created successfully with name :name.',
                 'updated' => 'Tenant updated successfully.',
                 'deleted' => 'Tenant deleted successfully.',
-                'trial_upgrade_required' => 'Trial tenants must upgrade before requesting license extension.',
+                'trial_upgrade_required' => 'Free tenants must upgrade before requesting license extension.',
             ],
             'plan_change_request' => [
                 'created' => 'Upgrade payment request created. Submit the payment attachment from billing management.',
@@ -503,6 +503,13 @@ return [
                 'created' => 'Expense created successfully.',
                 'updated' => 'Expense updated successfully.',
                 'deleted' => 'Expense deleted successfully.',
+            ],
+            'scheduled_expense' => [
+                'created' => 'Scheduled expense created successfully.',
+                'updated' => 'Scheduled expense updated successfully.',
+                'deleted' => 'Scheduled expense deleted successfully.',
+                'paused' => 'Scheduled expense paused successfully.',
+                'resumed' => 'Scheduled expense resumed successfully.',
             ],
             'capital' => [
                 'created' => 'Capital created successfully.',
