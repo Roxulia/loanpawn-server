@@ -22,6 +22,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use App\DataObjects\RequestObjects\TenantListFilter;
 
 class LoanContractSlipController extends Controller
 {
@@ -38,6 +39,15 @@ class LoanContractSlipController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', 'string', 'max:30'],
+            'customer_code' => ['nullable', 'string', 'max:120'],
+            'nrc_citizen' => ['nullable', 'string', 'max:2'],
+            'nrc_state' => ['nullable', 'string', 'max:20'],
+            'nrc_township' => ['nullable', 'string', 'max:20'],
+            'nrc_number' => ['nullable', 'string', 'max:20'],
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
         ]);
 
         if ($validator->fails()) {
@@ -46,7 +56,10 @@ class LoanContractSlipController extends Controller
 
         $validated = $validator->validated();
 
-        return $this->successResponse($this->lookUpService->list((int) ($validated['per_page'] ?? 15))->toArray());
+        return $this->successResponse($this->lookUpService->list(
+            (int) ($validated['per_page'] ?? 15),
+            TenantListFilter::fromValidated($validated),
+        )->toArray());
     }
 
     public function store(Request $request): JsonResponse

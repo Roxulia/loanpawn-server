@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantBusinessLoanCreate;
 use App\DataObjects\RequestObjects\TenantBusinessLoanPaymentCreate;
 use App\DataObjects\RequestObjects\TenantBusinessLoanUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\Enums\FinancialUnit;
 use App\Http\Controllers\Controller;
 use App\Services\ExchangeRate\ReportingExchangeRateService;
@@ -30,10 +31,18 @@ class TenantBusinessLoanController extends Controller
             [
                 'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
                 'search' => ['nullable', 'string', 'max:120']
+                , 'status' => ['nullable', 'in:active,settled']
+                , 'type_id' => ['nullable', 'integer', 'min:1']
+                , 'lender_id' => ['nullable', 'integer', 'min:1']
+                , 'apply_interest' => ['nullable', 'boolean']
+                , 'from_date' => ['nullable', 'date']
+                , 'to_date' => ['nullable', 'date', 'after_or_equal:from_date']
             ]);
         return $this->successResponse(
-            $this->businessLoanService->list((int) ($data['per_page'] ?? 15),
-            $data['search'] ?? null));
+            $this->businessLoanService->list(
+                (int) ($data['per_page'] ?? 15),
+                TenantListFilter::fromValidated($data),
+            ));
     }
 
     public function store(Request $request): JsonResponse

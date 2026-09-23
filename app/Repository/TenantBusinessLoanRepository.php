@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Models\CoreModule\TenantBusinessLoan;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\Models\CoreModule\TenantBusinessLoanInterestAccrual;
 use App\Models\CoreModule\TenantBusinessLoanPayment;
 use App\Models\CoreModule\TenantBusinessLoanPaymentAllocation;
@@ -15,14 +16,21 @@ class TenantBusinessLoanRepository
 {
     private function relations(): array { return ['lender.person', 'receiptAccount.currency', 'interestType', 'interestAccruals', 'payments.paymentAccount.currency']; }
 
-    public function paginate(int $perPage, ?string $search): LengthAwarePaginator
+    public function paginate(int $perPage, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
         return TenantBusinessLoan::query()->with($this->relations())
-            ->when($search, fn ($query) => $query->where(function ($query) use ($search): void {
+            ->when($filter?->search, fn ($query, $search) => $query->where(function ($query) use ($search): void {
                 $query->where('code', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('tag', 'like', "%{$search}%")
                     ->orWhereHas('lender.person', fn ($person) => $person->where('name', 'like', "%{$search}%"));
-            }))->orderByDesc('id')->paginate($perPage);
+            }))
+            ->when($filter?->status, fn ($query, $status) => $query->where('is_paid', $status === 'settled'))
+            ->when($filter?->typeId, fn ($query, $id) => $query->where('interest_type_id', $id))
+            ->when($filter?->lenderId, fn ($query, $id) => $query->where('lender_id', $id))
+            ->when($filter?->applyInterest !== null, fn ($query) => $query->where('apply_interest', $filter->applyInterest))
+            ->when($filter?->fromDate, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($filter?->toDate, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
+            ->orderByDesc('id')->paginate($perPage);
     }
 
     public function findByCode(string $code, bool $lock = false): ?TenantBusinessLoan

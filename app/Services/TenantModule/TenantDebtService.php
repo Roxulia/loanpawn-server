@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantDebtPaymentCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\DataObjects\ResponseObjects\TenantDebtDetail;
 use App\DataObjects\ResponseObjects\TenantDebtListPage;
 use App\Exceptions\AlreadyUpdatedException;
@@ -49,16 +50,16 @@ class TenantDebtService extends BaseTenantService
         private DebtInterestFlowService $debtInterestFlowService,
     ) {}
 
-    public function list(int $perPage = 15): TenantDebtListPage
+    public function list(int $perPage = 15, ?TenantListFilter $filter = null): TenantDebtListPage
     {
         $this->permissionService->authorizeDebtList();
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('tenant-debt-list');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey('tenant-debt-list', $version, $page, $perPage),
+            $this->tenantScopedCacheKeys->paginatedListKey('tenant-debt-list:' . md5(json_encode($filter?->toArray() ?? [])), $version, $page, $perPage),
             now()->addSeconds(self::TENANT_DEBT_LIST_CACHE_TTL_SECONDS),
-            fn () => TenantDebtListPage::fromPaginator($this->repository->paginate($perPage))
+            fn () => TenantDebtListPage::fromPaginator($this->repository->paginate($perPage, $filter))
         );
     }
 

@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantBusinessLoanCreate;
 use App\DataObjects\RequestObjects\TenantBusinessLoanPaymentCreate;
 use App\DataObjects\RequestObjects\TenantBusinessLoanUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\DataObjects\ResponseObjects\TenantBusinessLoanDetail;
 use App\Exceptions\AlreadyUpdatedException;
 use App\Exceptions\InvalidTenantRequest;
@@ -45,11 +46,11 @@ class TenantBusinessLoanService extends BaseTenantService
         private DefaultDataService $defaultDataService,
     ) {}
 
-    public function list(int $perPage, ?string $search): array
+    public function list(int $perPage, ?TenantListFilter $filter = null): array
     {
         // Authorization and mapping of the business loan directory
         $this->permissionService->authorizeBusinessLoanList();
-        $paginator = $this->repository->paginate($perPage, $search);
+        $paginator = $this->repository->paginate($perPage, $filter);
         return [
             'data' => collect($paginator->items())->map(fn (TenantBusinessLoan $loan) => TenantBusinessLoanDetail::fromModel($loan)->toArray())->all(),
             'current_page' => $paginator->currentPage(), 'last_page' => $paginator->lastPage(),

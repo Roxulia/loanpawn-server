@@ -4,6 +4,7 @@ namespace App\Http\Controllers\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantExpenseService;
 use App\Services\TenantModule\FinancialUnitService;
@@ -26,6 +27,11 @@ class TenantExpenseController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'type_id' => ['nullable', 'integer', 'min:1'],
+            'account_id' => ['nullable', 'integer', 'min:1'],
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
         ]);
 
         if ($validator->fails()) {
@@ -34,7 +40,10 @@ class TenantExpenseController extends Controller
 
         $validated = $validator->validated();
 
-        return $this->successResponse($this->expenseService->list((int) ($validated['per_page'] ?? 15))->toArray());
+        return $this->successResponse($this->expenseService->list(
+            (int) ($validated['per_page'] ?? 15),
+            TenantListFilter::fromValidated($validated),
+        )->toArray());
     }
 
     public function store(Request $request): JsonResponse

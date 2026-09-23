@@ -4,13 +4,18 @@ namespace App\Repository;
 
 use App\Exceptions\RequiredValueMissing;
 use App\Models\CoreModule\TenantCapital;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class TenantCapitalRepository
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
         return TenantCapital::query()
+            ->when($filter?->search, fn ($query, $search) => $query->where(fn ($q) => $q->where('code', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")))
+            ->when($filter?->accountId, fn ($query, $id) => $query->where('account_id', $id))
+            ->when($filter?->fromDate, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($filter?->toDate, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('id')
             ->paginate($perPage);
     }

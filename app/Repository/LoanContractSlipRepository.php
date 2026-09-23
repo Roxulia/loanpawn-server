@@ -8,13 +8,25 @@ use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use App\DataObjects\RequestObjects\TenantListFilter;
 
 class LoanContractSlipRepository
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
         return PawnLoanContractSlip::query()
             ->with(['customer', 'interestType', 'slipItems.materialType', 'slipItems.itemCategoryType'])
+            ->when($filter?->search, fn ($query, $search) => $query->where(fn ($q) => $q->where('slip_no', 'like', "%{$search}%")->orWhere('notes', 'like', "%{$search}%")->orWhereHas('customer', fn ($customer) => $customer->where('code', 'like', "%{$search}%"))))
+            ->when($filter?->status, fn ($query, $status) => $query->where('status', $status))
+            ->when($filter?->customerCode, fn ($query, $code) => $query->whereHas('customer', fn ($customer) => $customer->where('code', $code)))
+            ->when($filter?->nrcCitizen || $filter?->nrcState || $filter?->nrcTownship || $filter?->nrcNumber, fn ($query) => $query->whereHas('customer', function ($customer) use ($filter): void {
+                $customer->when($filter->nrcCitizen, fn ($q, $v) => $q->where('nrc_citizen', $v))
+                    ->when($filter->nrcState, fn ($q, $v) => $q->where('nrc_state', $v))
+                    ->when($filter->nrcTownship, fn ($q, $v) => $q->where('nrc_township', $v))
+                    ->when($filter->nrcNumber, fn ($q, $v) => $q->where('nrc_number', $v));
+            }))
+            ->when($filter?->fromDate, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($filter?->toDate, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('id')
             ->paginate($perPage);
     }

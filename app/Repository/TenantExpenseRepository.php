@@ -4,16 +4,22 @@ namespace App\Repository;
 
 
 use App\Models\CoreModule\TenantExpense;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\Exceptions\RequiredValueMissing;
 use App\Support\TenantContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class TenantExpenseRepository
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
         return TenantExpense::query()
             ->with(['expenseType', 'creator'])
+            ->when($filter?->search, fn ($query, $search) => $query->where(fn ($q) => $q->where('code', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")))
+            ->when($filter?->typeId, fn ($query, $id) => $query->where('expense_type_id', $id))
+            ->when($filter?->accountId, fn ($query, $id) => $query->where('account_id', $id))
+            ->when($filter?->fromDate, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($filter?->toDate, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('id')
             ->paginate($perPage);
     }

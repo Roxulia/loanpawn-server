@@ -4,6 +4,7 @@ namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantCapitalCreate;
 use App\DataObjects\RequestObjects\TenantCapitalUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\DataObjects\ResponseObjects\TenantCapitalDetail;
 use App\DataObjects\ResponseObjects\TenantCapitalListPage;
 use App\Exceptions\AlreadyUpdatedException;
@@ -37,16 +38,16 @@ class TenantCapitalService extends BaseTenantService
         private FinancialAccountTransactionService $financialAccountTransactionService,
     ) {}
 
-    public function list(int $perPage = 15): TenantCapitalListPage
+    public function list(int $perPage = 15, ?TenantListFilter $filter = null): TenantCapitalListPage
     {
         $this->permissionService->authorizeCapitalList();
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('tenant-capital-list');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey('tenant-capital-list', $version, $page, $perPage),
+            $this->tenantScopedCacheKeys->paginatedListKey('tenant-capital-list:' . md5(json_encode($filter?->toArray() ?? [])), $version, $page, $perPage),
             now()->addSeconds(self::TENANT_CAPITAL_LIST_CACHE_TTL_SECONDS),
-            fn () => TenantCapitalListPage::fromPaginator($this->repository->paginate($perPage))
+            fn () => TenantCapitalListPage::fromPaginator($this->repository->paginate($perPage, $filter))
         );
     }
 

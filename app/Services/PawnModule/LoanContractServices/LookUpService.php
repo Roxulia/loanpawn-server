@@ -3,6 +3,7 @@
 namespace App\Services\PawnModule\LoanContractServices;
 
 use App\DataObjects\ResponseObjects\LoanContractSlipDetail;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\DataObjects\ResponseObjects\LoanContractSlipListPage;
 use App\Exceptions\TenantNotFound;
 use App\Models\PawnModule\PawnLoanContractSlip;
@@ -24,7 +25,7 @@ class LookUpService extends BaseTenantService
     ) {
     }
 
-    public function list(int $perPage = 15): LoanContractSlipListPage
+    public function list(int $perPage = 15, ?TenantListFilter $filter = null): LoanContractSlipListPage
     {
         $this->permissionService->authorizeLoanContractList();
         $this->expirationService->checkCurrentTenant();
@@ -32,9 +33,9 @@ class LookUpService extends BaseTenantService
         $version = $this->tenantScopedCacheKeys->currentVersion('loan-contract-slip-list');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey('loan-contract-slip-list', $version, $page, $perPage),
+            $this->tenantScopedCacheKeys->paginatedListKey('loan-contract-slip-list:' . md5(json_encode($filter?->toArray() ?? [])), $version, $page, $perPage),
             now()->addSeconds(self::LOAN_CONTRACT_SLIP_LIST_CACHE_TTL_SECONDS),
-            fn () => LoanContractSlipListPage::fromPaginator($this->repository->paginate($perPage))
+            fn () => LoanContractSlipListPage::fromPaginator($this->repository->paginate($perPage, $filter))
         );
     }
 
