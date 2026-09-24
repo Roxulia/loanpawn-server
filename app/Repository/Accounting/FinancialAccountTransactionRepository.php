@@ -13,14 +13,13 @@ class FinancialAccountTransactionRepository
     public function paginateForAccount(int $tenantId, int $accountId, FinancialAccountTransactionFilter $filter): LengthAwarePaginator
     {
         return FinancialAccountTransaction::query()
+            ->select(['id', 'tenant_id', 'financial_account_id', 'transaction_type', 'amount', 'direction', 'note', 'creator_id', 'related_transaction_id', 'reversed_transaction_id', 'created_at'])
             ->with('creator:id,name')
             ->where('tenant_id', $tenantId)
             ->where('financial_account_id', $accountId)
             ->when($filter->search, function ($query, string $search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('transaction_type', 'like', "%{$search}%")
-                        ->orWhere('reference_number', 'like', "%{$search}%")
-                        ->orWhere('reference_type', 'like', "%{$search}%")
                         ->orWhere('note', 'like', "%{$search}%");
                 });
             })

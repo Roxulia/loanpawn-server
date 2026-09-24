@@ -11,7 +11,7 @@ class TenantCapitalRepository
 {
     public function paginate(int $perPage = 15, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
-        return TenantCapital::query()
+        return TenantCapital::query()->select(["id", "tenant_id", "code", "update_key", "account_id", "description", "amount", "created_by", "created_at", "updated_at"])
             ->when($filter?->search, fn ($query, $search) => $query->where(fn ($q) => $q->where('code', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")))
             ->when($filter?->accountId, fn ($query, $id) => $query->where('account_id', $id))
             ->when($filter?->fromDate, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
@@ -24,7 +24,7 @@ class TenantCapitalRepository
     {
         $this->requireValue($data, 'code');
 
-        return TenantCapital::query()->create($data);
+        return TenantCapital::query()->select(["id", "tenant_id", "code", "update_key", "account_id", "description", "amount", "created_by", "created_at", "updated_at"])->create($data);
     }
 
     public function update(TenantCapital $capital, array $data): TenantCapital
@@ -51,19 +51,19 @@ class TenantCapitalRepository
 
     public function findById(int $capitalId): ?TenantCapital
     {
-        return TenantCapital::query()->find($capitalId);
+        return TenantCapital::query()->select(["id", "tenant_id", "code", "update_key", "account_id", "description", "amount", "created_by", "created_at", "updated_at"])->find($capitalId);
     }
 
     public function findByCode(string $code): ?TenantCapital
     {
-        return TenantCapital::query()
+        return TenantCapital::query()->select(["id", "tenant_id", "code", "update_key", "account_id", "description", "amount", "created_by", "created_at", "updated_at"])
             ->where('code', $code)
             ->first();
     }
 
     public function findByIdWithLock(int $capitalId): ?TenantCapital
     {
-        return TenantCapital::query()
+        return TenantCapital::query()->select(["id", "tenant_id", "code", "update_key", "account_id", "description", "amount", "created_by", "created_at", "updated_at"])
             ->whereKey($capitalId)
             ->lockForUpdate()
             ->first();
