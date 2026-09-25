@@ -66,7 +66,8 @@ class TenantDebtInterestRepository
 
     public function createPayment(array $data): TenantDebtPayment
     {
-        return TenantDebtPayment::query()->create($data);
+        return TenantDebtPayment::query()
+            ->select(['id', 'debt_id', 'payment_amount', 'principal_paid', 'interest_paid', 'change_amount', 'allocation_order', 'payment_at'])->create($data);
     }
 
     public function createAllocation(array $data): TenantDebtPaymentAllocation
@@ -76,13 +77,14 @@ class TenantDebtInterestRepository
 
     public function paymentExists(int $debtId): bool
     {
-        return TenantDebtPayment::query()->where('debt_id', $debtId)->exists();
+        return TenantDebtPayment::query()
+            ->select(['id', 'debt_id', 'payment_amount', 'principal_paid', 'interest_paid', 'change_amount', 'allocation_order', 'payment_at'])->where('debt_id', $debtId)->exists();
     }
 
     public function paymentHistory(int $debtId, int $perPage, int $page): LengthAwarePaginator
     {
         return TenantDebtPayment::query()
-            ->with('acceptAccount.currency')
+            ->select(['id', 'debt_id', 'payment_amount', 'principal_paid', 'interest_paid', 'change_amount', 'allocation_order', 'payment_at'])
             ->where('debt_id', $debtId)
             ->orderByDesc('payment_at')
             ->orderByDesc('id')

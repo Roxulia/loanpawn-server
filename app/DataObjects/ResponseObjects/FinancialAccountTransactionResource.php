@@ -12,8 +12,8 @@ class FinancialAccountTransactionResource extends BaseDataObject
         public string $transactionType,
         public string $amount,
         public string $direction,
-        public ?string $referenceNumber,
-        public ?string $referenceType,
+
+
         public ?string $note,
         public ?array $creator,
         public ?int $relatedTransactionId,
@@ -28,8 +28,8 @@ class FinancialAccountTransactionResource extends BaseDataObject
             transactionType: $transaction->transaction_type->value,
             amount: (string) $transaction->amount,
             direction: $transaction->direction,
-            referenceNumber: $transaction->reference_number,
-            referenceType: $transaction->reference_type,
+
+
             note: $transaction->note,
             creator: $transaction->creator === null ? null : [
                 'id' => $transaction->creator->id,

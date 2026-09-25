@@ -11,7 +11,9 @@ class TenantBusinessLoanDetail extends BaseDataObject
 
     public static function fromModel(TenantBusinessLoan $loan): self
     {
-        $interest = (float) $loan->outstanding_interest;
+        $interest = $loan->relationLoaded('interestAccruals')
+            ? (float) $loan->outstanding_interest
+            : max((float) ($loan->total_interest_accrued ?? 0) - (float) ($loan->total_interest_paid ?? 0) - (float) ($loan->total_interest_compounded ?? 0), 0);
         return new self([
             'id' => $loan->id, 'code' => $loan->code, 'update_key' => (int) $loan->update_key,
             'lender_id' => $loan->lender_id, 'lender_code' => $loan->lender?->code,

@@ -6,6 +6,7 @@ use App\DataObjects\RequestObjects\TenantDebtCreate;
 use App\DataObjects\RequestObjects\DebtCompoundScheduleUpdate;
 use App\DataObjects\RequestObjects\TenantDebtPaymentCreate;
 use App\DataObjects\RequestObjects\TenantDebtUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\TenantDebtService;
 use App\Services\TenantModule\FinancialUnitService;
@@ -28,6 +29,18 @@ class TenantDebtController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', 'in:paid,unpaid'],
+            'type_id' => ['nullable', 'integer', 'min:1'],
+            'account_id' => ['nullable', 'integer', 'min:1'],
+            'customer_code' => ['nullable', 'string', 'max:120'],
+            'nrc_citizen' => ['nullable', 'string', 'max:2'],
+            'nrc_state' => ['nullable', 'string', 'max:20'],
+            'nrc_township' => ['nullable', 'string', 'max:20'],
+            'nrc_number' => ['nullable', 'string', 'max:20'],
+            'apply_interest' => ['nullable', 'boolean'],
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
         ]);
 
         if ($validator->fails()) {
@@ -36,7 +49,10 @@ class TenantDebtController extends Controller
 
         $validated = $validator->validated();
 
-        return $this->successResponse($this->debtService->list((int) ($validated['per_page'] ?? 15))->toArray());
+        return $this->successResponse($this->debtService->list(
+            (int) ($validated['per_page'] ?? 15),
+            TenantListFilter::fromValidated($validated),
+        )->toArray());
     }
 
     public function show(string $debtCode): JsonResponse

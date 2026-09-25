@@ -4,6 +4,7 @@ namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantExpenseCreate;
 use App\DataObjects\RequestObjects\TenantExpenseUpdate;
+use App\DataObjects\RequestObjects\TenantListFilter;
 use App\DataObjects\ResponseObjects\TenantExpenseDetail;
 use App\DataObjects\ResponseObjects\TenantExpenseFullDetail;
 use App\DataObjects\ResponseObjects\TenantExpenseListPage;
@@ -44,16 +45,16 @@ class TenantExpenseService extends BaseTenantService
         private FinancialAccountTransactionService $financialAccountTransactionService,
     ) {}
 
-    public function list(int $perPage = 15): TenantExpenseListPage
+    public function list(int $perPage = 15, ?TenantListFilter $filter = null): TenantExpenseListPage
     {
         $this->permissionService->authorizeExpenseList();
         $page = $this->resolveCurrentPage();
         $version = $this->tenantScopedCacheKeys->currentVersion('tenant-expense-list');
 
         return Cache::remember(
-            $this->tenantScopedCacheKeys->paginatedListKey('tenant-expense-list', $version, $page, $perPage),
+            $this->tenantScopedCacheKeys->paginatedListKey('tenant-expense-list:' . md5(json_encode($filter?->toArray() ?? [])), $version, $page, $perPage),
             now()->addSeconds(self::TENANT_EXPENSE_LIST_CACHE_TTL_SECONDS),
-            fn () => TenantExpenseListPage::fromPaginator($this->repository->paginate($perPage))
+            fn () => TenantExpenseListPage::fromPaginator($this->repository->paginate($perPage, $filter))
         );
     }
 
