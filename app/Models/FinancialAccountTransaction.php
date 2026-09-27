@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\FinancialAccountTransactionType;
-use App\Models\CoreModule\TenantUser;
 use App\Models\PlatformModule\Tenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,11 +40,6 @@ class FinancialAccountTransaction extends Model
     public function financialAccount(): BelongsTo
     {
         return $this->belongsTo(FinancialAccount::class);
-    }
-
-    public function creator(): BelongsTo
-    {
-        return $this->belongsTo(TenantUser::class, 'created_by');
     }
 
     public function relatedTransaction(): BelongsTo

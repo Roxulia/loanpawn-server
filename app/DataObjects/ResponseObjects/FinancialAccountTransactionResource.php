@@ -15,7 +15,6 @@ class FinancialAccountTransactionResource extends BaseDataObject
 
 
         public ?string $note,
-        public ?array $creator,
         public ?int $relatedTransactionId,
         public ?int $reversedTransactionId,
         public ?string $createdAt,
@@ -31,10 +30,6 @@ class FinancialAccountTransactionResource extends BaseDataObject
 
 
             note: $transaction->note,
-            creator: $transaction->creator === null ? null : [
-                'id' => $transaction->creator->id,
-                'name' => $transaction->creator->name,
-            ],
             relatedTransactionId: $transaction->related_transaction_id,
             reversedTransactionId: $transaction->reversed_transaction_id,
             createdAt: $transaction->created_at?->toISOString(),
