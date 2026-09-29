@@ -18,7 +18,11 @@ class TenantBusinessLoanRepository
 
     public function paginate(int $perPage, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
-        return TenantBusinessLoan::query()->select(['id', 'tenant_id', 'code', 'update_key', 'lender_id', 'receipt_account_id', 'amount', 'principal_balance', 'apply_interest', 'interest_rate', 'interest_type_id', 'compound_schedule_enabled', 'compound_every', 'compound_every_type', 'next_compound_at', 'last_compounded_at', 'description', 'tag', 'is_paid', 'created_at', 'updated_at'])->with(['lender:id,code,person_id', 'lender.person:id,name', 'receiptAccount:id,code,name,currency_id', 'receiptAccount.currency:id,code,name,symbol', 'interestType:id,name'])->withSum('interestAccruals as total_interest_accrued', 'calculated_interest')->withSum('interestAccruals as total_interest_paid', 'paid_amount')->withSum('interestAccruals as total_interest_compounded', 'compounded_amount')
+        return TenantBusinessLoan::query()->select(['id', 'tenant_id', 'code', 'update_key', 'lender_id', 'receipt_account_id', 'amount', 'principal_balance', 'apply_interest', 'interest_rate', 'interest_type_id', 'compound_schedule_enabled', 'compound_every', 'compound_every_type', 'next_compound_at', 'last_compounded_at', 'description', 'tag', 'is_paid', 'created_at', 'updated_at'])
+        ->with(['lender:id,code,person_id', 'lender.person:id,name', 'receiptAccount:id,account_code,account_name,currency_id', 'receiptAccount.currency:id,code,name,symbol', 'interestType:id,name'])
+        ->withSum('interestAccruals as total_interest_accrued', 'calculated_interest')
+        ->withSum('interestAccruals as total_interest_paid', 'paid_amount')
+        ->withSum('interestAccruals as total_interest_compounded', 'compounded_amount')
             ->when($filter?->search, fn ($query, $search) => $query->where(function ($query) use ($search): void {
                 $query->where('code', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('tag', 'like', "%{$search}%")
