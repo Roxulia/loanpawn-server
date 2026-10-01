@@ -87,6 +87,16 @@ return [
             'description' => 'Manage tenant material, interest, expense, and financial account types.',
             'is_active' => true,
         ],
+        'catalog_management' => [
+            'name' => 'Catalog management',
+            'description' => 'Manage reusable catalog items, categories, and units.',
+            'is_active' => true,
+        ],
+        'inventory_management' => [
+            'name' => 'Inventory management',
+            'description' => 'Track item custody, locations, and stock movements.',
+            'is_active' => true,
+        ],
         'accounting_type_management' => [
             'name' => 'Accounting type management',
             'description' => 'Manage tenant-owned financial account types.',

@@ -21,6 +21,14 @@ class TenantPermissionColumns
         'list_material_type' => ['update_material_type', 'delete_material_type'],
         'list_interest_type' => ['update_interest_type', 'delete_interest_type'],
         'list_item_category_type' => ['update_item_category_type', 'delete_item_category_type'],
+        'list_catalog_item' => ['update_catalog_item'],
+        'list_inventory' => [
+            'manage_inventory_locations',
+            'receive_inventory',
+            'move_inventory',
+            'issue_inventory',
+            'adjust_inventory',
+        ],
         'list_expense_type' => ['update_expense_type', 'delete_expense_type'],
         'list_currency' => ['update_default_currency', 'update_reporting_currency', 'update_default_financial_unit'],
     ];
