@@ -26,6 +26,9 @@
             ['route' => 'admin.exchange-pairs.index', 'pattern' => 'admin.exchange-pairs.*', 'label' => 'Exchange Pairs', 'icon' => 'pairs'],
             ['route' => 'admin.exchange-rates.index', 'pattern' => 'admin.exchange-rates.*', 'label' => 'Exchange Rates', 'icon' => 'rates'],
         ]],
+        ['label' => 'Catalog Configuration', 'items' => [
+            ['route' => 'admin.catalog-units.index', 'pattern' => 'admin.catalog-units.*', 'label' => 'Catalog Units', 'icon' => 'features'],
+        ]],
         ['label' => 'Billing & Payments', 'items' => [
             ['route' => 'admin.billing.index', 'pattern' => 'admin.billing.*', 'label' => __('app.platform.view.billing_management'), 'icon' => 'billing'],
             ['route' => 'admin.payment-requests.index', 'pattern' => 'admin.payment-requests.*', 'label' => __('app.billing.view.payment_requests'), 'icon' => 'payments'],

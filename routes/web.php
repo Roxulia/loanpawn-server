@@ -3,6 +3,7 @@
 use App\Http\Controllers\LocaleSetterController;
 use App\Http\Controllers\PlatformModule\Admin\AdminBillingManagementController;
 use App\Http\Controllers\PlatformModule\Admin\AdminCurrencyController;
+use App\Http\Controllers\PlatformModule\Admin\AdminCatalogUnitController;
 use App\Http\Controllers\PlatformModule\Admin\AdminDashboardController;
 use App\Http\Controllers\PlatformModule\Admin\AdminExchangeRateController;
 use App\Http\Controllers\PlatformModule\Admin\AdminExchangeRatePairController;
@@ -122,6 +123,9 @@ Route::name('admin.')->group(function () {
             Route::get('/billing', [AdminBillingManagementController::class, 'index'])->name('billing.index');
             Route::get('/package-flags', [AdminPackageFlagController::class, 'index'])->name('package-flags.index');
             Route::resource('currencies', AdminCurrencyController::class)->only(['index', 'store', 'update', 'destroy']);
+            Route::get('catalog-units', [AdminCatalogUnitController::class, 'index'])->name('catalog-units.index');
+            Route::post('catalog-units', [AdminCatalogUnitController::class, 'store'])->name('catalog-units.store');
+            Route::put('catalog-units/{id}', [AdminCatalogUnitController::class, 'update'])->name('catalog-units.update');
             Route::resource('exchange-pairs', AdminExchangeRatePairController::class)->only(['index', 'store', 'update', 'destroy']);
             Route::get('exchange-rates', [AdminExchangeRateController::class, 'index'])->name('exchange-rates.index');
             Route::post('exchange-rates', [AdminExchangeRateController::class, 'store'])->name('exchange-rates.store');

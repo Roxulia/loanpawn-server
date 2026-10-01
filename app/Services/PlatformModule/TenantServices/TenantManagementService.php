@@ -18,6 +18,7 @@ use App\Services\PlatformModule\AuthService;
 use App\Services\PlatformModule\PlatformUserService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\Accounting\MultiAccountManagement;
+use App\Services\TenantModule\InventoryService;
 use App\Services\TenantModule\TenantUserService;
 use App\Utility\MessageCode;
 use Carbon\CarbonImmutable;
@@ -54,6 +55,8 @@ class TenantManagementService extends BaseTenantService
 
     private MultiAccountManagement $multiAccountManagement;
 
+    private InventoryService $inventoryService;
+
     public function __construct(
         TenantRepository $repository,
         PlatformUserService $platformUserService,
@@ -66,6 +69,7 @@ class TenantManagementService extends BaseTenantService
         TenantSettingService $tenantSettingService,
         TableIdGenerationService $tableIdGenerationService,
         MultiAccountManagement $multiAccountManagement,
+        InventoryService $inventoryService,
     ) {
         $this->repository = $repository;
         $this->platformUserService = $platformUserService;
@@ -78,6 +82,7 @@ class TenantManagementService extends BaseTenantService
         $this->tenantSettingService = $tenantSettingService;
         $this->tableIdGenerationService = $tableIdGenerationService;
         $this->multiAccountManagement = $multiAccountManagement;
+        $this->inventoryService = $inventoryService;
     }
 
     public function createTenant(TenantCreate $request): Tenant
@@ -152,6 +157,7 @@ class TenantManagementService extends BaseTenantService
 
             $this->tenantContactService->createContact($request, $tenant->id);
             $this->tenantSettingService->createDefaultTenantSettings($tenant->id);
+            $this->inventoryService->ensureMainShopForTenant($tenant->id);
 
             return $tenant;
         });

@@ -14,6 +14,8 @@ use App\Http\Controllers\TenantModule\Accounting\MultiAccountManagement as Multi
 use App\Http\Controllers\TenantModule\Accounting\ReportingExchangeRateQuoteController;
 use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
+use App\Http\Controllers\TenantModule\CatalogController;
+use App\Http\Controllers\TenantModule\InventoryController;
 use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
 use App\Http\Controllers\TenantModule\FinancialUnitController;
 use App\Http\Controllers\TenantModule\LanguageController;
@@ -401,7 +403,7 @@ Route::prefix('tenant')->group(function () {
                 Route::get('finance', [TenantSettingsController::class, 'financeBootstrap'])
                     ->middleware('tenant.permission:list_currency,update_default_currency,update_reporting_currency,update_default_financial_unit,manage_accounting_day_schedule,list_financial_account_type,manage_interest_process_settings');
                 Route::get('default-data', [TenantSettingsController::class, 'defaultDataBootstrap'])
-                    ->middleware('tenant.permission:list_interest_type,list_expense_type,list_material_type,list_item_category_type');
+                    ->middleware('tenant.permission:list_interest_type,list_expense_type,list_material_type,list_item_category_type,list_catalog_item,manage_catalog_taxonomy');
                 Route::get('/', [TenantSettingsController::class, 'show'])
                     ->middleware('tenant.permission:manage_slip_document');
                 Route::put('/', [TenantSettingsController::class, 'update'])
@@ -446,6 +448,44 @@ Route::prefix('tenant')->group(function () {
                     });
                 Route::post('reporting-currency-recalculation/abort', [ReportingCurrencyRateRequirementController::class, 'abort'])
                     ->middleware(['tenant.feature:currency_management', 'tenant.permission:update_reporting_currency']);
+            });
+
+            Route::prefix('catalog')->middleware('tenant.feature:catalog_management')->group(function () {
+                Route::get('items', [CatalogController::class, 'index'])->middleware('tenant.permission:list_catalog_item');
+                Route::post('items', [CatalogController::class, 'store'])->middleware('tenant.permission:create_catalog_item');
+                Route::put('items/{id}', [CatalogController::class, 'update'])->middleware('tenant.permission:update_catalog_item');
+                Route::get('categories', [CatalogController::class, 'categories'])->middleware('tenant.permission:list_catalog_item,manage_catalog_taxonomy');
+                Route::post('categories', [CatalogController::class, 'storeCategory'])->middleware('tenant.permission:manage_catalog_taxonomy');
+                Route::put('categories/{id}', [CatalogController::class, 'updateCategory'])->middleware('tenant.permission:manage_catalog_taxonomy');
+                Route::get('units', [CatalogController::class, 'units'])->middleware('tenant.permission:list_catalog_item,manage_catalog_taxonomy');
+                Route::get('units/manage', [CatalogController::class, 'unitsForManagement'])->middleware('tenant.permission:manage_catalog_taxonomy');
+                Route::post('units', [CatalogController::class, 'storeUnit'])->middleware('tenant.permission:manage_catalog_taxonomy');
+                Route::put('units/{id}', [CatalogController::class, 'updateUnit'])->middleware('tenant.permission:manage_catalog_taxonomy');
+            });
+
+            Route::prefix('inventory')->middleware('tenant.feature:inventory_management')->group(function () {
+                Route::get('units', [InventoryController::class, 'units'])
+                    ->middleware('tenant.permission:list_inventory,receive_inventory');
+                Route::get('locations', [InventoryController::class, 'locations'])
+                    ->middleware('tenant.permission:list_inventory,manage_inventory_locations');
+                Route::post('locations', [InventoryController::class, 'storeLocation'])
+                    ->middleware('tenant.permission:manage_inventory_locations');
+                Route::put('locations/{locationId}', [InventoryController::class, 'updateLocation'])
+                    ->middleware('tenant.permission:manage_inventory_locations');
+                Route::get('items', [InventoryController::class, 'index'])
+                    ->middleware('tenant.permission:list_inventory');
+                Route::get('items/{itemId}', [InventoryController::class, 'show'])
+                    ->middleware('tenant.permission:list_inventory');
+                Route::get('items/{itemId}/movements', [InventoryController::class, 'movements'])
+                    ->middleware('tenant.permission:list_inventory');
+                Route::post('receive', [InventoryController::class, 'receive'])
+                    ->middleware('tenant.permission:receive_inventory');
+                Route::post('move', [InventoryController::class, 'move'])
+                    ->middleware('tenant.permission:move_inventory');
+                Route::post('issue', [InventoryController::class, 'issue'])
+                    ->middleware('tenant.permission:issue_inventory');
+                Route::post('adjust', [InventoryController::class, 'adjust'])
+                    ->middleware('tenant.permission:adjust_inventory');
             });
 
             Route::prefix('slip-documents')

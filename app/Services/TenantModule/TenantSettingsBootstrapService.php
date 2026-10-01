@@ -105,7 +105,7 @@ class TenantSettingsBootstrapService
 
     public function defaultData(): TenantSettingsBootstrapResource
     {
-        $permissions = ['list_interest_type', 'list_expense_type', 'list_material_type', 'list_item_category_type'];
+        $permissions = ['list_interest_type', 'list_expense_type', 'list_material_type', 'list_item_category_type', 'list_catalog_item', 'manage_catalog_taxonomy'];
         $this->permissionService->authorizeAnyPermission($permissions);
         $sections = [];
 
