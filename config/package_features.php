@@ -102,6 +102,11 @@ return [
             'description' => 'Track tenant owned items, acquisition lots, and ownership changes.',
             'is_active' => true,
         ],
+        'purchasing_management' => [
+            'name' => 'Purchasing management',
+            'description' => 'Record suppliers, purchases, receipts, payments, refunds, and returns.',
+            'is_active' => true,
+        ],
         'accounting_type_management' => [
             'name' => 'Accounting type management',
             'description' => 'Manage tenant-owned financial account types.',

@@ -30,6 +30,8 @@ class TenantPermissionColumns
             'adjust_inventory',
         ],
         'list_owned_item' => ['create_owned_item', 'manage_owned_item'],
+        'list_supplier' => ['manage_supplier'],
+        'list_purchase_order' => ['manage_purchase_order', 'manage_purchase_payment', 'manage_purchase_receipt', 'manage_purchase_return'],
         'list_expense_type' => ['update_expense_type', 'delete_expense_type'],
         'list_currency' => ['update_default_currency', 'update_reporting_currency', 'update_default_financial_unit'],
     ];

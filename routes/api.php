@@ -463,6 +463,39 @@ Route::prefix('tenant')->group(function () {
                 Route::put('units/{id}', [CatalogController::class, 'updateUnit'])->middleware('tenant.permission:manage_catalog_taxonomy');
             });
 
+            Route::prefix('purchasing')->middleware('tenant.feature:purchasing_management')->group(function () {
+                Route::get('suppliers', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'suppliers'])
+                    ->middleware('tenant.permission:list_supplier');
+                Route::get('suppliers/{supplierCode}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'supplier'])
+                    ->middleware('tenant.permission:list_supplier');
+                Route::post('suppliers', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createSupplier'])
+                    ->middleware('tenant.permission:manage_supplier');
+                Route::put('suppliers/{supplierCode}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'updateSupplier'])
+                    ->middleware('tenant.permission:manage_supplier');
+                Route::get('orders', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'orders'])
+                    ->middleware('tenant.permission:list_purchase_order');
+                Route::post('orders', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createOrder'])
+                    ->middleware('tenant.permission:manage_purchase_order');
+                Route::get('orders/{orderCode}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'order'])
+                    ->middleware('tenant.permission:list_purchase_order');
+                Route::post('orders/{orderCode}/{action}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'transition'])
+                    ->whereIn('action', ['order', 'confirm', 'cancel'])->middleware('tenant.permission:manage_purchase_order');
+                Route::get('orders/{orderCode}/payments', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'payments'])
+                    ->middleware('tenant.permission:list_purchase_order');
+                Route::post('orders/{orderCode}/payments', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createPayment'])
+                    ->middleware('tenant.permission:manage_purchase_payment');
+                Route::post('payments/{paymentCode}/refunds', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createRefund'])
+                    ->middleware('tenant.permission:manage_purchase_payment');
+                Route::get('orders/{orderCode}/receipts', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'receipts'])
+                    ->middleware('tenant.permission:list_purchase_order');
+                Route::post('orders/{orderCode}/receipts', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createReceipt'])
+                    ->middleware('tenant.permission:manage_purchase_receipt');
+                Route::get('orders/{orderCode}/returns', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'returns'])
+                    ->middleware('tenant.permission:list_purchase_order');
+                Route::post('orders/{orderCode}/returns', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createReturn'])
+                    ->middleware('tenant.permission:manage_purchase_return');
+            });
+
             Route::prefix('inventory')->middleware('tenant.feature:inventory_management')->group(function () {
                 Route::get('units', [InventoryController::class, 'units'])
                     ->middleware('tenant.permission:list_inventory,receive_inventory');

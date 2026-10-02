@@ -11,12 +11,13 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 | 2 | Catalog | Minimal searchable definitions and quick-create selector | 1 | Enables reusable item descriptions without forcing unique collateral into a catalog. |
 | 3 | Inventory | Locations, physical items/units, immutable movements, and balance queries | 1–2 | Physical custody must be reliable before any business operation uses it. |
 | 4 | Ownership | Owned goods and acquisition lots with separate cost/value | 1–3 | Ownership depends on physical item references but remains distinct from location and catalog. |
-| 5 | Purchasing | Suppliers, orders, independent payments/receipts, and receiving workflow | 2–4 | Goods become inventory and ownership only upon receipt. |
-| 6 | Pawn integration | Custody receive/return and later ownership conversion | 3–4 | Integrate after the generic custody and ownership contracts exist; preserve Pawn behavior. |
-| 7 | Business Loan collateral | Pledges, lender movements, releases, and forfeitures | 3–4 | Pledges require tenant-owned quantity and reliable custody movements. |
-| 8 | Sales | Sale and line records with ownership, inventory, and accounting integration | 3–4 | Sales need ownership lots, stock issuance, and existing accounting services. |
-| 9 | Generic pack/unpack | Ad-hoc physical InventoryPack operations | 3, 6 | Build after movement invariants are stable; keep the Pawn jewellery-pack schema intact. |
-| 10 | Reporting and UX polish | Operational reports and history views | 5–9 | Reports should consume established transaction records, not precede workflows. |
+| 5 | Purchasing | Supplier, order, payment/refund, receipt/return records and API calls | 1–2; shared person and currency records | Establish purchasing records without coupling this phase to stock or ledger effects. |
+| 6 | Sales records | Sale and line records with cost snapshots and API calls | 3–4 | Record sale intent against owned lots before implementing stock and ledger effects. |
+| 7 | Accounting and Inventory integration | Connect purchasing and sales records to financial ledgers, stock movements, and Ownership | 3–6; existing Accounting and Financial Account services | Implement the cross-module effects as one separately reviewable integration phase. |
+| 8 | Pawn integration | Custody receive/return and later ownership conversion | 3–4 | Integrate after the generic custody and ownership contracts exist; preserve Pawn behavior. |
+| 9 | Business Loan collateral | Pledges, lender movements, releases, and forfeitures | 3–4 | Pledges require tenant-owned quantity and reliable custody movements. |
+| 10 | Generic pack/unpack | Ad-hoc physical InventoryPack operations | 3, 8 | Build after movement invariants are stable; keep the Pawn jewellery-pack schema intact. |
+| 11 | Reporting and reconciliation | Operational views and transaction-to-ledger/stock reconciliation | 5–10 | Reconciliation follows the purchase, sale, Accounting, and movement records it compares. |
 
 ## Phase 0 — Existing System Analysis
 
@@ -218,43 +219,49 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 
 ## Phase 5 — Purchasing
 
-**Goal:** Implement Supplier, Purchase Order, Payment, Receipt, and partial receipt while keeping order, payment, and receipt states independent.
+**Goal:** Implement supplier, purchase order, payment/refund, receipt, and supplier return records with APIs, while keeping order, payment, receipt, and return progress distinct.
 
-**Why now:** Receipt needs stable Catalog, Inventory, and Ownership contracts; payment uses existing Accounting/Financial Account infrastructure.
+**Why now:** Purchasing can establish supplier and transaction records independently. The later integration phase applies their stock and ledger effects through existing module services.
 
-**Dependencies:** Catalog, Inventory, Ownership, and existing financial account selection/accounting services.
+**Dependencies:** Shared `TenantPerson` and tenant currency records. Catalog is optional. Inventory, Ownership, Accounting, and Financial Account effects are deferred to Phase 7.
 
 **Ordered tasks:**
 
 - `PUR-001` Add Purchasing feature/package gate.
-- `PUR-002` Add supplier and purchase permissions to server config/migrations and frontend codes/labels.
-- `PUR-003` Add `Supplier` with simple supplier type (individual, supplier, shop, online store), name, and contact/note fields; avoid procurement-suite features.
-- `PUR-004` Add `PurchaseOrder` with order status `DRAFT`, `ORDERED`, `CONFIRMED`, `COMPLETED`, `CANCELLED`.
+- `PUR-002` Add Purchasing feature gate and supplier/purchase permissions to server config/migrations and frontend permission codes.
+- `PUR-003` Add a Supplier role/profile linked to the shared `TenantPerson` identity used by Customer and Lender, so contact details are not duplicated. Allow selecting an existing Customer/Lender by business code or creating a new person; keep supplier type and supplier-only notes on the Supplier profile. Edit shared contact details through the existing Customer/Lender flow. Keep supplier operations and validation in a dedicated `PurchaseSupplierService`.
+- `PUR-004` Add `PurchaseOrder` with one active tenant currency per order and order lifecycle `DRAFT`, `ORDERED`, `CONFIRMED`, `COMPLETED`, `CANCELLED`.
 - `PUR-005` Add `PurchaseOrderLine` with optional CatalogItem, freeform item description, tracking mode, ordered quantity, and unit price snapshot.
-- `PUR-006` Add `PurchasePayment` with date, amount, Financial Account, accounting reference, and independent payment status including partial refund states.
-- `PUR-007` Add `PurchaseReceipt` and `PurchaseReceiptLine` so multiple receipts can fulfill one line; receipt status includes not received, partial, received, returned.
+- `PUR-006` Add `PurchasePayment` and child `PurchaseRefund` transactions; derive payment/refund status and balances from recorded amounts.
+- `PUR-007` Add `PurchaseReceipt` and `PurchaseReceiptLine` so multiple receipts can fulfill one line; derive fulfillment status from received quantities.
+- `PUR-007a` Add `PurchaseReturn` and `PurchaseReturnLine` linked to original receipt lines; track partial return quantities separately from refunds.
 - `PUR-008` Implement draft/order/confirm/cancel service transitions; none may change Inventory/Ownership.
-- `PUR-009` Implement payment service through existing FinancialAccountTransactionService and TenantAccountingTransactionService; payment must not change Inventory/Ownership.
-- `PUR-010` Implement receipt service, atomically append Inventory receipt and create/update the OwnedItem/AcquisitionLot for only the accepted received quantity.
-- `PUR-011` Add list/detail/create/order/payment/receipt APIs and request/response objects.
-- `PUR-012` Add frontend supplier, order, payment, and partial-receipt workflows using Financial Account selector and Catalog selector.
-- `PUR-013` Add tests for independent state combinations, partial payment/refund representation, partial receipts, receipt overrun, accounting failure rollback, and idempotent replay.
+- `PUR-009` Implement payment and refund recording with overpayment/refund-limit validation; do not post Accounting or Financial Account transactions in this phase.
+- `PUR-010` Implement receipt and return recording with cumulative quantity limits; do not change Inventory or Ownership in this phase.
+- `PUR-011` Add tenant-scoped supplier, order, payment/refund, receipt, and return APIs using generated business codes for public references.
+- `PUR-012` Add typed frontend Purchasing API calls and types.
+- `PUR-013` Add backend and frontend API-level validation for independent statuses, partial payment/refund/receipt/return, quantity limits, tenant isolation, and idempotent replay.
+- `PUR-014` Add a responsive Purchasing workspace with searchable purchase list, detail, and supplier directory routes guarded by feature gates and per-action permissions.
+- `PUR-015` Add a quick-purchase form that records supplier, goods, currency, prices, receipt quantities, and optional payment through the existing staged APIs; retain the generated purchase code and provide a path to continue if a later request fails.
+- `PUR-016` Add a staged purchase-order flow for goods expected later, with separate order, supplier confirmation, receipt, and payment actions.
+- `PUR-017` Add purchase detail sections for items, independent order/payment/receipt/return statuses, payment/refund history, and receipt/return history; support partial receipts, returns, and refunds.
+- `PUR-018` Add English and Myanmar frontend messages, loading/empty/error states, responsive mobile cards, and permission-aware actions. Clearly communicate that receipts do not update stock or ownership until Phase 7.
 
-**Existing code to reuse:** Financial Account assignment/active-account validation, `FinancialAccountTransactionService`, `TenantAccountingTransactionService`, `TenantAccountingDayService` constraints where relevant, tenant audit logging, API DTO pattern, financial amount inputs, `FinancialAccountSelect`, and existing form/list pages.
+**Existing code to reuse:** Tenant feature/permission middleware, tenant code generation, tenant idempotency service, typed API patterns, Catalog business-code lookup, existing Purchasing API client, shared Customer/Lender identity selection, and existing responsive list/form patterns.
 
-**Database/models/services/APIs:** New purchasing models/tables and separate services. Define states as explicit enums/constants and calculate receipt/payment status from recorded child records or maintain a synchronized status with invariant checks; document the chosen implementation at schema task `PUR-004` before coding.
+**Database/models/services/APIs:** Add Purchasing-owned supplier, order/line, payment/refund, receipt/line, and return/line records. Keep supplier profile behavior in `PurchaseSupplierService` and purchasing order/payment/receipt/return behavior in `PurchasingService`. Keep explicit order lifecycle actions; derive completion/fulfillment, payment/refund, and return progress from child records. Public endpoints and references use business codes, never database IDs.
 
-**Events/contracts:** Purchasing orchestrates Inventory and Ownership operations through their service contracts. Accounting integration is a distinct payment side effect and not an Inventory calculation. No event queue is needed for synchronous DB-local operations.
+**Events/contracts:** Phase 5 records business facts only. Later integration phases connect receipt/return facts to Inventory and Ownership movements and payment/refund facts to Accounting and Financial Account ledgers. No event queue is needed for these synchronous database-local operations.
 
 **Backfill:** None; old operational expenses are not retroactively purchase orders.
 
-**Transactions/locking/idempotency:** Lock PurchaseOrderLine when receiving and enforce cumulative received ≤ ordered. Lock payment/order records to avoid concurrent overpayment or duplicate refunds. An order or payment never increments stock. Receipt, Inventory movement, and Ownership lot must commit or roll back together.
+**Transactions/locking/idempotency:** Lock order lines when recording receipts/returns and enforce cumulative received ≤ ordered and returned ≤ received. Lock order/payment records to avoid concurrent overpayment or duplicate refunds. Use idempotency keys for create/transition operations. Inventory, Ownership, and Accounting effects are explicitly deferred.
 
-**Edge cases/acceptance:** Support Ordered+Unpaid+Not Received; Ordered+Paid+Not Received; Ordered+Unpaid+Received; Partially Paid+Partially Received. Ordered 20, receive 8 then 7 yields on-hand 15 and incoming 5. Received 10 while unpaid yields stock 10 and unpaid status.
+**Edge cases/acceptance:** Support ordered+unpaid+not received; ordered+paid+not received; ordered+unpaid+received; and partially paid+partially received. For an order of 20, receiving 8 then 7 derives 15 received and 5 incoming; returning 2 derives 2 returned without changing the received history. These are purchase records only; stock and ledger balances change in their later integration phases.
 
-**Explicitly defer:** Full procurement approvals, vendor portals, invoice OCR, complex refunds/returns, purchase credit terms, and POS replenishment.
+**Explicitly defer:** Accounting and Financial Account postings, Inventory movements, Ownership acquisition/reduction, reconciliation, full procurement approvals, vendor portals, invoice OCR, purchase credit terms, tax/shipping allocation, and POS replenishment. Refunds and returns are recorded as separate transactions; returns do not automatically create refunds.
 
-## Phase 6 — Pawn Inventory Integration
+## Phase 8 — Pawn Inventory Integration
 
 **Goal:** Track custody of customer-owned collateral using Inventory while keeping Pawn collateral authoritative for Pawn relationships and valuation.
 
@@ -290,7 +297,7 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 
 **Explicitly defer:** Replacing Pawn collateral tables, rewriting redemption, forcing all collateral into Catalog, converting weight subitems to InventoryUnits, and generic pack/unpack before Phase 9.
 
-## Phase 7 — Business Loan Collateral
+## Phase 9 — Business Loan Collateral
 
 **Goal:** Record tenant-owned collateral pledges against Business Loans, with partial quantity and explicit release/forfeiture lifecycle.
 
@@ -324,40 +331,53 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 
 **Explicitly defer:** Lender custody confirmations, collateral substitution, multiple lenders per line, automatic loan covenants, and advanced collateral valuation.
 
-## Phase 8 — Basic Sales
+## Phase 6 — Sales Records
 
-**Goal:** Create a small Sales module that records sale lines and coordinates ownership reduction, Inventory issue, financial-account posting, and accounting.
+**Goal:** Add draft Sales records and APIs, separate from stock and financial posting.
 
-**Why now:** Sales needs stable cost lots and available inventory and must remain independent from Ownership as a business operation.
+**Why now:** Sale details can be captured against the Ownership model before the later integration phase applies irreversible stock and ledger effects.
 
-**Dependencies:** Inventory, Ownership, and existing accounting/financial-account services.
+**Dependencies:** Inventory and Ownership references; existing customer/business code conventions.
 
 **Ordered tasks:**
 
-- `SALE-001` Add Sales feature/package gate and Sales permissions.
-- `SALE-002` Add `Sale` header with sale date, optional buyer, financial account, status, actor, and accounting references.
-- `SALE-003` Add `SaleLine` referencing owned item/acquisition lot and optional InventoryUnit, quantity, unit selling price, cost basis snapshot, and realized profit.
-- `SALE-004` Implement request validation for tracking mode, same-tenant account, unpledged available quantity, and sale price/currency.
-- `SALE-005` Implement transactional sale action coordinating lot reduction, Inventory issue, Sale/SaleLine, and Accounting/Financial Account services.
-- `SALE-006` Add list/detail/create APIs and DTOs; do not add POS endpoints.
-- `SALE-007` Add basic sale history/form UI using existing account selector, financial amount inputs, and module pages.
-- `SALE-008` Add tests for unique sale, partial quantity sale, correct lot cost snapshot/profit, stock issue, accounting references, closed accounting day, and request replay.
+- `SALE-001` Add Sales feature/package gate and list/manage permissions.
+- `SALE-002` Add `Sale` header with business code, date, optional buyer reference, currency, note, creator, and `DRAFT`/`CANCELLED` status.
+- `SALE-003` Add `SaleLine` with owned-item/acquisition-lot business-code references, quantity, and unit selling price.
+- `SALE-004` Add tenant-scoped list/detail/create/cancel APIs and typed frontend API calls; keep draft lines editable and do not add UI.
+- `SALE-005` Validate tenant-owned references, tracking-mode quantities, and currency; do not reduce Ownership or Inventory in this phase.
+- `SALE-006` Add tests for draft creation, code-based references, line validation, cancellation, tenant isolation, and idempotent replay.
 
-**Existing code to reuse:** `FinancialAccountTransactionService`, `TenantAccountingTransactionService`, accounting day editability rules, `MultiAccountManagement`, tenant audit log, Financial Account selector, `apiClient`, existing list/detail/form patterns.
+**Database/models/services/APIs:** Sales owns `Sale` and `SaleLine`. Sale creation records a draft only; posting, cost snapshot, profit calculation, and stock/accounting effects belong to Phase 7. Use business codes in public APIs.
 
-**Database/models/services/APIs:** Add Sales-owned `Sale` and `SaleLine`; Ownership must not expose a general `sell()` as its architecture. APIs require Sales feature, create/list permissions, and applicable account/ownership permission checks.
+**Backfill:** None; do not infer sales from ownership changes.
 
-**Events/integration:** Sales orchestrates Ownership/Inventory and accounting operations explicitly. Snapshot cost basis at sale time; future costing policy changes must not rewrite historical profit.
+**Explicitly defer:** Sale posting, cost snapshot/profit, ownership reduction, Inventory issue, Accounting/Financial Account transactions, POS, and sale UI.
 
-**Backfill:** No legacy sales records are identified for migration; do not infer sales from ownership changes.
+## Phase 7 — Accounting and Inventory Integration
 
-**Transactions/locking/idempotency:** Lock acquisition lot/stock and validate enough unpledged quantity. Persist sale, reduce ownership, issue inventory, and post account/accounting transactions in one DB transaction where existing services share the DB; rollback together on failure. Add idempotency key support.
+**Goal:** Apply the stock, ownership, and financial effects for recorded purchases and sales through the owning module services.
 
-**Edge cases/acceptance:** Cost 800,000 and sale 1,050,000 yields realized profit 250,000; partial quantity sale reduces only sold amount; pledged goods cannot be sold. Unique item sale uses quantity 1 and its lot cost snapshot.
+**Dependencies:** Phases 3–6 and existing Accounting, Financial Account, Inventory, and Ownership services.
 
-**Explicitly defer:** Cashier shift/register, POS cart, promotions, loyalty, barcode checkout, complex refund/exchange, and price books.
+**Ordered tasks:**
 
-## Phase 9 — Generic Pack / Unpack
+- `INT-001` Extend purchase payment/refund writes to post purchase expense and refund reversals through existing Accounting and Financial Account services, using the order currency and selected same-currency account.
+- `INT-002` Extend purchase receipt writes to receive stock and create Ownership acquisition lots for only accepted quantities.
+- `INT-003` Extend supplier return writes to issue the returned stock and reduce the corresponding Ownership lot; keep refunds as separate payment transactions.
+- `INT-004` Add a Sales posting action that locks and validates unpledged owned/physical quantity, snapshots lot cost, calculates realized profit, issues Inventory, reduces Ownership, and posts financial/accounting transactions.
+- `INT-005` Keep every purchase receipt/return, sale posting, movement, ownership change, and relevant ledger/account transaction atomic and idempotent.
+- `INT-006` Add tests for partial purchase receipts/returns, unpaid receipts, partial refunds, sale profit snapshots, insufficient or pledged stock, closed accounting days, rollback, and replay.
+
+**Database/models/services/APIs:** Cross-module effects are orchestrated by Purchasing or Sales through explicit Inventory, Ownership, Accounting, and Financial Account service contracts. Do not write directly to another module's tables.
+
+**Backfill:** None. Existing expenses remain expenses; do not infer old receipts, returns, sales, stock, or ownership from other records.
+
+**Edge cases/acceptance:** Order and payment do not create stock; receiving 8 then 7 of 20 creates 15 stock and leaves 5 incoming. Returning 2 of the 15 removes 2 from stock and its acquisition lot without changing original received quantity or automatically creating a refund. A sale of cost 800,000 for 1,050,000 snapshots 800,000 cost and 250,000 realized profit.
+
+**Explicitly defer:** POS checkout, complex sale refunds/exchanges, tax and shipping allocation, automated purchase-sale reconciliation, and new ledger types outside the existing Accounting flow.
+
+## Phase 10 — Generic Pack / Unpack
 
 **Goal:** Support ad-hoc physical packs as Inventory operations while preserving component identity, quantity, location, and history.
 
@@ -389,13 +409,13 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 
 **Explicitly defer:** Catalog reusable bundles, kits/BOM, nested packs, shipping cartons, multi-location transfer, and pack scanning.
 
-## Phase 10 — Reporting and UX Polish
+## Phase 11 — Reporting and Reconciliation
 
 **Goal:** Add operational views sourced from canonical business and movement records after the transactional flows are stable.
 
 **Why now:** Dashboards built earlier would encode unsettled balance/status rules and risk becoming a second source of truth.
 
-**Dependencies:** Purchasing, Pawn integration, Business Loan collateral, Sales, and generic pack semantics as needed by each report.
+**Dependencies:** Purchasing, Sales, Phase 7 integrations, Pawn integration, Business Loan collateral, and generic pack semantics as needed by each report.
 
 **Ordered tasks:**
 
@@ -406,7 +426,8 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 - `RPT-005` Add Sale realized profit report from persisted SaleLine cost snapshots.
 - `RPT-006` Add movement, purchase, supplier, Pawn collateral custody, and ownership history filters.
 - `RPT-007` Reuse existing list/table/filter/mobile card patterns and ensure every view has loading, empty, error, and permission states.
-- `RPT-008` Add reconciliation tests comparing reports with movements, receipts, ownership lots, pledges, and sale lines.
+- `RPT-008` Add reconciliation views comparing purchase receipts/returns, payments/refunds, sale postings, Inventory movements, Ownership lots, and Accounting/Financial Account records.
+- `RPT-009` Add reconciliation tests comparing report totals to canonical transactions; show discrepancies for review and never silently rewrite source records.
 
 **Existing code to reuse:** `DataTable`, `FilterBar`, `TableToolbar`, `DataCard`, `StatCard`, tenant-scoped list services/cache keys, and existing accounting/report date conventions where applicable.
 
@@ -416,7 +437,7 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 
 **Transactions/locking:** Reports are read-only and consistent with committed operations; movement and lot write locking belongs in earlier operation phases.
 
-**Edge cases/acceptance:** Incoming quantities are not stock; pledged quantity remains tenant-owned but unavailable; forfeiture does not count as sold; profit uses sale-time cost snapshot. Reconcile every report to canonical records.
+**Edge cases/acceptance:** Incoming quantities are not stock; pledged quantity remains tenant-owned but unavailable; forfeiture does not count as sold; profit uses sale-time cost snapshot. Every reconciliation result must trace to canonical source records.
 
 **Explicitly defer:** Forecasting, automated reorder planning, margin recommendations, accounting valuation schedules, and executive dashboard work before reconciliation.
 
@@ -437,13 +458,13 @@ This plan is based on the current LonePawn Laravel/React modular monolith. It is
 | Scenario | Required result | Covered by |
 |---|---|---|
 | A — Lazy reusable purchase | Quick-create generic “Charger” without SKU, search/reuse it later, and permit another same-name item with different category/context. | CAT-003–011, PUR-005, PUR-012 |
-| B — Online purchase | Order/payment do not create stock; receive 8 of 20 then 7 gives stock 15 and incoming 5. | PUR-004–013 |
-| C — Received but unpaid | Receipt creates 10 Inventory/Ownership units while payment remains UNPAID. | PUR-006–013 |
-| D — Unique jewellery | Necklace works with quantity 1, no CatalogItem, and its own description/details. | INV-004–013, OWN-003–009, PUR-010 |
-| E — Serialized phone | One CatalogItem, quantity 3, three separately identified InventoryUnits/IMEIs. | CAT-004, INV-004–013, PUR-010 |
+| B — Online purchase | Phase 5 records order/receipt quantities; Phase 7 creates stock for 8 then 7 of 20, leaving stock 15 and incoming 5. | PUR-004–013, INT-002 |
+| C — Received but unpaid | Receipt records 10 while payment is UNPAID; Phase 7 creates 10 Inventory/Ownership units without changing payment status. | PUR-006–013, INT-001–002 |
+| D — Unique jewellery | Necklace works with quantity 1, no CatalogItem, and its own description/details through purchase receipt integration. | INV-004–013, OWN-003–009, PUR-010, INT-002 |
+| E — Serialized phone | One CatalogItem, quantity 3, three separately identified InventoryUnits/IMEIs through purchase receipt integration. | CAT-004, INV-004–013, PUR-010, INT-002 |
 | F — Pawn collateral | Receive to custody only; redemption issues; legal conversion attaches Ownership to the existing InventoryItem. | PAWN-INV-002–011 |
 | G — Business Loan | Pledge 4 of 10, keep 6 available, move 4 to lender; release restores; forfeiture removes ownership but is not a sale. | BL-COL-002–009 |
-| H — Sale | Sell partial owned quantity, issue inventory, snapshot cost and price, post Accounting, calculate realized profit. | SALE-002–008 |
+| H — Sale | Phase 6 records a draft; Phase 7 posts a partial sale, issues inventory, snapshots cost and price, posts Accounting, and calculates realized profit. | SALE-002–006, INT-004 |
 | I — Pack | Pack/unpack serialized phone and quantity charger/case without losing identities or quantities. | PACK-002–009 |
 
 ## Dependency Graph
@@ -456,24 +477,27 @@ flowchart TD
     C --> D
     D --> E[Phase 4: Ownership]
     C --> E
-    E --> F[Phase 5: Purchasing]
-    D --> F
-    J[Existing Accounting and Financial Account services] --> F
-    E --> G[Phase 6: Pawn integration]
-    D --> G
-    E --> H[Phase 7: Business Loan collateral]
+    C -. optional Catalog reference .-> F[Phase 5: Purchasing records]
+    P[Shared TenantPerson and currency services] --> F
+    E --> G[Phase 6: Sales records]
+    F --> H[Phase 7: Accounting and Inventory integration]
+    G --> H
     D --> H
-    K[Existing Business Loan module] --> H
-    E --> I[Phase 8: Sales]
+    E --> H
+    J[Existing Accounting and Financial Account services] --> H
+    E --> I[Phase 8: Pawn integration]
     D --> I
-    J --> I
-    D --> L[Phase 9: Generic packs]
-    G --> L
-    F --> M[Phase 10: Reporting and UX]
-    G --> M
-    H --> M
+    E --> L[Phase 9: Business Loan collateral]
+    D --> L
+    K[Existing Business Loan module] --> L
+    D --> M[Phase 10: Generic packs]
     I --> M
-    L --> M
+    F --> N[Phase 11: Reporting and reconciliation]
+    G --> N
+    H --> N
+    I --> N
+    L --> N
+    M --> N
 ```
 
 ## First 20 Tasks to Execute
