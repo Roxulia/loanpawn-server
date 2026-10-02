@@ -11,8 +11,8 @@ class InventoryMovement extends Model
     use BelongToTenant;
 
     protected $fillable = [
-        'tenant_id', 'inventory_item_id', 'inventory_unit_id', 'from_location_id', 'to_location_id',
-        'quantity', 'movement_type', 'reason', 'source_type', 'source_id', 'idempotency_record_id',
+        'tenant_id', 'code', 'inventory_item_id', 'inventory_unit_id', 'from_location_id', 'to_location_id',
+        'quantity', 'movement_type', 'reason', 'source_type', 'source_code', 'idempotency_record_id',
         'created_by', 'occurred_at',
     ];
 

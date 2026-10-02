@@ -62,6 +62,11 @@ class CatalogTaxonomyService
         return $this->repository->findUnit($this->tenantId(), $unitId) !== null;
     }
 
+    public function unitIdForCode(string $unitCode): ?int
+    {
+        return $this->repository->findUnitByCode($this->tenantId(), $unitCode)?->id;
+    }
+
     public function createCategory(string $name): array
     {
         $tenantId = $this->tenantId();

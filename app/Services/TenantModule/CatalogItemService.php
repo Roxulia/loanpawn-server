@@ -5,7 +5,9 @@ namespace App\Services\TenantModule;
 use App\DataObjects\RequestObjects\CatalogItemCreate;
 use App\Models\CatalogModule\CatalogItem;
 use App\Repository\CatalogItemRepository;
+use App\Services\TableIdGenerationService;
 use App\Support\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +17,7 @@ class CatalogItemService
         private CatalogItemRepository $repository,
         private CatalogTaxonomyService $taxonomyService,
         private TenantContext $tenantContext,
+        private TableIdGenerationService $tableIdGenerationService,
     ) {
     }
 
@@ -38,6 +41,15 @@ class CatalogItemService
         return $this->resource($item);
     }
 
+    public function availableForInventoryByCode(string $businessCode): ?array
+    {
+        $item = $this->repository->findByBusinessCode($this->tenantId(), $businessCode);
+        if ($item === null || ! $item->is_active) {
+            return null;
+        }
+        return $this->resource($item);
+    }
+
     public function create(CatalogItemCreate $request): array
     {
         $tenantId = $this->tenantId();
@@ -53,6 +65,7 @@ class CatalogItemService
         $this->validateReferences($data);
 
         return DB::transaction(function () use ($tenantId, $data): array {
+            $data['business_code'] = $this->tableIdGenerationService->generateForTenant($tenantId, 'catalog_items', CarbonImmutable::now());
             $item = $this->repository->create($tenantId, $data);
 
             return $this->resource($item);
@@ -76,7 +89,7 @@ class CatalogItemService
             $this->validateReferences($data);
             $item = $this->repository->update($item, $data);
 
-            return $this->resource($item->load(['category:id,name', 'unit:id,name,symbol']));
+            return $this->resource($item->load(['category:id,name', 'unit:id,code,name,symbol']));
         });
     }
 
@@ -98,9 +111,10 @@ class CatalogItemService
 
     private function resource(CatalogItem $item): array
     {
-        $item->loadMissing(['category:id,name', 'unit:id,name,symbol']);
+        $item->loadMissing(['category:id,name', 'unit:id,code,name,symbol']);
 
         return [
+            'business_code' => $item->business_code,
             'id' => $item->id,
             'name' => $item->name,
             'description' => $item->description,
@@ -110,6 +124,7 @@ class CatalogItemService
             'barcode' => $item->barcode,
             'tracking_mode' => $item->tracking_mode,
             'unit_id' => $item->unit_id,
+            'unit_code' => $item->unit?->code,
             'unit' => $item->unit ? [
                 'id' => $item->unit->id,
                 'name' => $item->unit->name,

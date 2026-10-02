@@ -16,14 +16,10 @@ class InventoryRepository
         return InventoryLocation::query()->where('tenant_id', $tenantId)->orderBy('name')->get();
     }
 
-    public function findLocation(int $tenantId, int $locationId, bool $lock = false): ?InventoryLocation
+    public function findLocationByCode(int $tenantId, string $code, bool $lock = false): ?InventoryLocation
     {
-        $query = InventoryLocation::query()->where('tenant_id', $tenantId)->whereKey($locationId);
-        if ($lock) {
-            $query->lockForUpdate();
-        }
-
-        return $query->first();
+        $query = InventoryLocation::query()->where('tenant_id', $tenantId)->where('code', $code);
+        return $lock ? $query->lockForUpdate()->first() : $query->first();
     }
 
     public function createLocation(int $tenantId, array $data): InventoryLocation
@@ -46,11 +42,11 @@ class InventoryRepository
         return $location->refresh();
     }
 
-    public function ensureMainShop(int $tenantId): InventoryLocation
+    public function ensureMainShop(int $tenantId, string $code): InventoryLocation
     {
         return InventoryLocation::query()->firstOrCreate(
             ['tenant_id' => $tenantId, 'name' => 'Main Shop'],
-            ['type' => 'SHOP', 'is_default' => true, 'is_active' => true],
+            ['code' => $code, 'type' => 'SHOP', 'is_default' => true, 'is_active' => true],
         );
     }
 
@@ -59,19 +55,18 @@ class InventoryRepository
         return InventoryItem::query()
             ->where('tenant_id', $tenantId)
             ->when($search, fn ($query) => $query->where('name', 'like', '%'.$search.'%'))
-            ->with('catalogItem:id,name')
+            ->with(['catalogItem:id,business_code,name', 'unit:id,code,name'])
             ->orderBy('name')
             ->limit(100)
             ->get();
     }
 
-    public function findItem(int $tenantId, int $itemId, bool $lock = false): ?InventoryItem
+    public function findItemByCode(int $tenantId, string $code, bool $lock = false): ?InventoryItem
     {
-        $query = InventoryItem::query()->where('tenant_id', $tenantId)->whereKey($itemId);
+        $query = InventoryItem::query()->where('tenant_id', $tenantId)->where('code', $code);
         if ($lock) {
             $query->lockForUpdate();
         }
-
         return $query->first();
     }
 
@@ -80,10 +75,11 @@ class InventoryRepository
         return InventoryItem::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
-    public function createUnit(int $tenantId, int $itemId, ?string $identifier): InventoryUnit
+    public function createUnit(int $tenantId, int $itemId, ?string $identifier, string $code): InventoryUnit
     {
         return InventoryUnit::query()->create([
             'tenant_id' => $tenantId,
+            'code' => $code,
             'inventory_item_id' => $itemId,
             'identifier' => $identifier,
         ]);
@@ -97,15 +93,10 @@ class InventoryRepository
             ->exists();
     }
 
-    public function findUnitsForUpdate(int $tenantId, int $itemId, array $unitIds): Collection
+    public function findUnitsByCodesForUpdate(int $tenantId, int $itemId, array $unitCodes): Collection
     {
-        return InventoryUnit::query()
-            ->where('tenant_id', $tenantId)
-            ->where('inventory_item_id', $itemId)
-            ->whereIn('id', $unitIds)
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get();
+        return InventoryUnit::query()->where('tenant_id', $tenantId)->where('inventory_item_id', $itemId)
+            ->whereIn('code', $unitCodes)->orderBy('id')->lockForUpdate()->get();
     }
 
     public function createMovement(int $tenantId, array $data): InventoryMovement
@@ -118,7 +109,7 @@ class InventoryRepository
         return InventoryMovement::query()
             ->where('tenant_id', $tenantId)
             ->where('inventory_item_id', $itemId)
-            ->with(['fromLocation:id,name', 'toLocation:id,name'])
+            ->with(['fromLocation:id,code,name', 'toLocation:id,code,name'])
             ->orderByDesc('occurred_at')
             ->orderByDesc('id')
             ->limit(500)
@@ -169,7 +160,7 @@ class InventoryRepository
         return InventoryMovement::query()
             ->where('tenant_id', $tenantId)
             ->where('inventory_unit_id', $unitId)
-            ->with(['fromLocation:id,name', 'toLocation:id,name'])
+            ->with(['fromLocation:id,code,name', 'toLocation:id,code,name'])
             ->latest('id')
             ->first();
     }

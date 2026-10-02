@@ -37,7 +37,7 @@ class InventoryController extends Controller
         return $this->successResponse($this->inventoryService->createLocation($validator->validated()), statusCode: 201);
     }
 
-    public function updateLocation(Request $request, int $locationId): JsonResponse
+    public function updateLocation(Request $request, string $locationCode): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'name' => ['sometimes', 'required', 'string', 'max:120'],
@@ -47,7 +47,7 @@ class InventoryController extends Controller
         if ($validator->fails()) {
             return $this->validationErrorResponse($validator->errors());
         }
-        return $this->successResponse($this->inventoryService->updateLocation($locationId, $validator->validated()));
+        return $this->successResponse($this->inventoryService->updateLocationByCode($locationCode, $validator->validated()));
     }
 
     public function index(Request $request): JsonResponse
@@ -59,41 +59,41 @@ class InventoryController extends Controller
         return $this->successResponse($this->inventoryService->items($validator->validated()['search'] ?? null));
     }
 
-    public function show(int $itemId): JsonResponse
+    public function show(string $itemCode): JsonResponse
     {
-        return $this->successResponse($this->inventoryService->detail($itemId));
+        return $this->successResponse($this->inventoryService->detailByCode($itemCode));
     }
 
-    public function movements(int $itemId): JsonResponse
+    public function movements(string $itemCode): JsonResponse
     {
-        return $this->successResponse($this->inventoryService->movements($itemId));
+        return $this->successResponse($this->inventoryService->movementsByCode($itemCode));
     }
 
     public function receive(Request $request): JsonResponse
     {
         return $this->mutate($request, [
-            'inventory_item_id' => ['nullable', 'integer', 'min:1', 'required_without:name'],
-            'catalog_item_id' => ['nullable', 'integer', 'min:1'],
-            'name' => ['nullable', 'string', 'max:180', 'required_without:inventory_item_id'],
+            'inventory_item_code' => ['nullable', 'string', 'max:40', 'required_without:name'],
+            'catalog_item_code' => ['nullable', 'string', 'max:40'],
+            'name' => ['nullable', 'string', 'max:180', 'required_without:inventory_item_code'],
             'description' => ['nullable', 'string', 'max:255'],
             'tracking_mode' => ['nullable', Rule::in(['UNIQUE', 'SERIALIZED', 'QUANTITY'])],
-            'unit_id' => ['nullable', 'integer', 'min:1'],
-            'location_id' => ['required', 'integer', 'min:1'],
+            'unit_code' => ['nullable', 'string', 'max:40'],
+            'location_code' => ['required', 'string', 'max:40'],
             'quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
             'unit_identifiers' => ['nullable', 'array'],
             'unit_identifiers.*' => ['nullable', 'string', 'max:120', 'distinct'],
             'reason' => ['nullable', 'string', 'max:255'],
             'source_type' => ['nullable', 'string', 'max:120'],
-            'source_id' => ['nullable', 'integer', 'min:1'],
+            'source_code' => ['nullable', 'string', 'max:120'],
         ], fn (array $data, ?string $key): array => $this->inventoryService->receive($data, $key), 201);
     }
 
     public function move(Request $request): JsonResponse
     {
         $rules = $this->movementRules();
-        $rules['from_location_id'] = ['required', 'integer', 'min:1'];
-        $rules['to_location_id'] = ['required', 'integer', 'min:1'];
-        unset($rules['location_id']);
+        $rules['from_location_code'] = ['required', 'string', 'max:40'];
+        $rules['to_location_code'] = ['required', 'string', 'max:40'];
+        unset($rules['location_code']);
         return $this->mutate($request, $rules,
             fn (array $data, ?string $key): array => $this->inventoryService->move($data, $key));
     }
@@ -101,8 +101,8 @@ class InventoryController extends Controller
     public function issue(Request $request): JsonResponse
     {
         $rules = $this->movementRules();
-        $rules['location_id'] = ['required', 'integer', 'min:1'];
-        unset($rules['from_location_id'], $rules['to_location_id']);
+        $rules['location_code'] = ['required', 'string', 'max:40'];
+        unset($rules['from_location_code'], $rules['to_location_code']);
         return $this->mutate($request, $rules,
             fn (array $data, ?string $key): array => $this->inventoryService->issue($data, $key));
     }
@@ -110,8 +110,8 @@ class InventoryController extends Controller
     public function adjust(Request $request): JsonResponse
     {
         $rules = $this->movementRules();
-        $rules['location_id'] = ['required', 'integer', 'min:1'];
-        unset($rules['from_location_id'], $rules['to_location_id']);
+        $rules['location_code'] = ['required', 'string', 'max:40'];
+        unset($rules['from_location_code'], $rules['to_location_code']);
         $rules['direction'] = ['required', Rule::in(['IN', 'OUT'])];
         $rules['reason'] = ['required', 'string', 'max:255'];
         $rules['unit_identifiers'] = ['nullable', 'array'];
@@ -138,16 +138,16 @@ class InventoryController extends Controller
     private function movementRules(): array
     {
         $rules = [
-            'inventory_item_id' => ['required', 'integer', 'min:1'],
-            'from_location_id' => ['nullable', 'integer', 'min:1'],
-            'location_id' => ['nullable', 'integer', 'min:1'],
-            'to_location_id' => ['nullable', 'integer', 'min:1'],
+            'inventory_item_code' => ['required', 'string', 'max:40'],
+            'from_location_code' => ['nullable', 'string', 'max:40'],
+            'location_code' => ['nullable', 'string', 'max:40'],
+            'to_location_code' => ['nullable', 'string', 'max:40'],
             'quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
             'reason' => ['nullable', 'string', 'max:255'],
             'source_type' => ['nullable', 'string', 'max:120'],
-            'source_id' => ['nullable', 'integer', 'min:1'],
-            'inventory_unit_ids' => ['nullable', 'array'],
-            'inventory_unit_ids.*' => ['integer', 'min:1', 'distinct'],
+            'source_code' => ['nullable', 'string', 'max:120'],
+            'inventory_unit_codes' => ['nullable', 'array'],
+            'inventory_unit_codes.*' => ['string', 'max:40', 'distinct'],
         ];
         return $rules;
     }

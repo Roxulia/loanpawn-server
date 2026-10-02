@@ -19,5 +19,13 @@ return [
         'tenant_requests' => 'TR',
         'tenant_users' => 'TU',
         'financial_accounts' => 'FA',
+        'catalog_items' => 'CAT',
+        'inventory_items' => 'II',
+        'inventory_locations' => 'IL',
+        'inventory_units' => 'IU',
+        'inventory_movements' => 'IM',
+        'owned_items' => 'OI',
+        'acquisition_lots' => 'AL',
+        'ownership_movements' => 'OM',
     ],
 ];
