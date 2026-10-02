@@ -13,7 +13,7 @@ class InventoryItem extends Model
     use BelongToTenant;
 
     protected $fillable = [
-        'tenant_id', 'catalog_item_id', 'unit_id', 'tracking_mode', 'name', 'description', 'quantity_scale',
+        'tenant_id', 'code', 'catalog_item_id', 'unit_id', 'tracking_mode', 'name', 'description', 'quantity_scale',
     ];
 
     protected $casts = ['quantity_scale' => 'decimal:3'];

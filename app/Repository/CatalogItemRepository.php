@@ -19,7 +19,7 @@ class CatalogItemRepository
                         ->orWhere('barcode', 'like', '%'.$search.'%');
                 });
             })
-            ->with(['category:id,name', 'unit:id,name,symbol'])
+            ->with(['category:id,name', 'unit:id,code,name,symbol'])
             ->orderBy('name')
             ->limit(30)
             ->get();
@@ -34,6 +34,11 @@ class CatalogItemRepository
         }
 
         return $query->find($id);
+    }
+
+    public function findByBusinessCode(int $tenantId, string $businessCode): ?CatalogItem
+    {
+        return CatalogItem::query()->where('tenant_id', $tenantId)->where('business_code', $businessCode)->first();
     }
 
     public function create(int $tenantId, array $data): CatalogItem

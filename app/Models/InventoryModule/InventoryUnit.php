@@ -10,7 +10,7 @@ class InventoryUnit extends Model
 {
     use BelongToTenant;
 
-    protected $fillable = ['tenant_id', 'inventory_item_id', 'identifier'];
+    protected $fillable = ['tenant_id', 'code', 'inventory_item_id', 'identifier'];
 
     public function item(): BelongsTo
     {

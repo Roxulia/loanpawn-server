@@ -89,6 +89,17 @@ class CatalogTaxonomyRepository
             ->first();
     }
 
+    public function findUnitByCode(int $tenantId, string $code): ?CatalogUnit
+    {
+        return CatalogUnit::query()
+            ->where('code', $code)
+            ->where(function ($query) use ($tenantId): void {
+                $query->whereNull('tenant_id')->orWhere('tenant_id', $tenantId);
+            })
+            ->where('is_active', true)
+            ->first();
+    }
+
     public function findTenantUnit(int $tenantId, int $id): ?CatalogUnit
     {
         return CatalogUnit::query()

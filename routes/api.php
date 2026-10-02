@@ -470,13 +470,13 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:list_inventory,manage_inventory_locations');
                 Route::post('locations', [InventoryController::class, 'storeLocation'])
                     ->middleware('tenant.permission:manage_inventory_locations');
-                Route::put('locations/{locationId}', [InventoryController::class, 'updateLocation'])
+                Route::put('locations/{locationCode}', [InventoryController::class, 'updateLocation'])
                     ->middleware('tenant.permission:manage_inventory_locations');
                 Route::get('items', [InventoryController::class, 'index'])
                     ->middleware('tenant.permission:list_inventory');
-                Route::get('items/{itemId}', [InventoryController::class, 'show'])
+                Route::get('items/{itemCode}', [InventoryController::class, 'show'])
                     ->middleware('tenant.permission:list_inventory');
-                Route::get('items/{itemId}/movements', [InventoryController::class, 'movements'])
+                Route::get('items/{itemCode}/movements', [InventoryController::class, 'movements'])
                     ->middleware('tenant.permission:list_inventory');
                 Route::post('receive', [InventoryController::class, 'receive'])
                     ->middleware('tenant.permission:receive_inventory');
@@ -486,6 +486,19 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:issue_inventory');
                 Route::post('adjust', [InventoryController::class, 'adjust'])
                     ->middleware('tenant.permission:adjust_inventory');
+            });
+
+            Route::prefix('ownership')->middleware(['tenant.feature:ownership_management', 'tenant.feature:inventory_management'])->group(function () {
+                Route::get('inventory-options', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'inventoryOptions'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::get('items', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'index'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::get('items/{ownedItemCode}', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'show'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::get('items/{ownedItemCode}/movements', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'movements'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::post('acquisitions', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'acquire'])
+                    ->middleware('tenant.permission:create_owned_item');
             });
 
             Route::prefix('slip-documents')

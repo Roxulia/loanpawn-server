@@ -10,7 +10,7 @@ class CatalogItem extends Model
 {
     use BelongToTenant;
 
-    protected $fillable = ['tenant_id', 'name', 'description', 'category_id', 'sku', 'barcode', 'tracking_mode', 'unit_id', 'is_active', 'update_key'];
+    protected $fillable = ['tenant_id', 'business_code', 'name', 'description', 'category_id', 'sku', 'barcode', 'tracking_mode', 'unit_id', 'is_active', 'update_key'];
     protected $casts = ['is_active' => 'boolean', 'update_key' => 'integer'];
 
     public function category(): BelongsTo

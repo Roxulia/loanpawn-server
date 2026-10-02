@@ -6,7 +6,9 @@ use App\Models\InventoryModule\InventoryItem;
 use App\Models\InventoryModule\InventoryLocation;
 use App\Repository\InventoryRepository;
 use App\Services\BaseTenantService;
+use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\TenantIdempotencyService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +21,7 @@ class InventoryService extends BaseTenantService
         private CatalogItemService $catalogItemService,
         private CatalogTaxonomyService $catalogTaxonomyService,
         private TenantIdempotencyService $idempotencyService,
+        private TableIdGenerationService $tableIdGenerationService,
     ) {
     }
 
@@ -31,7 +34,12 @@ class InventoryService extends BaseTenantService
 
     public function units(): array
     {
-        return $this->catalogTaxonomyService->units();
+        // Return catalog unit business codes for Inventory requests, omitting database IDs.
+        return array_map(static fn (array $unit): array => [
+            'code' => $unit['code'],
+            'name' => $unit['name'],
+            'symbol' => $unit['symbol'],
+        ], $this->catalogTaxonomyService->units());
     }
 
     public function createLocation(array $data): array
@@ -41,15 +49,17 @@ class InventoryService extends BaseTenantService
         if ($this->repository->locationNameExists($tenantId, $data['name'])) {
             throw ValidationException::withMessages(['name' => ['This location name is already in use.']]);
         }
+        $data['code'] = $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_locations', CarbonImmutable::now());
         $location = $this->repository->createLocation($tenantId, $data);
         return $this->locationResource($location);
     }
 
-    public function updateLocation(int $id, array $data): array
+    public function updateLocationByCode(string $locationCode, array $data): array
     {
+        // Resolve and lock the location by its public tenant-scoped business code.
         $tenantId = $this->resolveCurrentTenantId();
-        return DB::transaction(function () use ($tenantId, $id, $data): array {
-            $location = $this->repository->findLocation($tenantId, $id, true);
+        return DB::transaction(function () use ($tenantId, $locationCode, $data): array {
+            $location = $this->repository->findLocationByCode($tenantId, $locationCode, true);
             abort_if($location === null, 404);
             if (isset($data['name'])) {
                 $data['name'] = trim($data['name']);
@@ -58,9 +68,7 @@ class InventoryService extends BaseTenantService
                 }
             }
             if ($location->is_default && array_key_exists('is_active', $data) && ! $data['is_active']) {
-                throw ValidationException::withMessages([
-                    'is_active' => ['The default Main Shop location cannot be deactivated.'],
-                ]);
+                throw ValidationException::withMessages(['is_active' => ['The default Main Shop location cannot be deactivated.']]);
             }
             return $this->locationResource($this->repository->updateLocation($location, $data));
         });
@@ -74,24 +82,36 @@ class InventoryService extends BaseTenantService
         )->all();
     }
 
-    public function detail(int $itemId): array
+    public function detailByCode(string $itemCode): array
     {
+        // Resolve a public business code to an internal model before constructing the response.
         $tenantId = $this->resolveCurrentTenantId();
-        $item = $this->repository->findItem($tenantId, $itemId);
+        $item = $this->repository->findItemByCode($tenantId, $itemCode);
         abort_if($item === null, 404);
-
         return $this->itemResource($tenantId, $item);
     }
 
-    public function movements(int $itemId): array
+    public function findForOwnershipByCode(string $itemCode): InventoryItem
     {
+        // Resolve a public business code before Ownership uses the internal model ID.
+        $item = $this->repository->findItemByCode($this->resolveCurrentTenantId(), $itemCode, true);
+        abort_if($item === null, 404);
+        return $item;
+    }
+
+    public function movementsByCode(string $itemCode): array
+    {
+        // Resolve the public Inventory item code before reading movement history.
         $tenantId = $this->resolveCurrentTenantId();
-        abort_if($this->repository->findItem($tenantId, $itemId) === null, 404);
-        return $this->repository->movements($tenantId, $itemId)->map(
+        $item = $this->repository->findItemByCode($tenantId, $itemCode);
+        abort_if($item === null, 404);
+        return $this->repository->movements($tenantId, (int) $item->id)->map(
             fn ($movement): array => [
-                'id' => $movement->id,
+                'code' => $movement->code,
                 'type' => $movement->movement_type,
                 'quantity' => $movement->quantity,
+                'from_location_code' => $movement->fromLocation?->code,
+                'to_location_code' => $movement->toLocation?->code,
                 'from' => $movement->fromLocation?->name,
                 'to' => $movement->toLocation?->name,
                 'reason' => $movement->reason,
@@ -105,15 +125,15 @@ class InventoryService extends BaseTenantService
         return $this->runIdempotent('inventory.receive', $idempotencyKey, $data, function (int $tenantId, ?int $recordId) use ($data): array {
             $data['_idempotency_record_id'] = $recordId;
             return DB::transaction(function () use ($tenantId, $data): array {
-                $location = $this->activeLocation($tenantId, (int) $data['location_id'], true);
-                $item = isset($data['inventory_item_id'])
-                    ? $this->lockedItem($tenantId, (int) $data['inventory_item_id'])
+                $location = $this->activeLocationByCode($tenantId, (string) $data['location_code'], true);
+                $item = isset($data['inventory_item_code'])
+                    ? $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code'])
                     : $this->createInventoryItem($tenantId, $data);
                 $quantity = $this->validateQuantityForMode($item, $data['quantity']);
                 if ($item->tracking_mode === 'UNIQUE'
                     && array_sum($this->repository->balances($tenantId, $item->id)) > 0) {
                     throw ValidationException::withMessages([
-                        'inventory_item_id' => ['This unique item has already been received.'],
+                        'inventory_item_code' => ['This unique item has already been received.'],
                     ]);
                 }
                 $unitIdentifiers = $this->validateSerializedReceive(
@@ -125,7 +145,8 @@ class InventoryService extends BaseTenantService
 
                 if ($item->tracking_mode === 'SERIALIZED') {
                     foreach ($unitIdentifiers as $identifier) {
-                        $unit = $this->repository->createUnit($tenantId, $item->id, $identifier);
+                        $unit = $this->repository->createUnit($tenantId, $item->id, $identifier,
+                            $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_units', CarbonImmutable::now()));
                         $this->appendMovement($tenantId, $item, null, $location->id, 1, 'RECEIVE', $data, $unit->id);
                     }
                 } else {
@@ -142,31 +163,31 @@ class InventoryService extends BaseTenantService
         return $this->runIdempotent('inventory.move', $idempotencyKey, $data, function (int $tenantId, ?int $recordId) use ($data): array {
             $data['_idempotency_record_id'] = $recordId;
             return DB::transaction(function () use ($tenantId, $data): array {
-                $item = $this->lockedItem($tenantId, (int) $data['inventory_item_id']);
-                $locationIds = [
-                    (int) $data['from_location_id'],
-                    (int) $data['to_location_id'],
+                $item = $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code']);
+                $locationCodes = [
+                    (string) $data['from_location_code'],
+                    (string) $data['to_location_code'],
                 ];
-                sort($locationIds, SORT_NUMERIC);
+                sort($locationCodes, SORT_STRING);
                 $lockedLocations = [];
-                foreach (array_unique($locationIds) as $locationId) {
-                    $lockedLocations[$locationId] = $this->activeLocation(
+                foreach (array_unique($locationCodes) as $locationCode) {
+                    $lockedLocations[$locationCode] = $this->activeLocationByCode(
                         $tenantId,
-                        $locationId,
+                        $locationCode,
                         true,
-                        $locationId === (int) $data['to_location_id'],
+                        $locationCode === (string) $data['to_location_code'],
                     );
                 }
-                $from = $lockedLocations[(int) $data['from_location_id']];
-                $to = $lockedLocations[(int) $data['to_location_id']];
+                $from = $lockedLocations[(string) $data['from_location_code']];
+                $to = $lockedLocations[(string) $data['to_location_code']];
                 if ($from->id === $to->id) {
-                    throw ValidationException::withMessages(['to_location_id' => ['Choose a different destination.']]);
+                    throw ValidationException::withMessages(['to_location_code' => ['Choose a different destination.']]);
                 }
                 $quantity = $this->validateQuantityForMode($item, $data['quantity']);
-                $this->assertAvailable($tenantId, $item, $from->id, $quantity, $data['inventory_unit_ids'] ?? []);
+                $this->assertAvailable($tenantId, $item, $from->id, $quantity, $data['inventory_unit_codes'] ?? []);
 
                 if ($item->tracking_mode === 'SERIALIZED') {
-                    foreach ($this->lockedUnits($tenantId, $item, $data['inventory_unit_ids']) as $unit) {
+                    foreach ($this->lockedUnitsByCodes($tenantId, $item, $data['inventory_unit_codes']) as $unit) {
                         $this->appendMovement($tenantId, $item, $from->id, $to->id, 1, 'MOVE', $data, $unit->id);
                     }
                 } else {
@@ -183,13 +204,13 @@ class InventoryService extends BaseTenantService
         return $this->runIdempotent('inventory.issue', $idempotencyKey, $data, function (int $tenantId, ?int $recordId) use ($data): array {
             $data['_idempotency_record_id'] = $recordId;
             return DB::transaction(function () use ($tenantId, $data): array {
-                $item = $this->lockedItem($tenantId, (int) $data['inventory_item_id']);
-                $location = $this->activeLocation($tenantId, (int) $data['location_id'], true, false);
+                $item = $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code']);
+                $location = $this->activeLocationByCode($tenantId, (string) $data['location_code'], true, false);
                 $quantity = $this->validateQuantityForMode($item, $data['quantity']);
-                $this->assertAvailable($tenantId, $item, $location->id, $quantity, $data['inventory_unit_ids'] ?? []);
+                $this->assertAvailable($tenantId, $item, $location->id, $quantity, $data['inventory_unit_codes'] ?? []);
 
                 if ($item->tracking_mode === 'SERIALIZED') {
-                    foreach ($this->lockedUnits($tenantId, $item, $data['inventory_unit_ids']) as $unit) {
+                    foreach ($this->lockedUnitsByCodes($tenantId, $item, $data['inventory_unit_codes'] ?? []) as $unit) {
                         $this->appendMovement($tenantId, $item, $location->id, null, 1, 'ISSUE', $data, $unit->id);
                     }
                 } else {
@@ -206,22 +227,22 @@ class InventoryService extends BaseTenantService
         return $this->runIdempotent('inventory.adjust', $idempotencyKey, $data, function (int $tenantId, ?int $recordId) use ($data): array {
             $data['_idempotency_record_id'] = $recordId;
             return DB::transaction(function () use ($tenantId, $data): array {
-                $item = $this->lockedItem($tenantId, (int) $data['inventory_item_id']);
-                $location = $this->activeLocation(
+                $item = $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code']);
+                $location = $this->activeLocationByCode(
                     $tenantId,
-                    (int) $data['location_id'],
+                    (string) $data['location_code'],
                     true,
                     $data['direction'] === 'IN',
                 );
                 $quantity = $this->validateQuantityForMode($item, $data['quantity']);
                 $type = $data['direction'] === 'IN' ? 'ADJUST_IN' : 'ADJUST_OUT';
                 if ($type === 'ADJUST_OUT') {
-                    $this->assertAvailable($tenantId, $item, $location->id, $quantity, $data['inventory_unit_ids'] ?? []);
+                    $this->assertAvailable($tenantId, $item, $location->id, $quantity, $data['inventory_unit_codes'] ?? []);
                 }
                 if ($type === 'ADJUST_IN' && $item->tracking_mode === 'UNIQUE'
                     && array_sum($this->repository->balances($tenantId, $item->id)) > 0) {
                     throw ValidationException::withMessages([
-                        'inventory_item_id' => ['A unique item can only have one unit in custody.'],
+                        'inventory_item_code' => ['A unique item can only have one unit in custody.'],
                     ]);
                 }
 
@@ -230,11 +251,12 @@ class InventoryService extends BaseTenantService
                     if ($type === 'ADJUST_IN') {
                         $identifiers = $this->validateSerializedReceive($tenantId, $item, $quantity, $identifiers);
                         foreach ($identifiers as $identifier) {
-                            $unit = $this->repository->createUnit($tenantId, $item->id, $identifier);
+                            $unit = $this->repository->createUnit($tenantId, $item->id, $identifier,
+                                $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_units', CarbonImmutable::now()));
                             $this->appendMovement($tenantId, $item, null, $location->id, 1, $type, $data, $unit->id);
                         }
                     } else {
-                        foreach ($this->lockedUnits($tenantId, $item, $data['inventory_unit_ids']) as $unit) {
+                    foreach ($this->lockedUnitsByCodes($tenantId, $item, $data['inventory_unit_codes'] ?? []) as $unit) {
                             $this->appendMovement($tenantId, $item, $location->id, null, 1, $type, $data, $unit->id);
                         }
                     }
@@ -250,7 +272,8 @@ class InventoryService extends BaseTenantService
 
     public function ensureMainShopForTenant(int $tenantId): void
     {
-        $this->repository->ensureMainShop($tenantId);
+        $this->repository->ensureMainShop($tenantId,
+            $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_locations', CarbonImmutable::now()));
     }
 
     private function runIdempotent(
@@ -286,11 +309,11 @@ class InventoryService extends BaseTenantService
 
     private function createInventoryItem(int $tenantId, array $data): InventoryItem
     {
-        $catalogItem = isset($data['catalog_item_id'])
-            ? $this->catalogItemService->availableForInventory((int) $data['catalog_item_id'])
+        $catalogItem = isset($data['catalog_item_code'])
+            ? $this->catalogItemService->availableForInventoryByCode((string) $data['catalog_item_code'])
             : null;
-        if (isset($data['catalog_item_id']) && $catalogItem === null) {
-            throw ValidationException::withMessages(['catalog_item_id' => ['The selected catalog item is unavailable.']]);
+        if (isset($data['catalog_item_code']) && $catalogItem === null) {
+            throw ValidationException::withMessages(['catalog_item_code' => ['The selected catalog item is unavailable.']]);
         }
 
         if ($catalogItem !== null
@@ -301,16 +324,17 @@ class InventoryService extends BaseTenantService
             ]);
         }
         if ($catalogItem !== null
-            && isset($data['unit_id'])
-            && (int) $data['unit_id'] !== (int) $catalogItem['unit_id']) {
+            && isset($data['unit_code'])
+            && (string) $data['unit_code'] !== (string) $catalogItem['unit_code']) {
             throw ValidationException::withMessages([
-                'unit_id' => ['Unit must match the selected catalog item.'],
+                'unit_code' => ['Unit must match the selected catalog item.'],
             ]);
         }
 
-        $unitId = (int) ($data['unit_id'] ?? $catalogItem['unit_id'] ?? $this->catalogTaxonomyService->defaultUnitId());
-        if (! $this->catalogTaxonomyService->unitIsAvailable($unitId)) {
-            throw ValidationException::withMessages(['unit_id' => ['The selected unit is unavailable.']]);
+        $unitCode = (string) ($data['unit_code'] ?? $catalogItem['unit_code'] ?? 'unit');
+        $unitId = $this->catalogTaxonomyService->unitIdForCode($unitCode);
+        if ($unitId === null) {
+            throw ValidationException::withMessages(['unit_code' => ['The selected unit is unavailable.']]);
         }
 
         $mode = strtoupper((string) ($data['tracking_mode'] ?? $catalogItem['tracking_mode'] ?? 'QUANTITY'));
@@ -321,10 +345,11 @@ class InventoryService extends BaseTenantService
             throw ValidationException::withMessages(['quantity' => ['Unique inventory must be received one item at a time.']]);
         }
         if ($mode === 'SERIALIZED' && $catalogItem === null) {
-            throw ValidationException::withMessages(['catalog_item_id' => ['Serialized inventory requires a catalog item.']]);
+            throw ValidationException::withMessages(['catalog_item_code' => ['Serialized inventory requires a catalog item.']]);
         }
 
         return $this->repository->createItem($tenantId, [
+            'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_items', CarbonImmutable::now()),
             'catalog_item_id' => $catalogItem['id'] ?? null,
             'unit_id' => $unitId,
             'tracking_mode' => $mode,
@@ -386,17 +411,17 @@ class InventoryService extends BaseTenantService
     {
         if ($item->tracking_mode === 'SERIALIZED') {
             if (count($unitIds) !== (int) $quantity || count(array_unique($unitIds)) !== count($unitIds)) {
-                throw ValidationException::withMessages(['inventory_unit_ids' => ['Select one distinct serialized unit per quantity.']]);
+                throw ValidationException::withMessages(['inventory_unit_codes' => ['Select one distinct serialized unit per quantity.']]);
             }
-            $units = $this->lockedUnits($tenantId, $item, $unitIds);
+            $units = $this->lockedUnitsByCodes($tenantId, $item, $unitIds);
             if ($units->count() !== count($unitIds)) {
-                throw ValidationException::withMessages(['inventory_unit_ids' => ['One or more serialized units are unavailable.']]);
+                throw ValidationException::withMessages(['inventory_unit_codes' => ['One or more serialized units are unavailable.']]);
             }
             foreach ($units as $unit) {
                 $last = \App\Models\InventoryModule\InventoryMovement::query()
                     ->where('tenant_id', $tenantId)->where('inventory_unit_id', $unit->id)->latest('id')->first();
                 if ((int) ($last?->to_location_id ?? 0) !== $locationId) {
-                    throw ValidationException::withMessages(['inventory_unit_ids' => ['A selected unit is not at this location.']]);
+                    throw ValidationException::withMessages(['inventory_unit_codes' => ['A selected unit is not at this location.']]);
                 }
             }
             return;
@@ -406,28 +431,26 @@ class InventoryService extends BaseTenantService
         }
     }
 
-    private function lockedUnits(int $tenantId, InventoryItem $item, array $unitIds)
+    private function lockedUnitsByCodes(int $tenantId, InventoryItem $item, array $unitCodes)
     {
-        return $this->repository->findUnitsForUpdate($tenantId, $item->id, $unitIds);
+        // Resolve serialized units by business code while keeping database IDs internal to the movement ledger.
+        return $this->repository->findUnitsByCodesForUpdate($tenantId, $item->id, $unitCodes);
     }
 
-    private function activeLocation(
-        int $tenantId,
-        int $locationId,
-        bool $lock,
-        bool $requireActive = true,
-    ): InventoryLocation
+    private function activeLocationByCode(int $tenantId, string $locationCode, bool $lock, bool $requireActive = true): InventoryLocation
     {
-        $location = $this->repository->findLocation($tenantId, $locationId, $lock);
+        // Resolve a tenant-owned location using its business code.
+        $location = $this->repository->findLocationByCode($tenantId, $locationCode, $lock);
         if ($location === null || ($requireActive && ! $location->is_active)) {
-            throw ValidationException::withMessages(['location_id' => ['The selected location is unavailable.']]);
+            throw ValidationException::withMessages(['location_code' => ['The selected location is unavailable.']]);
         }
         return $location;
     }
 
-    private function lockedItem(int $tenantId, int $itemId): InventoryItem
+    private function lockedItemByCode(int $tenantId, string $itemCode): InventoryItem
     {
-        $item = $this->repository->findItem($tenantId, $itemId, true);
+        // Resolve and lock the tenant-owned Inventory item using its public business code.
+        $item = $this->repository->findItemByCode($tenantId, $itemCode, true);
         if ($item === null) {
             abort(404);
         }
@@ -446,6 +469,7 @@ class InventoryService extends BaseTenantService
     ): void
     {
         $this->repository->createMovement($tenantId, [
+            'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_movements', CarbonImmutable::now()),
             'inventory_item_id' => $item->id,
             'inventory_unit_id' => $unitId,
             'from_location_id' => $from,
@@ -454,7 +478,7 @@ class InventoryService extends BaseTenantService
             'movement_type' => $type,
             'reason' => $data['reason'] ?? null,
             'source_type' => $data['source_type'] ?? null,
-            'source_id' => $data['source_id'] ?? null,
+            'source_code' => $data['source_code'] ?? null,
             'idempotency_record_id' => $data['_idempotency_record_id'] ?? null,
             'created_by' => Auth::id(),
             'occurred_at' => now(),
@@ -468,25 +492,25 @@ class InventoryService extends BaseTenantService
         $locationRows = [];
         foreach ($balances as $locationId => $quantity) {
             if ($quantity > 0) {
-                $locationRows[] = ['location_id' => $locationId, 'location' => $locations->get($locationId)?->name, 'quantity' => number_format($quantity, 3, '.', '')];
+                $locationRows[] = ['location_code' => $locations->get($locationId)?->code, 'location' => $locations->get($locationId)?->name, 'quantity' => number_format($quantity, 3, '.', '')];
             }
         }
         $units = $this->repository->units($tenantId, $item->id)->map(function ($unit) use ($tenantId): array {
             $lastMovement = $this->repository->latestUnitMovement($tenantId, $unit->id);
             return [
-                'id' => $unit->id,
+                'code' => $unit->code,
                 'identifier' => $unit->identifier,
-                'location_id' => $lastMovement?->to_location_id,
+                'location_code' => $lastMovement?->toLocation?->code,
                 'location' => $lastMovement?->toLocation?->name,
             ];
         })->all();
         return [
-            'id' => $item->id,
+            'code' => $item->code,
             'name' => $item->name,
             'description' => $item->description,
-            'catalog_item_id' => $item->catalog_item_id,
+            'catalog_item_code' => $item->catalogItem?->business_code,
             'tracking_mode' => $item->tracking_mode,
-            'unit_id' => $item->unit_id,
+            'unit_code' => $item->unit?->code,
             'unit' => $item->unit?->name,
             'total_quantity' => number_format(array_sum($balances), 3, '.', ''),
             'locations' => $locationRows,
@@ -497,7 +521,7 @@ class InventoryService extends BaseTenantService
     private function locationResource(InventoryLocation $location): array
     {
         return [
-            'id' => $location->id,
+            'code' => $location->code,
             'name' => $location->name,
             'type' => $location->type,
             'is_default' => $location->is_default,

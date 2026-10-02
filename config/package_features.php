@@ -97,6 +97,11 @@ return [
             'description' => 'Track item custody, locations, and stock movements.',
             'is_active' => true,
         ],
+        'ownership_management' => [
+            'name' => 'Ownership management',
+            'description' => 'Track tenant owned items, acquisition lots, and ownership changes.',
+            'is_active' => true,
+        ],
         'accounting_type_management' => [
             'name' => 'Accounting type management',
             'description' => 'Manage tenant-owned financial account types.',

@@ -38,6 +38,8 @@ return new class extends Migration
         Schema::create('catalog_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
+            // Give each catalog item a stable tenant-facing business code.
+            $table->string('business_code', 40);
             $table->string('name', 180);
             $table->string('description', 255)->nullable();
             $table->foreignId('category_id')->nullable()->constrained('catalog_categories')->nullOnDelete();
@@ -52,6 +54,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'sku']);
             $table->index(['tenant_id', 'barcode']);
             $table->index(['tenant_id', 'category_id', 'is_active']);
+            $table->unique(['tenant_id', 'business_code']);
         });
 
         DB::table('catalog_units')->updateOrInsert(
