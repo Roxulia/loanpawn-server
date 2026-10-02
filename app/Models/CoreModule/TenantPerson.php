@@ -38,4 +38,9 @@ class TenantPerson extends Model
     {
         return $this->hasOne(TenantLender::class, 'person_id');
     }
+
+    public function supplier(): HasOne
+    {
+        return $this->hasOne(\App\Models\PurchasingModule\PurchaseSupplier::class, 'person_id');
+    }
 }
