@@ -13,6 +13,7 @@ use App\Models\PurchasingModule\PurchaseReturnLine;
 use App\Models\PurchasingModule\PurchaseSupplier;
 use App\Models\CoreModule\TenantPerson;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class PurchasingRepository
 {
@@ -90,6 +91,12 @@ class PurchasingRepository
         return $query->with(['supplier.person.customer', 'supplier.person.lender', 'lines.catalogItem'])->first();
     }
 
+    // Lock the supplier before checking cumulative order receipt and return values.
+    public function lockSupplier(int $tenantId, int $supplierId): void
+    {
+        PurchaseSupplier::query()->where('tenant_id', $tenantId)->whereKey($supplierId)->lockForUpdate()->firstOrFail();
+    }
+
     public function createOrder(int $tenantId, array $data): PurchaseOrder
     {
         return PurchaseOrder::query()->create(['tenant_id' => $tenantId] + $data);
@@ -104,6 +111,13 @@ class PurchasingRepository
     public function createOrderLine(int $tenantId, int $orderId, array $data): PurchaseOrderLine
     {
         return PurchaseOrderLine::query()->create(['tenant_id' => $tenantId, 'purchase_order_id' => $orderId] + $data);
+    }
+
+    // Persist the stable Inventory identity after a non-unique purchase order item is first received.
+    public function updateOrderLine(PurchaseOrderLine $line, array $data): PurchaseOrderLine
+    {
+        $line->update($data);
+        return $line->refresh()->load(['catalogItem', 'inventoryItem']);
     }
 
     public function lineByCodeForOrder(int $tenantId, int $orderId, string $code, bool $lock = false): ?PurchaseOrderLine
@@ -128,6 +142,12 @@ class PurchasingRepository
             ->whereHas('orderLine', fn ($q) => $q->where('purchase_order_id', $orderId))->sum('received_quantity');
     }
 
+    // List serialized Inventory unit codes already returned from the same receipt item.
+    public function returnedUnitCodes(int $tenantId, int $receiptItemId): array
+    {
+        return PurchaseReturnLine::query()->where('tenant_id', $tenantId)->where('purchase_receipt_line_id', $receiptItemId)
+            ->get(['inventory_unit_codes'])->flatMap(fn (PurchaseReturnLine $item) => $item->inventory_unit_codes ?? [])->all();
+    }
     public function orderReturned(int $tenantId, int $orderId): float
     {
         return (float) PurchaseReturnLine::query()->where('tenant_id', $tenantId)
@@ -151,9 +171,23 @@ class PurchasingRepository
         return PurchasePayment::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
+    // Persist the accounting links created for a purchase payment.
+    public function updatePaymentAccounting(PurchasePayment $payment, int $accountId, int $accountingId): PurchasePayment
+    {
+        $payment->update(['financial_account_id' => $accountId, 'accounting_transaction_id' => $accountingId]);
+        return $payment->refresh();
+    }
+
     public function createRefund(int $tenantId, int $paymentId, array $data): PurchaseRefund
     {
         return PurchaseRefund::query()->create(['tenant_id' => $tenantId, 'purchase_payment_id' => $paymentId] + $data);
+    }
+
+    // Persist the accounting links created for a supplier refund.
+    public function updateRefundAccounting(PurchaseRefund $refund, int $accountId, int $accountingId): PurchaseRefund
+    {
+        $refund->update(['financial_account_id' => $accountId, 'accounting_transaction_id' => $accountingId]);
+        return $refund->refresh();
     }
 
     public function createReceipt(int $tenantId, array $data): PurchaseReceipt
@@ -161,12 +195,25 @@ class PurchasingRepository
         return PurchaseReceipt::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
-    public function createReceiptLine(int $tenantId, int $receiptId, int $orderLineId, float $quantity, string $code): PurchaseReceiptLine
+    // Persist the Supplier Payable reference and applied supplier credit on its receipt.
+    public function updateReceipt(PurchaseReceipt $receipt, array $data): PurchaseReceipt
+    {
+        $receipt->update($data);
+        return $receipt->refresh()->load(['lines.orderLine']);
+    }
+    public function createReceiptLine(int $tenantId, int $receiptId, int $orderLineId, float $quantity, string $code, array $integrationData = []): PurchaseReceiptLine
     {
         return PurchaseReceiptLine::query()->create([
             'tenant_id' => $tenantId, 'code' => $code, 'purchase_receipt_id' => $receiptId,
             'purchase_order_line_id' => $orderLineId, 'received_quantity' => $quantity,
-        ]);
+        ] + $integrationData);
+    }
+
+    // Update the receipt item after Inventory and Ownership return their public business references.
+    public function updateReceiptLine(PurchaseReceiptLine $receiptLine, array $data): PurchaseReceiptLine
+    {
+        $receiptLine->update($data);
+        return $receiptLine->refresh()->load(['receipt', 'orderLine']);
     }
 
     public function receiptLineByCode(int $tenantId, string $code, bool $lock = false): ?PurchaseReceiptLine
@@ -181,11 +228,17 @@ class PurchasingRepository
         return PurchaseReturn::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
-    public function createReturnLine(int $tenantId, int $returnId, int $receiptLineId, float $quantity, string $code): PurchaseReturnLine
+    // Persist supplier credit and payable adjustment references on the return item.
+    public function updateReturnLine(PurchaseReturnLine $returnItem, array $data): PurchaseReturnLine
+    {
+        $returnItem->update($data);
+        return $returnItem->refresh()->load(['receiptLine.orderLine']);
+    }
+    public function createReturnLine(int $tenantId, int $returnId, int $receiptLineId, float $quantity, string $code, array $unitCodes = []): PurchaseReturnLine
     {
         return PurchaseReturnLine::query()->create([
             'tenant_id' => $tenantId, 'code' => $code, 'purchase_return_id' => $returnId,
-            'purchase_receipt_line_id' => $receiptLineId, 'returned_quantity' => $quantity,
+            'purchase_receipt_line_id' => $receiptLineId, 'returned_quantity' => $quantity, 'inventory_unit_codes' => $unitCodes,
         ]);
     }
 

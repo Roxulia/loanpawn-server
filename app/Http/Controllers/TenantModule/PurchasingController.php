@@ -5,12 +5,25 @@ namespace App\Http\Controllers\TenantModule;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\PurchaseSupplierService;
 use App\Services\TenantModule\PurchasingService;
+use App\Services\TenantModule\SupplierPayableService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PurchasingController extends Controller
 {
-    public function __construct(private PurchasingService $purchasing, private PurchaseSupplierService $suppliersService) {}
+    public function __construct(private PurchasingService $purchasing, private PurchaseSupplierService $suppliersService, private SupplierPayableService $payablesService) {}
+
+    public function payables(Request $request): JsonResponse
+    {
+        $data = $request->validate(['order_code' => ['nullable', 'string', 'max:32']]);
+        return $this->successResponse($this->payablesService->list($data['order_code'] ?? null));
+    }
+
+    public function createPayablePayment(Request $request, string $payableCode): JsonResponse
+    {
+        $data = $request->validate(['paid_at' => ['required', 'date_format:Y-m-d'], 'amount' => ['required', 'numeric', 'gt:0', 'decimal:0,2'], 'financial_account_id' => ['required', 'integer', 'min:1'], 'reference' => ['nullable', 'string', 'max:120'], 'note' => ['nullable', 'string', 'max:3000']]);
+        return $this->successResponse($this->payablesService->pay($payableCode, $data, $request->header('Idempotency-Key')), statusCode: 201);
+    }
 
     public function suppliers(Request $request): JsonResponse
     {
@@ -64,13 +77,14 @@ class PurchasingController extends Controller
     {
         $data = $request->validate([
             'supplier_code' => ['required', 'string', 'max:32'], 'currency_code' => ['required', 'string', 'max:12'],
-            'note' => ['nullable', 'string', 'max:3000'], 'lines' => ['required', 'array', 'min:1', 'max:100'],
-            'lines.*.catalog_item_code' => ['nullable', 'string', 'max:32'],
-            'lines.*.item_description' => ['required_without:lines.*.catalog_item_code', 'nullable', 'string', 'max:255'],
-            'lines.*.tracking_mode' => ['required_without:lines.*.catalog_item_code', 'nullable', 'in:UNIQUE,SERIALIZED,QUANTITY'],
-            'lines.*.unit_label' => ['required_without:lines.*.catalog_item_code', 'nullable', 'string', 'max:80'],
-            'lines.*.ordered_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-            'lines.*.unit_price' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
+            'note' => ['nullable', 'string', 'max:3000'], 'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.catalog_item_code' => ['nullable', 'string', 'max:32'],
+            'items.*.item_description' => ['required_without:items.*.catalog_item_code', 'nullable', 'string', 'max:255'],
+            'items.*.tracking_mode' => ['required_without:items.*.catalog_item_code', 'nullable', 'in:UNIQUE,SERIALIZED,QUANTITY'],
+            'items.*.unit_label' => ['required_without:items.*.catalog_item_code', 'nullable', 'string', 'max:80'],
+            'items.*.unit_code' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'items.*.ordered_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.unit_price' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
         ]);
         return $this->successResponse($this->purchasing->createOrder($data, $request->header('Idempotency-Key')), statusCode: 201);
     }
@@ -90,6 +104,7 @@ class PurchasingController extends Controller
     {
         $data = $request->validate([
             'paid_at' => ['required', 'date_format:Y-m-d'], 'amount' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
+            'financial_account_id' => ['required', 'integer', 'min:1'],
             'reference' => ['nullable', 'string', 'max:120'], 'note' => ['nullable', 'string', 'max:3000'],
         ]);
         return $this->successResponse($this->purchasing->recordPayment($orderCode, $data, $request->header('Idempotency-Key')), statusCode: 201);
@@ -113,9 +128,12 @@ class PurchasingController extends Controller
     {
         $data = $request->validate([
             'received_at' => ['required', 'date_format:Y-m-d'], 'note' => ['nullable', 'string', 'max:3000'],
-            'lines' => ['required', 'array', 'min:1', 'max:100'],
-            'lines.*.purchase_order_line_code' => ['required', 'string', 'max:32', 'distinct'],
-            'lines.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'location_code' => ['required', 'string', 'max:32'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.purchase_order_item_code' => ['required', 'string', 'max:32', 'distinct'],
+            'items.*.unit_identifiers' => ['sometimes', 'array'],
+            'items.*.unit_identifiers.*' => ['string', 'max:120'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
         ]);
         return $this->successResponse($this->purchasing->recordReceipt($orderCode, $data, $request->header('Idempotency-Key')), statusCode: 201);
     }
@@ -129,9 +147,14 @@ class PurchasingController extends Controller
     {
         $data = $request->validate([
             'returned_at' => ['required', 'date_format:Y-m-d'], 'reason' => ['nullable', 'string', 'max:255'],
-            'note' => ['nullable', 'string', 'max:3000'], 'lines' => ['required', 'array', 'min:1', 'max:100'],
-            'lines.*.purchase_receipt_line_code' => ['required', 'string', 'max:32', 'distinct'],
-            'lines.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'note' => ['nullable', 'string', 'max:3000'], 'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.purchase_receipt_item_code' => ['required', 'string', 'max:32', 'distinct'],
+            'items.*.location_code' => ['required', 'string', 'max:32'],
+            'items.*.inventory_unit_codes' => ['sometimes', 'array'],
+            'items.*.inventory_unit_codes.*' => ['string', 'max:32'],
+            'items.*.cash_refund_amount' => ['sometimes', 'numeric', 'gte:0', 'decimal:0,2'],
+            'items.*.financial_account_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
         ]);
         return $this->successResponse($this->purchasing->recordReturn($orderCode, $data, $request->header('Idempotency-Key')), statusCode: 201);
     }

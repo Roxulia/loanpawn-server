@@ -137,6 +137,13 @@ class OwnershipService extends BaseTenantService
             $idempotencyKey, 'SALE', -1, 0);
     }
 
+    // Reduce the originating acquisition lot when goods are returned to their supplier.
+    public function reduceForPurchaseReturn(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode, ?string $idempotencyKey = null): array
+    {
+        return $this->changeQuantity('ownership.purchase_return', $ownedItemCode, $lotCode, $quantity,
+            'PurchaseReturnLine', $sourceCode, $idempotencyKey, 'PURCHASE_RETURN', -1, 0);
+    }
+
     public function reduceForfeiture(string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, bool $fromPledge = true, ?string $idempotencyKey = null): array
     {
         // Remove forfeited ownership and, when forfeiting pledged goods, clear that reservation too.
@@ -210,6 +217,7 @@ class OwnershipService extends BaseTenantService
         $expectedSourceType = match ($movementType) {
             'PLEDGE', 'RELEASE', 'FORFEITURE' => 'BusinessLoanCollateral',
             'SALE' => 'SaleLine',
+            'PURCHASE_RETURN' => 'PurchaseReturnLine',
             default => null,
         };
         if ($expectedSourceType === null || $sourceType !== $expectedSourceType || trim($sourceCode) === '') {
@@ -248,6 +256,7 @@ class OwnershipService extends BaseTenantService
                         'source_module' => match ($movementType) {
                             'PLEDGE', 'RELEASE', 'FORFEITURE' => 'BUSINESS_LOAN',
                             'SALE' => 'SALES',
+                            'PURCHASE_RETURN' => 'PURCHASING',
                             default => 'OWNERSHIP',
                         },
                         'source_type' => $sourceType,

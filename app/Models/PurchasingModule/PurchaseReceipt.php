@@ -11,8 +11,8 @@ class PurchaseReceipt extends Model
 {
     use BelongToTenant;
 
-    protected $fillable = ['tenant_id', 'code', 'purchase_order_id', 'received_at', 'note', 'created_by'];
-    protected $casts = ['received_at' => 'date:Y-m-d'];
+    protected $fillable = ['tenant_id', 'code', 'purchase_order_id', 'received_at', 'note', 'supplier_payable_code', 'supplier_credit_applied_amount', 'created_by'];
+    protected $casts = ['received_at' => 'date:Y-m-d', 'supplier_credit_applied_amount' => 'decimal:2'];
     public function order(): BelongsTo { return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id'); }
     public function lines(): HasMany { return $this->hasMany(PurchaseReceiptLine::class); }
 }
