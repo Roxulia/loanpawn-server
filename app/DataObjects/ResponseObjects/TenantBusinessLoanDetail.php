@@ -18,7 +18,7 @@ class TenantBusinessLoanDetail extends BaseDataObject
             'id' => $loan->id, 'code' => $loan->code, 'update_key' => (int) $loan->update_key,
             'lender_id' => $loan->lender_id, 'lender_code' => $loan->lender?->code,
             'lender_name' => $loan->lender?->person?->name ?? 'Unknown Lender',
-            'receipt_account_id' => $loan->receipt_account_id, 'amount' => (string) $loan->amount,
+            'receipt_account_id' => $loan->receipt_account_id, 'currency_code' => $loan->receiptAccount?->currency?->code, 'amount' => (string) $loan->amount,
             'principal_balance' => (string) $loan->principal_balance, 'apply_interest' => (bool) $loan->apply_interest,
             'interest_rate' => $loan->interest_rate === null ? null : (string) $loan->interest_rate,
             'interest_type_id' => $loan->interest_type_id, 'interest_type_name' => $loan->interestType?->name,

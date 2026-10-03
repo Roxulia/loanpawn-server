@@ -190,7 +190,7 @@ class TenantBusinessLoanService extends BaseTenantService
                 if ($loan->is_paid) throw new InvalidTenantRequest('Business loan is already settled.');
                 if ((int) $loan->update_key !== $request->loanUpdateKey) throw new AlreadyUpdatedException('This business loan was already updated. Please refresh.');
                 $account = $this->accountManagement->findActiveCurrentTenantAccount($request->paymentAccountId);
-                if ((int) $account->currency_id !== (int) $loan->receiptAccount->currency_id) throw new InvalidTenantRequest('Receipt and payment accounts must use the same currency.');
+                if ((int) $account->currency_id !== (int) $loan->receiptAccount?->currency_id) throw new InvalidTenantRequest('Receipt and payment accounts must use the same currency.');
                 $this->materializeAccruals($loan);
                 $loan = $this->repository->findByCode($code, true);
                 $interestDue = $loan->outstanding_interest;
@@ -295,7 +295,7 @@ class TenantBusinessLoanService extends BaseTenantService
             $loan = $this->repository->update($loan, ['principal_balance' => (float) $loan->principal_balance + $amount, 'last_compounded_at' => $now->utc(), 'next_compound_at' => $nextCompoundAt, 'update_key' => $loan->update_key + 1]);
             if ($amount > 0) {
                 // Record accounting only when interest was actually capitalized.
-                $this->accountingService->createInternalTransfer($loan, $scheduled ? 'Scheduled Business Loan Interest Compounding' : 'Manual Business Loan Interest Compounding', $amount, $scheduled ? null : Auth::guard('tenantuser')->id(), $loan->receiptAccount->currency);
+                $this->accountingService->createInternalTransfer($loan, $scheduled ? 'Scheduled Business Loan Interest Compounding' : 'Manual Business Loan Interest Compounding', $amount, $scheduled ? null : Auth::guard('tenantuser')->id(), $loan->receiptAccount?->currency);
             }
             // Materialize the continuation only after the principal has been updated.
             $this->materializeAccruals($loan);
