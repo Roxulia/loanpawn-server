@@ -9,12 +9,14 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class TenantAccountingTransactionRepository
 {
     public function paginate(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
-        $query = TenantAccountingTransactions::query()
+        $query = $this->cashMovementQuery(TenantAccountingTransactions::query())
+            ->with('currency')
             ->where('is_deleted', false)
             ->where('transaction_direction', '!=', 'internal')
             ->orderByDesc('occurred_at')
@@ -186,7 +188,7 @@ class TenantAccountingTransactionRepository
 
     public function allTimeNetBalance(): float
     {
-        return (float) TenantAccountingTransactions::query()
+        return (float) $this->cashMovementQuery(TenantAccountingTransactions::query())
             ->where('is_deleted', false)
             ->selectRaw("COALESCE(SUM(CASE
                 WHEN transaction_direction = 'incoming' THEN COALESCE(reporting_amount, amount)
@@ -198,7 +200,7 @@ class TenantAccountingTransactionRepository
 
     public function transactionTotalBetween(string $transactionDirection, Carbon $startDate, Carbon $endDate): float
     {
-        return (float) TenantAccountingTransactions::query()
+        return (float) $this->cashMovementQuery(TenantAccountingTransactions::query())
             ->where('is_deleted', false)
             ->where('transaction_direction', $transactionDirection)
             ->whereBetween('business_date', [$startDate->toDateString(), $endDate->toDateString()])
@@ -206,9 +208,18 @@ class TenantAccountingTransactionRepository
             ->value('total');
     }
 
+    private function cashMovementQuery(Builder $query): Builder
+    {
+        return $query->whereExists(function ($movementQuery): void {
+            $movementQuery->selectRaw('1')
+                ->from('financial_account_transactions')
+                ->whereColumn('financial_account_transactions.related_transaction_id', 'tenant_accounting_transactions.id')
+                ->whereColumn('financial_account_transactions.tenant_id', 'tenant_accounting_transactions.tenant_id');
+        });
+    }
     private function listByDirection(string $direction, string $businessDate, int $perPage): LengthAwarePaginator
     {
-        return TenantAccountingTransactions::query()
+        return $this->cashMovementQuery(TenantAccountingTransactions::query())
             ->where('is_deleted', false)
             ->where('transaction_direction', $direction)
             ->whereDate('business_date', $businessDate)

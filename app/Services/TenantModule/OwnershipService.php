@@ -7,6 +7,8 @@ use App\Models\InventoryModule\InventoryItem;
 use App\Models\OwnershipModule\AcquisitionLot;
 use App\Models\OwnershipModule\OwnedItem;
 use App\Repository\OwnershipRepository;
+use App\Services\PawnModule\CollateralItemService;
+use App\Services\PawnModule\LoanContractServices\ExpirationService;
 use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
 use Carbon\CarbonImmutable;
@@ -20,6 +22,8 @@ class OwnershipService extends BaseTenantService
     public function __construct(
         private OwnershipRepository $repository,
         private InventoryService $inventoryService,
+        private CollateralItemService $collateralItemService,
+        private ExpirationService $expirationService,
         private TenantIdempotencyService $idempotencyService,
         private TableIdGenerationService $tableIdGenerationService,
     ) {
@@ -350,5 +354,58 @@ class OwnershipService extends BaseTenantService
             'lifecycle_status' => $ownedItem->lifecycle_status,
             'lots' => $lots,
         ];
+    }
+
+    public function expiredCollateral(?string $search = null): array
+    {
+        // Refresh overdue records before returning the tenant's eligible collateral queue.
+        $this->expirationService->checkCurrentTenant();
+        return $this->collateralItemService->expiredForOwnershipTransfer($search);
+    }
+
+    public function transferExpiredCollateral(string $collateralCode, OwnershipAcquisitionCreate $request, ?string $idempotencyKey): array
+    {
+        // Make the transfer and source status update one retry-safe ownership operation.
+        $payload = [...$request->toArray(), 'collateral_code' => $collateralCode];
+        return $this->runIdempotent('ownership.pawn_collateral_transfer', $idempotencyKey, $payload,
+            function (int $tenantId, ?int $recordId) use ($collateralCode, $request): array {
+                return DB::transaction(function () use ($tenantId, $recordId, $collateralCode, $request): array {
+                    $item = $this->collateralItemService->findForOwnershipTransferWithLock($collateralCode);
+                    $slip = $item->loanContract;
+                    if ($slip === null) {
+                        throw ValidationException::withMessages(['collateral_code' => ['Collateral must belong to an expired slip.']]);
+                    }
+                    $this->expirationService->refreshExpiration($slip);
+                    $item = $this->collateralItemService->findForOwnershipTransferWithLock($collateralCode);
+                    if (strtolower((string) $item->loanContract?->status) !== 'expired'
+                        || strtolower((string) $item->item_status) !== 'expired') {
+                        throw ValidationException::withMessages(['collateral_code' => ['Only expired collateral can be transferred.']]);
+                    }
+                    if ($item->ownership_transferred_at !== null) {
+                        throw ValidationException::withMessages(['collateral_code' => ['This collateral has already been transferred.']]);
+                    }
+
+                    // Materialize an Inventory custody item for legacy collateral created before the link existed.
+                    if ($item->inventory_item_id === null) {
+                        $inventoryItem = $this->inventoryService->receivePawnCollateral($item);
+                        $item = $this->collateralItemService->linkInventoryItem($item, (int) $inventoryItem->id);
+                        $item->load('inventoryItem');
+                    }
+
+                    // Record tenant ownership against the original collateral source code.
+                    $acquisition = new OwnershipAcquisitionCreate(
+                        inventoryItemCode: (string) $item->inventoryItem?->code,
+                        quantity: max(1, (int) $item->quantity),
+                        acquiredAt: $request->acquiredAt,
+                        unitCostBasis: $request->unitCostBasis,
+                        estimatedUnitValue: $request->estimatedUnitValue,
+                        currencyCode: $request->currencyCode,
+                        description: $request->description,
+                    );
+                    $ownedItem = $this->recordAcquisition($tenantId, $acquisition, 'PAWN', 'PawnCollateralItem', $item->code, $recordId);
+                    $this->collateralItemService->markOwnershipTransferred($item);
+                    return ['collateral_code' => $item->code, 'owned_item' => $ownedItem];
+                });
+            }, 201);
     }
 }

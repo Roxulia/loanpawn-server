@@ -75,9 +75,9 @@ return new class extends Migration
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamp('occurred_at');
             $table->timestamps();
-            $table->index(['tenant_id', 'inventory_item_id', 'occurred_at']);
+            $table->index(['tenant_id', 'inventory_item_id', 'occurred_at'], 'inv_mov_item_time_idx');
             $table->unique(['tenant_id', 'code']);
-            $table->index(['tenant_id', 'from_location_id', 'to_location_id']);
+            $table->index(['tenant_id', 'from_location_id', 'to_location_id'], 'inv_mov_loc_pair_idx');
             $table->index(['tenant_id', 'source_type', 'source_code']);
         });
 

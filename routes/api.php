@@ -478,6 +478,8 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:list_purchase_order');
                 Route::post('orders', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createOrder'])
                     ->middleware('tenant.permission:manage_purchase_order');
+                Route::put('orders/{orderCode}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'updateOrder'])
+                    ->middleware('tenant.permission:manage_purchase_order');
                 Route::get('orders/{orderCode}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'order'])
                     ->middleware('tenant.permission:list_purchase_order');
                 Route::post('orders/{orderCode}/{action}', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'transition'])
@@ -524,6 +526,10 @@ Route::prefix('tenant')->group(function () {
             });
 
             Route::prefix('ownership')->middleware(['tenant.feature:ownership_management', 'tenant.feature:inventory_management'])->group(function () {
+                Route::get('expired-collateral', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'expiredCollateral'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::post('expired-collateral/{collateralCode}/transfer', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'transferExpiredCollateral'])
+                    ->middleware('tenant.permission:create_owned_item');
                 Route::get('inventory-options', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'inventoryOptions'])
                     ->middleware('tenant.permission:list_owned_item');
                 Route::get('items', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'index'])

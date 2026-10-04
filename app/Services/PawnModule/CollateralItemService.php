@@ -5,6 +5,7 @@ namespace App\Services\PawnModule;
 use App\DataObjects\RequestObjects\PawnCollateralItemCreate;
 use App\Enums\CollateralItemType;
 use App\Services\TenantModule\DefaultDataService;
+use App\Services\TenantModule\InventoryService;
 use App\DataObjects\RequestObjects\PawnCollateralItemUpdate;
 use App\DataObjects\ResponseObjects\CollateralItemListPage;
 use App\DataObjects\ResponseObjects\PawnCollateralItemDetail;
@@ -37,6 +38,7 @@ class CollateralItemService extends BaseTenantService
         private TableIdGenerationService $tableIdGenerationService,
         private FileStorageUtility $fileStorageUtility,
         private DefaultDataService $defaultDataService,
+        private InventoryService $inventoryService,
     ) {
     }
 
@@ -96,6 +98,10 @@ class CollateralItemService extends BaseTenantService
                 'loan_contract_id' => $slip->id,
             ]);
             $this->repository->saveSubItems($createdItem, $item->subItems);
+
+            // Receive collateral into tenant custody and link it to the physical Inventory item.
+            $inventoryItem = $this->inventoryService->receivePawnCollateral($createdItem);
+            $this->repository->update($createdItem, ['inventory_item_id' => $inventoryItem->id]);
         }
 
         $this->flushCollateralItemListCache();
@@ -152,14 +158,14 @@ class CollateralItemService extends BaseTenantService
     {
         $this->permissionService->authorizeCollateralList();
 
-        return $this->detailWithTemporaryImage($this->findById($itemId));
+        return $this->detailWithTemporaryImage($this->synchronizeExpiredStatus($this->findById($itemId)));
     }
 
     public function showByCode(string $code): PawnCollateralItemDetail
     {
         $this->permissionService->authorizeCollateralList();
 
-        return $this->detailWithTemporaryImage($this->findByCode($code));
+        return $this->detailWithTemporaryImage($this->synchronizeExpiredStatus($this->findByCode($code)));
     }
 
     public function update(PawnCollateralItemUpdate $request): PawnCollateralItemDetail
@@ -465,6 +471,18 @@ class CollateralItemService extends BaseTenantService
         return $item;
     }
 
+    protected function synchronizeExpiredStatus(PawnCollateralItem $item): PawnCollateralItem
+    {
+        // Repair stale collateral status when its detail is opened after the slip expired.
+        if (strtolower((string) $item->item_status) !== 'active'
+            || strtolower((string) $item->loanContract?->status) !== 'expired') {
+            return $item;
+        }
+
+        $this->expireForSlip((int) $item->loan_contract_id);
+
+        return $this->findById((int) $item->id);
+    }
     protected function validateCreateRequest(PawnCollateralItemCreate $request): void
     {
         if (trim($request->name) === '') {
@@ -608,5 +626,110 @@ class CollateralItemService extends BaseTenantService
         }
 
         return $key . ':search:' . sha1(mb_strtolower($search));
+    }
+
+    public function backfillInventoryLinks(?int $tenantId = null, bool $dryRun = false): array
+    {
+        // Preview all eligible rows without writes when requested.
+        if ($dryRun) {
+            $count = $this->repository->countCollateralMissingInventoryLink($tenantId);
+
+            return ['scanned' => $count, 'created' => 0, 'dry_run' => true];
+        }
+
+        $scanned = 0;
+        $created = 0;
+        $lastId = 0;
+
+        // Process bounded pages and create each custody record with its source link atomically.
+        while (($items = $this->repository->collateralMissingInventoryLinkBatch($tenantId, $lastId, 100))->isNotEmpty()) {
+            foreach ($items as $item) {
+                $lastId = (int) $item->id;
+                $scanned++;
+
+                DB::transaction(function () use ($item, &$created): void {
+                    if ($item->inventory_item_id !== null) {
+                        return;
+                    }
+
+                    $inventoryItem = $this->inventoryService->receivePawnCollateral($item);
+                    $this->repository->update($item, ['inventory_item_id' => $inventoryItem->id]);
+                    $created++;
+                });
+            }
+        }
+
+        return ['scanned' => $scanned, 'created' => $created, 'dry_run' => false];
+    }
+    public function expireForExpiredSlips(?int $tenantId = null, bool $dryRun = false): int
+    {
+        // Mirror persisted expired slip status onto its active collateral records.
+        $count = $this->repository->expireForExpiredSlips($tenantId, $dryRun);
+        if ($count > 0) {
+            $this->flushCollateralItemListCache();
+        }
+        return $count;
+    }
+
+    public function expireForSlip(int $slipId): int
+    {
+        // Keep collateral lifecycle status aligned when a single slip is refreshed.
+        $count = $this->repository->expireForSlip($slipId);
+        if ($count > 0) {
+            $this->flushCollateralItemListCache();
+        }
+        return $count;
+    }
+
+    public function expiredForOwnershipTransfer(?string $search = null): array
+    {
+        // Present only expired, untransferred collateral in the Ownership work queue.
+        return $this->repository->expiredForOwnershipTransfer($search)->map(function (PawnCollateralItem $item): array {
+            $slip = $item->loanContract;
+            $collateralCount = $slip?->slipItems?->count() ?? 0;
+            $currencyCode = $slip?->account?->currency?->code ?? 'MMK';
+            return [
+                'code' => $item->code,
+                'name' => $item->name,
+                'type' => $item->type,
+                'description' => $item->description,
+                'quantity' => max(1, (int) $item->quantity),
+                'estimated_value' => (float) $item->estimated_value,
+                'item_status' => $item->item_status,
+                'inventory_item_code' => $item->inventoryItem?->code,
+                'ownership_transferred_at' => $item->ownership_transferred_at?->toISOString(),
+                'slip_no' => $slip?->slip_no,
+                'slip_status' => $slip?->status,
+                'customer_name' => $slip?->customer?->name,
+                'expire_at' => $slip?->expire_at?->toISOString(),
+                'loan_amount' => (float) ($slip?->loan_amount ?? 0),
+                'collateral_item_count' => $collateralCount,
+                'currency_code' => $currencyCode,
+                'recommended_unit_cost_basis' => $collateralCount === 1 ? (float) $slip->loan_amount : 0,
+                'estimated_unit_value' => (float) $item->estimated_value,
+            ];
+        })->all();
+    }
+
+    public function findForOwnershipTransferWithLock(string $code): PawnCollateralItem
+    {
+        // Lock one tenant-scoped collateral row before ownership conversion.
+        $item = $this->repository->findByCodeWithLock($code);
+        if ($item === null) {
+            throw new TenantNotFound('Collateral item not found.');
+        }
+        return $item->load(['loanContract.customer', 'loanContract.account.currency', 'inventoryItem']);
+    }
+
+    public function linkInventoryItem(PawnCollateralItem $item, int $inventoryItemId): PawnCollateralItem
+    {
+        // Attach an Inventory item materialized for historical collateral records.
+        return $this->repository->update($item, ['inventory_item_id' => $inventoryItemId]);
+    }
+
+    public function markOwnershipTransferred(PawnCollateralItem $item): PawnCollateralItem
+    {
+        // Record completion so the queue and retries cannot duplicate ownership acquisition.
+        return $this->repository->update($item, ['ownership_transferred_at' => CarbonImmutable::now()]);
     }
 }

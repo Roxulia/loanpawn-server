@@ -90,6 +90,59 @@ class PurchasingService extends BaseTenantService
         }, 201, $idempotencyKey);
     }
 
+    public function updateOrder(string $code, array $data): array
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+
+        return DB::transaction(function () use ($tenantId, $code, $data): array {
+            // Lock the order and allow edits only before its workflow has started.
+            $order = $this->repository->orderByCode($tenantId, $code, true);
+            abort_if($order === null, 404);
+            if ($order->status !== 'DRAFT') {
+                throw ValidationException::withMessages(['status' => [__('purchasing.invalid_order_transition')]]);
+            }
+
+            // Validate the replacement supplier and currency before replacing draft lines.
+            $supplier = $this->repository->supplierByCode($tenantId, $data['supplier_code']);
+            if ($supplier === null || ! $supplier->is_active) {
+                throw ValidationException::withMessages(['supplier_code' => [__('purchasing.supplier_unavailable')]]);
+            }
+            $currencyCode = strtoupper($data['currency_code']);
+            $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $currencyCode);
+
+            $this->repository->updateOrder($order, [
+                'supplier_id' => $supplier->id,
+                'currency_code' => $currencyCode,
+                'note' => $data['note'] ?? null,
+            ]);
+            $this->repository->deleteOrderLines($tenantId, (int) $order->id);
+
+            foreach ($data['items'] as $line) {
+                $catalog = null;
+                if (! empty($line['catalog_item_code'])) {
+                    $catalog = $this->catalogItemService->availableForInventoryByCode($line['catalog_item_code']);
+                    if ($catalog === null) {
+                        throw ValidationException::withMessages(['items' => [__('purchasing.catalog_item_unavailable')]]);
+                    }
+                }
+
+                $trackingMode = $catalog['tracking_mode'] ?? $line['tracking_mode'];
+                $this->validateTrackedQuantity($trackingMode, (float) $line['ordered_quantity']);
+                $this->repository->createOrderLine($tenantId, (int) $order->id, [
+                    'code' => $this->newCode($tenantId, 'purchase_order_lines'),
+                    'catalog_item_id' => $catalog['id'] ?? null,
+                    'item_description' => trim($line['item_description'] ?? $catalog['name']),
+                    'tracking_mode' => $trackingMode,
+                    'unit_label' => $line['unit_label'] ?? ($catalog['unit']['name'] ?? __('purchasing.default_unit')),
+                    'unit_code' => $line['unit_code'] ?? ($catalog['unit_code'] ?? 'unit'),
+                    'ordered_quantity' => $line['ordered_quantity'],
+                    'unit_price' => $line['unit_price'],
+                ]);
+            }
+
+            return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
+        });
+    }
     public function transition(string $code, string $action, ?string $idempotencyKey): array
     {
         return $this->runIdempotent('purchasing.order.'.$action, ['order_code' => $code], function (int $tenantId) use ($code, $action): array {
@@ -125,7 +178,7 @@ class PurchasingService extends BaseTenantService
                 throw ValidationException::withMessages(['order_code' => [__('purchasing.use_supplier_loan_for_repayment')]]);
             }
             // Validate the supplier advance account and order currency before recording any payment.
-            $account = $this->accountManagement->findActiveCurrentTenantAccount((int) $data['financial_account_id']);
+            $account = $this->accountManagement->findActiveCurrentTenantAccount(isset($data['financial_account_id']) ? (int) $data['financial_account_id'] : null);
             if (strtoupper((string) $account->currency?->code) !== strtoupper($order->currency_code)) {
                 throw ValidationException::withMessages(['financial_account_id' => [__('purchasing.payment_currency_mismatch')]]);
             }
@@ -244,7 +297,7 @@ class PurchasingService extends BaseTenantService
                     'received_value' => $receivedValue,
                 ]);
                 // Recognize received goods as an asset in the purchase currency, not as an expense.
-                $this->recordFinancialPosting($receiptItem, $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code), 'incoming', AccountingCategory::Asset, $receivedValue, 'Inventory received for purchase '.$order->code);
+                $this->recordFinancialPosting($receiptItem, $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code), 'internal', AccountingCategory::Asset, $receivedValue, 'Inventory received for purchase '.$order->code);
                 $receiptItems[] = $receiptItem;
             }
             // Allocate existing pre-receipt supplier advances against earlier receipt value first.
@@ -253,7 +306,7 @@ class PurchasingService extends BaseTenantService
             $advanceForReceipt = min($receiptValue, max(0, $netPayments - $priorReceiptValue));
                         // Create a Purchasing-owned payable after applying advances; pre-existing supplier credits are allocated by the payable service.
             $unpaidReceiptValue = round(max(0, $receiptValue - $advanceForReceipt), 2);
-            $payable = $this->supplierPayableService->createForReceipt((int) $order->supplier_id, (int) $receipt->id, $receipt->code, $order->currency_code, $unpaidReceiptValue);
+            $payable = $this->supplierPayableService->createForReceipt((int) $order->supplier_id, (int) $receipt->id, (int) $order->id, $receipt->code, $order->currency_code, $unpaidReceiptValue);
             $receipt = $this->repository->updateReceipt($receipt, ['supplier_payable_code' => $payable['payable_code'], 'supplier_credit_applied_amount' => $payable['credit_applied_amount']]);
             return $this->receiptResource($receipt, collect($receiptItems));
         }, 201, $idempotencyKey);
@@ -318,10 +371,7 @@ class PurchasingService extends BaseTenantService
                 $refundAccount = null;
                 $refundLedger = null;
                 if ($cashRefundAmount > 0) {
-                    if (empty($itemData['financial_account_id'])) {
-                        throw ValidationException::withMessages(['financial_account_id' => [__('purchasing.refund_account_required')]]);
-                    }
-                    $refundAccount = $this->accountManagement->findActiveCurrentTenantAccount((int) $itemData['financial_account_id']);
+                    $refundAccount = $this->accountManagement->findActiveCurrentTenantAccount(isset($itemData['financial_account_id']) ? (int) $itemData['financial_account_id'] : null);
                     if (strtoupper((string) $refundAccount->currency?->code) !== strtoupper($order->currency_code)) {
                         throw ValidationException::withMessages(['financial_account_id' => [__('purchasing.payment_currency_mismatch')]]);
                     }
@@ -337,7 +387,7 @@ class PurchasingService extends BaseTenantService
                     'financial_account_id' => $refundAccount?->id, 'accounting_transaction_id' => $refundLedger?->id,
                 ]);
                 // Reverse the returned inventory asset without recording a cash movement for supplier credit.
-                $this->recordFinancialPosting($returnItem, $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code), 'outgoing', AccountingCategory::Asset, $returnedValue, 'Inventory returned for purchase '.$order->code);
+                $this->recordFinancialPosting($returnItem, $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code), 'internal', AccountingCategory::Asset, $returnedValue, 'Inventory returned for purchase '.$order->code);
                 $returnItems[] = $returnItem;
             }
             return $this->returnResource($returnRecord, collect($returnItems));
@@ -378,6 +428,13 @@ class PurchasingService extends BaseTenantService
         $payments = $this->repository->paymentsForOrder($tenantId, $order->id);
         $paid = (float) $payments->sum('amount');
         $refunded = (float) $payments->sum(fn ($payment) => $payment->refunds->sum('amount'));
+        // Payables represent received value that was not already covered by advances.
+        // Count the settled portion to keep purchase payment status in sync with payable settlement.
+        $payableSettled = (float) $order->supplierPayables->sum(fn ($payable) => max(
+            0,
+            (float) $payable->original_amount - (float) $payable->balance_amount,
+        ));
+        $netPaid = max(0, $paid - $refunded) + $payableSettled;
         $allLinesReceived = $lines->isNotEmpty() && $lines->every(fn ($line) =>
             $this->repository->receivedForOrderLine($tenantId, $line->id) + 0.001 >= (float) $line->ordered_quantity);
         $status = $order->status === 'CONFIRMED' && $allLinesReceived ? 'COMPLETED' : $order->status;
@@ -386,9 +443,9 @@ class PurchasingService extends BaseTenantService
             'currency_code' => $order->currency_code, 'ordered_at' => $order->ordered_at?->toDateString(), 'note' => $order->note,
             'totals' => ['item_count' => $lines->count(), 'fully_received_item_count' => $lines->filter(fn ($line) =>
                     $this->repository->receivedForOrderLine($tenantId, $line->id) + 0.001 >= (float) $line->ordered_quantity)->count(),
-                'amount' => $this->decimal($amount, 2), 'paid_amount' => $this->decimal($paid, 2),
-                'refunded_amount' => $this->decimal($refunded, 2), 'net_paid_amount' => $this->decimal($paid - $refunded, 2)],
-            'payment_status' => $amount <= 0 || ($paid - $refunded) + 0.001 >= $amount ? 'PAID' : (($paid - $refunded) <= 0 ? 'UNPAID' : 'PARTIAL'),
+                'amount' => $this->decimal($amount, 2), 'paid_amount' => $this->decimal($paid + $payableSettled, 2),
+                'refunded_amount' => $this->decimal($refunded, 2), 'net_paid_amount' => $this->decimal($netPaid, 2)],
+            'payment_status' => $amount <= 0 || $netPaid + 0.001 >= $amount ? 'PAID' : ($netPaid <= 0 ? 'UNPAID' : 'PARTIAL'),
             'receipt_status' => $received <= 0 ? 'NOT_RECEIVED' : ($allLinesReceived ? 'RECEIVED' : 'PARTIAL'),
             'return_status' => $returned <= 0 ? 'NOT_RETURNED' : ($returned + 0.001 >= $received ? 'RETURNED' : 'PARTIAL'),
             'created_at' => $order->created_at?->toIso8601String(),

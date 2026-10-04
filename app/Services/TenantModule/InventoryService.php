@@ -4,6 +4,7 @@ namespace App\Services\TenantModule;
 
 use App\Models\InventoryModule\InventoryItem;
 use App\Models\InventoryModule\InventoryLocation;
+use App\Models\PawnModule\PawnCollateralItem;
 use App\Repository\InventoryRepository;
 use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
@@ -275,6 +276,39 @@ class InventoryService extends BaseTenantService
         $this->repository->ensureMainShop($tenantId,
             $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_locations', CarbonImmutable::now()));
     }
+    public function receivePawnCollateral(PawnCollateralItem $collateral): InventoryItem
+    {
+        // Create an individual custody stock item and receipt movement for one collateral entry.
+        $tenantId = (int) $collateral->tenant_id;
+        $this->ensureMainShopForTenant($tenantId);
+        $location = $this->repository->defaultLocation($tenantId);
+        if ($location === null) {
+            throw ValidationException::withMessages(['inventory_location' => ['The default Inventory location is unavailable.']]);
+        }
+        $quantity = max(1, (int) $collateral->quantity);
+
+        // Retain pawn-specific identity and details without classifying customer property as owned stock.
+        $item = $this->createInventoryItem($tenantId, [
+            'name' => $collateral->name,
+            'description' => mb_substr(trim(implode(' | ', array_filter([
+                'Pawn collateral '.$collateral->code,
+                $collateral->brand_name,
+                $collateral->description,
+            ]))), 0, 255),
+            'tracking_mode' => 'QUANTITY',
+            'unit_code' => 'unit',
+            'quantity' => $quantity,
+        ]);
+
+        // Record custody with an auditable cross-module source reference.
+        $this->appendMovement($tenantId, $item, null, (int) $location->id, $quantity, 'RECEIVE', [
+            'reason' => 'Pawn collateral received into custody',
+            'source_type' => 'PawnCollateralItem',
+            'source_code' => $collateral->code,
+        ]);
+
+        return $item;
+    }
 
     private function runIdempotent(
         string $operation,
@@ -332,7 +366,7 @@ class InventoryService extends BaseTenantService
         }
 
         $unitCode = (string) ($data['unit_code'] ?? $catalogItem['unit_code'] ?? 'unit');
-        $unitId = $this->catalogTaxonomyService->unitIdForCode($unitCode);
+        $unitId = $this->catalogTaxonomyService->unitIdForCodeInTenant($tenantId, $unitCode);
         if ($unitId === null) {
             throw ValidationException::withMessages(['unit_code' => ['The selected unit is unavailable.']]);
         }

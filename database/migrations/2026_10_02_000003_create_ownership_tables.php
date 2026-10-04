@@ -70,8 +70,8 @@ return new class extends Migration
             $table->timestamps();
             $table->index(['tenant_id', 'owned_item_id', 'occurred_at']);
             $table->unique(['tenant_id', 'code']);
-            $table->index(['tenant_id', 'acquisition_lot_id', 'occurred_at']);
-            $table->index(['tenant_id', 'source_module', 'source_type', 'source_code']);
+            $table->index(['tenant_id', 'acquisition_lot_id', 'occurred_at'], 'own_mov_lot_time_idx');
+            $table->index(['tenant_id', 'source_module', 'source_type', 'source_code'], 'own_mov_source_ref_idx');
             $table->unique(['tenant_id', 'idempotency_record_id']);
         });
     }

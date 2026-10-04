@@ -42,7 +42,7 @@ return new class extends Migration
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
             $table->unique(['tenant_id', 'code']);
-            $table->index(['tenant_id', 'supplier_payable_id', 'paid_at']);
+            $table->index(['tenant_id', 'supplier_payable_id', 'paid_at'], 'sp_pay_payable_paid_idx');
         });
 
         Schema::create('supplier_payable_adjustments', function (Blueprint $table): void {
@@ -86,7 +86,7 @@ return new class extends Migration
             $table->foreignId('supplier_payable_id')->constrained('supplier_payables')->restrictOnDelete();
             $table->decimal('amount', 15, 2);
             $table->foreignId('accounting_transaction_id')->nullable()->constrained('tenant_accounting_transactions')->nullOnDelete();
-            $table->foreignId('asset_accounting_transaction_id')->nullable()->constrained('tenant_accounting_transactions')->nullOnDelete();
+            $table->foreignId('asset_accounting_transaction_id')->nullable()->constrained('tenant_accounting_transactions', indexName: 'sca_asset_acct_tx_fk')->nullOnDelete();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
             $table->unique(['tenant_id', 'code']);

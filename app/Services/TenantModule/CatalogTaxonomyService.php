@@ -67,6 +67,12 @@ class CatalogTaxonomyService
         return $this->repository->findUnitByCode($this->tenantId(), $unitCode)?->id;
     }
 
+    public function unitIdForCodeInTenant(int $tenantId, string $unitCode): ?int
+    {
+        // Resolve catalog units for background work that carries an explicit tenant ID.
+        return $this->repository->findUnitByCode($tenantId, $unitCode)?->id;
+    }
+
     public function createCategory(string $name): array
     {
         $tenantId = $this->tenantId();

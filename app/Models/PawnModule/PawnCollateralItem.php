@@ -4,6 +4,7 @@ namespace App\Models\PawnModule;
 
 use App\Models\CoreModule\MaterialType;
 use App\Models\CoreModule\ItemCategoryType;
+use App\Models\InventoryModule\InventoryItem;
 use App\Traits\BelongToTenant;
 use Database\Factories\PawnCollateralItemFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,8 @@ class PawnCollateralItem extends Model
         'code',
         'update_key',
         'loan_contract_id',
+        'inventory_item_id',
+        'ownership_transferred_at',
         'type',
         'name',
         'description',
@@ -61,6 +64,7 @@ class PawnCollateralItem extends Model
             'gemstone_details' => 'array',
             'minimum_retail_price' => 'decimal:2',
             'is_deleted' => 'boolean',
+            'ownership_transferred_at' => 'immutable_datetime',
         ];
     }
 
@@ -82,6 +86,11 @@ class PawnCollateralItem extends Model
     public function loanContract(): BelongsTo
     {
         return $this->belongsTo(PawnLoanContractSlip::class, 'loan_contract_id');
+    }
+
+    public function inventoryItem(): BelongsTo
+    {
+        return $this->belongsTo(InventoryItem::class);
     }
 
 }

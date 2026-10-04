@@ -139,4 +139,93 @@ class CollateralItemRepository
     }
 
 
+
+    public function expiredForOwnershipTransfer(?string $search = null): Collection
+    {
+        // Load eligible collateral with slip, customer, currency, and linked Inventory context.
+        return PawnCollateralItem::query()
+            ->with(['inventoryItem.unit', 'loanContract.customer', 'loanContract.account.currency', 'loanContract.slipItems'])
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(item_status) = ?', ['expired'])
+            ->whereNull('ownership_transferred_at')
+            ->whereHas('loanContract', fn ($query) => $query->where('is_deleted', false)->whereRaw('LOWER(status) = ?', ['expired']))
+            ->when($search !== null, function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('code', 'like', '%'.$search.'%')
+                        ->orWhereHas('loanContract', fn ($slip) => $slip->where('slip_no', 'like', '%'.$search.'%')
+                            ->orWhereHas('customer', fn ($customer) => $customer->where('name', 'like', '%'.$search.'%')));
+                });
+            })
+            ->orderByDesc('updated_at')
+            ->limit(100)
+            ->get();
+    }
+
+    public function countCollateralMissingInventoryLink(?int $tenantId = null): int
+    {
+        // Count only collateral that remains in tenant custody under an active or expired slip.
+        return $this->collateralMissingInventoryLinkQuery($tenantId)->count();
+    }
+
+    public function collateralMissingInventoryLinkBatch(?int $tenantId, int $afterId, int $limit): Collection
+    {
+        // Load a bounded batch so large tenant histories do not fill command memory.
+        return $this->collateralMissingInventoryLinkQuery($tenantId)
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    protected function collateralMissingInventoryLinkQuery(?int $tenantId): \Illuminate\Database\Eloquent\Builder
+    {
+        // Restrict the backfill to unlinked, untransferred items attached to live custody slips.
+        $query = PawnCollateralItem::query()
+            ->where('is_deleted', false)
+            ->whereNull('inventory_item_id')
+            ->whereNull('ownership_transferred_at')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(item_status)'), ['active', 'expired'])
+            ->whereHas('loanContract', function ($slipQuery) use ($tenantId): void {
+                $slipQuery->where('is_deleted', false)
+                    ->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(status)'), ['active', 'expired'])
+                    ->when($tenantId !== null, fn ($query) => $query->where('tenant_id', $tenantId));
+            });
+
+        if ($tenantId === null) {
+            $query->withoutGlobalScope('tenant');
+        } else {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        return $query;
+    }
+    public function expireForExpiredSlips(?int $tenantId = null, bool $dryRun = false): int
+    {
+        // Persist expired collateral status using the parent slip lifecycle as its source of truth.
+        $query = PawnCollateralItem::query()
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(item_status) = ?', ['active'])
+            ->whereHas('loanContract', function ($slipQuery) use ($tenantId): void {
+                $slipQuery->where('is_deleted', false)
+                    ->whereRaw('LOWER(status) = ?', ['expired'])
+                    ->when($tenantId !== null, fn ($query) => $query->where('tenant_id', $tenantId));
+            });
+
+        if ($tenantId === null) {
+            $query->withoutGlobalScope('tenant');
+        }
+
+        return $dryRun ? $query->count() : $query->update(['item_status' => 'expired']);
+    }
+
+    public function expireForSlip(int $slipId): int
+    {
+        // Expire only active collateral belonging to one overdue slip.
+        return PawnCollateralItem::query()
+            ->where('loan_contract_id', $slipId)
+            ->where('is_deleted', false)
+            ->whereRaw('LOWER(item_status) = ?', ['active'])
+            ->update(['item_status' => 'expired']);
+    }
 }
