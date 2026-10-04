@@ -60,4 +60,37 @@ class OwnershipController extends Controller
             statusCode: 201,
         );
     }
+
+    public function expiredCollateral(Request $request): JsonResponse
+    {
+        // Validate the optional search and return eligible tenant collateral.
+        $data = $request->validate(['search' => ['nullable', 'string', 'max:120']]);
+        return $this->successResponse($this->ownershipService->expiredCollateral($data['search'] ?? null));
+    }
+
+    public function transferExpiredCollateral(Request $request, string $collateralCode): JsonResponse
+    {
+        // Validate editable acquisition values while deriving item identity and quantity server-side.
+        $data = $request->validate([
+            'acquired_at' => ['required', 'date'],
+            'unit_cost_basis' => ['required', 'numeric', 'min:0'],
+            'estimated_unit_value' => ['nullable', 'numeric', 'min:0'],
+            'currency_code' => ['required', 'string', 'size:3', 'alpha'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+        $idempotencyKey = $request->header('Idempotency-Key');
+        return $this->successResponse($this->ownershipService->transferExpiredCollateral(
+            $collateralCode,
+            new OwnershipAcquisitionCreate(
+                inventoryItemCode: '',
+                quantity: 0,
+                acquiredAt: $data['acquired_at'],
+                unitCostBasis: (float) $data['unit_cost_basis'],
+                estimatedUnitValue: isset($data['estimated_unit_value']) ? (float) $data['estimated_unit_value'] : null,
+                currencyCode: strtoupper($data['currency_code']),
+                description: $data['description'] ?? null,
+            ),
+            $idempotencyKey,
+        ), statusCode: 201);
+    }
 }

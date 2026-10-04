@@ -81,14 +81,14 @@ class PurchasingRepository
         return PurchaseOrder::query()->where('tenant_id', $tenantId)
             ->when($search, fn ($q) => $q->where(fn ($s) => $s->where('code', 'like', "%{$search}%")
                 ->orWhereHas('supplier.person', fn ($person) => $person->where('name', 'like', "%{$search}%"))))
-            ->with(['supplier.person.customer', 'supplier.person.lender', 'lines.catalogItem'])->orderByDesc('id')->limit(100)->get();
+            ->with(['supplier.person.customer', 'supplier.person.lender', 'lines.catalogItem', 'supplierPayables'])->orderByDesc('id')->limit(100)->get();
     }
 
     public function orderByCode(int $tenantId, string $code, bool $lock = false): ?PurchaseOrder
     {
         $query = PurchaseOrder::query()->where('tenant_id', $tenantId)->where('code', $code);
         if ($lock) $query->lockForUpdate();
-        return $query->with(['supplier.person.customer', 'supplier.person.lender', 'lines.catalogItem'])->first();
+        return $query->with(['supplier.person.customer', 'supplier.person.lender', 'lines.catalogItem', 'supplierPayables'])->first();
     }
 
     // Lock the supplier before checking cumulative order receipt and return values.
@@ -108,6 +108,13 @@ class PurchasingRepository
         return $order->refresh()->load(['supplier.person.customer', 'supplier.person.lender', 'lines.catalogItem']);
     }
 
+    public function deleteOrderLines(int $tenantId, int $orderId): void
+    {
+        PurchaseOrderLine::query()
+            ->where('tenant_id', $tenantId)
+            ->where('purchase_order_id', $orderId)
+            ->delete();
+    }
     public function createOrderLine(int $tenantId, int $orderId, array $data): PurchaseOrderLine
     {
         return PurchaseOrderLine::query()->create(['tenant_id' => $tenantId, 'purchase_order_id' => $orderId] + $data);

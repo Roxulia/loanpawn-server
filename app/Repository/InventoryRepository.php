@@ -50,6 +50,15 @@ class InventoryRepository
         );
     }
 
+    public function defaultLocation(int $tenantId): ?InventoryLocation
+    {
+        return InventoryLocation::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->first();
+    }
+
     public function items(int $tenantId, ?string $search): Collection
     {
         return InventoryItem::query()

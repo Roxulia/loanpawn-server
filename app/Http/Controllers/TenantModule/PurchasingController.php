@@ -21,7 +21,7 @@ class PurchasingController extends Controller
 
     public function createPayablePayment(Request $request, string $payableCode): JsonResponse
     {
-        $data = $request->validate(['paid_at' => ['required', 'date_format:Y-m-d'], 'amount' => ['required', 'numeric', 'gt:0', 'decimal:0,2'], 'financial_account_id' => ['required', 'integer', 'min:1'], 'reference' => ['nullable', 'string', 'max:120'], 'note' => ['nullable', 'string', 'max:3000']]);
+        $data = $request->validate(['paid_at' => ['required', 'date_format:Y-m-d'], 'amount' => ['required', 'numeric', 'gt:0', 'decimal:0,2'], 'financial_account_id' => ['nullable', 'integer', 'min:1'], 'reference' => ['nullable', 'string', 'max:120'], 'note' => ['nullable', 'string', 'max:3000']]);
         return $this->successResponse($this->payablesService->pay($payableCode, $data, $request->header('Idempotency-Key')), statusCode: 201);
     }
 
@@ -89,6 +89,22 @@ class PurchasingController extends Controller
         return $this->successResponse($this->purchasing->createOrder($data, $request->header('Idempotency-Key')), statusCode: 201);
     }
 
+    public function updateOrder(Request $request, string $orderCode): JsonResponse
+    {
+        $data = $request->validate([
+            'supplier_code' => ['required', 'string', 'max:32'], 'currency_code' => ['required', 'string', 'max:12'],
+            'note' => ['nullable', 'string', 'max:3000'], 'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.catalog_item_code' => ['nullable', 'string', 'max:32'],
+            'items.*.item_description' => ['required_without:items.*.catalog_item_code', 'nullable', 'string', 'max:255'],
+            'items.*.tracking_mode' => ['required_without:items.*.catalog_item_code', 'nullable', 'in:UNIQUE,SERIALIZED,QUANTITY'],
+            'items.*.unit_label' => ['required_without:items.*.catalog_item_code', 'nullable', 'string', 'max:80'],
+            'items.*.unit_code' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'items.*.ordered_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.unit_price' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
+        ]);
+
+        return $this->successResponse($this->purchasing->updateOrder($orderCode, $data));
+    }
     public function transition(Request $request, string $orderCode, string $action): JsonResponse
     {
         abort_unless(in_array($action, ['order', 'confirm', 'cancel'], true), 404);
@@ -104,7 +120,7 @@ class PurchasingController extends Controller
     {
         $data = $request->validate([
             'paid_at' => ['required', 'date_format:Y-m-d'], 'amount' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
-            'financial_account_id' => ['required', 'integer', 'min:1'],
+            'financial_account_id' => ['nullable', 'integer', 'min:1'],
             'reference' => ['nullable', 'string', 'max:120'], 'note' => ['nullable', 'string', 'max:3000'],
         ]);
         return $this->successResponse($this->purchasing->recordPayment($orderCode, $data, $request->header('Idempotency-Key')), statusCode: 201);
