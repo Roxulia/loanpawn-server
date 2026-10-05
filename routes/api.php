@@ -500,6 +500,19 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:manage_purchase_return');
             });
 
+            // Expose tenant Sales orders and their independent payment and delivery actions.
+            Route::prefix('sales')->middleware('tenant.feature:sales_management')->group(function () {
+                Route::get('receivables', [\App\Http\Controllers\TenantModule\SalesController::class, 'receivables'])->middleware('tenant.permission:list_sale');
+                Route::get('receivables/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'receivable'])->middleware('tenant.permission:list_sale');
+                Route::post('receivables/{code}/payments', [\App\Http\Controllers\TenantModule\SalesController::class, 'receivablePayment'])->middleware('tenant.permission:manage_sale_payment');
+                Route::get('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'index'])->middleware('tenant.permission:list_sale');
+                Route::post('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'store'])->middleware('tenant.permission:manage_sale');
+                Route::get('orders/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'show'])->middleware('tenant.permission:list_sale');
+                Route::post('orders/{code}/{action}', [\App\Http\Controllers\TenantModule\SalesController::class, 'transition'])->whereIn('action', ['confirm', 'cancel'])->middleware('tenant.permission:manage_sale');
+                Route::post('orders/{code}/payments', [\App\Http\Controllers\TenantModule\SalesController::class, 'payment'])->middleware('tenant.permission:manage_sale_payment');
+                Route::post('orders/{code}/deliveries', [\App\Http\Controllers\TenantModule\SalesController::class, 'delivery'])->middleware('tenant.permission:manage_sale_delivery');
+            });
+
             Route::prefix('inventory')->middleware('tenant.feature:inventory_management')->group(function () {
                 Route::get('units', [InventoryController::class, 'units'])
                     ->middleware('tenant.permission:list_inventory,receive_inventory');

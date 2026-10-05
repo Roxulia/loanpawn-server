@@ -6,6 +6,7 @@ use App\Models\InventoryModule\InventoryItem;
 use App\Models\InventoryModule\InventoryLocation;
 use App\Models\InventoryModule\InventoryMovement;
 use App\Models\InventoryModule\InventoryUnit;
+use App\Models\InventoryModule\InventoryReservation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -153,6 +154,36 @@ class InventoryRepository
         }
 
         return $balances;
+    }
+
+    public function reservedBalance(int $tenantId, int $itemId, int $locationId): float
+    {
+        return (float) InventoryReservation::query()->where('tenant_id', $tenantId)->where('inventory_item_id', $itemId)
+            ->where('inventory_location_id', $locationId)->where('status', 'ACTIVE')->sum('remaining_quantity');
+    }
+
+    public function activeReservedUnitCodes(int $tenantId, int $itemId, int $locationId): array
+    {
+        return InventoryReservation::query()->where('tenant_id', $tenantId)->where('inventory_item_id', $itemId)
+            ->where('inventory_location_id', $locationId)->where('status', 'ACTIVE')->get(['inventory_unit_codes'])
+            ->flatMap(fn (InventoryReservation $row) => $row->inventory_unit_codes ?? [])->all();
+    }
+
+    public function createReservation(int $tenantId, array $data): InventoryReservation
+    {
+        return InventoryReservation::query()->create(['tenant_id' => $tenantId] + $data);
+    }
+
+    public function reservationByCode(int $tenantId, string $code, bool $lock = false): ?InventoryReservation
+    {
+        $query = InventoryReservation::query()->where('tenant_id', $tenantId)->where('code', $code);
+        return $lock ? $query->lockForUpdate()->first() : $query->first();
+    }
+
+    public function updateReservation(InventoryReservation $reservation, array $data): InventoryReservation
+    {
+        $reservation->update($data);
+        return $reservation->refresh();
     }
 
     public function units(int $tenantId, int $itemId): Collection

@@ -159,6 +159,49 @@ class InventoryService extends BaseTenantService
         }, 201);
     }
 
+    public function reserveForSale(array $data, ?string $idempotencyKey): array
+    {
+        // Reserve physical custody for a confirmed sale without changing on-hand movements.
+        return $this->runIdempotent('inventory.reserve.sale', $idempotencyKey, $data, function (int $tenantId) use ($data): array {
+            return DB::transaction(function () use ($tenantId, $data): array {
+                $item = $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code']);
+                $location = $this->activeLocationByCode($tenantId, (string) $data['location_code'], true);
+                $quantity = $this->validateQuantityForMode($item, $data['quantity']);
+                $unitCodes = $data['inventory_unit_codes'] ?? [];
+                $this->assertAvailable($tenantId, $item, (int) $location->id, $quantity, $unitCodes);
+                $reservation = $this->repository->createReservation($tenantId, [
+                    'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'inventory_reservations', CarbonImmutable::now()),
+                    'inventory_item_id' => $item->id, 'inventory_location_id' => $location->id,
+                    'source_type' => 'SaleOrderLine', 'source_code' => (string) $data['source_code'],
+                    'quantity' => $quantity, 'remaining_quantity' => $quantity,
+                    'inventory_unit_codes' => $unitCodes, 'status' => 'ACTIVE',
+                ]);
+                return ['code' => $reservation->code, 'quantity' => $reservation->quantity, 'remaining_quantity' => $reservation->remaining_quantity];
+            });
+        }, 201);
+    }
+
+    public function releaseSaleReservation(string $reservationCode, ?float $quantity = null): void
+    {
+        // Release custody reservations without appending a physical stock movement.
+        $tenantId = $this->resolveCurrentTenantId();
+        DB::transaction(function () use ($tenantId, $reservationCode, $quantity): void {
+            $reservation = $this->repository->reservationByCode($tenantId, $reservationCode, true);
+            if ($reservation === null || $reservation->status !== 'ACTIVE') {
+                return;
+            }
+            $releaseQuantity = $quantity ?? (float) $reservation->remaining_quantity;
+            if ($releaseQuantity <= 0 || $releaseQuantity > (float) $reservation->remaining_quantity + 0.001) {
+                throw ValidationException::withMessages(['quantity' => ['The release exceeds the remaining reserved quantity.']]);
+            }
+            $remaining = max(0, (float) $reservation->remaining_quantity - $releaseQuantity);
+            $this->repository->updateReservation($reservation, [
+                'remaining_quantity' => $remaining,
+                'status' => $remaining <= 0.001 ? 'RELEASED' : 'ACTIVE',
+            ]);
+        });
+    }
+
     public function move(array $data, ?string $idempotencyKey): array
     {
         return $this->runIdempotent('inventory.move', $idempotencyKey, $data, function (int $tenantId, ?int $recordId) use ($data): array {
@@ -208,7 +251,16 @@ class InventoryService extends BaseTenantService
                 $item = $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code']);
                 $location = $this->activeLocationByCode($tenantId, (string) $data['location_code'], true, false);
                 $quantity = $this->validateQuantityForMode($item, $data['quantity']);
-                $this->assertAvailable($tenantId, $item, $location->id, $quantity, $data['inventory_unit_codes'] ?? []);
+                $reservation = isset($data['reservation_code'])
+                    ? $this->repository->reservationByCode($tenantId, (string) $data['reservation_code'], true)
+                    : null;
+                if ($reservation !== null && ($reservation->inventory_item_id !== $item->id
+                    || $reservation->inventory_location_id !== $location->id
+                    || $reservation->status !== 'ACTIVE'
+                    || (float) $reservation->remaining_quantity + 0.001 < $quantity)) {
+                    throw ValidationException::withMessages(['reservation_code' => ['The inventory reservation is unavailable.']]);
+                }
+                $this->assertAvailable($tenantId, $item, $location->id, $quantity, $data['inventory_unit_codes'] ?? [], $reservation?->code);
 
                 if ($item->tracking_mode === 'SERIALIZED') {
                     foreach ($this->lockedUnitsByCodes($tenantId, $item, $data['inventory_unit_codes'] ?? []) as $unit) {
@@ -216,6 +268,13 @@ class InventoryService extends BaseTenantService
                     }
                 } else {
                     $this->appendMovement($tenantId, $item, $location->id, null, $quantity, 'ISSUE', $data);
+                }
+                if ($reservation !== null) {
+                    $remaining = max(0, (float) $reservation->remaining_quantity - $quantity);
+                    $this->repository->updateReservation($reservation, [
+                        'remaining_quantity' => $remaining,
+                        'status' => $remaining <= 0.001 ? 'CONSUMED' : 'ACTIVE',
+                    ]);
                 }
 
                 return $this->itemResource($tenantId, $item);
@@ -441,7 +500,7 @@ class InventoryService extends BaseTenantService
         return $normalizedIdentifiers;
     }
 
-    private function assertAvailable(int $tenantId, InventoryItem $item, int $locationId, float $quantity, array $unitIds): void
+    private function assertAvailable(int $tenantId, InventoryItem $item, int $locationId, float $quantity, array $unitIds, ?string $reservationCode = null): void
     {
         if ($item->tracking_mode === 'SERIALIZED') {
             if (count($unitIds) !== (int) $quantity || count(array_unique($unitIds)) !== count($unitIds)) {
@@ -451,16 +510,30 @@ class InventoryService extends BaseTenantService
             if ($units->count() !== count($unitIds)) {
                 throw ValidationException::withMessages(['inventory_unit_codes' => ['One or more serialized units are unavailable.']]);
             }
+            $reservedCodes = $this->repository->activeReservedUnitCodes($tenantId, $item->id, $locationId);
+            $ownReservationCodes = $reservationCode === null ? [] : ($this->repository->reservationByCode($tenantId, $reservationCode)?->inventory_unit_codes ?? []);
+            if (array_diff($unitIds, $ownReservationCodes) !== [] && $reservationCode !== null) {
+                throw ValidationException::withMessages(['inventory_unit_codes' => ['The selected units do not belong to this reservation.']]);
+            }
             foreach ($units as $unit) {
                 $last = \App\Models\InventoryModule\InventoryMovement::query()
                     ->where('tenant_id', $tenantId)->where('inventory_unit_id', $unit->id)->latest('id')->first();
                 if ((int) ($last?->to_location_id ?? 0) !== $locationId) {
                     throw ValidationException::withMessages(['inventory_unit_codes' => ['A selected unit is not at this location.']]);
                 }
+                if (in_array($unit->code, $reservedCodes, true) && ! in_array($unit->code, $ownReservationCodes, true)) {
+                    throw ValidationException::withMessages(['inventory_unit_codes' => ['A selected unit is reserved for another sale.']]);
+                }
             }
             return;
         }
-        if ((float) $this->repository->balance($tenantId, $item->id, $locationId) < $quantity) {
+        $available = (float) $this->repository->balance($tenantId, $item->id, $locationId)
+            - $this->repository->reservedBalance($tenantId, $item->id, $locationId);
+        if ($reservationCode !== null) {
+            $reservation = $this->repository->reservationByCode($tenantId, $reservationCode);
+            $available += (float) ($reservation?->remaining_quantity ?? 0);
+        }
+        if ($available + 0.001 < $quantity) {
             throw ValidationException::withMessages(['quantity' => ['There is not enough available inventory at this location.']]);
         }
     }
@@ -526,7 +599,15 @@ class InventoryService extends BaseTenantService
         $locationRows = [];
         foreach ($balances as $locationId => $quantity) {
             if ($quantity > 0) {
-                $locationRows[] = ['location_code' => $locations->get($locationId)?->code, 'location' => $locations->get($locationId)?->name, 'quantity' => number_format($quantity, 3, '.', '')];
+                $reserved = $this->repository->reservedBalance($tenantId, $item->id, (int) $locationId);
+                $locationRows[] = [
+                    'location_id' => (int) $locationId,
+                    'location_code' => $locations->get($locationId)?->code,
+                    'location' => $locations->get($locationId)?->name,
+                    'quantity' => number_format($quantity, 3, '.', ''),
+                    'reserved_quantity' => number_format($reserved, 3, '.', ''),
+                    'available_quantity' => number_format(max(0, $quantity - $reserved), 3, '.', ''),
+                ];
             }
         }
         $units = $this->repository->units($tenantId, $item->id)->map(function ($unit) use ($tenantId): array {
@@ -536,6 +617,7 @@ class InventoryService extends BaseTenantService
                 'identifier' => $unit->identifier,
                 'location_code' => $lastMovement?->toLocation?->code,
                 'location' => $lastMovement?->toLocation?->name,
+                'is_reserved' => in_array($unit->code, $this->repository->activeReservedUnitCodes($tenantId, $item->id, (int) ($lastMovement?->to_location_id ?? 0)), true),
             ];
         })->all();
         return [
@@ -547,6 +629,7 @@ class InventoryService extends BaseTenantService
             'unit_code' => $item->unit?->code,
             'unit' => $item->unit?->name,
             'total_quantity' => number_format(array_sum($balances), 3, '.', ''),
+            'available_quantity' => number_format(array_sum($balances) - collect($balances)->keys()->sum(fn ($locationId) => $this->repository->reservedBalance($tenantId, $item->id, (int) $locationId)), 3, '.', ''),
             'locations' => $locationRows,
             'units' => $units,
         ];

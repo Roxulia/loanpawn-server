@@ -12,13 +12,14 @@ class OwnershipMovement extends Model
 
     protected $fillable = [
         'tenant_id', 'code', 'owned_item_id', 'acquisition_lot_id', 'movement_type', 'quantity', 'owned_delta',
-        'pledged_delta', 'source_module', 'source_type', 'source_code', 'idempotency_record_id', 'created_by', 'occurred_at',
+        'pledged_delta', 'reserved_delta', 'source_module', 'source_type', 'source_code', 'idempotency_record_id', 'created_by', 'occurred_at',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:3',
         'owned_delta' => 'decimal:3',
         'pledged_delta' => 'decimal:3',
+        'reserved_delta' => 'decimal:3',
         'occurred_at' => 'immutable_datetime',
     ];
 

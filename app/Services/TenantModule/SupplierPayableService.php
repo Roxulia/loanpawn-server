@@ -111,7 +111,7 @@ class SupplierPayableService extends BaseTenantService
     private function resource(SupplierPayable $payable): array
     {
         $payable->loadMissing('payments');
-        return ['code' => $payable->code, 'kind' => 'SUPPLIER_PAYABLE', 'supplier_code' => $payable->supplier?->code, 'supplier_name' => $payable->supplier?->person?->name, 'purchase_order_code' => $payable->receipt?->order?->code, 'purchase_receipt_code' => $payable->receipt?->code, 'currency_code' => $payable->currency?->code, 'original_amount' => (string) $payable->original_amount, 'balance_amount' => (string) $payable->balance_amount, 'status' => $payable->status, 'payments' => $payable->payments->map(fn ($payment) => ['code' => $payment->code, 'paid_at' => $payment->paid_at?->toDateString(), 'amount' => (string) $payment->amount, 'reference' => $payment->reference, 'note' => $payment->note])->all()];
+        return ['code' => $payable->code, 'kind' => 'SUPPLIER_PAYABLE', 'supplier_code' => $payable->supplier?->code, 'supplier_name' => $payable->supplier?->person?->name, 'purchase_order_code' => $payable->receipt?->order?->code, 'purchase_receipt_code' => $payable->receipt?->code, 'currency_code' => $payable->currency?->code, 'original_amount' => (string) $payable->original_amount, 'balance_amount' => (string) $payable->balance_amount, 'apply_interest' => false, 'interest_rate' => null, 'interest_type_id' => null, 'status' => $payable->status, 'payments' => $payable->payments->map(fn ($payment) => ['code' => $payment->code, 'paid_at' => $payment->paid_at?->toDateString(), 'amount' => (string) $payment->amount, 'reference' => $payment->reference, 'note' => $payment->note])->all()];
     }
 
     // Record all payable and supplier-credit postings through tenant Accounting.

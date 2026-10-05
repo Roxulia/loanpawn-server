@@ -76,16 +76,16 @@ class OwnershipRepository
     public function movementBalances(int $tenantId, int $ownedItemId): array
     {
         $totals = DB::table('ownership_movements')->where('tenant_id', $tenantId)->where('owned_item_id', $ownedItemId)
-            ->selectRaw('COALESCE(SUM(owned_delta), 0) as owned, COALESCE(SUM(pledged_delta), 0) as pledged')->first();
-        return ['owned' => (float) $totals->owned, 'pledged' => (float) $totals->pledged];
+            ->selectRaw('COALESCE(SUM(owned_delta), 0) as owned, COALESCE(SUM(pledged_delta), 0) as pledged, COALESCE(SUM(reserved_delta), 0) as reserved')->first();
+        return ['owned' => (float) $totals->owned, 'pledged' => (float) $totals->pledged, 'reserved' => (float) $totals->reserved];
     }
 
     public function lotBalances(int $tenantId, int $ownedItemId, int $lotId): array
     {
         $totals = DB::table('ownership_movements')->where('tenant_id', $tenantId)
             ->where('owned_item_id', $ownedItemId)->where('acquisition_lot_id', $lotId)
-            ->selectRaw('COALESCE(SUM(owned_delta), 0) as owned, COALESCE(SUM(pledged_delta), 0) as pledged')->first();
-        return ['owned' => (float) $totals->owned, 'pledged' => (float) $totals->pledged];
+            ->selectRaw('COALESCE(SUM(owned_delta), 0) as owned, COALESCE(SUM(pledged_delta), 0) as pledged, COALESCE(SUM(reserved_delta), 0) as reserved')->first();
+        return ['owned' => (float) $totals->owned, 'pledged' => (float) $totals->pledged, 'reserved' => (float) $totals->reserved];
     }
 
     public function findBySourceCode(int $tenantId, string $module, string $type, string $sourceCode): ?AcquisitionLot

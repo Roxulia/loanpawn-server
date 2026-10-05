@@ -107,6 +107,9 @@ class DebtInterestFlowService extends BaseTenantService
                 if ($request->debtUpdateKey !== null && (int) $debt->update_key !== $request->debtUpdateKey) {
                     throw new AlreadyUpdatedException('This debt was already updated. Please refresh.');
                 }
+                if ($debt->isSaleReceivable()) {
+                    return $this->paySaleReceivable($request, $debt);
+                }
                 if ($debt->created_account_id === null || $debt->createdAccount === null) {
                     throw new InvalidTenantRequest('Debt creation account is required before this debt can be paid.');
                 }
@@ -510,6 +513,63 @@ class DebtInterestFlowService extends BaseTenantService
             $ledger = $this->tenantAccountingService->recordDebtPaymentChange($debt, "Debt payment change: {$debt->description}", (float) $payment->change_amount, $account->currency, $userId, $rate);
             $this->financialAccountTransactionService->recordAdjustment($account, (float) $payment->change_amount, 'credit', $payment->code, TenantDebtPayment::class, 'Debt payment change', $userId, $ledger->id);
         }
+    }
+
+    private function paySaleReceivable(TenantDebtPaymentCreate $request, TenantDebt $debt): TenantDebtPaymentResult
+    {
+        // Collect sale receivables as non-interest principal and prohibit overpayment.
+        $acceptAccount = $this->multiAccountManagement->findActiveCurrentTenantAccount($request->acceptAccountId);
+        if (strtoupper((string) $acceptAccount->currency?->code) !== strtoupper((string) $debt->currency_code)) {
+            throw new InvalidTenantRequest('Payment account currency must match the sale currency.');
+        }
+        $principalDue = (float) $debt->principal_balance;
+        if ($request->paymentAmount > $principalDue + 0.001) {
+            throw new InvalidTenantRequest('Payment amount exceeds the sale receivable balance.');
+        }
+        $now = $this->businessClock->now((int) $debt->tenant_id);
+        $payment = $this->repository->createPayment([
+            'tenant_id' => $debt->tenant_id,
+            'code' => $this->tableIdGenerationService->generate('tenant_debt_payments', $now),
+            'debt_id' => $debt->id,
+            'accept_account_id' => $acceptAccount->id,
+            'allocation_order' => 'principal_first',
+            'payment_amount' => $request->paymentAmount,
+            'principal_paid' => $request->paymentAmount,
+            'interest_paid' => 0,
+            'change_amount' => 0,
+            'payment_at' => $now,
+            'created_by' => Auth::guard('tenantuser')->id(),
+        ]);
+        $remainingPrincipal = max(0, $principalDue - $request->paymentAmount);
+        $updatedDebt = $this->repository->updateDebt($debt, [
+            'principal_balance' => $remainingPrincipal,
+            'is_paid' => $remainingPrincipal <= 0.001,
+            'accept_account_id' => $acceptAccount->id,
+            'accepted_by' => Auth::guard('tenantuser')->id(),
+            'update_key' => (int) $debt->update_key + 1,
+        ]);
+        $ledger = $this->tenantAccountingService->recordSaleReceivablePayment(
+            $payment, 'Payment for sale receivable '.$debt->source_code, $request->paymentAmount,
+            $acceptAccount->currency, Auth::guard('tenantuser')->id(), $request->reportingExchangeRate,
+        );
+        $this->financialAccountTransactionService->recordAdjustment(
+            $acceptAccount, $request->paymentAmount, 'debit', $payment->code, TenantDebtPayment::class,
+            'Sale receivable payment', Auth::guard('tenantuser')->id(), $ledger->id,
+        );
+        $this->tenantAuditLogService->log('tenant_debt.sale_receivable_payment_created', TenantDebtPayment::class, $payment->id, [
+            'source_sale_code' => $debt->source_code,
+            'payment_amount' => $request->paymentAmount,
+        ]);
+        if ($updatedDebt->customer_id !== null) {
+            $this->customerTrustScoreService->recalculateForCustomer((int) $updatedDebt->customer_id);
+        }
+        return new TenantDebtPaymentResult(
+            status: $updatedDebt->is_paid ? 'paid' : 'partially_paid', debtCode: $updatedDebt->code,
+            allocationOrder: 'principal_first', paymentAmount: $request->paymentAmount,
+            principalPaid: $request->paymentAmount, interestPaid: 0, changeAmount: 0,
+            remainingPrincipal: $remainingPrincipal, remainingInterest: 0, isPaid: (bool) $updatedDebt->is_paid,
+            updateKey: (int) $updatedDebt->update_key, acceptAccountId: $acceptAccount->id,
+        );
     }
 
     private function findDebt(int $debtId, bool $lock = false): TenantDebt
