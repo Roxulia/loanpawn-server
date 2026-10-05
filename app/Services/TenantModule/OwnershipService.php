@@ -64,7 +64,43 @@ class OwnershipService extends BaseTenantService
         } else {
             $balances = $this->repository->movementBalances($tenantId, $ownedItem->id);
         }
-        return round($balances['owned'] - $balances['pledged'], 3);
+        return round($balances['owned'] - $balances['pledged'] - ($balances['reserved'] ?? 0), 3);
+    }
+
+    public function fifoLots(string $ownedItemCode): array
+    {
+        // Expose eligible acquisition layers to Sales in stable FIFO order.
+        $tenantId = $this->resolveCurrentTenantId();
+        $ownedItem = $this->repository->ownedItemByCode($tenantId, $ownedItemCode);
+        if ($ownedItem === null) {
+            throw ValidationException::withMessages(['owned_item_code' => [__('ownership.not_found')]]);
+        }
+        return $ownedItem->acquisitionLots->sortBy([['acquired_at', 'asc'], ['id', 'asc']])->map(function (AcquisitionLot $lot) use ($tenantId, $ownedItem): array {
+            $balance = $this->repository->lotBalances($tenantId, (int) $ownedItem->id, (int) $lot->id);
+            return [
+                'id' => (int) $lot->id,
+                'code' => $lot->code,
+                'acquired_at' => $lot->acquired_at?->toDateString(),
+                'available_quantity' => max(0, round($balance['owned'] - $balance['pledged'] - ($balance['reserved'] ?? 0), 3)),
+                'unit_cost_basis' => (string) $lot->unit_cost_basis,
+                'currency_code' => $lot->currency_code,
+                'inventory_item_code' => $ownedItem->inventoryItem->code,
+            ];
+        })->values()->all();
+    }
+
+    public function reserveSale(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode): array
+    {
+        // Keep confirmed Sale quantity in the ownership ledger without reducing ownership.
+        return $this->changeQuantity('ownership.sale.reserve', $ownedItemCode, $lotCode, $quantity, 'SaleOrderLine', $sourceCode,
+            null, 'SALE_RESERVE', 0, 0, 1);
+    }
+
+    public function releaseSaleReservation(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode): array
+    {
+        // Release undelivered Sale quantity when a line is fulfilled or cancelled.
+        return $this->changeQuantity('ownership.sale.release', $ownedItemCode, $lotCode, $quantity, 'SaleOrderLine', $sourceCode,
+            null, 'SALE_RELEASE', 0, 0, -1);
     }
 
     public function movementsByCode(string $ownedItemCode): array
@@ -141,6 +177,13 @@ class OwnershipService extends BaseTenantService
             $idempotencyKey, 'SALE', -1, 0);
     }
 
+    public function restoreForSaleReturn(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode): array
+    {
+        // Restore ownership against the original FIFO lot when a delivered item is returned.
+        return $this->changeQuantity('ownership.sale.return', $ownedItemCode, $lotCode, $quantity, 'SaleReturnLine', $sourceCode,
+            null, 'SALE_RETURN', 1, 0);
+    }
+
     // Reduce the originating acquisition lot when goods are returned to their supplier.
     public function reduceForPurchaseReturn(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode, ?string $idempotencyKey = null): array
     {
@@ -215,12 +258,14 @@ class OwnershipService extends BaseTenantService
         });
     }
 
-    private function changeQuantity(string $operation, string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, ?string $idempotencyKey, string $movementType, int $ownedSign, int $pledgedSign): array
+    private function changeQuantity(string $operation, string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, ?string $idempotencyKey, string $movementType, int $ownedSign, int $pledgedSign, int $reservedSign = 0): array
     {
         // Apply a lot-specific ownership change atomically after validating its available balance.
         $expectedSourceType = match ($movementType) {
             'PLEDGE', 'RELEASE', 'FORFEITURE' => 'BusinessLoanCollateral',
             'SALE' => 'SaleLine',
+            'SALE_RESERVE', 'SALE_RELEASE' => 'SaleOrderLine',
+            'SALE_RETURN' => 'SaleReturnLine',
             'PURCHASE_RETURN' => 'PurchaseReturnLine',
             default => null,
         };
@@ -229,8 +274,8 @@ class OwnershipService extends BaseTenantService
         }
         return $this->runIdempotent($operation, $idempotencyKey,
             compact('ownedItemCode', 'lotCode', 'quantity', 'sourceType', 'sourceCode'),
-            function (int $tenantId, ?int $recordId) use ($ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign): array {
-                return DB::transaction(function () use ($tenantId, $recordId, $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign): array {
+            function (int $tenantId, ?int $recordId) use ($ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign, $reservedSign): array {
+                return DB::transaction(function () use ($tenantId, $recordId, $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign, $reservedSign): array {
                     // Resolve business codes into internal ledger keys while holding tenant-scoped locks.
                     $ownedItem = $this->repository->ownedItemByCode($tenantId, $ownedItemCode, true);
                     if ($ownedItem === null) {
@@ -244,9 +289,10 @@ class OwnershipService extends BaseTenantService
                         throw ValidationException::withMessages(['quantity' => [__('ownership.quantity_positive')]]);
                     }
                     $balances = $this->repository->lotBalances($tenantId, (int) $ownedItem->id, (int) $lot->id);
-                    $available = $balances['owned'] - $balances['pledged'];
-                    if (($ownedSign < 0 && $pledgedSign >= 0 && $quantity > $available) || ($pledgedSign < 0 && $quantity > $balances['pledged'])
-                        || ($pledgedSign > 0 && $quantity > $available)) {
+                    $available = $balances['owned'] - $balances['pledged'] - ($balances['reserved'] ?? 0);
+                    if (($ownedSign < 0 && $quantity > $available) || ($pledgedSign < 0 && $quantity > $balances['pledged'])
+                        || ($pledgedSign > 0 && $quantity > $available)
+                        || ($reservedSign < 0 && $quantity > ($balances['reserved'] ?? 0))) {
                         throw ValidationException::withMessages(['quantity' => [__('ownership.insufficient_lot_balance')]]);
                     }
                     $this->repository->createMovement($tenantId, [
@@ -257,9 +303,10 @@ class OwnershipService extends BaseTenantService
                         'quantity' => $quantity,
                         'owned_delta' => $quantity * $ownedSign,
                         'pledged_delta' => $quantity * $pledgedSign,
+                        'reserved_delta' => $quantity * $reservedSign,
                         'source_module' => match ($movementType) {
                             'PLEDGE', 'RELEASE', 'FORFEITURE' => 'BUSINESS_LOAN',
-                            'SALE' => 'SALES',
+                            'SALE', 'SALE_RESERVE', 'SALE_RELEASE', 'SALE_RETURN' => 'SALES',
                             'PURCHASE_RETURN' => 'PURCHASING',
                             default => 'OWNERSHIP',
                         },
@@ -322,6 +369,7 @@ class OwnershipService extends BaseTenantService
         $lots = $ownedItem->acquisitionLots->map(function (AcquisitionLot $lot) use ($tenantId, $ownedItem): array {
             $lotBalance = $this->repository->lotBalances($tenantId, $ownedItem->id, $lot->id);
             return [
+                'id' => (int) $lot->id,
                 'code' => $lot->code,
                 'source_module' => $lot->source_module,
                 'source_type' => $lot->source_type,
@@ -330,7 +378,8 @@ class OwnershipService extends BaseTenantService
                 'acquired_quantity' => $lot->acquired_quantity,
                 'remaining_quantity' => number_format($lotBalance['owned'], 3, '.', ''),
                 'pledged_quantity' => number_format($lotBalance['pledged'], 3, '.', ''),
-                'available_quantity' => number_format($lotBalance['owned'] - $lotBalance['pledged'], 3, '.', ''),
+                'reserved_quantity' => number_format($lotBalance['reserved'] ?? 0, 3, '.', ''),
+                'available_quantity' => number_format($lotBalance['owned'] - $lotBalance['pledged'] - ($lotBalance['reserved'] ?? 0), 3, '.', ''),
                 'unit_cost_basis' => $lot->unit_cost_basis,
                 'estimated_unit_value' => $lot->estimated_unit_value,
                 'currency_code' => $lot->currency_code,
@@ -339,6 +388,7 @@ class OwnershipService extends BaseTenantService
         })->all();
         $inventory = $this->inventoryService->detailByCode($ownedItem->inventoryItem->code);
         return [
+            'id' => (int) $ownedItem->id,
             'code' => $ownedItem->code,
             'inventory_item_code' => $inventory['code'],
             'catalog_item_code' => $inventory['catalog_item_code'],
@@ -350,7 +400,8 @@ class OwnershipService extends BaseTenantService
             'inventory_locations' => $inventory['locations'],
             'owned_quantity' => number_format($balances['owned'], 3, '.', ''),
             'pledged_quantity' => number_format($balances['pledged'], 3, '.', ''),
-            'available_quantity' => number_format($balances['owned'] - $balances['pledged'], 3, '.', ''),
+            'reserved_quantity' => number_format($balances['reserved'] ?? 0, 3, '.', ''),
+            'available_quantity' => number_format($balances['owned'] - $balances['pledged'] - ($balances['reserved'] ?? 0), 3, '.', ''),
             'lifecycle_status' => $ownedItem->lifecycle_status,
             'lots' => $lots,
         ];

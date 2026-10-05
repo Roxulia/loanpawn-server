@@ -29,6 +29,12 @@ class TenantDebtDetail extends BaseDataObject
 
     public ?string $customerName;
 
+    public ?string $sourceType;
+
+    public ?string $sourceCode;
+
+    public ?string $currencyCode;
+
     public string $amount;
 
     public bool $applyInterest;
@@ -83,6 +89,9 @@ class TenantDebtDetail extends BaseDataObject
         $detail->customerId = $debt->customer_id;
         $detail->customerCode = $debt->customer?->code;
         $detail->customerName = $debt->customer?->name;
+        $detail->sourceType = $debt->source_type;
+        $detail->sourceCode = $debt->source_code;
+        $detail->currencyCode = $debt->currency_code;
         $detail->amount = (string) $debt->amount;
         $detail->applyInterest = (bool) $debt->apply_interest;
         $detail->principalBalance = (string) $debt->principal_balance;

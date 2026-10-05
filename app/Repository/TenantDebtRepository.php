@@ -14,6 +14,7 @@ class TenantDebtRepository
     public function paginate(int $perPage = 15, ?TenantListFilter $filter = null): LengthAwarePaginator
     {
         return TenantDebt::query()
+            ->where(fn ($query) => $query->whereNull('source_type')->orWhere('source_type', '!=', 'SALE_ARCHIVED'))
             ->with(['slip', 'customer', 'interestType', 'createdAccount.currency', 'acceptAccount.currency'])
             ->withSum('interestAccruals as total_interest_accrued', 'calculated_interest')
             ->withSum('interestAccruals as total_interest_paid', 'paid_amount')
@@ -104,6 +105,12 @@ class TenantDebtRepository
             ->where('code', $code)
             ->lockForUpdate()
             ->first();
+    }
+
+    public function findBySource(int $tenantId, string $sourceType, string $sourceCode, bool $lock = false): ?TenantDebt
+    {
+        $query = TenantDebt::query()->where('tenant_id', $tenantId)->where('source_type', $sourceType)->where('source_code', $sourceCode);
+        return $lock ? $query->lockForUpdate()->first() : $query->first();
     }
 
     /**

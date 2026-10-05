@@ -290,6 +290,12 @@ class TenantAccountingTransactionService extends BaseTenantService
         return $this->recordOperation($payment, $description, 'incoming', AccountingCategory::Revenue, $amount, $createdBy, $currency, $exchangeRate);
     }
 
+    public function recordSaleReceivablePayment(TenantDebtPayment $payment, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
+    {
+          // Record cash collection against an existing sale receivable without recognizing revenue twice.
+          return $this->recordOperation($payment, $description, 'incoming', AccountingCategory::Asset, $amount, $createdBy, $currency, $exchangeRate);
+    }
+
     public function recordDebtPaymentChange(TenantDebt $debt, string $description, float $amount, Currency $currency, ?int $createdBy = null, ?float $exchangeRate = null): TenantAccountingTransactions
     {
         return $this->recordOperation($debt, $description, 'outgoing', AccountingCategory::Asset, $amount, $createdBy, $currency, $exchangeRate);

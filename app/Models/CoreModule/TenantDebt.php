@@ -28,6 +28,9 @@ class TenantDebt extends Model
         'accept_account_id',
         'slip_id',
         'customer_id',
+        'source_type',
+        'source_code',
+        'currency_code',
         'amount',
         'apply_interest',
         'principal_balance',
@@ -81,6 +84,11 @@ class TenantDebt extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(TenantCustomer::class, 'customer_id');
+    }
+
+    public function isSaleReceivable(): bool
+    {
+        return $this->source_type === 'SALE';
     }
 
     public function interestType(): BelongsTo

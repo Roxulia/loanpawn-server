@@ -1,5 +1,13 @@
 # Asset, Inventory, Ownership, Purchasing, and Sales Development Plan
 
+## Sales Implementation Status (2026-10-05)
+
+Initial Sales implementation is present: tenant-scoped draft orders and order lines, FIFO lot and location reservations, independent payments and partial deliveries, Inventory issue and Ownership reduction on delivery, and sale receivables in a dedicated delivery-linked ledger. Customer selection is optional, so direct/quick sales can be recorded as walk-in sales. The Tenant Debt screen shows sale receivables alongside general debt. Payments made before delivery remain customer deposits; delivered unpaid balances are interest-free. Quick Sale can confirm and deliver immediately, and the Business Loan registry contains a Supplier Payables tab. New explicit index and unique-key names are kept under 65 characters.
+
+Sale payment handling follows the Pawn interest-payment tender/change convention. Both order payments/deposits and receivable collections accept an amount tendered above the remaining due: `payment_amount` stores the tender, `amount` stores the amount applied, and `change_amount` stores the excess returned. The Financial Account records the gross receipt and a separate outgoing change movement; sale Accounting records only the applied amount, with change recorded as an outgoing Asset transaction. Existing sale payment rows are backfilled with `payment_amount = amount` and zero change by migration `2026_10_05_000008_add_tender_and_change_to_sale_payments.php`. The UI labels the input as amount tendered and reports the change returned.
+
+The initial slice does not yet complete sale returns/refunds, editing draft orders, or a multi-line/multi-lot delivery editor. The migration includes return tables, but those workflows are not connected. Reconciliation, cost-of-goods accounting, and automated acceptance coverage remain outstanding. Apply the migrations through the normal deployment process before enabling the feature; do not use `migrate` during local implementation validation.
+
 This plan describes the current LonePawn Laravel/React modular monolith and the implementation sequence. Phase 5 has been expanded to include the complete Purchasing, Inventory, Ownership, Accounting, Financial Account, and supplier financing workflow. Remaining phases continue to track future work. Task IDs are intentionally small so implementation can be reviewed incrementally.
 
 ## Recommended Development Order
@@ -455,7 +463,8 @@ This plan describes the current LonePawn Laravel/React modular monolith and the 
 | F — Pawn collateral | Receive to custody only; redemption issues; legal conversion attaches Ownership to the existing InventoryItem. | PAWN-INV-002–011 |
 | G — Business Loan | Pledge 4 of 10, keep 6 available, move 4 to lender; release restores; forfeiture removes ownership but is not a sale. | BL-COL-002–009 |
 | H — Sale | Phase 6 records a draft; Phase 7 posts a partial sale, issues inventory, snapshots cost and price, posts Accounting, and calculates realized profit. | SALE-002–006, INT-001–003 |
-| I — Pack | Pack/unpack serialized phone and quantity charger/case without losing identities or quantities. | PACK-002–009 |
+| I — Sale over-tender/change | Customer selection is optional. If tender exceeds the open sale or receivable balance, apply only the due amount, record excess as change, post gross receipt and change separately to the Financial Account, and record the applied amount plus outgoing change in Accounting. | Sales payment flow; migration `2026_10_05_000008` |
+| J — Pack | Pack/unpack serialized phone and quantity charger/case without losing identities or quantities. | PACK-002–009 |
 
 ## Dependency Graph
 

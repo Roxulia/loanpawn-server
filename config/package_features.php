@@ -107,6 +107,11 @@ return [
             'description' => 'Record suppliers, purchases, receipts, payments, refunds, and returns.',
             'is_active' => true,
         ],
+        'sales_management' => [
+            'name' => 'Sales management',
+            'description' => 'Manage sales orders, payments, deliveries, and returns.',
+            'is_active' => true,
+        ],
         'accounting_type_management' => [
             'name' => 'Accounting type management',
             'description' => 'Manage tenant-owned financial account types.',
