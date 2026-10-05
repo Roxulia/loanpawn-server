@@ -41,6 +41,12 @@ class SalesRepository
         return SaleOrder::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
+    public function updateOrder(SaleOrder $order, array $data): SaleOrder
+    {
+        $order->update($data);
+        return $order->refresh();
+    }
+
     public function createLine(int $tenantId, int $orderId, array $data): SaleOrderLine
     {
         return SaleOrderLine::query()->create(['tenant_id' => $tenantId, 'sales_order_id' => $orderId] + $data);
@@ -101,6 +107,19 @@ class SalesRepository
         return SaleDeliveryAllocation::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
+    public function updateAllocationAccounting(SaleDeliveryAllocation $allocation, int $expenseId, int $assetId): SaleDeliveryAllocation
+    {
+        $allocation->update(['cogs_expense_transaction_id' => $expenseId, 'inventory_asset_transaction_id' => $assetId]);
+        return $allocation->refresh();
+    }
+
+    public function allocationByCode(int $tenantId, string $code, bool $lock = false): ?SaleDeliveryAllocation
+    {
+        $query = SaleDeliveryAllocation::query()->where('tenant_id', $tenantId)->where('code', $code);
+        if ($lock) $query->lockForUpdate();
+        return $query->with(['line.order', 'line.inventoryItem', 'line.ownedItem', 'lot', 'delivery'])->first();
+    }
+
     public function allocationsForOrder(int $tenantId, int $orderId): Collection
     {
         return SaleDeliveryAllocation::query()->where('tenant_id', $tenantId)->whereHas('line', fn ($query) => $query->where('sales_order_id', $orderId))
@@ -115,6 +134,12 @@ class SalesRepository
     public function createReturnLine(int $tenantId, array $data): SaleReturnLine
     {
         return SaleReturnLine::query()->create(['tenant_id' => $tenantId] + $data);
+    }
+
+    public function updateReturnLine(SaleReturnLine $line, array $data): SaleReturnLine
+    {
+        $line->update($data);
+        return $line->refresh();
     }
 
     public function returnedForAllocation(int $tenantId, int $allocationId): float
@@ -132,5 +157,33 @@ class SalesRepository
     {
         $refund->update(['accounting_transaction_id' => $ledgerId]);
         return $refund->refresh();
+    }
+
+    public function createPaymentRefund(int $tenantId, int $paymentId, array $data): SalePaymentRefund
+    {
+        return SalePaymentRefund::query()->create(['tenant_id' => $tenantId, 'sales_payment_id' => $paymentId] + $data);
+    }
+
+    public function returnsForOrder(int $tenantId, int $orderId): Collection
+    {
+        return SaleReturn::query()->where('tenant_id', $tenantId)->where('sales_order_id', $orderId)
+            ->with('lines.allocation.line')->orderBy('id')->get();
+    }
+
+    public function returnedUnitCodesForAllocation(int $tenantId, int $allocationId): array
+    {
+        return SaleReturnLine::query()->where('tenant_id', $tenantId)->where('sales_delivery_allocation_id', $allocationId)
+            ->pluck('inventory_unit_codes')->filter()->flatMap(fn ($codes) => json_decode((string) $codes, true) ?: [])->all();
+    }
+
+    public function allocationsForTenant(int $tenantId): Collection
+    {
+        return SaleDeliveryAllocation::query()->where('tenant_id', $tenantId)
+            ->with(['line.order', 'delivery', 'lot'])->orderBy('id')->get();
+    }
+
+    public function paymentsForTenant(int $tenantId): Collection
+    {
+        return SalePayment::query()->where('tenant_id', $tenantId)->with('refunds')->orderBy('id')->get();
     }
 }

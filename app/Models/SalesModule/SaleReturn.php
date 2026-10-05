@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SaleReturn extends Model
 {
     use BelongToTenant;
-    protected $fillable = ['tenant_id', 'code', 'sales_order_id', 'returned_at', 'note', 'created_by'];
+    protected $fillable = ['tenant_id', 'code', 'sales_order_id', 'returned_at', 'note', 'total_amount', 'receivable_credit_amount', 'cash_refund_amount', 'created_by'];
     protected $casts = ['returned_at' => 'date:Y-m-d'];
     public function order(): BelongsTo { return $this->belongsTo(SaleOrder::class, 'sales_order_id'); }
     public function lines(): HasMany { return $this->hasMany(SaleReturnLine::class, 'sales_return_id'); }

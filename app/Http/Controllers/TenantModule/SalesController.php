@@ -5,6 +5,8 @@ namespace App\Http\Controllers\TenantModule;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\SalesService;
 use App\Services\TenantModule\SaleReceivableService;
+use App\Services\TenantModule\SaleReturnService;
+use App\Services\TenantModule\SalesReconciliationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -12,7 +14,7 @@ use Illuminate\Validation\Rule;
 
 class SalesController extends Controller
 {
-    public function __construct(private SalesService $salesService, private SaleReceivableService $saleReceivableService) {}
+    public function __construct(private SalesService $salesService, private SaleReceivableService $saleReceivableService, private SaleReturnService $saleReturnService, private SalesReconciliationService $salesReconciliationService) {}
 
     // List delivery-linked customer balances for the shared Debt screen.
     public function receivables(): JsonResponse
@@ -77,16 +79,42 @@ class SalesController extends Controller
         ], fn (array $data, ?string $key): array => $this->salesService->recordPayment($code, $data, $key), 201);
     }
 
-    // Record a partial or complete delivery against confirmed reservations.
-    public function delivery(Request $request, string $code): JsonResponse
+
+    // Update the editable contents of a draft Sales order.
+    public function update(Request $request, string $code): JsonResponse
     {
         return $this->mutate($request, [
-            'delivered_at' => ['required', 'date'], 'note' => ['nullable', 'string', 'max:1000'],
-            'items' => ['required', 'array', 'min:1'], 'items.*.sales_order_line_code' => ['required', 'string', 'max:40'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-        ], fn (array $data, ?string $key): array => $this->salesService->recordDelivery($code, $data, $key), 201);
+            'customer_code' => ['nullable', 'string', 'max:40'], 'currency_code' => ['required', 'string', 'max:10'],
+            'sold_at' => ['required', 'date'], 'note' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'], 'items.*.inventory_item_code' => ['required', 'string', 'max:40'],
+            'items.*.owned_item_code' => ['required', 'string', 'max:40'], 'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.unit_price' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
+        ], fn (array $data, ?string $key): array => $this->salesService->updateDraftOrder($code, $data, $key));
     }
 
+    // List the return history for a Sales order.
+    public function returns(string $code): JsonResponse
+    {
+        return $this->successResponse($this->saleReturnService->returns($code));
+    }
+
+    // Validate inventory disposition and payment destination for a customer return.
+    public function returnSale(Request $request, string $code): JsonResponse
+    {
+        return $this->mutate($request, [
+            'returned_at' => ['required', 'date'], 'note' => ['nullable', 'string', 'max:1000'],
+            'financial_account_id' => ['nullable', 'integer', 'min:1'], 'items' => ['required', 'array', 'min:1'],
+            'items.*.delivery_allocation_code' => ['required', 'string', 'max:40'], 'items.*.location_code' => ['required', 'string', 'max:40'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'], 'items.*.disposition' => ['required', 'in:RESTOCK,QUARANTINE'],
+            'items.*.inventory_unit_codes' => ['nullable', 'array'], 'items.*.inventory_unit_codes.*' => ['string', 'max:40'],
+        ], fn (array $data, ?string $key): array => $this->saleReturnService->create($code, $data, $key), 201);
+    }
+
+    // Report missing linked Sales inventory, ownership, and financial records.
+    public function reconciliation(): JsonResponse
+    {
+        return $this->successResponse($this->salesReconciliationService->issues());
+    }
     // Validate shared idempotency input and return the service response.
     private function mutate(Request $request, array $rules, callable $operation, int $status = 200): JsonResponse
     {

@@ -4,7 +4,7 @@ namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\TenantAccountingTransactionRecord;
 use App\Enums\AccountingCategory;
-use App\Models\SalesModule\SaleDelivery;
+use App\Models\DeliveryModule\Delivery;
 use App\Models\SalesModule\SaleOrder;
 use App\Models\SalesModule\SaleReceivable;
 use App\Repository\SaleReceivableRepository;
@@ -50,17 +50,17 @@ class SaleReceivableService extends BaseTenantService
     }
 
     // Create the unpaid portion of one delivery and keep future interest disabled.
-    public function createForDelivery(SaleOrder $order, SaleDelivery $delivery, float $amount): ?SaleReceivable
+    public function createForDelivery(SaleOrder $order, int $deliveryId, float $amount): ?SaleReceivable
     {
         if ($amount <= 0.001) return null;
-        return DB::transaction(function () use ($order, $delivery, $amount): SaleReceivable {
+        return DB::transaction(function () use ($order, $deliveryId, $amount): SaleReceivable {
             $tenantId = $this->resolveCurrentTenantId();
-            $existing = $this->repository->findByDelivery($tenantId, (int) $delivery->id, true);
+            $existing = $this->repository->findByDelivery($tenantId, $deliveryId, true);
             if ($existing !== null) return $existing;
             $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
             $receivable = $this->repository->create($tenantId, [
                 'code' => $this->codeGenerator->generateForTenant($tenantId, 'sale_receivables', CarbonImmutable::now()),
-                'customer_id' => $order->customer_id, 'sales_order_id' => $order->id, 'sales_delivery_id' => $delivery->id,
+                'customer_id' => $order->customer_id, 'sales_order_id' => $order->id, 'delivery_id' => $deliveryId,
                 'currency_id' => $currency->id, 'original_amount' => round($amount, 2), 'balance_amount' => round($amount, 2),
                 'apply_interest' => false, 'interest_rate' => null, 'interest_type_id' => null,
                 'status' => 'OPEN', 'created_by' => Auth::guard('tenantuser')->id(),
@@ -81,6 +81,34 @@ class SaleReceivableService extends BaseTenantService
         return $this->collectForOrderReceivables($tenantId, $order, $amount, $data, $accountId);
     }
 
+    // Apply a returned item value to open receivables in delivery order.
+    public function applyReturnCredit(SaleOrder $order, float $amount, string $returnLineCode): float
+    {
+        $tenantId = $this->resolveCurrentTenantId();
+        return DB::transaction(function () use ($tenantId, $order, $amount, $returnLineCode): float {
+            $left = round($amount, 2);
+            foreach ($this->repository->forOrder($tenantId, (int) $order->id, true) as $receivable) {
+                if ($left <= 0.001) break;
+                $credit = round(min($left, (float) $receivable->balance_amount), 2);
+                if ($credit <= 0) continue;
+                $adjustment = $this->repository->createAdjustment($tenantId, (int) $receivable->id, [
+                    'code' => $this->codeGenerator->generateForTenant($tenantId, 'sale_receivable_adjustments', CarbonImmutable::now()),
+                    'adjustment_type' => 'RETURN_CREDIT', 'amount' => $credit,
+                    'source_type' => 'SaleReturnLine', 'source_code' => $returnLineCode,
+                    'created_by' => Auth::guard('tenantuser')->id(),
+                ]);
+                $ledger = $this->accountingService->recordTransaction(new TenantAccountingTransactionRecord(
+                    reference: $adjustment, description: 'Sale return credit applied to receivable '.$receivable->code,
+                    transactionDirection: 'outgoing', accountingCategory: AccountingCategory::Asset,
+                    amount: $credit, createdBy: Auth::guard('tenantuser')->id(), currencyId: $receivable->currency_id,
+                ));
+                $this->repository->updateAdjustmentAccounting($adjustment, (int) $ledger->id);
+                $this->repository->updateBalance($receivable, (float) $receivable->balance_amount - $credit);
+                $left = round($left - $credit, 2);
+            }
+            return round($amount - $left, 2);
+        });
+    }
     // Apply a tender against one selected receivable and return any balance excess as change.
     public function collect(string $code, float $amount, array $data, int $accountId): array
     {

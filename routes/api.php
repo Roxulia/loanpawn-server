@@ -507,10 +507,20 @@ Route::prefix('tenant')->group(function () {
                 Route::post('receivables/{code}/payments', [\App\Http\Controllers\TenantModule\SalesController::class, 'receivablePayment'])->middleware('tenant.permission:manage_sale_payment');
                 Route::get('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'index'])->middleware('tenant.permission:list_sale');
                 Route::post('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'store'])->middleware('tenant.permission:manage_sale');
+                Route::put('orders/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'update'])->middleware('tenant.permission:manage_sale');
                 Route::get('orders/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'show'])->middleware('tenant.permission:list_sale');
                 Route::post('orders/{code}/{action}', [\App\Http\Controllers\TenantModule\SalesController::class, 'transition'])->whereIn('action', ['confirm', 'cancel'])->middleware('tenant.permission:manage_sale');
                 Route::post('orders/{code}/payments', [\App\Http\Controllers\TenantModule\SalesController::class, 'payment'])->middleware('tenant.permission:manage_sale_payment');
-                Route::post('orders/{code}/deliveries', [\App\Http\Controllers\TenantModule\SalesController::class, 'delivery'])->middleware('tenant.permission:manage_sale_delivery');
+                Route::get('orders/{code}/returns', [\App\Http\Controllers\TenantModule\SalesController::class, 'returns'])->middleware('tenant.permission:list_sale');
+                Route::post('orders/{code}/returns', [\App\Http\Controllers\TenantModule\SalesController::class, 'returnSale'])->middleware('tenant.permission:manage_sale_return');
+                Route::get('reconciliation', [\App\Http\Controllers\TenantModule\SalesController::class, 'reconciliation'])->middleware('tenant.permission:list_sale');
+            });
+            Route::prefix('deliveries')->middleware('tenant.feature:delivery_management')->group(function () {
+                Route::get('/', [\App\Http\Controllers\TenantModule\DeliveryController::class, 'index'])->middleware('tenant.permission:list_delivery');
+                Route::post('/', [\App\Http\Controllers\TenantModule\DeliveryController::class, 'store'])->middleware('tenant.permission:manage_delivery');
+                Route::post('{code}/dispatch', [\App\Http\Controllers\TenantModule\DeliveryController::class, 'dispatch'])->middleware('tenant.permission:manage_delivery');
+                Route::post('{code}/complete', [\App\Http\Controllers\TenantModule\DeliveryController::class, 'complete'])->middleware('tenant.permission:manage_delivery');
+                Route::put('sales-orders/{orderCode}/charge', [\App\Http\Controllers\TenantModule\DeliveryController::class, 'setOrderCharge'])->middleware('tenant.permission:manage_delivery_fee');
             });
 
             Route::prefix('inventory')->middleware('tenant.feature:inventory_management')->group(function () {
