@@ -506,12 +506,14 @@ Route::prefix('tenant')->group(function () {
                 Route::get('receivables/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'receivable'])->middleware('tenant.permission:list_sale');
                 Route::post('receivables/{code}/payments', [\App\Http\Controllers\TenantModule\SalesController::class, 'receivablePayment'])->middleware('tenant.permission:manage_sale_payment');
                 Route::get('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'index'])->middleware('tenant.permission:list_sale');
-                Route::post('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'store'])->middleware('tenant.permission:manage_sale');
-                Route::put('orders/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'update'])->middleware('tenant.permission:manage_sale');
+                Route::post('quick', [\App\Http\Controllers\TenantModule\SalesController::class, 'quickSale'])->middleware('tenant.permission:manage_sale');
+                Route::post('orders', [\App\Http\Controllers\TenantModule\SalesController::class, 'store'])->middleware(['tenant.feature:delivery_management', 'tenant.permission:manage_sale']);
+                Route::put('orders/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'update'])->middleware(['tenant.feature:delivery_management', 'tenant.permission:manage_sale']);
                 Route::get('orders/{code}', [\App\Http\Controllers\TenantModule\SalesController::class, 'show'])->middleware('tenant.permission:list_sale');
-                Route::post('orders/{code}/{action}', [\App\Http\Controllers\TenantModule\SalesController::class, 'transition'])->whereIn('action', ['confirm', 'cancel'])->middleware('tenant.permission:manage_sale');
+                Route::post('orders/{code}/{action}', [\App\Http\Controllers\TenantModule\SalesController::class, 'transition'])->whereIn('action', ['confirm', 'cancel'])->middleware(['tenant.feature:delivery_management', 'tenant.permission:manage_sale']);
                 Route::post('orders/{code}/payments', [\App\Http\Controllers\TenantModule\SalesController::class, 'payment'])->middleware('tenant.permission:manage_sale_payment');
                 Route::get('orders/{code}/returns', [\App\Http\Controllers\TenantModule\SalesController::class, 'returns'])->middleware('tenant.permission:list_sale');
+                Route::get('orders/{code}/return-options', [\App\Http\Controllers\TenantModule\SalesController::class, 'returnOptions'])->middleware('tenant.permission:manage_sale_return');
                 Route::post('orders/{code}/returns', [\App\Http\Controllers\TenantModule\SalesController::class, 'returnSale'])->middleware('tenant.permission:manage_sale_return');
                 Route::get('reconciliation', [\App\Http\Controllers\TenantModule\SalesController::class, 'reconciliation'])->middleware('tenant.permission:list_sale');
             });

@@ -69,6 +69,20 @@ class SaleReceivableService extends BaseTenantService
         });
     }
 
+    // Create a receivable for an immediate sale without a Delivery-module record.
+    public function createForSaleDelivery(SaleOrder $order, int $saleDeliveryId, float $amount): ?SaleReceivable
+    {
+        if ($amount <= 0.001) return null;
+        $tenantId = $this->resolveCurrentTenantId();
+        $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
+        return $this->repository->create($tenantId, [
+            'code' => $this->codeGenerator->generateForTenant($tenantId, 'sale_receivables', CarbonImmutable::now()),
+            'customer_id' => $order->customer_id, 'sales_order_id' => $order->id, 'sales_delivery_id' => $saleDeliveryId,
+            'currency_id' => $currency->id, 'original_amount' => round($amount, 2), 'balance_amount' => round($amount, 2),
+            'apply_interest' => false, 'interest_rate' => null, 'interest_type_id' => null,
+            'status' => 'OPEN', 'created_by' => Auth::guard('tenantuser')->id(),
+        ]);
+    }
     // Expose order totals used to cap sale payments and allocate collections.
     public function balanceForOrder(int $orderId): float { return $this->repository->balanceForOrder($this->resolveCurrentTenantId(), $orderId); }
     public function paidForOrder(int $orderId): float { return $this->repository->paidForOrder($this->resolveCurrentTenantId(), $orderId); }

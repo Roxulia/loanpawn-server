@@ -123,7 +123,7 @@ class SalesRepository
     public function allocationsForOrder(int $tenantId, int $orderId): Collection
     {
         return SaleDeliveryAllocation::query()->where('tenant_id', $tenantId)->whereHas('line', fn ($query) => $query->where('sales_order_id', $orderId))
-            ->with(['line', 'lot', 'delivery'])->orderBy('id')->get();
+            ->with(['line.inventoryItem', 'line.ownedItem', 'lot', 'delivery'])->orderBy('id')->get();
     }
 
     public function createReturn(int $tenantId, array $data): SaleReturn
