@@ -231,6 +231,87 @@ class SalesService extends BaseTenantService
             201, $idempotencyKey);
     }
 
+    // Complete a counter sale atomically without creating a Delivery-module dispatch.
+    public function quickSale(array $data, ?string $idempotencyKey): array
+    {
+        return $this->runIdempotent('sales.quick.create', $data, function (int $tenantId) use ($data, $idempotencyKey): array {
+            $order = $this->createOrder($data, null);
+            $code = $order['code'];
+            $this->transition($code, 'confirm', null);
+            if ((float) ($data['tender_amount'] ?? 0) > 0) {
+                $this->recordPayment($code, [
+                    'financial_account_id' => (int) $data['financial_account_id'],
+                    'amount' => (float) $data['tender_amount'], 'paid_at' => $data['sold_at'],
+                ], null);
+            }
+            return $this->completeImmediately($code, ['delivered_at' => $data['sold_at']], null);
+        }, 201, $idempotencyKey);
+    }
+
+    // Issue all reserved stock as a direct counter sale and create receivables for the unpaid remainder.
+    public function completeImmediately(string $code, array $data, ?string $idempotencyKey): array
+    {
+        return $this->runIdempotent('sales.immediate.fulfillment', ['sale_code' => $code] + $data, function (int $tenantId) use ($code, $data): array {
+            return DB::transaction(function () use ($tenantId, $code, $data): array {
+                $order = $this->repository->orderByCode($tenantId, $code, true);
+                if ($order === null || $order->status !== 'CONFIRMED') {
+                    throw ValidationException::withMessages(['sale_code' => [__('sales.invalid_order_transition')]]);
+                }
+                $saleDelivery = $this->repository->createDelivery($tenantId, [
+                    'code' => $this->newCode($tenantId, 'sales_deliveries'), 'sales_order_id' => $order->id,
+                    'delivered_at' => $data['delivered_at'], 'note' => 'Immediate counter sale', 'created_by' => $this->currentUserId(),
+                ]);
+                $deliveredValue = 0.0;
+                foreach ($order->lines as $line) {
+                    $reservations = $this->repository->reservationsForLine($tenantId, (int) $line->id, true);
+                    foreach ($reservations as $reservation) {
+                        $take = (float) $reservation->remaining_quantity;
+                        if ($take <= 0.001) continue;
+                        $unitCodes = $line->tracking_mode === 'SERIALIZED' ? ($reservation->inventory_unit_codes ?? []) : [];
+                        $allocation = $this->repository->createDeliveryAllocation($tenantId, [
+                            'code' => $this->newCode($tenantId, 'sales_delivery_allocations'),
+                            'sales_delivery_id' => $saleDelivery->id, 'delivery_id' => null,
+                            'sales_order_line_id' => $line->id, 'acquisition_lot_id' => $reservation->acquisition_lot_id,
+                            'inventory_location_id' => $reservation->inventory_location_id, 'quantity' => $take,
+                            'unit_cost' => $reservation->lot->unit_cost_basis, 'unit_price' => $line->unit_price,
+                            'inventory_unit_codes' => $unitCodes,
+                        ]);
+                        $cost = round($take * (float) $reservation->lot->unit_cost_basis, 2);
+                        $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
+                        $expense = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Expense, $cost, 'Cost of goods sold for immediate sale '.$allocation->code);
+                        $asset = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Asset, $cost, 'Inventory asset relieved for immediate sale '.$allocation->code);
+                        $this->repository->updateAllocationAccounting($allocation, (int) $expense->id, (int) $asset->id);
+                        $this->inventoryService->issue([
+                            'inventory_item_code' => $line->inventoryItem->code,
+                            'location_code' => $reservation->inventory_location_code,
+                            'quantity' => $take, 'inventory_unit_codes' => $unitCodes,
+                            'reservation_code' => $reservation->inventory_reservation_code,
+                            'source_type' => 'SaleDeliveryAllocation', 'source_code' => $allocation->code,
+                        ], 'quick-sale-'.$allocation->code);
+                        $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
+                        $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'quick-sale-ownership-'.$allocation->code);
+                        $this->repository->updateReservation($reservation, ['remaining_quantity' => 0, 'status' => 'CONSUMED', 'inventory_unit_codes' => []]);
+                        $deliveredValue += round($take * (float) $line->unit_price, 2);
+                    }
+                }
+                $prepaid = min($deliveredValue, $this->netPrepayments($tenantId, (int) $order->id));
+                $unpaid = max(0, round($deliveredValue - $prepaid, 2));
+                $this->saleReceivableService->createForSaleDelivery($order, (int) $saleDelivery->id, $unpaid);
+                $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
+                if ($prepaid > 0.001) {
+                    $this->recordFinancialPosting($saleDelivery, $currency, 'outgoing', AccountingCategory::Liability, $prepaid, 'Customer deposit applied to immediate sale '.$order->code);
+                }
+                if ($unpaid > 0.001) {
+                    $this->recordFinancialPosting($saleDelivery, $currency, 'incoming', AccountingCategory::Asset, $unpaid, 'Customer receivable for immediate sale '.$order->code);
+                }
+                if ($deliveredValue > 0.001) {
+                    $this->recordFinancialPosting($saleDelivery, $currency, 'incoming', AccountingCategory::Revenue, $deliveredValue, 'Immediate sale revenue '.$order->code);
+                }
+                $order->update(['status' => 'COMPLETED']);
+                return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
+            });
+        }, 201, $idempotencyKey);
+    }
     public function recordDelivery(string $code, array $data, ?string $idempotencyKey): array
     {
         // Fulfill reserved lots FIFO and update stock, cost history, and customer receivable atomically.
@@ -392,6 +473,7 @@ class SalesService extends BaseTenantService
         $recognizedDeliveryFee = $this->deliveryChargeService->recognizedAmountForOrder((int) $order->id);
         $total = (float) $items->sum('line_total') + $deliveryFee;
         $delivered = (float) $items->sum(fn (array $item) => (float) $item['delivered_quantity'] * (float) $item['unit_price']) + $recognizedDeliveryFee;
+        $deliveredQuantity = (float) $items->sum(fn (array $item) => (float) $item['delivered_quantity']);
         $depositPaid = $this->netPrepayments((int) $order->tenant_id, (int) $order->id);
         $receivablePaid = $this->saleReceivableService->paidForOrder((int) $order->id);
         $paid = $depositPaid + $receivablePaid;
@@ -400,8 +482,8 @@ class SalesService extends BaseTenantService
             'code' => $order->code, 'status' => $order->status, 'sold_at' => $order->sold_at?->toDateString(),
             'customer' => $order->customer ? ['code' => $order->customer->code, 'name' => $order->customer->name] : null,
             'currency_code' => $order->currency_code, 'note' => $order->note, 'delivery_fee' => number_format($deliveryFee, 2, '.', ''),
-            'payment_status' => $paid + $receivableBalance + 0.001 >= $total ? 'PAID' : ($paid <= 0 ? 'UNPAID' : 'PARTIAL'),
-            'delivery_status' => $delivered <= 0 ? 'NOT_DELIVERED' : ($delivered + 0.001 >= (float) $items->sum('ordered_quantity') ? 'DELIVERED' : 'PARTIAL'),
+            'payment_status' => $paid + 0.001 >= $total ? 'PAID' : ($paid <= 0.001 ? 'UNPAID' : 'PARTIAL'),
+            'delivery_status' => $deliveredQuantity <= 0.001 ? 'NOT_DELIVERED' : ($deliveredQuantity + 0.001 >= (float) $items->sum('ordered_quantity') ? 'DELIVERED' : 'PARTIAL'),
             'totals' => ['amount' => round($total, 2), 'delivery_fee' => round($deliveryFee, 2), 'delivered_value' => round($delivered, 2), 'paid_amount' => round($paid, 2),
                 'receivable_amount' => $receivableBalance,
                 'undelivered_quantity' => $this->decimal((float) $items->sum('undelivered_quantity'))],
@@ -422,6 +504,12 @@ class SalesService extends BaseTenantService
                 ])->all(),
             ])->all();
             $resource['receivables'] = $this->saleReceivableService->listForOrder((int) $order->id);
+            $resource['return_allocations'] = $this->repository->allocationsForOrder((int) $order->tenant_id, (int) $order->id)->map(fn ($allocation): array => [
+                'code' => $allocation->code, 'item_description' => $allocation->line?->item_description,
+                'tracking_mode' => $allocation->line?->tracking_mode, 'quantity' => (string) $allocation->quantity,
+                'returned_quantity' => (string) $this->repository->returnedForAllocation((int) $order->tenant_id, (int) $allocation->id),
+                'unit_codes' => array_values(array_diff($allocation->inventory_unit_codes ?? [], $this->repository->returnedUnitCodesForAllocation((int) $order->tenant_id, (int) $allocation->id))),
+            ])->all();
         }
         return $resource;
     }

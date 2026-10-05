@@ -7,6 +7,8 @@ use App\Services\TenantModule\SalesService;
 use App\Services\TenantModule\SaleReceivableService;
 use App\Services\TenantModule\SaleReturnService;
 use App\Services\TenantModule\SalesReconciliationService;
+use App\Services\TenantModule\TenantUserPermissionService;
+use App\Services\TenantModule\InventoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -14,7 +16,7 @@ use Illuminate\Validation\Rule;
 
 class SalesController extends Controller
 {
-    public function __construct(private SalesService $salesService, private SaleReceivableService $saleReceivableService, private SaleReturnService $saleReturnService, private SalesReconciliationService $salesReconciliationService) {}
+    public function __construct(private SalesService $salesService, private SaleReceivableService $saleReceivableService, private SaleReturnService $saleReturnService, private SalesReconciliationService $salesReconciliationService, private TenantUserPermissionService $permissionService, private InventoryService $inventoryService) {}
 
     // List delivery-linked customer balances for the shared Debt screen.
     public function receivables(): JsonResponse
@@ -37,6 +39,28 @@ class SalesController extends Controller
         ], fn (array $data, ?string $key): array => $this->salesService->recordReceivablePayment($code, $data, $key), 201);
     }
 
+    // Create and fulfill a counter sale; any tender requires the sale payment permission.
+    public function quickSale(Request $request): JsonResponse
+    {
+        return $this->mutate($request, [
+            'customer_code' => ['nullable', 'string', 'max:40'], 'currency_code' => ['required', 'string', 'max:10'],
+            'sold_at' => ['required', 'date'], 'note' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'], 'items.*.inventory_item_code' => ['required', 'string', 'max:40'],
+            'items.*.owned_item_code' => ['required', 'string', 'max:40'], 'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.unit_price' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
+            'tender_amount' => ['nullable', 'numeric', 'gte:0', 'decimal:0,2'],
+            'financial_account_id' => ['nullable', 'integer', 'min:1'],
+        ], function (array $data, ?string $key): array {
+            $amount = (float) ($data['tender_amount'] ?? 0);
+            if ($amount > 0) {
+                if (empty($data['financial_account_id'])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['financial_account_id' => ['Choose the account receiving the sale payment.']]);
+                }
+                $this->permissionService->authorizePermission('manage_sale_payment');
+            }
+            return $this->salesService->quickSale($data, $key);
+        }, 201);
+    }
     // List tenant sales orders and validate the optional search term.
     public function index(Request $request): JsonResponse
     {
@@ -92,6 +116,12 @@ class SalesController extends Controller
         ], fn (array $data, ?string $key): array => $this->salesService->updateDraftOrder($code, $data, $key));
     }
 
+    // Provide return destinations to authorized sale return handlers.
+    public function returnOptions(string $code): JsonResponse
+    {
+        $this->salesService->order($code);
+        return $this->successResponse($this->inventoryService->locations());
+    }
     // List the return history for a Sales order.
     public function returns(string $code): JsonResponse
     {
