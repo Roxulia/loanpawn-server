@@ -159,6 +159,43 @@ class InventoryService extends BaseTenantService
         }, 201);
     }
 
+    // Receive issued serialized units into sellable or quarantine custody without duplicating their identities.
+    // Resolve a tenant location internally so return lines can retain the required location foreign key.
+    public function locationForSaleReturn(string $locationCode): InventoryLocation
+    {
+        $location = $this->repository->findLocationByCode($this->resolveCurrentTenantId(), $locationCode);
+        if ($location === null || !$location->is_active) throw ValidationException::withMessages(['location_code' => ['The selected Inventory location is unavailable.']]);
+        return $location;
+    }
+    public function receiveSaleReturn(array $data, ?string $idempotencyKey): array
+    {
+        return $this->runIdempotent('inventory.receive.sale_return', $idempotencyKey, $data, function (int $tenantId, ?int $recordId) use ($data): array {
+            return DB::transaction(function () use ($tenantId, $recordId, $data): array {
+                $item = $this->lockedItemByCode($tenantId, (string) $data['inventory_item_code']);
+                $location = $this->activeLocationByCode($tenantId, (string) $data['location_code'], true);
+                $quantity = $this->validateQuantityForMode($item, $data['quantity']);
+                $unitCodes = $data['inventory_unit_codes'] ?? [];
+                if ($item->tracking_mode === 'SERIALIZED' && count($unitCodes) !== (int) $quantity) {
+                    throw ValidationException::withMessages(['inventory_unit_codes' => ['Returned units must match the return quantity.']]);
+                }
+                $data['_idempotency_record_id'] = $recordId;
+                $data['reason'] = 'Customer sale return';
+                $data['source_type'] = 'SaleReturnLine';
+                foreach ($unitCodes as $unitCode) {
+                    $unit = $this->repository->findUnitsByCodesForUpdate($tenantId, $item->id, [$unitCode])->first();
+                    if ($unit === null || $this->repository->latestUnitMovement($tenantId, $unit->id)?->to_location_id !== null) {
+                        throw ValidationException::withMessages(['inventory_unit_codes' => ['A returned unit is not currently issued.']]);
+                    }
+                    $this->appendMovement($tenantId, $item, null, $location->id, 1, 'RECEIVE', $data, $unit->id);
+                }
+                if ($item->tracking_mode !== 'SERIALIZED') {
+                    $this->appendMovement($tenantId, $item, null, $location->id, $quantity, 'RECEIVE', $data);
+                }
+                $movement = $this->repository->movementBySource($tenantId, 'SaleReturnLine', (string) $data['source_code']);
+                return ['movement_id' => $movement?->id, 'item' => $this->itemResource($tenantId, $item)];
+            });
+        }, 201);
+    }
     public function reserveForSale(array $data, ?string $idempotencyKey): array
     {
         // Reserve physical custody for a confirmed sale without changing on-hand movements.
@@ -607,6 +644,7 @@ class InventoryService extends BaseTenantService
                     'quantity' => number_format($quantity, 3, '.', ''),
                     'reserved_quantity' => number_format($reserved, 3, '.', ''),
                     'available_quantity' => number_format(max(0, $quantity - $reserved), 3, '.', ''),
+                    'is_sellable' => (bool) $locations->get($locationId)?->is_sellable,
                 ];
             }
         }
@@ -629,7 +667,7 @@ class InventoryService extends BaseTenantService
             'unit_code' => $item->unit?->code,
             'unit' => $item->unit?->name,
             'total_quantity' => number_format(array_sum($balances), 3, '.', ''),
-            'available_quantity' => number_format(array_sum($balances) - collect($balances)->keys()->sum(fn ($locationId) => $this->repository->reservedBalance($tenantId, $item->id, (int) $locationId)), 3, '.', ''),
+            'available_quantity' => number_format(collect($balances)->keys()->filter(fn ($locationId) => $locations->get($locationId)?->is_sellable)->sum(fn ($locationId) => max(0, ($balances[$locationId] ?? 0) - $this->repository->reservedBalance($tenantId, $item->id, (int) $locationId))), 3, '.', ''),
             'locations' => $locationRows,
             'units' => $units,
         ];
@@ -643,6 +681,7 @@ class InventoryService extends BaseTenantService
             'type' => $location->type,
             'is_default' => $location->is_default,
             'is_active' => $location->is_active,
+            'is_sellable' => $location->is_sellable,
         ];
     }
 }

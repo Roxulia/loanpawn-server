@@ -30,6 +30,7 @@ class InventoryController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::in(['SHOP', 'STORAGE', 'VAULT', 'DISPLAY', 'LENDER', 'OTHER'])],
+            'is_sellable' => ['sometimes', 'boolean'],
         ]);
         if ($validator->fails()) {
             return $this->validationErrorResponse($validator->errors());
@@ -43,6 +44,7 @@ class InventoryController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'type' => ['sometimes', Rule::in(['SHOP', 'STORAGE', 'VAULT', 'DISPLAY', 'LENDER', 'OTHER'])],
             'is_active' => ['sometimes', 'boolean'],
+            'is_sellable' => ['sometimes', 'boolean'],
         ]);
         if ($validator->fails()) {
             return $this->validationErrorResponse($validator->errors());

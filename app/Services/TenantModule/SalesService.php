@@ -9,6 +9,7 @@ use App\Models\SalesModule\SaleOrderLine;
 use App\Models\SalesModule\SalePayment;
 use App\Repository\SalesRepository;
 use App\Services\BaseTenantService;
+use App\Services\DeliveryModule\DeliveryOrderChargeService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
 use App\Services\TenantModule\Accounting\MultiAccountManagement;
@@ -31,6 +32,7 @@ class SalesService extends BaseTenantService
         private MultiAccountManagement $accountManagement,
         private TenantAccountingTransactionService $accountingService,
         private FinancialAccountTransactionService $accountTransactionService,
+        private DeliveryOrderChargeService $deliveryChargeService,
     ) {}
 
     public function orders(?string $search = null): array
@@ -40,6 +42,13 @@ class SalesService extends BaseTenantService
             ->map(fn (SaleOrder $order) => $this->orderResource($order))->all();
     }
 
+    // Resolve a tenant sale for Delivery module coordination without exposing internal IDs in public resources.
+    public function orderForDelivery(string $code): SaleOrder
+    {
+        $order = $this->repository->orderByCode($this->resolveCurrentTenantId(), $code, true);
+        if ($order === null) throw ValidationException::withMessages(['sale_code' => [__('sales.order_not_found')]]);
+        return $order;
+    }
     public function order(string $code): array
     {
         // Resolve a Sale by its tenant business code.
@@ -90,6 +99,45 @@ class SalesService extends BaseTenantService
         }, 201, $idempotencyKey);
     }
 
+    // Update a draft Sale atomically without changing reservations, balances, or delivery history.
+    public function updateDraftOrder(string $code, array $data, ?string $idempotencyKey): array
+    {
+        return $this->runIdempotent('sales.order.update', ['sale_code' => $code] + $data, function (int $tenantId) use ($code, $data): array {
+            return DB::transaction(function () use ($tenantId, $code, $data): array {
+                $order = $this->repository->orderByCode($tenantId, $code, true);
+                if ($order === null) throw ValidationException::withMessages(['sale_code' => [__('sales.order_not_found')]]);
+                if ($order->status !== 'DRAFT' || $order->payments->isNotEmpty() || $order->deliveries->isNotEmpty()) {
+                    throw ValidationException::withMessages(['status' => ['Only an untouched draft sale can be edited.']]);
+                }
+                $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, strtoupper($data['currency_code']));
+                if ($currency === null) throw ValidationException::withMessages(['currency_code' => [__('sales.currency_not_found')]]);
+                $customer = isset($data['customer_code']) ? $this->repository->customerByCode($tenantId, $data['customer_code']) : null;
+                if (isset($data['customer_code']) && $customer === null) throw ValidationException::withMessages(['customer_code' => [__('sales.customer_not_found')]]);
+                $this->repository->updateOrder($order, [
+                    'customer_id' => $customer?->id, 'currency_code' => strtoupper($currency->code),
+                    'sold_at' => $data['sold_at'], 'note' => $data['note'] ?? null,
+                ]);
+                $this->repository->deleteLines($tenantId, (int) $order->id);
+                foreach ($data['items'] as $line) {
+                    $item = $this->inventoryService->findForOwnershipByCode($line['inventory_item_code']);
+                    $owned = $this->ownershipService->detailByCode($line['owned_item_code']);
+                    $lots = $this->ownershipService->fifoLots($line['owned_item_code']);
+                    if ($owned['inventory_item_code'] !== $item->code || !collect($lots)->contains(fn (array $lot): bool => strtoupper($lot['currency_code']) === strtoupper($currency->code))) {
+                        throw ValidationException::withMessages(['items' => [__('sales.owned_item_unavailable')]]);
+                    }
+                    $quantity = (float) $line['quantity'];
+                    $this->validateQuantity($item->tracking_mode, $quantity);
+                    $this->repository->createLine($tenantId, (int) $order->id, [
+                        'code' => $this->newCode($tenantId, 'sales_order_lines'), 'inventory_item_id' => $item->id,
+                        'owned_item_id' => $owned['id'], 'item_description' => $item->name,
+                        'tracking_mode' => $item->tracking_mode, 'unit_label' => $item->unit?->name ?? 'unit',
+                        'ordered_quantity' => $quantity, 'unit_price' => $line['unit_price'],
+                    ]);
+                }
+                return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
+            });
+        }, 200, $idempotencyKey);
+    }
     public function transition(string $code, string $action, ?string $idempotencyKey): array
     {
         // Confirm orders by reserving stock and lots; cancel releases undelivered reservations.
@@ -192,11 +240,8 @@ class SalesService extends BaseTenantService
                 if ($order === null || $order->status !== 'CONFIRMED') {
                     throw ValidationException::withMessages(['sale_code' => [__('sales.invalid_order_transition')]]);
                 }
-                $delivery = $this->repository->createDelivery($tenantId, [
-                    'code' => $this->newCode($tenantId, 'sales_deliveries'),
-                    'sales_order_id' => $order->id, 'delivered_at' => $data['delivered_at'],
-                    'note' => $data['note'] ?? null, 'created_by' => $this->currentUserId(),
-                ]);
+                $delivery = $this->deliveryChargeService->deliveryById($tenantId, (int) $data['delivery_id']);
+                if ($delivery === null) throw ValidationException::withMessages(['delivery_id' => ['Delivery record not found.']]);
                 $deliveredValue = 0.0;
                 foreach ($data['items'] as $itemData) {
                     $line = $order->lines->firstWhere('code', $itemData['sales_order_line_code']);
@@ -217,12 +262,18 @@ class SalesService extends BaseTenantService
                             : [];
                         $allocation = $this->repository->createDeliveryAllocation($tenantId, [
                             'code' => $this->newCode($tenantId, 'sales_delivery_allocations'),
-                            'sales_delivery_id' => $delivery->id, 'sales_order_line_id' => $line->id,
+                            'sales_delivery_id' => null, 'delivery_id' => (int) $data['delivery_id'], 'sales_order_line_id' => $line->id,
                             'acquisition_lot_id' => $reservation->acquisition_lot_id,
                             'inventory_location_id' => $reservation->inventory_location_id,
                             'quantity' => $take, 'unit_cost' => $reservation->lot->unit_cost_basis,
                             'unit_price' => $line->unit_price, 'inventory_unit_codes' => $unitCodes,
                         ]);
+                        // Post the FIFO lot cost as COGS and inventory asset relief.
+                        $costAmount = round($take * (float) $reservation->lot->unit_cost_basis, 2);
+                        $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
+                        $expenseLedger = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Expense, $costAmount, 'Cost of goods sold for delivery allocation '.$allocation->code);
+                        $assetLedger = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Asset, $costAmount, 'Inventory asset relieved for delivery allocation '.$allocation->code);
+                        $this->repository->updateAllocationAccounting($allocation, (int) $expenseLedger->id, (int) $assetLedger->id);
                         $this->inventoryService->issue([
                             'inventory_item_code' => $line->inventoryItem->code,
                             'location_code' => $reservation->inventory_location_code,
@@ -243,7 +294,9 @@ class SalesService extends BaseTenantService
                     }
                 }
                 $order = $this->repository->orderByCode($tenantId, $code);
-                $depositApplied = $this->syncSaleReceivable($tenantId, $order, $delivery, $deliveredValue);
+                $deliveryFee = $this->deliveryChargeService->recognizeForOrder($tenantId, (int) $order->id, (int) $delivery->id);
+                $deliveredValue += $deliveryFee;
+                $depositApplied = $this->syncSaleReceivable($tenantId, $order, (int) $delivery->id, $deliveredValue);
                 if ($depositApplied > 0.001) {
                     // Release the deposit liability as its sale value is recognized at delivery.
                     $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
@@ -306,7 +359,7 @@ class SalesService extends BaseTenantService
         }
     }
 
-    private function syncSaleReceivable(int $tenantId, SaleOrder $order, \App\Models\SalesModule\SaleDelivery $delivery, float $newDeliveryValue): float
+    private function syncSaleReceivable(int $tenantId, SaleOrder $order, int $deliveryId, float $newDeliveryValue): float
     {
         // Apply unused order deposits to this delivery before creating its dedicated receivable.
         $alreadyDelivered = max(0, $this->deliveredValue($order) - $newDeliveryValue);
@@ -314,7 +367,7 @@ class SalesService extends BaseTenantService
         $depositAppliedToEarlierDeliveries = max(0, $alreadyDelivered - $this->saleReceivableService->originalForOrder((int) $order->id));
         $unusedDeposit = max(0, $prepaid - $depositAppliedToEarlierDeliveries);
         $unpaidDeliveredValue = max(0, round($newDeliveryValue - $unusedDeposit, 2));
-        $this->saleReceivableService->createForDelivery($order, $delivery, $unpaidDeliveredValue);
+        $this->saleReceivableService->createForDelivery($order, $deliveryId, $unpaidDeliveredValue);
         return max(0, round($newDeliveryValue - $unpaidDeliveredValue, 2));
     }
 
@@ -334,8 +387,11 @@ class SalesService extends BaseTenantService
                 'line_total' => round((float) $line->ordered_quantity * (float) $line->unit_price, 2),
             ];
         });
-        $total = (float) $items->sum('line_total');
-        $delivered = (float) $items->sum(fn (array $item) => (float) $item['delivered_quantity'] * (float) $item['unit_price']);
+        // Include delivery fees in order total and recognized fulfillment value.
+        $deliveryFee = $this->deliveryChargeService->amountForOrder((int) $order->id);
+        $recognizedDeliveryFee = $this->deliveryChargeService->recognizedAmountForOrder((int) $order->id);
+        $total = (float) $items->sum('line_total') + $deliveryFee;
+        $delivered = (float) $items->sum(fn (array $item) => (float) $item['delivered_quantity'] * (float) $item['unit_price']) + $recognizedDeliveryFee;
         $depositPaid = $this->netPrepayments((int) $order->tenant_id, (int) $order->id);
         $receivablePaid = $this->saleReceivableService->paidForOrder((int) $order->id);
         $paid = $depositPaid + $receivablePaid;
@@ -343,10 +399,10 @@ class SalesService extends BaseTenantService
         $resource = [
             'code' => $order->code, 'status' => $order->status, 'sold_at' => $order->sold_at?->toDateString(),
             'customer' => $order->customer ? ['code' => $order->customer->code, 'name' => $order->customer->name] : null,
-            'currency_code' => $order->currency_code, 'note' => $order->note,
+            'currency_code' => $order->currency_code, 'note' => $order->note, 'delivery_fee' => number_format($deliveryFee, 2, '.', ''),
             'payment_status' => $paid + $receivableBalance + 0.001 >= $total ? 'PAID' : ($paid <= 0 ? 'UNPAID' : 'PARTIAL'),
             'delivery_status' => $delivered <= 0 ? 'NOT_DELIVERED' : ($delivered + 0.001 >= (float) $items->sum('ordered_quantity') ? 'DELIVERED' : 'PARTIAL'),
-            'totals' => ['amount' => round($total, 2), 'delivered_value' => round($delivered, 2), 'paid_amount' => round($paid, 2),
+            'totals' => ['amount' => round($total, 2), 'delivery_fee' => round($deliveryFee, 2), 'delivered_value' => round($delivered, 2), 'paid_amount' => round($paid, 2),
                 'receivable_amount' => $receivableBalance,
                 'undelivered_quantity' => $this->decimal((float) $items->sum('undelivered_quantity'))],
             'items' => $items->all(),
@@ -407,7 +463,7 @@ class SalesService extends BaseTenantService
 
     private function orderTotal(SaleOrder $order): float
     {
-        return round((float) $order->lines->sum(fn (SaleOrderLine $line) => (float) $line->ordered_quantity * (float) $line->unit_price), 2);
+        return round((float) $order->lines->sum(fn (SaleOrderLine $line) => (float) $line->ordered_quantity * (float) $line->unit_price) + $this->deliveryChargeService->amountForOrder((int) $order->id), 2);
     }
 
     private function netPrepayments(int $tenantId, int $orderId): float
@@ -417,7 +473,7 @@ class SalesService extends BaseTenantService
 
     private function deliveredValue(SaleOrder $order): float
     {
-        return round((float) $order->deliveries->sum(fn ($delivery) => $delivery->allocations->sum(fn ($allocation) => (float) $allocation->quantity * (float) $allocation->unit_price)), 2);
+        return round((float) $order->deliveries->sum(fn ($delivery) => $delivery->allocations->sum(fn ($allocation) => (float) $allocation->quantity * (float) $allocation->unit_price)) + $this->deliveryChargeService->recognizedAmountForOrder((int) $order->id), 2);
     }
 
     private function deliveredQuantity(SaleOrder $order): float

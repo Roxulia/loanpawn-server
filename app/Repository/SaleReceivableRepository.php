@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Models\SalesModule\SaleReceivable;
 use App\Models\SalesModule\SaleReceivablePayment;
+use App\Models\SalesModule\SaleReceivableAdjustment;
 use Illuminate\Database\Eloquent\Collection;
 
 class SaleReceivableRepository
@@ -27,7 +28,7 @@ class SaleReceivableRepository
     // Retrieve a delivery's receivable while preventing duplicate creation.
     public function findByDelivery(int $tenantId, int $deliveryId, bool $lock = false): ?SaleReceivable
     {
-        $query = SaleReceivable::query()->where('tenant_id', $tenantId)->where('sales_delivery_id', $deliveryId);
+        $query = SaleReceivable::query()->where('tenant_id', $tenantId)->where('delivery_id', $deliveryId);
         if ($lock) $query->lockForUpdate();
         return $query->first();
     }
@@ -77,6 +78,17 @@ class SaleReceivableRepository
     public function createPayment(int $tenantId, array $data): SaleReceivablePayment
     {
         return SaleReceivablePayment::query()->create(['tenant_id' => $tenantId] + $data);
+    }
+
+    public function createAdjustment(int $tenantId, int $receivableId, array $data): SaleReceivableAdjustment
+    {
+        return SaleReceivableAdjustment::query()->create(['tenant_id' => $tenantId, 'sale_receivable_id' => $receivableId] + $data);
+    }
+
+    public function updateAdjustmentAccounting(SaleReceivableAdjustment $adjustment, int $accountingId): SaleReceivableAdjustment
+    {
+        $adjustment->update(['accounting_transaction_id' => $accountingId]);
+        return $adjustment->refresh();
     }
 
     // Update the remaining balance and lifecycle status consistently.

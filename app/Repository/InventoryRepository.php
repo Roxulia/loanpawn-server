@@ -204,4 +204,10 @@ class InventoryRepository
             ->latest('id')
             ->first();
     }
+
+    public function movementBySource(int $tenantId, string $sourceType, string $sourceCode): ?InventoryMovement
+    {
+        return InventoryMovement::query()->where('tenant_id', $tenantId)->where('source_type', $sourceType)
+            ->where('source_code', $sourceCode)->latest('id')->first();
+    }
 }
