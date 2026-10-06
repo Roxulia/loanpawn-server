@@ -52,6 +52,61 @@ class PurchasingService extends BaseTenantService
         return $this->orderResource($order, true);
     }
 
+    /** Complete a one-step purchase while keeping every side effect inside one transaction. */
+    public function quickPurchase(array $data, ?string $idempotencyKey): array
+    {
+        return $this->runIdempotent('purchasing.quick.create', $data, function () use ($data): array {
+            $supplierCode = $data['supplier_code'] ?? null;
+            if ($supplierCode === null) {
+                $supplier = $this->supplierService->create($data['new_supplier'], null);
+                $supplierCode = $supplier['code'];
+            }
+
+            $order = $this->createOrder([
+                'supplier_code' => $supplierCode,
+                'currency_code' => $data['currency_code'],
+                'note' => $data['note'] ?? null,
+                'items' => $data['items'],
+            ], null);
+
+            $this->transition($order['code'], 'order', null);
+            $this->transition($order['code'], 'confirm', null);
+
+            $payment = null;
+            $tenderAmount = round((float) $data['tender_amount'], 2);
+            if ($tenderAmount > 0) {
+                $payment = $this->recordPayment($order['code'], [
+                    'paid_at' => $data['purchase_date'],
+                    'amount' => $tenderAmount,
+                    'financial_account_id' => $data['financial_account_id'],
+                    'reference' => $data['payment_reference'] ?? null,
+                    'note' => $data['payment_note'] ?? null,
+                ], null);
+            }
+
+            $receivedItems = array_map(static function (array $item, array $orderItem): array {
+                return [
+                    'purchase_order_item_code' => $orderItem['code'],
+                    'quantity' => (float) $item['ordered_quantity'],
+                    'unit_identifiers' => $item['unit_identifiers'] ?? [],
+                ];
+            }, $data['items'], $order['items']);
+
+            $receipt = $this->recordReceipt($order['code'], [
+                'received_at' => $data['purchase_date'],
+                'location_code' => $data['location_code'],
+                'note' => $data['note'] ?? null,
+                'items' => $receivedItems,
+            ], null);
+
+            return [
+                'order' => $this->order($order['code']),
+                'payment' => $payment,
+                'receipt' => $receipt,
+            ];
+        }, 201, $idempotencyKey);
+    }
+
     public function createOrder(array $data, ?string $idempotencyKey): array
     {
         return $this->runIdempotent('purchasing.order.create', $data, function (int $tenantId) use ($data): array {

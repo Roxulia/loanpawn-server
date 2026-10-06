@@ -464,6 +464,7 @@ Route::prefix('tenant')->group(function () {
             });
 
             Route::prefix('purchasing')->middleware('tenant.feature:purchasing_management')->group(function () {
+                Route::post('quick', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'quickPurchase'])->middleware('tenant.permission:manage_purchase_order');
                 Route::get('payables', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'payables'])->middleware('tenant.permission:list_purchase_order');
                 Route::post('payables/{payableCode}/payments', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'createPayablePayment'])->middleware('tenant.permission:manage_purchase_payment');
                 Route::get('suppliers', [\App\Http\Controllers\TenantModule\PurchasingController::class, 'suppliers'])

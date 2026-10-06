@@ -10,7 +10,7 @@ return new class extends Migration
         $now = now();
         DB::table('features')->updateOrInsert(['code' => 'delivery_management'], [
             'name' => 'Delivery management', 'description' => 'Schedule multi-order deliveries and manage delivery charges.',
-            'is_active' => true, 'created_at' => $now, 'updated_at' => $now,
+            'is_active' => false, 'created_at' => $now, 'updated_at' => $now,
         ]);
         $featureId = DB::table('features')->where('code', 'delivery_management')->value('id');
         foreach (['trial' => false, 'basic' => true, 'premium' => true] as $code => $enabled) {
