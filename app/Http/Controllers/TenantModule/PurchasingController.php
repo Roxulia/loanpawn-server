@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Services\TenantModule\PurchaseSupplierService;
 use App\Services\TenantModule\PurchasingService;
 use App\Services\TenantModule\SupplierPayableService;
+use App\Services\TenantModule\TenantUserPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PurchasingController extends Controller
 {
-    public function __construct(private PurchasingService $purchasing, private PurchaseSupplierService $suppliersService, private SupplierPayableService $payablesService) {}
+    public function __construct(private PurchasingService $purchasing, private PurchaseSupplierService $suppliersService, private SupplierPayableService $payablesService, private TenantUserPermissionService $permissionService) {}
 
     public function payables(Request $request): JsonResponse
     {
@@ -60,6 +61,53 @@ class PurchasingController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
         return $this->successResponse($this->suppliersService->update($supplierCode, $data));
+    }
+
+    public function quickPurchase(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'supplier_code' => ['required_without:new_supplier', 'prohibited_with:new_supplier', 'string', 'max:32'],
+            'new_supplier' => ['required_without:supplier_code', 'array'],
+            'new_supplier.type' => ['required_with:new_supplier', 'in:INDIVIDUAL,SUPPLIER,SHOP,ONLINE_STORE'],
+            'new_supplier.name' => ['required_with:new_supplier', 'string', 'max:120'],
+            'new_supplier.phone' => ['nullable', 'string', 'max:30'],
+            'currency_code' => ['required', 'string', 'max:12'],
+            'purchase_date' => ['required', 'date_format:Y-m-d'],
+            'location_code' => ['required', 'string', 'max:32'],
+            'note' => ['nullable', 'string', 'max:3000'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.catalog_item_code' => ['nullable', 'string', 'max:32'],
+            'items.*.item_description' => ['required_without:items.*.catalog_item_code', 'nullable', 'string', 'max:255'],
+            'items.*.tracking_mode' => ['required_without:items.*.catalog_item_code', 'nullable', 'in:UNIQUE,SERIALIZED,QUANTITY'],
+            'items.*.unit_label' => ['required_without:items.*.catalog_item_code', 'nullable', 'string', 'max:80'],
+            'items.*.unit_code' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'items.*.ordered_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.unit_price' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
+            'items.*.unit_identifiers' => ['sometimes', 'array'],
+            'items.*.unit_identifiers.*' => ['string', 'max:120'],
+            'tender_amount' => ['required', 'numeric', 'gte:0', 'decimal:0,2'],
+            'financial_account_id' => ['nullable', 'integer', 'min:1'],
+            'payment_reference' => ['nullable', 'string', 'max:120'],
+            'payment_note' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        if (isset($data['new_supplier'])) {
+            $this->permissionService->authorizePermission('manage_supplier');
+        }
+        $this->permissionService->authorizePermission('manage_purchase_receipt');
+        if ((float) $data['tender_amount'] > 0) {
+            if (empty($data['financial_account_id'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'financial_account_id' => ['Choose the account paying the supplier.'],
+                ]);
+            }
+            $this->permissionService->authorizePermission('manage_purchase_payment');
+        }
+
+        return $this->successResponse(
+            $this->purchasing->quickPurchase($data, $request->header('Idempotency-Key')),
+            statusCode: 201,
+        );
     }
 
     public function orders(Request $request): JsonResponse
