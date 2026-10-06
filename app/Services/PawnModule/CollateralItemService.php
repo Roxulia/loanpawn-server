@@ -69,6 +69,7 @@ class CollateralItemService extends BaseTenantService
             $item = DB::transaction(function () use ($request) {
                 $item = $this->repository->create($this->buildPayload($request));
                 $this->repository->saveSubItems($item, $request->subItems);
+                $this->recordAudit('pawn.collateral.created', PawnCollateralItem::class, $item->id, ['collateral_code' => $item->code, 'slip_id' => $item->loan_contract_id]);
                 return $this->repository->findById($item->id);
             });
         } catch (Throwable $exception) {
@@ -212,7 +213,9 @@ class CollateralItemService extends BaseTenantService
                 unset($row);
                 $data['update_key'] = $request->updateKey + 1;
                 $this->repository->saveSubItems($item, $rows);
-                return $this->repository->update($item, $data);
+                $updated = $this->repository->update($item, $data);
+                $this->recordAudit('pawn.collateral.updated', PawnCollateralItem::class, $item->id, ['collateral_code' => $item->code, 'changed_fields' => array_keys($data)]);
+                return $updated;
             });
         } catch (Throwable $exception) {
             foreach ($uploadedPaths as $path) {
@@ -417,6 +420,7 @@ class CollateralItemService extends BaseTenantService
             }
 
             $this->repository->delete($item);
+            $this->recordAudit('pawn.collateral.deleted', PawnCollateralItem::class, $item->id, ['collateral_code' => $item->code]);
         });
         $this->flushCollateralItemListCache();
     }

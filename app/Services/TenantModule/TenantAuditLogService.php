@@ -36,6 +36,19 @@ class TenantAuditLogService extends BaseTenantService
         ]);
     }
 
+    public function logForTenant(int $tenantId, string $tenantCode, string $action, string $targetType, ?int $targetId, ?array $meta = null): TenantAuditLog
+    {
+        return $this->repository->create([
+            'tenant_id' => $tenantId,
+            'tenant_code' => $tenantCode,
+            'actor_user_id' => null,
+            'actor_admin_id' => null,
+            'action' => $action,
+            'target_type' => $targetType,
+            'target_id' => $targetId,
+            'meta' => $meta,
+        ]);
+    }
     public function getLog(CarbonInterface $startDate, CarbonInterface $endDate): TenantAuditLogList
     {
         return TenantAuditLogList::fromCollection(

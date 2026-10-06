@@ -24,6 +24,7 @@ use Throwable;
 
 class PurchasingService extends BaseTenantService
 {
+    private bool $suppressOperationAudit = false;
     public function __construct(
         private PurchasingRepository $repository,
         private CatalogItemService $catalogItemService,
@@ -56,9 +57,11 @@ class PurchasingService extends BaseTenantService
     public function quickPurchase(array $data, ?string $idempotencyKey): array
     {
         return $this->runIdempotent('purchasing.quick.create', $data, function () use ($data): array {
+            $this->suppressOperationAudit = true;
+            try {
             $supplierCode = $data['supplier_code'] ?? null;
             if ($supplierCode === null) {
-                $supplier = $this->supplierService->create($data['new_supplier'], null);
+                $supplier = $this->supplierService->create($data['new_supplier'], null, false);
                 $supplierCode = $supplier['code'];
             }
 
@@ -99,11 +102,16 @@ class PurchasingService extends BaseTenantService
                 'items' => $receivedItems,
             ], null);
 
+            $orderModel = $this->repository->orderByCode($this->resolveCurrentTenantId(), $order['code']);
+            $this->recordAudit('purchasing.quick_purchase.completed', PurchaseOrder::class, $orderModel?->id, ['purchase_order_code' => $order['code'], 'supplier_code' => $supplierCode, 'payment_code' => $payment['code'] ?? null, 'receipt_code' => $receipt['code'] ?? null, 'currency_code' => $data['currency_code'], 'tender_amount' => $tenderAmount]);
             return [
                 'order' => $this->order($order['code']),
                 'payment' => $payment,
                 'receipt' => $receipt,
             ];
+            } finally {
+                $this->suppressOperationAudit = false;
+            }
         }, 201, $idempotencyKey);
     }
 
@@ -141,6 +149,7 @@ class PurchasingService extends BaseTenantService
                     'ordered_quantity' => $line['ordered_quantity'], 'unit_price' => $line['unit_price'],
                 ]);
             }
+            $this->recordOperationAudit('purchasing.order.created', PurchaseOrder::class, $order->id, ['purchase_order_code' => $order->code, 'status' => $order->status]);
             return $this->orderResource($this->repository->orderByCode($tenantId, $order->code), true);
         }, 201, $idempotencyKey);
     }
@@ -195,6 +204,7 @@ class PurchasingService extends BaseTenantService
                 ]);
             }
 
+            $this->recordOperationAudit('purchasing.order.updated', PurchaseOrder::class, $order->id, ['purchase_order_code' => $code]);
             return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
         });
     }
@@ -215,7 +225,9 @@ class PurchasingService extends BaseTenantService
             if ($action === 'cancel' && $this->repository->orderReceived($tenantId, $order->id) > 0) {
                 throw ValidationException::withMessages(['status' => [__('purchasing.cannot_cancel_received')]]);
             }
+            $previous = $order->status;
             $this->repository->updateOrder($order, ['status' => $next, 'ordered_at' => $next === 'ORDERED' ? now()->toDateString() : $order->ordered_at]);
+            $this->recordOperationAudit('purchasing.order.status_changed', PurchaseOrder::class, $order->id, ['purchase_order_code' => $code, 'from' => $previous, 'to' => $next]);
             return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
         }, 200, $idempotencyKey);
     }
@@ -252,6 +264,7 @@ class PurchasingService extends BaseTenantService
             $ledger = $this->recordFinancialPosting($payment, $account->currency, 'outgoing', AccountingCategory::Asset, (float) $payment->amount, 'Supplier advance for purchase '.$order->code);
             $this->repository->updatePaymentAccounting($payment, $account->id, $ledger->id);
             $this->accountTransactionService->recordAdjustment($account, (float) $payment->amount, 'credit', $payment->code, PurchasePayment::class, 'Supplier advance', Auth::id(), $ledger->id);
+            $this->recordOperationAudit('purchasing.payment.created', PurchasePayment::class, $payment->id, ['payment_code' => $payment->code, 'purchase_order_code' => $order->code, 'amount' => (float) $payment->amount, 'currency_code' => $order->currency_code]);
             return $this->paymentResource($payment->load('refunds'));
         }, 201, $idempotencyKey);
     }
@@ -283,6 +296,7 @@ class PurchasingService extends BaseTenantService
             $ledger = $this->recordFinancialPosting($refund, $account->currency, 'incoming', AccountingCategory::Asset, (float) $refund->amount, 'Supplier refund for purchase payment '.$payment->code);
             $this->repository->updateRefundAccounting($refund, $account->id, $ledger->id);
             $this->accountTransactionService->recordAdjustment($account, (float) $refund->amount, 'debit', $refund->code, PurchaseRefund::class, 'Supplier refund', Auth::id(), $ledger->id);
+            $this->recordOperationAudit('purchasing.payment.refunded', PurchaseRefund::class, $refund->id, ['refund_code' => $refund->code, 'payment_code' => $payment->code, 'amount' => (float) $refund->amount, 'currency_code' => $payment->order->currency_code]);
             return $this->paymentResource($this->repository->paymentByCode($tenantId, $paymentCode));
         }, 201, $idempotencyKey);
     }
@@ -313,6 +327,7 @@ class PurchasingService extends BaseTenantService
                 'code' => $this->newCode($tenantId, 'purchase_receipts'), 'purchase_order_id' => $order->id,
                 'received_at' => $data['received_at'], 'note' => $data['note'] ?? null, 'created_by' => Auth::id(),
             ]);
+            $this->recordOperationAudit('purchasing.receipt.created', get_class($receipt), $receipt->id, ['receipt_code' => $receipt->code, 'purchase_order_code' => $order->code, 'currency_code' => $order->currency_code]);
             $receiptItems = [];
             $receiptValue = 0.0;
             foreach ($purchaseOrderItems as [$purchaseOrderItem, $quantity, $itemData]) {
@@ -399,6 +414,7 @@ class PurchasingService extends BaseTenantService
                 'returned_at' => $data['returned_at'], 'reason' => $data['reason'] ?? null,
                 'note' => $data['note'] ?? null, 'created_by' => Auth::id(),
             ]);
+            $this->recordOperationAudit('purchasing.return.created', get_class($returnRecord), $returnRecord->id, ['return_code' => $returnRecord->code, 'purchase_order_code' => $order->code, 'currency_code' => $order->currency_code]);
             $returnItems = [];
             foreach ($receiptItems as [$receiptItem, $quantity, $itemData]) {
                 // Create the return item first so every stock and ownership reduction has a stable source reference.
@@ -564,6 +580,11 @@ class PurchasingService extends BaseTenantService
             accountingCategory: $category, amount: $amount, createdBy: Auth::id(), currencyId: $currency?->id,
         ));
     }
+    private function recordOperationAudit(string $action, string $targetType, ?int $targetId, array $meta): void
+    {
+        if (! $this->suppressOperationAudit) $this->recordAudit($action, $targetType, $targetId, $meta);
+    }
+
     private function newCode(int $tenantId, string $table): string
     {
         return $this->codeGenerator->generateForTenant($tenantId, $table, CarbonImmutable::now());

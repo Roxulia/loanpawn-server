@@ -116,6 +116,7 @@ class SaleReturnService extends BaseTenantService
                     $totalAmount += $lineAmount; $creditTotal += $credit; $refundTotal += $refund;
                 }
                 $return->update(['total_amount' => round($totalAmount, 2), 'receivable_credit_amount' => round($creditTotal, 2), 'cash_refund_amount' => round($refundTotal, 2)]);
+                $this->recordAudit('sales.return.created', SaleReturn::class, $return->id, ['return_code' => $return->code, 'sale_code' => $order->code, 'total_amount' => (float) $return->total_amount, 'currency_code' => $order->currency_code]);
                 return $this->resource($this->repository->returnsForOrder($tenantId, (int) $order->id)->firstWhere('id', $return->id));
             });
         }, 201, $idempotencyKey);

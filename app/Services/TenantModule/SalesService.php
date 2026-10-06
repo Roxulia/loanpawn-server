@@ -21,6 +21,7 @@ use Throwable;
 
 class SalesService extends BaseTenantService
 {
+    private bool $suppressOperationAudit = false;
     public function __construct(
         private SalesRepository $repository,
         private InventoryService $inventoryService,
@@ -95,6 +96,7 @@ class SalesService extends BaseTenantService
                     'ordered_quantity' => $quantity, 'unit_price' => $line['unit_price'],
                 ]);
             }
+            $this->auditOperation('sales.order.created', SaleOrder::class, $order->id, ['sale_code' => $order->code, 'status' => $order->status]);
             return $this->orderResource($this->repository->orderByCode($tenantId, $order->code), true);
         }, 201, $idempotencyKey);
     }
@@ -134,7 +136,8 @@ class SalesService extends BaseTenantService
                         'ordered_quantity' => $quantity, 'unit_price' => $line['unit_price'],
                     ]);
                 }
-                return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
+                $this->auditOperation('sales.order.updated', SaleOrder::class, $order->id, ['sale_code' => $order->code]);
+            return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
             });
         }, 200, $idempotencyKey);
     }
@@ -167,6 +170,7 @@ class SalesService extends BaseTenantService
                 } else {
                     throw ValidationException::withMessages(['status' => [__('sales.invalid_order_transition')]]);
                 }
+                $this->auditOperation('sales.order.status_changed', SaleOrder::class, $order->id, ['sale_code' => $order->code, 'action' => $action, 'status' => $order->status]);
                 return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
             });
         }, 200, $idempotencyKey);
@@ -204,6 +208,7 @@ class SalesService extends BaseTenantService
                     $collectionData['change_amount'] = $change;
                 }
                 $this->saleReceivableService->collectForOrder($order, $receivablePayment, $collectionData, (int) $account->id);
+                $this->auditOperation('sales.receivable.payment_collected', SaleOrder::class, $order->id, ['sale_code' => $order->code, 'amount' => $receivablePayment, 'currency_code' => $order->currency_code]);
             }
             $advance = round($amount - $receivablePayment, 2);
             if ($advance > 0) {
@@ -218,6 +223,7 @@ class SalesService extends BaseTenantService
                 $this->repository->updatePaymentAccounting($payment, (int) $ledger->id);
                 $this->accountTransactionService->recordAdjustment($account, (float) $payment->payment_amount, 'debit', $payment->code, SalePayment::class, 'Sale payment received', $this->currentUserId(), $ledger->id);
                 $this->recordSaleChange($payment, $account, $change);
+                $this->auditOperation('sales.payment.created', SalePayment::class, $payment->id, ['payment_code' => $payment->code, 'sale_code' => $order->code, 'amount' => (float) $payment->amount, 'currency_code' => $order->currency_code]);
             }
             return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
         }, 201, $idempotencyKey);
@@ -226,15 +232,18 @@ class SalesService extends BaseTenantService
     // Record a customer collection with the same retry protection as sale payments.
     public function recordReceivablePayment(string $code, array $data, ?string $idempotencyKey): array
     {
-        return $this->runIdempotent('sales.receivable.payment.create', ['receivable_code' => $code] + $data,
-            fn (int $tenantId) => $this->saleReceivableService->collect($code, (float) $data['amount'], $data, (int) $data['financial_account_id']),
-            201, $idempotencyKey);
+        return $this->runIdempotent('sales.receivable.payment.create', ['receivable_code' => $code] + $data, function (int $tenantId) use ($code, $data): array {
+            $result = $this->saleReceivableService->collect($code, (float) $data['amount'], $data, (int) $data['financial_account_id']);
+            $this->auditOperation('sales.receivable.payment_collected', 'SaleReceivable', null, ['receivable_code' => $code, 'amount' => (float) $data['amount']]);
+            return $result;
+        }, 201, $idempotencyKey);
     }
-
     // Complete a counter sale atomically without creating a Delivery-module dispatch.
     public function quickSale(array $data, ?string $idempotencyKey): array
     {
         return $this->runIdempotent('sales.quick.create', $data, function (int $tenantId) use ($data, $idempotencyKey): array {
+            $this->suppressOperationAudit = true;
+            try {
             $order = $this->createOrder($data, null);
             $code = $order['code'];
             $this->transition($code, 'confirm', null);
@@ -244,7 +253,18 @@ class SalesService extends BaseTenantService
                     'amount' => (float) $data['tender_amount'], 'paid_at' => $data['sold_at'],
                 ], null);
             }
-            return $this->completeImmediately($code, ['delivered_at' => $data['sold_at']], null);
+            $this->suppressOperationAudit = true;
+            try {
+                $result = $this->completeImmediately($code, ['delivered_at' => $data['sold_at']], null);
+                $sale = $this->repository->orderByCode($tenantId, $code);
+                $this->recordAudit('sales.quick_sale.completed', SaleOrder::class, $sale?->id, ['sale_code' => $code, 'currency_code' => $sale?->currency_code, 'tender_amount' => (float) ($data['tender_amount'] ?? 0)]);
+                return $result;
+            } finally {
+                $this->suppressOperationAudit = false;
+            }
+            } finally {
+                $this->suppressOperationAudit = false;
+            }
         }, 201, $idempotencyKey);
     }
 
@@ -308,6 +328,7 @@ class SalesService extends BaseTenantService
                     $this->recordFinancialPosting($saleDelivery, $currency, 'incoming', AccountingCategory::Revenue, $deliveredValue, 'Immediate sale revenue '.$order->code);
                 }
                 $order->update(['status' => 'COMPLETED']);
+                $this->auditOperation('sales.immediate_fulfillment.completed', SaleOrder::class, $order->id, ['sale_code' => $code, 'status' => $order->status, 'currency_code' => $order->currency_code]);
                 return $this->orderResource($this->repository->orderByCode($tenantId, $code), true);
             });
         }, 201, $idempotencyKey);
@@ -512,6 +533,11 @@ class SalesService extends BaseTenantService
             ])->all();
         }
         return $resource;
+    }
+
+    private function auditOperation(string $action, string $targetType, ?int $targetId, array $meta): void
+    {
+        if (! $this->suppressOperationAudit) $this->recordAudit($action, $targetType, $targetId, $meta);
     }
 
     private function recordFinancialPosting($reference, $currency, string $direction, AccountingCategory $category, float $amount, string $description)

@@ -58,4 +58,9 @@ abstract class BaseTenantService
 
         return $tenant->tenant_code;
     }
+
+    protected function recordAudit(string $action, string $targetType, ?int $targetId, array $meta = []): void
+    {
+        app(\App\Services\TenantModule\TenantAuditLogService::class)->log($action, $targetType, $targetId, $meta);
+    }
 }

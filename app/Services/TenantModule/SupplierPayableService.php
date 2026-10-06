@@ -99,6 +99,7 @@ class SupplierPayableService extends BaseTenantService
                 $this->accountTransactionService->recordAdjustment($account, (float) $payment->amount, 'credit', $payment->code, $payment::class, 'Supplier payable payment', Auth::guard('tenantuser')->id(), $ledger->id);
                 $this->repository->updateBalance($payable, (float) $payable->balance_amount - (float) $payment->amount);
                 $result = ['code' => $payment->code, 'paid_at' => $payment->paid_at?->toDateString(), 'amount' => (string) $payment->amount, 'financial_account_id' => $account->id, 'reference' => $payment->reference, 'note' => $payment->note];
+                $this->recordAudit('purchasing.supplier_payable.payment_created', get_class($payment), $payment->id, ['payment_code' => $payment->code, 'payable_code' => $payable->code, 'amount' => (float) $payment->amount, 'currency_code' => $payable->currency?->code]);
                 if ($record !== null) $this->idempotencyService->markCompleted($record, 201, ['data' => $result]);
                 return $result;
             });
