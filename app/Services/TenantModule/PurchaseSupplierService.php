@@ -33,9 +33,9 @@ class PurchaseSupplierService extends BaseTenantService
         return $this->resource($supplier);
     }
 
-    public function create(array $data, ?string $idempotencyKey): array
+    public function create(array $data, ?string $idempotencyKey, bool $logAudit = true): array
     {
-        return $this->runIdempotent($data, function (int $tenantId) use ($data): array {
+        return $this->runIdempotent($data, function (int $tenantId) use ($data, $logAudit): array {
             if (!empty($data['customer_code'])) {
                 $person = $this->repository->personForCustomerCode($tenantId, $data['customer_code']);
             } elseif (!empty($data['lender_code'])) {
@@ -59,6 +59,7 @@ class PurchaseSupplierService extends BaseTenantService
                 'type' => $data['type'], 'contact_name' => $data['contact_name'] ?? null,
                 'note' => $data['note'] ?? null, 'is_active' => true,
             ]);
+            if ($logAudit) $this->recordAudit('purchasing.supplier.created', PurchaseSupplier::class, $supplier->id, ['supplier_code' => $supplier->code, 'type' => $supplier->type]);
             return $this->resource($supplier->load('person.customer', 'person.lender'));
         }, 201, $idempotencyKey);
     }
@@ -79,6 +80,7 @@ class PurchaseSupplierService extends BaseTenantService
                 $this->repository->updatePerson($supplier->person, $personFields);
             }
             if ($supplierFields !== []) $supplier = $this->repository->updateSupplier($supplier, $supplierFields);
+            $this->recordAudit('purchasing.supplier.updated', PurchaseSupplier::class, $supplier->id, ['supplier_code' => $supplier->code, 'changed_fields' => array_keys($data)]);
             return $this->resource($supplier->load('person.customer', 'person.lender'));
         });
     }

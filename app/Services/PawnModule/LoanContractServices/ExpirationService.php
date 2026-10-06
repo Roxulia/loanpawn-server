@@ -4,6 +4,8 @@ namespace App\Services\PawnModule\LoanContractServices;
 
 use App\Repository\LoanContractSlipRepository;
 use App\Services\PawnModule\CollateralItemService;
+use App\Services\TenantModule\TenantAuditLogService;
+use App\Models\PlatformModule\Tenant;
 use Illuminate\Support\Facades\DB;
 use App\Services\TenantModule\CustomerTrustScoreService;
 use App\Services\TenantModule\AccountingDayBusinessClock;
@@ -22,6 +24,7 @@ class ExpirationService
         private AccountingDayBusinessClock $businessClock,
         private TenantContext $tenantContext,
         private TenantScopedCacheKeys $tenantScopedCacheKeys,
+        private TenantAuditLogService $auditLog,
     ) {
     }
 
@@ -32,9 +35,17 @@ class ExpirationService
             : CarbonImmutable::parse($currentDate)->startOfDay();
 
         $customers = $this->repository->overdueActiveSlipCustomers($currentDate);
-        $expiredCount = DB::transaction(function () use ($currentDate): int {
+        $expiredCount = DB::transaction(function () use ($currentDate, $customers): int {
             $count = $this->repository->expireOverdueActiveSlips($currentDate);
             $this->collateralItemService->expireForExpiredSlips();
+            if ($count > 0) {
+                $customers->groupBy('tenant_id')->each(function ($rows, $tenantId): void {
+                    $tenant = Tenant::query()->find((int) $tenantId);
+                    if ($tenant !== null) {
+                        $this->auditLog->logForTenant((int) $tenant->id, $tenant->tenant_code, 'pawn.slips.expiration_processed', PawnLoanContractSlip::class, null, ['source' => 'scheduled_batch', 'customer_ids' => $rows->pluck('customer_id')->unique()->values()->all()]);
+                    }
+                });
+            }
             return $count;
         });
 
@@ -57,6 +68,9 @@ class ExpirationService
         $count = DB::transaction(function () use ($today, $tenantId): int {
             $expiredCount = $this->repository->expireCurrentTenantOverdueActiveSlips($today);
             $this->collateralItemService->expireForExpiredSlips($tenantId);
+            if ($expiredCount > 0) {
+                $this->auditLog->log('pawn.slips.expiration_processed', PawnLoanContractSlip::class, null, ['source' => 'tenant_context', 'expired_count' => $expiredCount]);
+            }
             return $expiredCount;
         });
         if ($count > 0) {
@@ -81,6 +95,12 @@ class ExpirationService
             $didExpire = $this->repository->expireSlipIfStillActive((int) $slip->id, $today);
             if ($didExpire || strtolower((string) $slip->status) === 'expired') {
                 $this->collateralItemService->expireForSlip((int) $slip->id);
+            if ($didExpire) {
+                $tenant = Tenant::query()->find((int) $slip->tenant_id);
+                if ($tenant !== null) {
+                    $this->auditLog->logForTenant((int) $tenant->id, $tenant->tenant_code, 'pawn.slip.expired', PawnLoanContractSlip::class, (int) $slip->id, ['source' => 'lazy_refresh', 'slip_no' => $slip->slip_no]);
+                }
+            }
             }
             return $didExpire;
         });

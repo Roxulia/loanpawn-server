@@ -455,6 +455,7 @@ class OwnershipService extends BaseTenantService
                     );
                     $ownedItem = $this->recordAcquisition($tenantId, $acquisition, 'PAWN', 'PawnCollateralItem', $item->code, $recordId);
                     $this->collateralItemService->markOwnershipTransferred($item);
+                    $this->recordAudit('pawn.collateral.ownership_transferred', get_class($item), $item->id, ['collateral_code' => $item->code, 'owned_item_code' => $ownedItem['code'] ?? null, 'acquisition_code' => $ownedItem['acquisition_code'] ?? null]);
                     return ['collateral_code' => $item->code, 'owned_item' => $ownedItem];
                 });
             }, 201);
