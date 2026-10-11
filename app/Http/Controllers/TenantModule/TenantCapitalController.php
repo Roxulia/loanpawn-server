@@ -121,7 +121,9 @@ class TenantCapitalController extends Controller
             'amount' => [$isCreate ? 'required' : 'nullable', 'numeric', 'min:0.01'],
             'amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:amount'],
             'update_key' => ['nullable', 'integer', 'min:0'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => $isCreate
+                ? ['required', 'string', 'max:120']
+                : ['nullable', 'string', 'max:120'],
         ];
     }
 }

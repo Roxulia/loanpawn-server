@@ -42,7 +42,7 @@ class FinancialAccountTransferController extends Controller
             'fee_amount' => ['nullable', 'numeric', 'min:0'],
             'fee_amount_unit' => ['nullable', 'string', Rule::enum(\App\Enums\FinancialUnit::class), 'exclude_without:fee_amount'],
             'note' => ['nullable', 'string', 'max:1000'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => ['required', 'string', 'max:120'],
         ])->validate();
 
         $resource = $this->service->create(new FinancialAccountTransferCreate(
