@@ -77,7 +77,7 @@ class InterestPaymentController extends Controller
             'interest_row_versions' => ['nullable', 'array', 'required_without:interest_breakdown'],
             'interest_row_versions.*.id' => ['required', 'integer', 'min:1'],
             'interest_row_versions.*.update_key' => ['required', 'integer', 'min:0'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => ['required', 'string', 'max:120'],
         ]);
 
         if ($validator->fails()) {

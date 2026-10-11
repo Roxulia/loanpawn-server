@@ -17,6 +17,7 @@ use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\Accounting\FinancialAccountTransactionService;
 use App\Services\TenantModule\Accounting\MultiAccountManagement;
 use App\Support\TenantScopedCacheKeys;
+use App\Utility\MessageCode;
 use App\Utility\FileStorageUtility;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
@@ -161,7 +162,7 @@ class TenantExpenseService extends BaseTenantService
                     $idempotencyRecord,
                     201,
                     [
-                        'message' => 'Expense created successfully.',
+                        'message' => $this->responseMessage(MessageCode::TenantExpenseCreated),
                         'data' => $detail->toArray(),
                     ],
                     TenantExpense::class,

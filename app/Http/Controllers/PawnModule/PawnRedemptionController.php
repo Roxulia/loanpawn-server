@@ -86,7 +86,7 @@ class PawnRedemptionController extends Controller
             'redemption_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'created_by' => ['nullable', 'integer'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => ['required', 'string', 'max:120'],
         ]);
 
         if ($validator->fails()) {
