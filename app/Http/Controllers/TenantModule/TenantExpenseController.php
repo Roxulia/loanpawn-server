@@ -130,7 +130,9 @@ class TenantExpenseController extends Controller
                 : ['prohibited'],
             'expense_type_id' => ['nullable', 'integer'],
             'update_key' => ['nullable', 'integer', 'min:0'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => $isCreate
+                ? ['required', 'string', 'max:120']
+                : ['nullable', 'string', 'max:120'],
             'image_reference' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ];
 

@@ -3,6 +3,8 @@
 namespace Tests\Feature\PawnModule;
 
 use App\Models\CoreModule\ExpenseType;
+use App\Models\CoreModule\Currency;
+use App\Models\CoreModule\TenantSetting;
 use App\Models\CoreModule\InterestType;
 use App\Models\CoreModule\ItemCategoryType;
 use App\Models\CoreModule\MaterialType;
@@ -12,12 +14,15 @@ use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\PlatformModule\PlatformUser;
 use App\Models\PlatformModule\Tenant;
 use App\Models\PlatformModule\TenantLicense;
+use App\Models\FinancialAccount;
+use App\Models\FinancialAccountTypes;
 use App\Models\TenantAccountingTransactions;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PackageSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -60,7 +65,7 @@ class PawnOperationApiTest extends TestCase
 
         Sanctum::actingAs($tenantUser, [], 'tenantuser');
 
-        $created = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+        $created = $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-create-slip'])
             ->postJson('/api/tenant/loan-contract-slips', [
                 'customer' => [
                     'name' => 'API Customer',
@@ -100,7 +105,7 @@ class PawnOperationApiTest extends TestCase
         $interest->assertOk()
             ->assertJsonPath('data.total_interest_amount', 25000);
 
-        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+        $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-interest-payment'])
             ->postJson("/api/tenant/interest-payments/{$slipNo}/pay", [
                 'slip_update_key' => $interest->json('data.slip_update_key'),
                 'payment_amount' => 25000,
@@ -126,7 +131,7 @@ class PawnOperationApiTest extends TestCase
             ->assertJsonPath('data.slip.slip_no', $slipNo)
             ->assertJsonPath('data.total_amount_to_pay', 500000);
 
-        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+        $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-redemption'])
             ->postJson('/api/tenant/redemptions', [
                 'slip_no' => $slipNo,
                 'calculated_total' => 500000,
@@ -192,7 +197,7 @@ class PawnOperationApiTest extends TestCase
 
         Sanctum::actingAs($tenantUser, [], 'tenantuser');
 
-        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+        $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-jewellery-slip'])
             ->postJson('/api/tenant/loan-contract-slips', [
                 'customer' => [
                     'name' => 'Jewellery Customer',
@@ -239,17 +244,76 @@ class PawnOperationApiTest extends TestCase
             'name' => 'Operations',
             'is_default' => true,
         ]);
+        $currency = Currency::query()->firstOrCreate(
+            ['scope_key' => 'platform', 'code' => 'MMK'],
+            ['tenant_id' => null, 'name' => 'Myanmar Kyat', 'decimal_precision' => 2, 'rounding_mode' => 'HALF_UP', 'is_default' => true, 'is_active' => true],
+        );
+        TenantSetting::query()->withoutGlobalScopes()->create([
+            'tenant_id' => $tenant->id,
+            'key' => 'currency_preferences',
+            'category' => 'finance',
+            'default_currency_id' => $currency->id,
+            'reporting_currency_id' => $currency->id,
+            'update_key' => 0,
+        ]);
+        $accountType = FinancialAccountTypes::query()->firstOrCreate(
+            ['tenant_id' => null, 'code' => 'cash'],
+            ['name' => 'Cash', 'is_active' => true],
+        );
+        $account = FinancialAccount::query()->create([
+            'tenant_id' => $tenant->id,
+            'account_type_id' => $accountType->id,
+            'currency_id' => $currency->id,
+            'account_name' => 'Test Cash',
+            'account_code' => 'TEST-CASH-'.$tenant->id,
+            'balance' => 1000000,
+            'is_active' => true,
+            'is_default' => true,
+            'is_deleted' => false,
+            'allow_negative_balance' => true,
+        ]);
+        DB::table('financial_account_assignments')->insert([
+            'tenant_id' => $tenant->id,
+            'financial_account_id' => $account->id,
+            'assigned_user_id' => $tenantUser->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         Sanctum::actingAs($tenantUser, [], 'tenantuser');
 
-        $expense = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
             ->postJson('/api/tenant/expenses', [
                 'description' => 'Office rent',
                 'amount' => 500000,
                 'expense_type_id' => $expenseType->id,
+                'account_id' => $account->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonStructure(['data' => ['errors' => ['idempotency_key']]]);
+
+        $expense = $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-expense-create'])
+            ->postJson('/api/tenant/expenses', [
+                'description' => 'Office rent',
+                'amount' => 500000,
+                'expense_type_id' => $expenseType->id,
+                'account_id' => $account->id,
             ])
             ->assertCreated()
             ->assertJsonPath('data.description', 'Office rent');
+
+        $expenseRetry = $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-expense-create'])
+            ->postJson('/api/tenant/expenses', [
+                'description' => 'Office rent',
+                'amount' => 500000,
+                'expense_type_id' => $expenseType->id,
+                'account_id' => $account->id,
+            ]);
+        $expenseRetry->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')
+            ->assertExactJson($expense->json());
+        $this->assertDatabaseCount('tenant_expenses', 1);
+        $this->assertDatabaseCount('tenant_accounting_transactions', 1);
 
         $expenseId = $expense->json('data.id');
 
@@ -267,7 +331,7 @@ class PawnOperationApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonStructure(['data' => ['errors' => ['amount']]]);
 
-        $debt = $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+        $debt = $this->withHeaders(['X-Tenant-Code' => $tenant->tenant_code, 'Idempotency-Key' => 'api-debt-create'])
             ->postJson('/api/tenant/debts', [
                 'description' => 'Manual debt',
                 'amount' => 100000,
@@ -301,6 +365,86 @@ class PawnOperationApiTest extends TestCase
         $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
             ->deleteJson('/api/tenant/accounting/1')
             ->assertNotFound();
+    }
+
+    public function test_expense_create_requires_key_and_replays_completed_response(): void
+    {
+        [$tenant, $tenantUser] = $this->tenantUserContext();
+        $currency = Currency::query()->firstOrCreate(
+            ['scope_key' => 'platform', 'code' => 'MMK'],
+            ['tenant_id' => null, 'name' => 'Myanmar Kyat', 'decimal_precision' => 2, 'rounding_mode' => 'HALF_UP', 'is_default' => true, 'is_active' => true],
+        );
+        TenantSetting::query()->withoutGlobalScopes()->create([
+            'tenant_id' => $tenant->id,
+            'key' => 'currency_preferences',
+            'category' => 'finance',
+            'default_currency_id' => $currency->id,
+            'reporting_currency_id' => $currency->id,
+            'update_key' => 0,
+        ]);
+        $accountType = FinancialAccountTypes::query()->firstOrCreate(
+            ['tenant_id' => null, 'code' => 'cash'],
+            ['name' => 'Cash', 'is_active' => true],
+        );
+        $account = FinancialAccount::query()->create([
+            'tenant_id' => $tenant->id,
+            'account_type_id' => $accountType->id,
+            'currency_id' => $currency->id,
+            'account_name' => 'Expense Test Cash',
+            'account_code' => 'EXPENSE-TEST-'.$tenant->id,
+            'balance' => 1000000,
+            'is_active' => true,
+            'is_default' => true,
+            'is_deleted' => false,
+            'allow_negative_balance' => true,
+        ]);
+        DB::table('financial_account_assignments')->insert([
+            'tenant_id' => $tenant->id,
+            'financial_account_id' => $account->id,
+            'assigned_user_id' => $tenantUser->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $expenseType = ExpenseType::query()->create([
+            'tenant_id' => null,
+            'code' => 'expense-test',
+            'name' => 'Expense Test',
+            'is_default' => true,
+        ]);
+        $payload = [
+            'description' => 'Timeout retry expense',
+            'amount' => 25000,
+            'expense_type_id' => $expenseType->id,
+            'account_id' => $account->id,
+        ];
+        Sanctum::actingAs($tenantUser, [], 'tenantuser');
+
+        $this->withHeader('X-Tenant-Code', $tenant->tenant_code)
+            ->postJson('/api/tenant/expenses', $payload)
+            ->assertUnprocessable()
+            ->assertJsonStructure(['data' => ['errors' => ['idempotency_key']]]);
+
+        $first = $this->withHeaders([
+            'X-Tenant-Code' => $tenant->tenant_code,
+            'Idempotency-Key' => 'expense-timeout-retry',
+        ])->postJson('/api/tenant/expenses', $payload)->assertCreated();
+        $retry = $this->withHeaders([
+            'X-Tenant-Code' => $tenant->tenant_code,
+            'Idempotency-Key' => 'expense-timeout-retry',
+        ])->postJson('/api/tenant/expenses', $payload);
+
+        $retry->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')
+            ->assertExactJson($first->json());
+        $changedPayload = [...$payload, 'amount' => 26000];
+        $this->withHeaders([
+            'X-Tenant-Code' => $tenant->tenant_code,
+            'Idempotency-Key' => 'expense-timeout-retry',
+        ])->postJson('/api/tenant/expenses', $changedPayload)
+            ->assertConflict()
+            ->assertJsonPath('data.code', 'IDEMPOTENCY_KEY_CONFLICT');
+        $this->assertDatabaseCount('tenant_expenses', 1);
+        $this->assertDatabaseCount('tenant_accounting_transactions', 1);
     }
 
     public function test_tenant_user_can_attach_replace_remove_and_view_expense_reference_image(): void

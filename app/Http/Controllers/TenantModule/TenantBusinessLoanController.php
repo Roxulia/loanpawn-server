@@ -47,7 +47,7 @@ class TenantBusinessLoanController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate($this->rules());
+        $data = validator(array_merge($request->all(), ['idempotency_key' => $request->header('Idempotency-Key')]), $this->rules())->validate();
         $loan = $this->businessLoanService->create(new TenantBusinessLoanCreate(
             amount: $this->financialUnitService->toBase($data['amount'],
             $data['amount_unit'] ?? null, 999_999_999_999.99),
@@ -104,7 +104,7 @@ class TenantBusinessLoanController extends Controller
 
     public function pay(Request $request, string $loanCode): JsonResponse
     {
-        $data = $request->validate([
+        $data = validator(array_merge($request->all(), ['idempotency_key' => $request->header('Idempotency-Key')]), [
             'amount_paid' => ['required', 'numeric', 'min:0.01'],
             'amount_paid_unit' => ['nullable', Rule::enum(FinancialUnit::class)],
             'allocation_order' => ['required', 'in:interest_first,principal_first'],
@@ -112,7 +112,8 @@ class TenantBusinessLoanController extends Controller
             'payment_account_id' => ['nullable', 'integer', 'min:1'],
             'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
-        ]);
+            'idempotency_key' => ['required', 'string', 'max:120'],
+        ])->validate();
         return $this->successResponse(
             $this->businessLoanService->pay(
                 $loanCode,
@@ -122,7 +123,7 @@ class TenantBusinessLoanController extends Controller
                     loanUpdateKey: (int) $data['loan_update_key'],
                     paymentAccountId: isset($data['payment_account_id']) ? (int) $data['payment_account_id'] : null,
                     reportingExchangeRate: $this->rate($data),
-                    idempotencyKey: $request->header('Idempotency-Key'),
+                    idempotencyKey: $data['idempotency_key'],
         )));
     }
 
@@ -167,6 +168,7 @@ class TenantBusinessLoanController extends Controller
             'reporting_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'update_key' => [$create ? 'prohibited' : 'required', 'integer', 'min:0'],
+            'idempotency_key' => $create ? ['required', 'string', 'max:120'] : ['prohibited'],
         ];
     }
 

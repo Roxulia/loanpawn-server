@@ -130,7 +130,7 @@ class LoanContractSlipController extends Controller
             'expiry_quota' => ['required', 'integer', 'min:1'],
             'expiry_quota_type' => ['required', 'string', 'in:Day,Week,Month,Year,day,week,month,year'],
             'created_by' => ['nullable', 'integer'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => ['required', 'string', 'max:120'],
         ]);
         $validator->after(function ($validator) use ($customerInfoRequired, $input): void {
             if (! $customerInfoRequired) {

@@ -140,7 +140,7 @@ class TenantDebtController extends Controller
             'reporting_exchange_rate_inversed' => ['nullable', 'boolean'],
             'allocation_order' => ['nullable', 'string', 'in:interest_first,principal_first'],
             'debt_update_key' => ['nullable', 'integer', 'min:0'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => ['required', 'string', 'max:120'],
         ]);
 
         if ($validator->fails()) {
@@ -226,7 +226,9 @@ class TenantDebtController extends Controller
             'is_paid' => ['prohibited'],
             'accepted_by' => ['prohibited'],
             'update_key' => ['nullable', 'integer', 'min:0'],
-            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => $isCreate
+                ? ['required', 'string', 'max:120']
+                : ['nullable', 'string', 'max:120'],
         ];
     }
 }
