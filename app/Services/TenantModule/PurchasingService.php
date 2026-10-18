@@ -1,6 +1,9 @@
 <?php
 
 namespace App\Services\TenantModule;
+use App\DataObjects\RequestObjects\InventoryReceiveRequest;
+use App\DataObjects\RequestObjects\InventoryIssueRequest;
+use App\Enums\InventoryIssueContext;
 
 use App\DataObjects\RequestObjects\OwnershipAcquisitionCreate;
 use App\DataObjects\RequestObjects\TenantAccountingTransactionRecord;
@@ -334,27 +337,33 @@ class PurchasingService extends BaseTenantService
                 // Create the receipt item first so every resulting movement and lot has a stable source reference.
                 $receiptItem = $this->repository->createReceiptLine($tenantId, $receipt->id, $purchaseOrderItem->id, $quantity,
                     $this->newCode($tenantId, 'purchase_receipt_lines'), ['inventory_location_code' => $data['location_code']]);
-                $inventoryData = [
-                    'location_code' => $data['location_code'], 'quantity' => $quantity,
-                    'tracking_mode' => $purchaseOrderItem->tracking_mode, 'unit_code' => $purchaseOrderItem->unit_code ?? 'unit',
-                    'name' => $purchaseOrderItem->item_description, 'description' => $purchaseOrderItem->item_description,
-                    'catalog_item_code' => $purchaseOrderItem->catalogItem?->business_code,
-                    'serialized_item_identifiers' => $itemData['serialized_item_identifiers'] ?? [],
-                    'source_type' => 'PurchaseReceiptLine', 'source_code' => $receiptItem->code,
-                ];
-                // Reuse a stable Inventory identity for tracked quantity and serialized goods.
-                if ($purchaseOrderItem->tracking_mode !== 'UNIQUE' && $purchaseOrderItem->inventoryItem !== null) {
-                    $inventoryData['inventory_item_code'] = $purchaseOrderItem->inventoryItem->code;
-                }
-                $inventoryItemResource = $this->inventoryService->receive($inventoryData, 'purchasing-receipt-'.$receiptItem->code);
-                $inventoryItem = $this->inventoryService->findForOwnershipByCode($inventoryItemResource['code']);
+                // Construct the typed receipt once, including its canonical purchase source.
+                $inventoryRequest = new InventoryReceiveRequest(
+                    locationCode: $data['location_code'],
+                    quantity: $quantity,
+                    trackingMode: $purchaseOrderItem->tracking_mode,
+                    unitCode: $purchaseOrderItem->unit_code ?? 'unit',
+                    name: $purchaseOrderItem->item_description,
+                    description: $purchaseOrderItem->item_description,
+                    catalogItemCode: $purchaseOrderItem->catalogItem?->business_code,
+                    serializedItemIdentifiers: $itemData['serialized_item_identifiers'] ?? [],
+                    sourceType: 'PurchaseReceiptLine',
+                    sourceCode: $receiptItem->code,
+                    inventoryItemCode: $purchaseOrderItem->tracking_mode !== 'UNIQUE'
+                        ? $purchaseOrderItem->inventoryItem?->code
+                        : null,
+                    idempotencyKey: 'purchasing-receipt-'.$receiptItem->code,
+                );
+                $inventoryItemResource = $this->inventoryService->receive($inventoryRequest);
+                $inventoryItem = $this->inventoryService->findForOwnershipByCode($inventoryItemResource['inventory_item_code']);
                 if ($purchaseOrderItem->tracking_mode !== 'UNIQUE' && $purchaseOrderItem->inventory_item_id === null) {
                     $purchaseOrderItem = $this->repository->updateOrderLine($purchaseOrderItem, ['inventory_item_id' => $inventoryItem->id]);
                 }
-                $serializedItemCodes = array_column($inventoryItemResource['serialized_items'] ?? [], 'code');
+                $serializedItemCodes = $inventoryItemResource['serialized_item_codes'];
+                // Use only this receipt's newly created identity codes when building its acquisition lot.
                 // Create a receipt-sourced acquisition lot at the purchase order item's snapshotted unit cost.
                 $ownership = $this->ownershipService->acquireFromSource(new OwnershipAcquisitionCreate(
-                    inventoryItemCode: $inventoryItemResource['code'], quantity: $quantity,
+                    inventoryItemCode: $inventoryItemResource['inventory_item_code'], quantity: $quantity,
                     acquiredAt: $data['received_at'], unitCostBasis: (float) $purchaseOrderItem->unit_price,
                     estimatedUnitValue: (float) $purchaseOrderItem->unit_price, currencyCode: $order->currency_code,
                     description: $purchaseOrderItem->item_description,
@@ -422,12 +431,16 @@ class PurchasingService extends BaseTenantService
                     $this->newCode($tenantId, 'purchase_return_lines'), $itemData['serialized_item_codes'] ?? []);
                 $purchaseOrderItem = $receiptItem->orderLine;
                 // Issue only the goods being returned from the selected current custody location.
-                $this->inventoryService->issueStock([
-                    'inventory_item_code' => $receiptItem->inventoryItem->code,
-                    'location_code' => $itemData['location_code'], 'quantity' => $quantity,
-                    'serialized_item_codes' => $itemData['serialized_item_codes'] ?? [],
-                    'source_type' => 'PurchaseReturnLine', 'source_code' => $returnItem->code,
-                ], 'purchasing-return-'.$returnItem->code);
+                $this->inventoryService->issueStock(new InventoryIssueRequest(
+                    inventoryItemCode: $receiptItem->inventoryItem->code,
+                    locationCode: $itemData['location_code'],
+                    quantity: $quantity,
+                    serializedItemCodes: $itemData['serialized_item_codes'] ?? [],
+                    sourceType: 'PurchaseReturnLine',
+                    sourceCode: $returnItem->code,
+                    operationContext: InventoryIssueContext::PurchaseReturn,
+                    idempotencyKey: 'purchasing-return-'.$returnItem->code,
+                ));
                 // Reduce the precise receipt acquisition lot instead of a different lot for the same Catalog item.
                 $this->ownershipService->reduceForPurchaseReturn(
                     (string) $receiptItem->owned_item_code, (string) $receiptItem->acquisition_lot_code,

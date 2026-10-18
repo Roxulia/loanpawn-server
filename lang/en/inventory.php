@@ -37,4 +37,20 @@ return [
     'item_not_found' => 'The requested inventory item was not found.',
     'location_not_found' => 'The requested inventory location was not found.',
     'location_name_invalid' => 'Enter a location name of at most 120 characters.',
+    // Current locking selection, exact availability, and reservation binding.
+    'lock_selection_invalid' => 'Select valid inventory items and locations for the stock operation.',
+    'reservation_unavailable' => 'The inventory reservation is missing, inactive, insufficient, or does not match this operation.',
+    'serialized_unavailable' => 'A selected serialized item is unavailable, at another location, or reserved for another operation.',
+    'stock_inconsistent' => 'Inventory quantities or reservation membership are inconsistent.',
+    'stock_insufficient' => 'There is not enough available inventory at this location.',
+    // Append-only movement history protection.
+    'movement_immutable' => 'Inventory movement history cannot be changed or deleted. Append a corrective movement instead.',
+    // Location creation validation for trusted service callers.
+    'location_type_invalid' => 'Choose a supported inventory location type.',
+    // Location edit restrictions protect custody and outstanding reservations.
+    'default_location_must_remain_active' => 'The default inventory location cannot be deactivated.',
+    'location_has_active_reservations' => 'The location has active reservations. Release or fulfil them before restricting the location.',
+    'location_has_stock' => 'The location still holds inventory. Move or issue all stock before deactivating it.',
+    // UNIQUE receipt must not duplicate current physical custody.
+    'unique_already_received' => 'This unique item is already held in inventory.',
 ];

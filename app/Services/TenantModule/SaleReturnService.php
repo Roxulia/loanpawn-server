@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Services\TenantModule;
+use App\DataObjects\RequestObjects\InventorySaleReturnRequest;
 
 use App\DataObjects\RequestObjects\TenantAccountingTransactionRecord;
 use App\Enums\AccountingCategory;
@@ -82,11 +83,14 @@ class SaleReturnService extends BaseTenantService
                         'receivable_credit_amount' => 0, 'disposition' => $disposition,
                         'serialized_item_codes' => $unitCodes === [] ? null : json_encode($unitCodes),
                     ]);
-                    $movement = $this->inventoryService->receiveSaleReturn([
-                        'inventory_item_code' => $allocation->line->inventoryItem->code,
-                        'location_code' => $location->code, 'quantity' => $quantity,
-                        'serialized_item_codes' => $unitCodes, 'source_code' => $line->code,
-                    ], 'sale-return-inventory-'.$line->code);
+                    $movement = $this->inventoryService->receiveSaleReturn(new InventorySaleReturnRequest(
+                        inventoryItemCode: $allocation->line->inventoryItem->code,
+                        locationCode: $location->code,
+                        quantity: $quantity,
+                        serializedItemCodes: $unitCodes,
+                        sourceCode: $line->code,
+                        idempotencyKey: 'sale-return-inventory-'.$line->code,
+                    ));
                     $this->ownershipService->restoreForSaleReturn(
                         $allocation->line->ownedItem->code, $allocation->lot->code, $quantity, $line->code,
                     );

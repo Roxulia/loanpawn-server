@@ -1,6 +1,10 @@
 <?php
 
 namespace App\Services\TenantModule;
+use App\DataObjects\RequestObjects\InventoryIssueRequest;
+use App\Enums\InventoryIssueContext;
+use App\DataObjects\RequestObjects\InventoryReservationReleaseRequest;
+use App\DataObjects\RequestObjects\InventoryReservationRequest;
 
 use App\DataObjects\RequestObjects\TenantAccountingTransactionRecord;
 use App\Enums\AccountingCategory;
@@ -159,7 +163,15 @@ class SalesService extends BaseTenantService
                     foreach ($order->lines as $line) {
                         foreach ($this->repository->reservationsForLine($tenantId, (int) $line->id, true) as $reservation) {
                             $quantity = (float) $reservation->remaining_quantity;
-                            $this->inventoryService->releaseSaleReservation($reservation->inventory_reservation_code);
+                            // Bind the full release to its original sale line and snapshotted location.
+                            $this->inventoryService->releaseSaleReservation(new InventoryReservationReleaseRequest(
+                                inventoryItemCode: $line->inventoryItem->code,
+                                locationCode: $reservation->inventory_location_code,
+                                reservationCode: $reservation->inventory_reservation_code,
+                                expectedSourceType: 'SaleOrderLine',
+                                expectedSourceCode: $line->code,
+                                idempotencyKey: 'sales-release-'.$reservation->code,
+                            ));
                             $this->ownershipService->releaseSaleReservation(
                                 $line->ownedItem->code, $reservation->lot->code, $quantity, $line->code,
                             );
@@ -301,13 +313,17 @@ class SalesService extends BaseTenantService
                         $expense = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Expense, $cost, 'Cost of goods sold for immediate sale '.$allocation->code);
                         $asset = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Asset, $cost, 'Inventory asset relieved for immediate sale '.$allocation->code);
                         $this->repository->updateAllocationAccounting($allocation, (int) $expense->id, (int) $asset->id);
-                        $this->inventoryService->issueStock([
-                            'inventory_item_code' => $line->inventoryItem->code,
-                            'location_code' => $reservation->inventory_location_code,
-                            'quantity' => $take, 'serialized_item_codes' => $unitCodes,
-                            'reservation_code' => $reservation->inventory_reservation_code,
-                            'source_type' => 'SaleDeliveryAllocation', 'source_code' => $allocation->code,
-                        ], 'quick-sale-'.$allocation->code);
+                        $this->inventoryService->issueStock(new InventoryIssueRequest(
+                            inventoryItemCode: $line->inventoryItem->code,
+                            locationCode: $reservation->inventory_location_code,
+                            quantity: $take,
+                            serializedItemCodes: $unitCodes,
+                            reservationCode: $reservation->inventory_reservation_code,
+                            sourceType: 'SaleDeliveryAllocation',
+                            sourceCode: $allocation->code,
+                            operationContext: InventoryIssueContext::Sale,
+                            idempotencyKey: 'quick-sale-'.$allocation->code,
+                        ));
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'quick-sale-ownership-'.$allocation->code);
                         $this->repository->updateReservation($reservation, ['remaining_quantity' => 0, 'status' => 'CONSUMED', 'serialized_item_codes' => []]);
@@ -376,13 +392,17 @@ class SalesService extends BaseTenantService
                         $expenseLedger = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Expense, $costAmount, 'Cost of goods sold for delivery allocation '.$allocation->code);
                         $assetLedger = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Asset, $costAmount, 'Inventory asset relieved for delivery allocation '.$allocation->code);
                         $this->repository->updateAllocationAccounting($allocation, (int) $expenseLedger->id, (int) $assetLedger->id);
-                        $this->inventoryService->issueStock([
-                            'inventory_item_code' => $line->inventoryItem->code,
-                            'location_code' => $reservation->inventory_location_code,
-                            'quantity' => $take, 'serialized_item_codes' => $unitCodes,
-                            'reservation_code' => $reservation->inventory_reservation_code,
-                            'source_type' => 'SaleDeliveryAllocation', 'source_code' => $allocation->code,
-                        ], 'sales-delivery-'.$allocation->code);
+                        $this->inventoryService->issueStock(new InventoryIssueRequest(
+                            inventoryItemCode: $line->inventoryItem->code,
+                            locationCode: $reservation->inventory_location_code,
+                            quantity: $take,
+                            serializedItemCodes: $unitCodes,
+                            reservationCode: $reservation->inventory_reservation_code,
+                            sourceType: 'SaleDeliveryAllocation',
+                            sourceCode: $allocation->code,
+                            operationContext: InventoryIssueContext::Sale,
+                            idempotencyKey: 'sales-delivery-'.$allocation->code,
+                        ));
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'sales-ownership-'.$allocation->code);
                         $remaining = max(0, (float) $reservation->remaining_quantity - $take);
@@ -437,17 +457,22 @@ class SalesService extends BaseTenantService
                     $take = (float) count($unitCodes);
                     if ($take <= 0) continue;
                 }
-                $inventoryReservation = $this->inventoryService->reserveForSale([
-                    'inventory_item_code' => $line->inventoryItem->code, 'location_code' => $location['location_code'],
-                    'quantity' => $take, 'serialized_item_codes' => $unitCodes, 'source_code' => $line->code,
-                ], 'sales-reserve-'.$line->code.'-'.$lot['code'].'-'.$location['location_code']);
+                $inventoryReservation = $this->inventoryService->reserveForSale(new InventoryReservationRequest(
+                    inventoryItemCode: $line->inventoryItem->code,
+                    locationCode: $location['location_code'],
+                    quantity: $take,
+                    serializedItemCodes: $unitCodes,
+                    sourceCode: $line->code,
+                    sourceType: 'SaleOrderLine',
+                    idempotencyKey: 'sales-reserve-'.$line->code.'-'.$lot['code'].'-'.$location['location_code'],
+                ));
                 $this->ownershipService->reserveSale($line->ownedItem->code, $lot['code'], $take, $line->code);
                 $this->repository->createReservation($tenantId, (int) $line->id, [
                     'code' => $this->newCode($tenantId, 'sales_order_reservations'),
                     'acquisition_lot_id' => $lot['id'],
                     'inventory_location_id' => $location['location_id'],
                     'inventory_location_code' => $location['location_code'],
-                    'inventory_reservation_code' => $inventoryReservation['code'],
+                    'inventory_reservation_code' => $inventoryReservation['reservation_code'],
                     'quantity' => $take, 'remaining_quantity' => $take, 'serialized_item_codes' => $unitCodes,
                     'status' => 'ACTIVE',
                 ]);

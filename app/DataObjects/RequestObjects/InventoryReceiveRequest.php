@@ -36,11 +36,7 @@ final class InventoryReceiveRequest extends InventoryStockCommand
         $this->unitCode = $unitCode === null ? null : trim($unitCode);
 
         // Preserve null identifiers and the literal "0" while removing surrounding spaces.
-        $this->serializedItemIdentifiers = array_map(static function (?string $identifier): ?string {
-            $identifier = $identifier === null ? null : trim($identifier);
-
-            return $identifier === '' ? null : $identifier;
-        }, array_values($serializedItemIdentifiers));
+        $this->serializedItemIdentifiers = self::normalizeSerializedItemIdentifiers($serializedItemIdentifiers);
     }
 
     public static function fromValidated(array $data, ?string $idempotencyKey = null): self

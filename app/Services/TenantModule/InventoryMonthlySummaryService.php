@@ -45,7 +45,7 @@ class InventoryMonthlySummaryService
             foreach ($this->repository->inventoryItemIdsForSummary() as $item) {
                 // Keep locks short and retries resumable by committing one complete item at a time.
                 $published = DB::transaction(function () use ($item, $period, $timezone, $cutoff): bool {
-                    $lockedItem = $this->repository->lockItemForSummary((int) $item->id);
+                    $lockedItem = $this->repository->findItemByIdForUpdate((int) $item->id);
                     if ($lockedItem === null
                         || $this->repository->monthlyCheckpoint((int) $item->id, $period->toDateString()) !== null) {
                         return false;

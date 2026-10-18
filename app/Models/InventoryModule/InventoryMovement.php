@@ -2,6 +2,9 @@
 
 namespace App\Models\InventoryModule;
 
+use App\Database\InventoryMovementQueryBuilder;
+use App\Exceptions\InvalidTenantRequest;
+use Illuminate\Database\Eloquent\Builder;
 use App\Traits\BelongToTenant;
 use App\Models\CoreModule\TenantUser;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Represents a tenant's append-only physical stock movement and its provenance.
  * Location, serialized-item, and actor relations support batched history reads.
- * Write services own transaction boundaries and movement immutability enforcement.
+ * Model and query guards reject history mutations; services own transaction boundaries.
  */
 class InventoryMovement extends Model
 {
@@ -23,6 +26,34 @@ class InventoryMovement extends Model
     ];
 
     protected $casts = ['quantity' => 'decimal:3', 'occurred_at' => 'immutable_datetime'];
+
+
+    /** Use an append-only query builder even for bulk/quiet model operations. */
+    protected function newBaseQueryBuilder()
+    {
+        // Preserve this model's connection, grammar, and result processor.
+        $connection = $this->getConnection();
+
+        return new InventoryMovementQueryBuilder(
+            $connection,
+            $connection->getQueryGrammar(),
+            $connection->getPostProcessor(),
+        );
+    }
+
+    /** Reject persisted-model rewrites, including saveQuietly. */
+    protected function performUpdate(Builder $query)
+    {
+        // Model events alone do not protect quiet update paths.
+        throw new InvalidTenantRequest(__('inventory.movement_immutable'));
+    }
+
+    /** Reject instance deletion, including quiet/force deletion. */
+    public function delete()
+    {
+        // Source movements are corrected by appending an inverse/corrective movement.
+        throw new InvalidTenantRequest(__('inventory.movement_immutable'));
+    }
 
     public function fromLocation(): BelongsTo
     {

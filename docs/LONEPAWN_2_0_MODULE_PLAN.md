@@ -144,7 +144,7 @@ Monthly physical quantity checkpoints are included in Part 1, superseding the ea
 9. Provide `inventory:summarize-monthly` for explicit recovery of missed checkpoints.
 10. Verify source-ledger equivalence, concurrency, time boundaries, retries, and MySQL query plans before declaring production readiness.
 
-Detailed schema, orchestration, dependency checklist, integration boundaries, and pending verification are in `INVENTORY_MONTHLY_SUMMARIZER_PLAN.md`. No continuously updated balance table or movement deletion is included.
+Detailed schema, orchestration, dependency checklist, integration boundaries, and pending verification are in [Inventory checklist — monthly inventory checkpoints](INVENTORY_PART_1_IMPLEMENTATION_CHECKLIST.md#monthly-inventory-checkpoints). No continuously updated balance table or movement deletion is included.
 
 ### Classes and integration areas
 
