@@ -153,7 +153,7 @@ class PurchasingRepository
     public function returnedUnitCodes(int $tenantId, int $receiptItemId): array
     {
         return PurchaseReturnLine::query()->where('tenant_id', $tenantId)->where('purchase_receipt_line_id', $receiptItemId)
-            ->get(['inventory_unit_codes'])->flatMap(fn (PurchaseReturnLine $item) => $item->inventory_unit_codes ?? [])->all();
+            ->get(['serialized_item_codes'])->flatMap(fn (PurchaseReturnLine $item) => $item->serialized_item_codes ?? [])->all();
     }
     public function orderReturned(int $tenantId, int $orderId): float
     {
@@ -245,7 +245,7 @@ class PurchasingRepository
     {
         return PurchaseReturnLine::query()->create([
             'tenant_id' => $tenantId, 'code' => $code, 'purchase_return_id' => $returnId,
-            'purchase_receipt_line_id' => $receiptLineId, 'returned_quantity' => $quantity, 'inventory_unit_codes' => $unitCodes,
+            'purchase_receipt_line_id' => $receiptLineId, 'returned_quantity' => $quantity, 'serialized_item_codes' => $unitCodes,
         ]);
     }
 

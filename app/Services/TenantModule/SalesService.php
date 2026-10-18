@@ -287,30 +287,30 @@ class SalesService extends BaseTenantService
                     foreach ($reservations as $reservation) {
                         $take = (float) $reservation->remaining_quantity;
                         if ($take <= 0.001) continue;
-                        $unitCodes = $line->tracking_mode === 'SERIALIZED' ? ($reservation->inventory_unit_codes ?? []) : [];
+                        $unitCodes = $line->tracking_mode === 'SERIALIZED' ? ($reservation->serialized_item_codes ?? []) : [];
                         $allocation = $this->repository->createDeliveryAllocation($tenantId, [
                             'code' => $this->newCode($tenantId, 'sales_delivery_allocations'),
                             'sales_delivery_id' => $saleDelivery->id, 'delivery_id' => null,
                             'sales_order_line_id' => $line->id, 'acquisition_lot_id' => $reservation->acquisition_lot_id,
                             'inventory_location_id' => $reservation->inventory_location_id, 'quantity' => $take,
                             'unit_cost' => $reservation->lot->unit_cost_basis, 'unit_price' => $line->unit_price,
-                            'inventory_unit_codes' => $unitCodes,
+                            'serialized_item_codes' => $unitCodes,
                         ]);
                         $cost = round($take * (float) $reservation->lot->unit_cost_basis, 2);
                         $currency = $this->currencyService->findActiveVisibleByCodeForTenant($tenantId, $order->currency_code);
                         $expense = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Expense, $cost, 'Cost of goods sold for immediate sale '.$allocation->code);
                         $asset = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Asset, $cost, 'Inventory asset relieved for immediate sale '.$allocation->code);
                         $this->repository->updateAllocationAccounting($allocation, (int) $expense->id, (int) $asset->id);
-                        $this->inventoryService->issue([
+                        $this->inventoryService->issueStock([
                             'inventory_item_code' => $line->inventoryItem->code,
                             'location_code' => $reservation->inventory_location_code,
-                            'quantity' => $take, 'inventory_unit_codes' => $unitCodes,
+                            'quantity' => $take, 'serialized_item_codes' => $unitCodes,
                             'reservation_code' => $reservation->inventory_reservation_code,
                             'source_type' => 'SaleDeliveryAllocation', 'source_code' => $allocation->code,
                         ], 'quick-sale-'.$allocation->code);
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'quick-sale-ownership-'.$allocation->code);
-                        $this->repository->updateReservation($reservation, ['remaining_quantity' => 0, 'status' => 'CONSUMED', 'inventory_unit_codes' => []]);
+                        $this->repository->updateReservation($reservation, ['remaining_quantity' => 0, 'status' => 'CONSUMED', 'serialized_item_codes' => []]);
                         $deliveredValue += round($take * (float) $line->unit_price, 2);
                     }
                 }
@@ -360,7 +360,7 @@ class SalesService extends BaseTenantService
                         if ($left <= 0.001) break;
                         $take = min($left, (float) $reservation->remaining_quantity);
                         $unitCodes = $line->tracking_mode === 'SERIALIZED'
-                            ? array_slice($reservation->inventory_unit_codes ?? [], 0, (int) $take)
+                            ? array_slice($reservation->serialized_item_codes ?? [], 0, (int) $take)
                             : [];
                         $allocation = $this->repository->createDeliveryAllocation($tenantId, [
                             'code' => $this->newCode($tenantId, 'sales_delivery_allocations'),
@@ -368,7 +368,7 @@ class SalesService extends BaseTenantService
                             'acquisition_lot_id' => $reservation->acquisition_lot_id,
                             'inventory_location_id' => $reservation->inventory_location_id,
                             'quantity' => $take, 'unit_cost' => $reservation->lot->unit_cost_basis,
-                            'unit_price' => $line->unit_price, 'inventory_unit_codes' => $unitCodes,
+                            'unit_price' => $line->unit_price, 'serialized_item_codes' => $unitCodes,
                         ]);
                         // Post the FIFO lot cost as COGS and inventory asset relief.
                         $costAmount = round($take * (float) $reservation->lot->unit_cost_basis, 2);
@@ -376,20 +376,20 @@ class SalesService extends BaseTenantService
                         $expenseLedger = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Expense, $costAmount, 'Cost of goods sold for delivery allocation '.$allocation->code);
                         $assetLedger = $this->recordFinancialPosting($allocation, $currency, 'outgoing', AccountingCategory::Asset, $costAmount, 'Inventory asset relieved for delivery allocation '.$allocation->code);
                         $this->repository->updateAllocationAccounting($allocation, (int) $expenseLedger->id, (int) $assetLedger->id);
-                        $this->inventoryService->issue([
+                        $this->inventoryService->issueStock([
                             'inventory_item_code' => $line->inventoryItem->code,
                             'location_code' => $reservation->inventory_location_code,
-                            'quantity' => $take, 'inventory_unit_codes' => $unitCodes,
+                            'quantity' => $take, 'serialized_item_codes' => $unitCodes,
                             'reservation_code' => $reservation->inventory_reservation_code,
                             'source_type' => 'SaleDeliveryAllocation', 'source_code' => $allocation->code,
                         ], 'sales-delivery-'.$allocation->code);
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'sales-ownership-'.$allocation->code);
                         $remaining = max(0, (float) $reservation->remaining_quantity - $take);
-                        $remainingUnits = array_slice($reservation->inventory_unit_codes ?? [], (int) $take);
+                        $remainingUnits = array_slice($reservation->serialized_item_codes ?? [], (int) $take);
                         $this->repository->updateReservation($reservation, [
                             'remaining_quantity' => $remaining, 'status' => $remaining <= 0.001 ? 'CONSUMED' : 'ACTIVE',
-                            'inventory_unit_codes' => $remainingUnits,
+                            'serialized_item_codes' => $remainingUnits,
                         ]);
                         $deliveredValue += round($take * (float) $line->unit_price, 2);
                         $left -= $take;
@@ -433,13 +433,13 @@ class SalesService extends BaseTenantService
                 $take = min($lotRemaining, $locationAvailable);
                 $unitCodes = [];
                 if ($line->tracking_mode === 'SERIALIZED') {
-                    $unitCodes = collect($item['units'])->where('location_code', $location['location_code'])->where('is_reserved', false)->pluck('code')->take((int) $take)->values()->all();
+                    $unitCodes = collect($item['serialized_items'])->where('location_code', $location['location_code'])->where('is_reserved', false)->pluck('code')->take((int) $take)->values()->all();
                     $take = (float) count($unitCodes);
                     if ($take <= 0) continue;
                 }
                 $inventoryReservation = $this->inventoryService->reserveForSale([
                     'inventory_item_code' => $line->inventoryItem->code, 'location_code' => $location['location_code'],
-                    'quantity' => $take, 'inventory_unit_codes' => $unitCodes, 'source_code' => $line->code,
+                    'quantity' => $take, 'serialized_item_codes' => $unitCodes, 'source_code' => $line->code,
                 ], 'sales-reserve-'.$line->code.'-'.$lot['code'].'-'.$location['location_code']);
                 $this->ownershipService->reserveSale($line->ownedItem->code, $lot['code'], $take, $line->code);
                 $this->repository->createReservation($tenantId, (int) $line->id, [
@@ -448,7 +448,7 @@ class SalesService extends BaseTenantService
                     'inventory_location_id' => $location['location_id'],
                     'inventory_location_code' => $location['location_code'],
                     'inventory_reservation_code' => $inventoryReservation['code'],
-                    'quantity' => $take, 'remaining_quantity' => $take, 'inventory_unit_codes' => $unitCodes,
+                    'quantity' => $take, 'remaining_quantity' => $take, 'serialized_item_codes' => $unitCodes,
                     'status' => 'ACTIVE',
                 ]);
                 $remaining -= $take;
@@ -529,7 +529,7 @@ class SalesService extends BaseTenantService
                 'code' => $allocation->code, 'item_description' => $allocation->line?->item_description,
                 'tracking_mode' => $allocation->line?->tracking_mode, 'quantity' => (string) $allocation->quantity,
                 'returned_quantity' => (string) $this->repository->returnedForAllocation((int) $order->tenant_id, (int) $allocation->id),
-                'unit_codes' => array_values(array_diff($allocation->inventory_unit_codes ?? [], $this->repository->returnedUnitCodesForAllocation((int) $order->tenant_id, (int) $allocation->id))),
+                'unit_codes' => array_values(array_diff($allocation->serialized_item_codes ?? [], $this->repository->returnedUnitCodesForAllocation((int) $order->tenant_id, (int) $allocation->id))),
             ])->all();
         }
         return $resource;

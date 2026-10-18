@@ -9,7 +9,7 @@ use App\DataObjects\BaseDataObject;
  * A null location means no current custody; isAvailable means in custody and unreserved.
  * Active/sellable location flags are exposed separately for callers.
  */
-final class InventoryUnitDetail extends BaseDataObject
+final class InventorySerializedItemDetail extends BaseDataObject
 {
     public function __construct(
         public string $code,

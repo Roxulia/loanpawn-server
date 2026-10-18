@@ -19,11 +19,24 @@ Paths are relative to `lonepawn-server` unless prefixed with `lonepawn-frontend/
 - Replace public contracts only when affected consumers are ready; coordinate activation rather than leaving incompatible contracts wired together.
 - Accounting, Financial Account operations, logging, auditing, idempotency, notifications, and cache updates belong to the caller's workflow. Reuse existing services; do not develop them as separate modules.
 - Do not run migrations, a development server, or tests without the required user instruction. Record unperformed verification as pending.
-- Do not expand this part into Packing, Business Loan collateral, Pawn redemption, balance projections, or unrelated shared-service refactoring.
+- Do not expand this part into Packing, Business Loan collateral, Pawn redemption, a continuously updated balance table, or unrelated shared-service refactoring. Monthly checkpoints are now explicitly included below.
 
 **Batch authorization:** On 2026-10-18 the user requested implementation through INV-08 in one turn. INV-05–08 are therefore prepared together for review; acceptance remains pending for each step.
 
+**INV-10–14 batch authorization:** The user subsequently requested INV-10 through INV-14 together. The required serialized-unit lookup dependency is included as INV-09d. These units are prepared for review together; the remaining INV-09 conditional version writes are still pending and are not required by these read queries. No acceptance or runtime verification is implied by this batch.
+
 ## Agreed decisions
+
+### Inventory naming
+
+- Operation names include their target object: `moveStock`, `issueStock`, and `adjustStock`, consistently across services, controller actions, and frontend methods.
+- **Measurement Unit:** Catalog measurement such as kg, gram, or piece. Inventory measurement-option methods use `measurementUnits()` and frontend `InventoryMeasurementUnitOption`.
+- **Serialized Item:** An individually tracked physical piece under a SERIALIZED Inventory item. The model is `InventorySerializedItem`; its read contracts are `InventorySerializedItemFilter`, `InventorySerializedItemDetail`, and `InventorySerializedItemListPage`.
+- Physical query helpers use explicit names such as `serializedItemPage`, `findSerializedItemsByCodesForUpdate`, and `latestMovementsForSerializedItems`. New command/result properties use `serializedItemCodes` / `serializedItemCode`.
+- No compatibility mappings remain for the old physical-item terminology. Fresh-schema migrations define `inventory_serialized_items`, movement FK `inventory_serialized_item_id`, and business JSON fields `serialized_item_codes`. Receipt input uses `serialized_item_identifiers`; Inventory item responses use `serialized_items`. Inventory, Purchasing, Sales, Delivery persistence, and frontend callers use the new fields. The model uses Laravel table naming conventions; generated serialized-item codes use prefix `SI`. Measurement options use `/inventory/measurement-units`. No database migration was executed.
+- Historical mentions of physical units in this tracker mean Serialized Items. Earlier release-plan documents remain unchanged.
+
+### Implementation decisions
 
 - Replace current Inventory read/write contracts and update affected consumers together; no legacy public-array fallback.
 - Paginate item summaries, movement history, and serialized-unit reads: default 25, maximum 100 per page.
@@ -32,7 +45,7 @@ Paths are relative to `lonepawn-server` unless prefixed with `lonepawn-frontend/
 - Use exact three-decimal quantity arithmetic; never allow a `0.001` stock shortfall.
 - Use optimistic versions for stale public edits/moves and pessimistic locks for authoritative stock/custody changes.
 - Target MySQL/InnoDB for concurrency verification. SQLite does not establish row-lock correctness.
-- Keep movement history authoritative; do not introduce a stock balance cache/projection in Part 1.
+- Keep movement history authoritative. Include derived monthly quantity checkpoints and scheduled summarization under the approved scope amendment; no continuously updated balance table.
 - Keep standalone receipt, issue, and adjustment behind inactive `inventory_manual_operations`. Internal business operations remain usable by authorized callers.
 
 ## Dependency map
@@ -51,6 +64,8 @@ Messages / existing exceptions
 
 Read and mutation branches can share completed foundations. The sequence below is a review order; explicit dependencies determine readiness.
 
+**Monthly scope amendment:** The user requested monthly scheduled summarization and specified the `SummarizeMonthlyFinancialMovementsJob` pattern. Monthly checkpoint schema, queries, append coordination, summary service, scheduled job, recovery command, and balance-query integration are included as INV-MS-01–07. See `INVENTORY_MONTHLY_SUMMARIZER_PLAN.md` for exact cutoff/watermark semantics and pending verification. These changes supersede the earlier no-projection restriction without adding a continuously updated stock table.
+
 ## Status register
 
 Suggested states: Not started, In progress, Implemented / awaiting review, Accepted / verification pending, Complete, Blocked.
@@ -65,12 +80,13 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 | INV-06 | Location contracts | Complete |
 | INV-07 | Stock command/result contracts | Complete |
 | INV-08 | Paginated read contracts | Complete |
-| INV-09 | Tenant/version-aware lookups | In progress — reservation lookup accepted |
-| INV-10 | Batched balance query | Not started |
-| INV-11 | Reservation quantity/unit queries | Not started |
-| INV-12 | Unit custody/identifier queries | Not started |
-| INV-13 | Paginated repository reads | Not started |
-| INV-14 | Tracking/reference validation | Not started |
+| INV-09 | Tenant/version-aware lookups | In progress — unit lookup implemented; version writes pending |
+| INV-10 | Batched balance query | Implemented / awaiting review |
+| INV-11 | Reservation quantity/unit queries | Implemented / awaiting review |
+| INV-12 | Unit custody/identifier queries | Implemented / awaiting review |
+| INV-13 | Paginated repository reads | Implemented / awaiting review |
+| INV-14 | Tracking/reference validation | Implemented / awaiting review |
+| INV-MS-01–07 | Monthly quantity checkpoints, scheduled summarizer, and balance integration | Implemented / awaiting review |
 | INV-15 | Ordered locking helpers | Not started |
 | INV-16 | Availability/reservation validation | Not started |
 | INV-17 | Movement/reservation mutation helpers | Not started |
@@ -143,7 +159,7 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 **Files:** New additive index migration.
 
 - [x] Inventory existing indexes before adding anything.
-- [x] Add latest-custody index `(tenant_id, inventory_unit_id, id)`.
+- [x] Add latest-custody index `(tenant_id, inventory_serialized_item_id, id)`.
 - [x] Add needed item/location incoming and outgoing movement indexes.
 - [x] Reuse existing item-name, history, and reservation indexes where adequate.
 - [x] Retain tenant/code, tenant/location-name, and tenant/identifier uniqueness.
@@ -151,7 +167,7 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 - [x] Review migration without running it.
 - [x] Obtain review acceptance.
 
-**Index inventory (schema review only):** Existing `inventory_items(tenant_id, name)`, `inv_mov_item_time_idx`, `inv_mov_loc_pair_idx`, `inv_res_item_loc_status_ix`, and `inv_res_source_ix` are retained. Tenant/code, tenant/location-name, and tenant/identifier unique constraints remain intact. The additive migration adds `inv_mov_unit_latest_idx (tenant_id, inventory_unit_id, id)`, `inv_mov_item_to_loc_idx (tenant_id, inventory_item_id, to_location_id)`, and `inv_mov_item_from_loc_idx (tenant_id, inventory_item_id, from_location_id)`. Existing reservation indexes support item/location queries; location-wide deactivation queries must be reviewed with their final shape in INV-09/11 and query plans in INV-29. Actual database index state and query plans have not been inspected.
+**Index inventory (schema review only):** Existing `inventory_items(tenant_id, name)`, `inv_mov_item_time_idx`, `inv_mov_loc_pair_idx`, `inv_res_item_loc_status_ix`, and `inv_res_source_ix` are retained. Tenant/code, tenant/location-name, and tenant/identifier unique constraints remain intact. The additive migration adds `inv_mov_serialized_item_latest_idx (tenant_id, inventory_serialized_item_id, id)`, `inv_mov_item_to_loc_idx (tenant_id, inventory_item_id, to_location_id)`, and `inv_mov_item_from_loc_idx (tenant_id, inventory_item_id, from_location_id)`. Existing reservation indexes support item/location queries; location-wide deactivation queries must be reviewed with their final shape in INV-09/11 and query plans in INV-29. Actual database index state and query plans have not been inspected.
 
 ## Contract steps
 
@@ -193,16 +209,16 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** New request filters and response DTOs.
 
-- [x] Define `InventoryListFilter` and `InventoryUnitFilter`.
+- [x] Define `InventoryListFilter` and `InventorySerializedItemFilter`.
 - [x] Define `InventoryItemDetail` and paginated item summaries.
-- [x] Define `InventoryItemListPage`, `InventoryUnitListPage`, and `InventoryMovementListPage`.
+- [x] Define `InventoryItemListPage`, `InventorySerializedItemListPage`, and `InventoryMovementListPage`.
 - [x] Set default page size 25 and maximum 100; validate filters and document fixed stable ordering for INV-13.
 - [x] Exclude unbounded serialized-unit collections from summaries/detail.
 - [x] Include quantities, versions, location active/sellable state, and required movement provenance.
 - [x] Statically review each contract separately.
 - [x] Obtain review acceptance.
 
-**Supporting contracts:** `InventoryPageFilter` also handles history pagination. `InventoryReadPage` shares typed row validation and flat pagination metadata. `InventoryItemSummary`, `InventoryLocationBalance`, `InventoryUnitDetail`, and `InventoryMovementDetail` provide typed rows without lazy database reads. Summary availability is sellable availability; per-location availability is unreserved physical stock, with active/sellable flags supplied separately. Measurement-unit options remain separate. Stable ordering will be implemented in INV-13: item name/ID, unit ID, and movement occurrence time/ID. No existing endpoint or caller uses these contracts yet.
+**Supporting contracts:** `InventoryPageFilter` also handles history pagination. `InventoryReadPage` shares typed row validation and flat pagination metadata. `InventoryItemSummary`, `InventoryLocationBalance`, `InventorySerializedItemDetail`, and `InventoryMovementDetail` provide typed rows without lazy database reads. Summary availability is sellable availability; per-location availability is unreserved physical stock, with active/sellable flags supplied separately. Measurement-unit options remain separate. Stable ordering will be implemented in INV-13: item name/ID, unit ID, and movement occurrence time/ID. No existing endpoint or caller uses these contracts yet.
 
 ## Repository steps
 
@@ -219,9 +235,10 @@ Implement each checkbox as its own review unit when needed.
 - [ ] Review reservation/unit lookups with explicit tenant/item binding.
     - [x] Add reservation lookup expected-item binding using TenantContext (INV-09c).
     - [x] Obtain acceptance for reservation lookup (INV-09c).
-    - [ ] Review serialized-unit lookup tenant/item binding (next review unit).
+    - [x] Review serialized-unit lookup tenant/item binding (INV-09d, included with INV-12).
+    - [ ] Obtain acceptance for serialized-unit lookup (INV-09d).
 - [ ] Add conditional version updates and affected-row conflict handling.
-- [ ] Preserve unique-constraint enforcement and translate known conflicts at the service boundary.
+- [ ] Preserve unique constraints and use explicit pre-write guards with existing domain exceptions at the service boundary.
 - [ ] Review one method at a time and obtain acceptance.
 
 **INV-09a — item lookup:** Reused `findItemByCode(...)`; no query behavior or signature change was needed. Documented explicit tenant/code filtering, the existing unique index, full-model/version return, nullable result, and caller-owned transaction requirement for `FOR UPDATE`. No version comparison or increment is performed by a lookup. Static review only; runtime locking verification remains pending in INV-29. Next review unit: location lookup shared/exclusive locking.
@@ -238,11 +255,14 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** Individual repository balance methods.
 
-- [ ] Add grouped incoming/outgoing balances for a page of item IDs and relevant locations.
-- [ ] Keep decimal values exact through conversion to quantity units.
-- [ ] Separate browse aggregates from authoritative write-side current reads.
-- [ ] Do not add a balance cache/projection or change application-wide isolation.
-- [ ] Review zero-stock, exact-exhaustion, and multiple-location results; obtain acceptance.
+- [x] Add grouped incoming/outgoing balances for a page of item IDs and relevant locations.
+- [x] Keep decimal values exact and provide conversion to quantity units, including zero.
+- [x] Separate browse aggregates from authoritative write-side current reads.
+- [x] Include the approved monthly checkpoints; add no continuously updated balance table or application-wide isolation change.
+- [x] Statically review zero-stock, exact-exhaustion, and multiple-location query paths.
+- [ ] Obtain review acceptance; execute scenarios in INV-29 when authorized.
+
+**Implemented:** `movementBalancesForItems(...)` now groups the latest completed monthly opening base with uncovered incoming/outgoing branches using UNION ALL and SQL DECIMAL sums. `balance(...)`, `balances(...)`, and the positive-location filter reuse that calculation. Missing checkpoints fall back to source history. `InventoryQuantity::parseBalance(...)` converts non-negative stored totals to integer thousandths. Exact exhaustion stays zero; invalid negative/oversized balances are not silently clamped. `movementRowsForUpdate(...)` now returns uncovered current rows only: future authoritative callers must add `checkpointBalancesForItems(...)` under the reviewed item-lock/read protocol. Full lock ordering and strict mutation calculation wiring remain in INV-15/16. Monthly implementation and pending verification are documented separately.
 
 ### INV-11 — Reservation queries
 
@@ -250,11 +270,14 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** Individual repository reservation methods.
 
-- [ ] Batch active remaining quantities by item/location.
-- [ ] Batch active reserved-unit membership.
-- [ ] Provide current locking reads for mutation decisions.
-- [ ] Avoid repeated per-unit/per-location queries.
-- [ ] Review tenant/state filtering and obtain acceptance.
+- [x] Batch active remaining quantities by item/location.
+- [x] Batch active reserved-unit membership.
+- [x] Provide current locking reads for mutation decisions.
+- [x] Avoid repeated per-unit/per-location queries in the new batch methods.
+- [x] Statically review tenant/state filtering.
+- [ ] Obtain review acceptance.
+
+**Implemented:** `reservationBalancesForItems(...)` returns exact active remaining totals by item/location. `activeReservationsForItems(...)` fetches decoded unit membership and remaining quantities together; optional locking performs a current read in ID order and requires the caller's transaction and previously locked anchors. Both use TenantContext. Empty item/location filters match no rows; released/consumed reservations are excluded. Existing per-item callers will switch in later service/caller steps.
 
 ### INV-12 — Unit custody and identifier queries
 
@@ -262,11 +285,14 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** Individual repository unit methods.
 
-- [ ] Batch latest movement IDs per unit and join custody/location records.
-- [ ] Batch tenant-scoped identifier existence lookup.
-- [ ] Lock selected units in ascending ID order.
-- [ ] Preserve identifiers such as `"0"`; handle trimming, nullable identifiers, and database uniqueness consistently.
-- [ ] Review one query at a time and obtain acceptance.
+- [x] Batch latest movement IDs per unit and join custody/location records.
+- [x] Batch tenant-scoped identifier existence lookup.
+- [x] Request selected-unit locks in ascending ID order.
+- [x] Preserve identifiers such as `"0"`; handle trimming, nullable identifiers, and database uniqueness consistently.
+- [x] Statically review each query.
+- [ ] Obtain review acceptance; verify actual MySQL locking/query plans in INV-29.
+
+**Implemented:** `latestMovementsForSerializedItems(...)` joins MAX movement IDs per requested unit and eager-loads locations. `existingSerializedItemIdentifiers(...)` checks the identifier batch using database collation. `findSerializedItemsByCodesForUpdate(int $itemId, array $unitCodes)` now uses TenantContext, requires a transaction, binds to the expected item, and orders by ID. Its two existing service callers were updated. Missing/wrong-item codes return fewer rows for complete-set validation. Browse custody snapshots must not be used as authoritative mutation reads; current movement rows are available from INV-10.
 
 ### INV-13 — Paginated repository reads
 
@@ -274,12 +300,15 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** Individual repository item/history/unit read methods.
 
-- [ ] Implement paginated item summary retrieval without loading every unit.
-- [ ] Implement paginated history ordered by occurrence time and ID.
-- [ ] Implement paginated serialized units with location/availability filters.
-- [ ] Batch related Catalog/unit/location reads.
-- [ ] Preserve access beyond the former 100-item/500-movement caps.
-- [ ] Review each read independently and obtain acceptance.
+- [x] Implement paginated item summary retrieval without loading every unit.
+- [x] Implement paginated history ordered by occurrence time and ID.
+- [x] Implement paginated serialized units with location/availability filters.
+- [x] Batch related Catalog/unit/location reads.
+- [x] Provide access beyond the former 100-item/500-movement caps in the new page methods.
+- [x] Statically review each read independently.
+- [ ] Obtain review acceptance.
+
+**Implemented:** `itemPage(...)` supports text/tracking/location filters, eager-loads Catalog and measurement-unit references, and sorts by name/ID. Its location filter checks positive net custody, not merely historical movement presence. `movementPage(...)` sorts by occurrence time/ID and eager-loads locations, serialized identity, and actor using new `InventoryMovement::inventoryUnit()` / `createdBy()` relations. `serializedItemPage(...)` joins latest custody and location attributes and uses an active reservation membership subquery for filtering. Identifier/code search preserves `"0"`. Availability means physically present and unreserved; active/sellable flags remain separate. Production MySQL JSON_CONTAINS is used for reservation JSON membership. All new reads use TenantContext and the existing 25/100 pagination filters. Endpoint and DTO construction wiring remain in INV-21/26; the old endpoints still have their existing caps until replaced.
 
 ## Service dependency steps
 
@@ -289,12 +318,17 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** Individual helpers in `app/Services/TenantModule/InventoryService.php`; Inventory message additions where required.
 
-- [ ] Use the exact quantity helper for internal and public commands.
-- [ ] Validate tracking mode, unit count, distinct units, and tenant references.
-- [ ] Permit freeform serialized goods with a valid unit and optional Catalog reference.
-- [ ] Validate active destination and operation-specific location rules.
-- [ ] Translate known identifier/name uniqueness conflicts into domain errors.
-- [ ] Review each helper and obtain acceptance.
+- [x] Use the exact quantity helper for internal and public input validation.
+- [x] Validate tracking mode, unit count, distinct units, and tenant references.
+- [x] Permit freeform serialized goods with a valid unit and optional Catalog reference.
+- [x] Provide active destination and operation-specific sellable-location validation.
+- [x] Guard duplicate location names and serialized identifiers before writes using DuplicateValueFound and localized messages.
+- [x] Statically review each helper.
+- [ ] Obtain review acceptance.
+
+**Implemented:** `validateQuantityForMode(...)` returns a normalized exact decimal string. `validateStockCommandQuantity(...)` returns integer thousandths for typed command callers, checks the supplied item's tenant/public reference, and reuses `validateSerializedItemSelection(...)` and `validateExistingReceiptReferences(...)`. Receipt metadata conflicts are checked through existing Catalog services. `validateSerializedReceive(...)` checks counts exactly, rejects non-string/oversized identifiers, trims whitespace, retains `"0"`, excludes nulls explicitly, and uses one batch existence query. `createInventoryItem(...)` now accepts freeform serialized goods with a valid measurement unit, validates quantity before inserting, and rejects empty/oversized names. `activeLocationByCode(...)` supports an operation-specific sellability requirement; authoritative checks and sale caller activation remain in INV-15/16. `translateInventoryWriteException(...)` was removed at user request. Shared location-name guards run before create/rename, and serialized receipt/adjustment checks identifiers both in a batch and immediately before each insert using database collation. DuplicateValueFound supplies localized conflicts. Missing Inventory resources use TenantNotFound with named item/location messages. Database constraints remain authoritative for concurrent races; prechecks alone are not concurrency serialization. INV-15/18 must review the remaining race behavior without reinstating an SQL-error translator as routine validation. English/Myanmar messages were added with matching keys.
+
+**Remaining integration boundary:** These are dependency queries/helpers. New paginated/batch reads are not yet public endpoints. The current orchestration still has legacy float arithmetic/tolerance, per-unit custody reads, and reservation fallthrough behavior; their replacements remain in INV-16/17/19–28. The current validation changes do not claim complete stock/concurrency correctness. No tests, migrations, query plans, or database operations were executed.
 
 ### INV-15 — Ordered pessimistic locking
 
@@ -400,7 +434,7 @@ Implement each checkbox as its own review unit when needed.
 
 **Depends on:** INV-07, INV-14–18.
 
-**Files:** `InventoryService::move(...)`.
+**Files:** `InventoryService::moveStock(...)`.
 
 - [ ] Validate public item version/idempotency and distinct locations.
 - [ ] Acquire ordered locks and recheck current stock, unit custody, and restrictions.
@@ -437,7 +471,7 @@ Implement each checkbox as its own review unit when needed.
 
 **Depends on:** INV-07, INV-14–18, INV-24.
 
-**Files:** `InventoryService::issue(...)`.
+**Files:** `InventoryService::issueStock(...)`.
 
 - [ ] Validate supplied reservation and internal source context.
 - [ ] Recheck availability/custody under locks.
@@ -456,7 +490,7 @@ Implement each checkbox as its own review unit when needed.
 
 - [ ] Register inactive `inventory_manual_operations` consistently.
 - [ ] Wire paginated item/detail/history/unit contracts one endpoint at a time.
-- [ ] Keep `/inventory/units` as measurement-unit options; use an item-scoped route for serialized units.
+- [ ] Keep `/inventory/measurement-units` as measurement-unit options; use an item-scoped route for serialized units.
 - [ ] Wire location create/update with version/idempotency rules.
 - [ ] Wire public move with item version/idempotency rules.
 - [ ] Gate standalone receive/issue/adjust without blocking internal business calls.
@@ -517,6 +551,7 @@ Implement each checkbox as its own review unit when needed.
 - [ ] Reads: no per-item/unit query loops; summaries do not load all units; history/items beyond old caps remain accessible.
 - [ ] Integration: receipt returns only new units; Sales and Ownership work with replacement contracts.
 - [ ] Query plans: inspect indexed batch reads on a prepared representative MySQL dataset.
+- [ ] Monthly checkpoints: verify full-ledger equivalence, checkpoint-plus-tail quantities, month boundaries, below-watermark new-month rows, late/backdated writes, append/summary locks, duplicate jobs, rollback/resume, tenant context restoration, and scheduler/worker behavior described in `INVENTORY_MONTHLY_SUMMARIZER_PLAN.md`.
 - [ ] Gates: direct calls to disabled standalone operations produce no side effects.
 - [ ] Record results and unresolved findings; obtain final Part 1 review acceptance.
 
@@ -555,6 +590,23 @@ Add a row after each review unit. Keep the step status register and checkboxes c
 | 2026-10-18 | INV-09c | `InventoryRepository::reservationByCode`, four `InventoryService` call sites | Implemented; user review pending | Static review of TenantContext scope, missing-context rejection, optional expected-item binding, nullable return, exclusive lock, and caller signatures. No tests or database access | Serialized-unit lookup after acceptance |
 
 | 2026-10-18 | INV-09c acceptance | — | Reviewed and accepted by user | No additional execution | Serialized-unit lookup |
+
+| 2026-10-18 | INV-09d dependency | `InventoryRepository::findSerializedItemsByCodesForUpdate`, two service callers | Implemented with INV-12; user review pending | Static review of context scope, expected-item predicate, transaction requirement, and ID ordering. No execution | Remaining INV-09 version writes |
+| 2026-10-18 | INV-10 | `movementBalancesForItems`, `movementRowsForUpdate`, `InventoryQuantity::parseBalance` | Implemented; user review pending | Static review of incoming/outgoing DECIMAL sums, zero/exhaustion paths, location filters, and separate current row reads. No database queries or tests | INV-15/16/21 |
+| 2026-10-18 | INV-11 | `reservationBalancesForItems`, `activeReservationsForItems` | Implemented; user review pending | Static review of active status, tenant/item/location filters, batched decoded membership, and optional locking. No execution | INV-15/16/21 |
+| 2026-10-18 | INV-12 | `latestMovementsForSerializedItems`, `latestSerializedItemMovementIds`, `existingSerializedItemIdentifiers`, selected-unit lookup | Implemented; user review pending | Static review of latest-ID grouping, tenant-scoped joins, identifier collation boundary, and ordered locks. MySQL plans/concurrency pending | INV-15/16/21 |
+| 2026-10-18 | INV-13 | `itemPage`, `movementPage`, `serializedItemPage`, two movement model relationships | Implemented; user review pending | Static review of stable pagination, batched relationships, location net stock, JSON membership, and no old hard caps in new methods. Endpoints unchanged; no execution | INV-21/26 |
+| 2026-10-18 | INV-14 | Inventory service quantity/reference/unit-selection/location validators, uniqueness translator, English/Myanmar messages | Implemented; user review pending | Static review of exact input validation, freeform serialized goods, identifier 0/null/whitespace, typed receipt references, and known-only constraint translation. Later wrapper/orchestration wiring recorded above; no execution | INV-15/16/18/23 |
+
+| 2026-10-18 | Inventory terminology | Renamed physical model/read contracts, stock DTO properties, repository/service helpers, history relationship, and frontend type/labels; clarified measurement option methods | Implemented per user instruction; review pending | Static reference review; existing schema and active API field mappings preserved. No tests or migrations run | Continue pending Inventory review |
+
+| 2026-10-18 | Remove physical-item compatibility mappings | Inventory/Sales/Purchasing/Delivery schema, models, repositories, services, controller validation, code generation, DTOs, frontend payloads, response fields, and measurement route | Implemented per user instruction; review pending | Static reference scan found no old physical table/field/class names or old measurement URL in source/config/schema/frontend. Fresh-schema definitions updated, explicit model table override removed, code prefix changed to SI; no migrations, database operations, or tests run | Continue pending Inventory review |
+
+| 2026-10-18 | Inventory monthly scope amendment / INV-MS-01–07 | Checkpoint migration/model, InventoryRepository, InventoryMonthlySummaryService, scheduled job, recovery command, scheduler registration, messages, module plan, and monthly detail plan | Implemented; user review pending | Static review of base/delta predicates, recording cutoff, item anchor, atomic publication, context restoration, duplicate skips, tenant queue dispatch, and schedule registration. No tests, migrations, jobs, or database operations run | Review monthly scope and implementation; then pending INV-09/15–18 integration |
+
+| 2026-10-18 | Inventory explicit write guards and resource errors | InventoryService, InventoryRepository, English/Myanmar messages, shared implementation rules | Implemented per user instruction; review pending | Removed SQL-error translator; added shared name guards and immediate serialized insert checks with DuplicateValueFound. Replaced Inventory aborts and movement firstOrFail with service-level named TenantNotFound messages. Database unique constraints retained; concurrent race serialization remains in lock review. No tests or migrations run | Review changes, then pending Inventory dependencies |
+
+| 2026-10-18 | Explicit stock-operation names | Inventory service/controller, Sales/Purchasing callers, route actions, frontend service/page, and checklist | Implemented per user instruction | Static reference scan confirms old bare operation calls are removed. No tests run | Continue pending Inventory review |
 
 ## Part 1 completion
 

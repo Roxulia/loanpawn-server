@@ -6,7 +6,7 @@ use InvalidArgumentException;
 
 /**
  * Extends an item summary with typed per-location balances.
- * Physical serialized units are retrieved separately through their paginated contract.
+ * Physical serialized items are retrieved separately through their paginated contract.
  */
 final class InventoryItemDetail extends InventoryItemSummary
 {

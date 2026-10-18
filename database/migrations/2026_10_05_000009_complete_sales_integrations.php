@@ -42,7 +42,7 @@ return new class extends Migration
             $table->foreignId('delivery_id')->constrained('deliveries')->cascadeOnDelete();
             $table->foreignId('sales_order_line_id')->constrained('sales_order_lines')->restrictOnDelete();
             $table->decimal('planned_quantity', 15, 3); $table->decimal('delivered_quantity', 15, 3)->nullable();
-            $table->json('inventory_unit_codes')->nullable(); $table->timestamps();
+            $table->json('serialized_item_codes')->nullable(); $table->timestamps();
             $table->unique(['tenant_id', 'code'], 'delivery_item_code_uq');
             $table->unique(['tenant_id', 'delivery_id', 'sales_order_line_id'], 'delivery_item_sale_line_uq');
             $table->index(['tenant_id', 'sales_order_line_id'], 'delivery_item_line_ix');

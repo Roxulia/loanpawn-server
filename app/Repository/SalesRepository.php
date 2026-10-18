@@ -173,7 +173,7 @@ class SalesRepository
     public function returnedUnitCodesForAllocation(int $tenantId, int $allocationId): array
     {
         return SaleReturnLine::query()->where('tenant_id', $tenantId)->where('sales_delivery_allocation_id', $allocationId)
-            ->pluck('inventory_unit_codes')->filter()->flatMap(fn ($codes) => json_decode((string) $codes, true) ?: [])->all();
+            ->pluck('serialized_item_codes')->filter()->flatMap(fn ($codes) => json_decode((string) $codes, true) ?: [])->all();
     }
 
     public function allocationsForTenant(int $tenantId): Collection

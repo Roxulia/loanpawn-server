@@ -22,7 +22,7 @@ return [
         'catalog_items' => 'CAT',
         'inventory_items' => 'II',
         'inventory_locations' => 'IL',
-        'inventory_units' => 'IU',
+        'inventory_serialized_items' => 'SI',
         'inventory_movements' => 'IM',
         'owned_items' => 'OI',
         'acquisition_lots' => 'AL',

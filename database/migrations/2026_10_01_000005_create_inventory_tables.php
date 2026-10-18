@@ -43,10 +43,10 @@ return new class extends Migration
             $table->unique(['tenant_id', 'code']);
         });
 
-        Schema::create('inventory_units', function (Blueprint $table): void {
+        Schema::create('inventory_serialized_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            // Public serialized-unit references use generated tenant business codes.
+            // Public serialized-item references use generated tenant business codes.
             $table->string('code', 40);
             $table->foreignId('inventory_item_id')->constrained('inventory_items')->cascadeOnDelete();
             $table->string('identifier', 120)->nullable();
@@ -62,7 +62,7 @@ return new class extends Migration
             // Public movement references use generated tenant business codes.
             $table->string('code', 40);
             $table->foreignId('inventory_item_id')->constrained('inventory_items')->restrictOnDelete();
-            $table->foreignId('inventory_unit_id')->nullable()->constrained('inventory_units')->restrictOnDelete();
+            $table->foreignId('inventory_serialized_item_id')->nullable()->constrained('inventory_serialized_items')->restrictOnDelete();
             $table->foreignId('from_location_id')->nullable()->constrained('inventory_locations')->restrictOnDelete();
             $table->foreignId('to_location_id')->nullable()->constrained('inventory_locations')->restrictOnDelete();
             $table->decimal('quantity', 14, 3);
@@ -100,7 +100,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('inventory_movements');
-        Schema::dropIfExists('inventory_units');
+        Schema::dropIfExists('inventory_serialized_items');
         Schema::dropIfExists('inventory_items');
         Schema::dropIfExists('inventory_locations');
     }

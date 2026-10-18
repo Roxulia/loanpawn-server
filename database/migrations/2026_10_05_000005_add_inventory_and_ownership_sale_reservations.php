@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('inventory_item_id')->constrained('inventory_items')->restrictOnDelete();
             $table->foreignId('inventory_location_id')->constrained('inventory_locations')->restrictOnDelete();
             $table->string('source_type', 32); $table->string('source_code', 32); $table->decimal('quantity', 15, 3);
-            $table->decimal('remaining_quantity', 15, 3); $table->json('inventory_unit_codes')->nullable();
+            $table->decimal('remaining_quantity', 15, 3); $table->json('serialized_item_codes')->nullable();
             $table->string('status', 16)->default('ACTIVE'); $table->timestamps();
             $table->unique(['tenant_id', 'code'], 'inv_res_tenant_code_uq');
             $table->index(['tenant_id', 'inventory_item_id', 'inventory_location_id', 'status'], 'inv_res_item_loc_status_ix');

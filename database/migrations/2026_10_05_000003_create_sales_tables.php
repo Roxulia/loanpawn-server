@@ -31,7 +31,7 @@ return new class extends Migration
             $table->foreignId('inventory_location_id')->constrained('inventory_locations')->restrictOnDelete();
             $table->string('inventory_location_code', 32);
             $table->string('inventory_reservation_code', 32); $table->decimal('quantity', 15, 3);
-            $table->decimal('remaining_quantity', 15, 3); $table->json('inventory_unit_codes')->nullable();
+            $table->decimal('remaining_quantity', 15, 3); $table->json('serialized_item_codes')->nullable();
             $table->string('status', 16)->default('ACTIVE'); $table->timestamps();
             $table->unique(['tenant_id', 'code'], 'sale_res_tenant_code_uq');
             $table->index(['tenant_id', 'sales_order_line_id', 'status'], 'sale_res_line_status_ix');
@@ -67,7 +67,7 @@ return new class extends Migration
             $table->foreignId('acquisition_lot_id')->constrained('acquisition_lots')->restrictOnDelete();
             $table->foreignId('inventory_location_id')->constrained('inventory_locations')->restrictOnDelete();
             $table->decimal('quantity', 15, 3); $table->decimal('unit_cost', 15, 4); $table->decimal('unit_price', 15, 2);
-            $table->json('inventory_unit_codes')->nullable(); $table->timestamps();
+            $table->json('serialized_item_codes')->nullable(); $table->timestamps();
             $table->unique(['tenant_id', 'code'], 'sale_alloc_tenant_code_uq'); $table->index(['tenant_id', 'sales_order_line_id'], 'sale_alloc_line_ix');
         });
         Schema::create('sales_returns', function (Blueprint $table): void {
@@ -82,7 +82,7 @@ return new class extends Migration
             $table->foreignId('sales_delivery_allocation_id')->constrained('sales_delivery_allocations')->restrictOnDelete();
             $table->foreignId('inventory_location_id')->constrained('inventory_locations')->restrictOnDelete();
             $table->decimal('quantity', 15, 3); $table->decimal('cash_refund_amount', 15, 2)->default(0);
-            $table->string('inventory_unit_codes', 1000)->nullable(); $table->timestamps();
+            $table->string('serialized_item_codes', 1000)->nullable(); $table->timestamps();
             $table->unique(['tenant_id', 'code'], 'sale_ret_line_tenant_code_uq'); $table->index(['tenant_id', 'sales_delivery_allocation_id'], 'sale_ret_alloc_ix');
         });
     }

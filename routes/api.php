@@ -527,7 +527,7 @@ Route::prefix('tenant')->group(function () {
             });
 
             Route::prefix('inventory')->middleware('tenant.feature:inventory_management')->group(function () {
-                Route::get('units', [InventoryController::class, 'units'])
+                Route::get('measurement-units', [InventoryController::class, 'measurementUnits'])
                     ->middleware('tenant.permission:list_inventory,receive_inventory');
                 Route::get('locations', [InventoryController::class, 'locations'])
                     ->middleware('tenant.permission:list_inventory,manage_inventory_locations');
@@ -543,11 +543,11 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:list_inventory');
                 Route::post('receive', [InventoryController::class, 'receive'])
                     ->middleware('tenant.permission:receive_inventory');
-                Route::post('move', [InventoryController::class, 'move'])
+                Route::post('move', [InventoryController::class, 'moveStock'])
                     ->middleware('tenant.permission:move_inventory');
-                Route::post('issue', [InventoryController::class, 'issue'])
+                Route::post('issue', [InventoryController::class, 'issueStock'])
                     ->middleware('tenant.permission:issue_inventory');
-                Route::post('adjust', [InventoryController::class, 'adjust'])
+                Route::post('adjust', [InventoryController::class, 'adjustStock'])
                     ->middleware('tenant.permission:adjust_inventory');
             });
 

@@ -22,7 +22,7 @@ This is a development plan only. Creating this document does not authorize code 
 
 | Module | Included in 2.0 | Deferred |
 |---|---|---|
-| Inventory | Quantity/unique/serialized tracking; locations; moves; stock, unit, and movement views; internal business receipt/issue | Standalone receipt, issue, adjustment; full stock reconciliation |
+| Inventory | Quantity/unique/serialized tracking; locations; moves; stock, serialized-item, and movement views; internal business receipt/issue; scheduled monthly quantity checkpoints | Standalone receipt, issue, adjustment; full stock reconciliation; continuously updated balance table |
 | Ownership | Owned items, lots, costs, history; purchase acquisition; sale reservations/reduction; expired-Pawn acquisition; collateral quantity operations | Standalone manual acquisition |
 | Catalog | Search, quick-create, optional references, required category/unit configuration | Expanded administration, variants, reusable commercial bundles |
 | Purchasing | Supplier selection/creation; fully paid Quick Buy; immediate full receipt; history | Staged orders, partial receipts, advances, unpaid purchases/payables, returns/refunds |
@@ -60,6 +60,8 @@ These rules apply to every module part; they are not a separate implementation m
 5. Use public business codes where established; resolve internal keys inside the appropriate service/repository boundary.
 6. Keep Pawn, Purchasing, Sales, and Business Loan relationships in their respective modules. Do not add business-specific relationship columns to generic Inventory records.
 7. Reuse existing Accounting and Financial Account services rather than creating parallel posting mechanisms.
+8. Guard expected duplicate and invalid-reference conditions before writes, using existing exception classes with specific localized messages. Retain database uniqueness constraints for concurrent races; do not use SQL-error translation as routine business validation.
+9. Replace generic missing-resource HTTP aborts with named exceptions/messages at the service boundary, reusing existing exception classes where applicable.
 
 ### 2.2 Transactions, locks, and retries
 
@@ -122,8 +124,27 @@ These rules apply to every module part; they are not a separate implementation m
 - Manage locations and move available stock.
 - Show physical on-hand, operational availability, unit identity, location, and immutable movement history.
 - Provide internal receive/issue/reservation operations to reviewed callers.
+- Store monthly closing quantities by tenant/item/location and calculate current quantities from the latest completed checkpoint plus uncovered movements.
+- Run a monthly scheduled Inventory summarizer using the financial summarizer's queue, operation-logging, and overlap conventions.
 - Gate standalone receipt, issue, and adjustment with `inventory_manual_operations`.
 - Store no purchase prices, profit, revenue, interest, liability, or expense rules in Inventory.
+
+### Monthly quantity checkpoint scope amendment
+
+Monthly physical quantity checkpoints are included in Part 1, superseding the earlier exclusion of all stored balance projections. Full movement history remains canonical and is retained. This is an Inventory responsibility, not an Accounting or financial module.
+
+1. Close each tenant-local month using its configured timezone and a stored UTC cutoff.
+2. Store exact closing quantities per item/location and a movement-ID watermark under an item anchor lock.
+3. Calculate new-month quantities as the latest completed opening base plus uncovered incoming/outgoing movement deltas.
+4. Require both recording time and ID watermark coverage before excluding a movement from live calculations; backdated business dates remain safe.
+5. Keep active reservations and serialized-item custody live.
+6. Fall back to an older checkpoint or the full ledger if the previous month's checkpoint is unavailable.
+7. Publish each item atomically, retain movement history, and make repeated jobs idempotent.
+8. Schedule `SummarizeMonthlyInventoryMovementsJob` monthly on day 2 at 00:45 UTC, alongside the financial job; dispatch independent tenant jobs.
+9. Provide `inventory:summarize-monthly` for explicit recovery of missed checkpoints.
+10. Verify source-ledger equivalence, concurrency, time boundaries, retries, and MySQL query plans before declaring production readiness.
+
+Detailed schema, orchestration, dependency checklist, integration boundaries, and pending verification are in `INVENTORY_MONTHLY_SUMMARIZER_PLAN.md`. No continuously updated balance table or movement deletion is included.
 
 ### Classes and integration areas
 
@@ -170,6 +191,8 @@ Review `InventoryService`, `InventoryRepository`, Inventory models/migrations, `
 4. Concurrent operations cannot consume the same quantity/unit.
 5. Replay creates no additional movement.
 6. Disabled standalone write endpoints are inaccessible.
+7. Monthly opening quantities plus live deltas agree exactly with full movement history, including delayed jobs, backdated business dates, and current-month movement IDs below the summary watermark.
+8. Concurrent summary/write operations and repeated jobs neither omit nor duplicate physical quantities.
 
 ## Part 2 — Ownership
 

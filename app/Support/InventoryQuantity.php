@@ -12,7 +12,7 @@ use App\Exceptions\InvalidTenantRequest;
  *
  * Parsing validates positive quantities, a maximum of three decimal places,
  * the DECIMAL(14, 3) storage range, and UNIQUE or SERIALIZED tracking rules.
- * Formatting and comparison also accept zero for exhausted stock balances.
+ * Stored-balance parsing, formatting, and comparison accept zero for exhausted stock.
  * Invalid quantities raise InvalidTenantRequest with localized messages.
  */
 final class InventoryQuantity
@@ -62,6 +62,18 @@ final class InventoryQuantity
         }
 
         return $thousandths;
+    }
+
+    /** Convert a non-negative stored balance to thousandths, including exact exhaustion. */
+    public static function parseBalance(string $quantity): int
+    {
+        // Accept exact zero without weakening the positive mutation-input parser.
+        if (preg_match('/\A[+]?0+(?:\.0{1,3})?\z/', trim($quantity))) {
+            return 0;
+        }
+
+        // Reuse precision and range checks for every non-zero balance.
+        return self::parse($quantity);
     }
 
     /** Format integer thousandths; zero is permitted for exhausted stock balances. */

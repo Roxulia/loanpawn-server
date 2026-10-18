@@ -6,12 +6,12 @@ use App\Exceptions\InvalidTenantRequest;
 
 /**
  * Carries a public stock move with its mandatory expected item version.
- * Selected serialized units use public codes, never database identifiers.
+ * Selected serialized items use public codes, never database identifiers.
  */
 final class InventoryMoveRequest extends InventoryStockCommand
 {
     /** @var list<string> */
-    public array $inventoryUnitCodes;
+    public array $serializedItemCodes;
 
     public function __construct(
         public string $inventoryItemCode,
@@ -19,7 +19,7 @@ final class InventoryMoveRequest extends InventoryStockCommand
         public string $toLocationCode,
         string|int|float $quantity,
         public int $updateKey,
-        array $inventoryUnitCodes = [],
+        array $serializedItemCodes = [],
         public ?string $reason = null,
         public ?string $idempotencyKey = null,
     ) {
@@ -28,7 +28,7 @@ final class InventoryMoveRequest extends InventoryStockCommand
         $this->inventoryItemCode = trim($inventoryItemCode);
         $this->fromLocationCode = trim($fromLocationCode);
         $this->toLocationCode = trim($toLocationCode);
-        $this->inventoryUnitCodes = self::normalizeUnitCodes($inventoryUnitCodes);
+        $this->serializedItemCodes = self::normalizeSerializedItemCodes($serializedItemCodes);
         if ($updateKey < 0 || $updateKey > 4_294_967_295) {
             throw new InvalidTenantRequest();
         }
@@ -47,7 +47,7 @@ final class InventoryMoveRequest extends InventoryStockCommand
             toLocationCode: $data['to_location_code'],
             quantity: $data['quantity'],
             updateKey: (int) $data['update_key'],
-            inventoryUnitCodes: $data['inventory_unit_codes'] ?? [],
+            serializedItemCodes: $data['serialized_item_codes'] ?? [],
             reason: $data['reason'] ?? null,
             idempotencyKey: $idempotencyKey,
         );

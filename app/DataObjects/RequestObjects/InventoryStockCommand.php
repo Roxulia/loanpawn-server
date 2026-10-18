@@ -20,7 +20,7 @@ abstract class InventoryStockCommand extends BaseDataObject
         $this->quantity = InventoryQuantity::format(InventoryQuantity::parse($quantity));
     }
 
-    protected static function normalizeUnitCodes(array $codes): array
+    protected static function normalizeSerializedItemCodes(array $codes): array
     {
         // Require string references and retain duplicates for explicit service validation.
         return array_map(static function (mixed $code): string {

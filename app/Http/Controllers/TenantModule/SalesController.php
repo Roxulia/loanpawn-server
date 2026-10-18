@@ -136,7 +136,7 @@ class SalesController extends Controller
             'financial_account_id' => ['nullable', 'integer', 'min:1'], 'items' => ['required', 'array', 'min:1'],
             'items.*.delivery_allocation_code' => ['required', 'string', 'max:40'], 'items.*.location_code' => ['required', 'string', 'max:40'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'], 'items.*.disposition' => ['required', 'in:RESTOCK,QUARANTINE'],
-            'items.*.inventory_unit_codes' => ['nullable', 'array'], 'items.*.inventory_unit_codes.*' => ['string', 'max:40'],
+            'items.*.serialized_item_codes' => ['nullable', 'array'], 'items.*.serialized_item_codes.*' => ['string', 'max:40'],
         ], fn (array $data, ?string $key): array => $this->saleReturnService->create($code, $data, $key), 201);
     }
 

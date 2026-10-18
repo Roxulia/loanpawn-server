@@ -18,8 +18,8 @@ return new class extends Migration
         Schema::table('purchase_receipt_lines', function (Blueprint $table): void {
             $table->string('inventory_location_code', 32)->nullable()->after('received_quantity');
             $table->foreignId('inventory_item_id')->nullable()->after('inventory_location_code')->constrained('inventory_items')->restrictOnDelete();
-            $table->json('inventory_unit_codes')->nullable()->after('inventory_item_id');
-            $table->string('owned_item_code', 32)->nullable()->after('inventory_unit_codes');
+            $table->json('serialized_item_codes')->nullable()->after('inventory_item_id');
+            $table->string('owned_item_code', 32)->nullable()->after('serialized_item_codes');
             $table->string('acquisition_lot_code', 32)->nullable()->after('owned_item_code');
             $table->decimal('received_value', 15, 2)->default(0)->after('acquisition_lot_code');
         });
@@ -29,8 +29,8 @@ return new class extends Migration
             $table->decimal('supplier_credit_applied_amount', 15, 2)->default(0)->after('note');
         });
         Schema::table('purchase_return_lines', function (Blueprint $table): void {
-            $table->json('inventory_unit_codes')->nullable()->after('returned_quantity');
-            $table->string('supplier_credit_code', 32)->nullable()->after('inventory_unit_codes');
+            $table->json('serialized_item_codes')->nullable()->after('returned_quantity');
+            $table->string('supplier_credit_code', 32)->nullable()->after('serialized_item_codes');
             $table->decimal('supplier_credit_amount', 15, 2)->default(0)->after('supplier_credit_code');
             $table->decimal('supplier_payable_adjusted_amount', 15, 2)->default(0)->after('supplier_credit_amount');
             $table->decimal('cash_refund_amount', 15, 2)->default(0)->after('supplier_payable_adjusted_amount');
@@ -56,7 +56,7 @@ return new class extends Migration
         });
         Schema::table('purchase_return_lines', function (Blueprint $table): void {
             $table->dropConstrainedForeignId('financial_account_id');
-            $table->dropColumn(['inventory_unit_codes', 'supplier_credit_code', 'supplier_credit_amount', 'supplier_payable_adjusted_amount', 'cash_refund_amount', 'accounting_transaction_id']);
+            $table->dropColumn(['serialized_item_codes', 'supplier_credit_code', 'supplier_credit_amount', 'supplier_payable_adjusted_amount', 'cash_refund_amount', 'accounting_transaction_id']);
         });
         Schema::table('purchase_refunds', function (Blueprint $table): void {
             $table->dropConstrainedForeignId('financial_account_id');
@@ -69,7 +69,7 @@ return new class extends Migration
         Schema::table('purchase_receipt_lines', function (Blueprint $table): void {
             $table->dropColumn('inventory_location_code');
             $table->dropConstrainedForeignId('inventory_item_id');
-            $table->dropColumn(['inventory_unit_codes', 'owned_item_code', 'acquisition_lot_code', 'received_value']);
+            $table->dropColumn(['serialized_item_codes', 'owned_item_code', 'acquisition_lot_code', 'received_value']);
         });
         Schema::table('purchase_order_lines', function (Blueprint $table): void {
             $table->dropConstrainedForeignId('inventory_item_id');

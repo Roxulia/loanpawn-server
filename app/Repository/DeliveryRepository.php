@@ -62,7 +62,7 @@ class DeliveryRepository
 
     public function completeItem(DeliveryItem $item, float $quantity, array $unitCodes = []): DeliveryItem
     {
-        $item->update(['delivered_quantity' => $quantity, 'inventory_unit_codes' => $unitCodes]);
+        $item->update(['delivered_quantity' => $quantity, 'serialized_item_codes' => $unitCodes]);
         return $item->refresh();
     }
 

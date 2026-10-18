@@ -9,7 +9,7 @@ namespace App\DataObjects\RequestObjects;
 final class InventoryReceiveRequest extends InventoryStockCommand
 {
     /** @var list<string|null> */
-    public array $unitIdentifiers;
+    public array $serializedItemIdentifiers;
 
     public function __construct(
         public string $locationCode,
@@ -20,7 +20,7 @@ final class InventoryReceiveRequest extends InventoryStockCommand
         public ?string $description = null,
         public ?string $trackingMode = null,
         public ?string $unitCode = null,
-        array $unitIdentifiers = [],
+        array $serializedItemIdentifiers = [],
         public ?string $reason = null,
         public ?string $sourceType = null,
         public ?string $sourceCode = null,
@@ -36,11 +36,11 @@ final class InventoryReceiveRequest extends InventoryStockCommand
         $this->unitCode = $unitCode === null ? null : trim($unitCode);
 
         // Preserve null identifiers and the literal "0" while removing surrounding spaces.
-        $this->unitIdentifiers = array_map(static function (?string $identifier): ?string {
+        $this->serializedItemIdentifiers = array_map(static function (?string $identifier): ?string {
             $identifier = $identifier === null ? null : trim($identifier);
 
             return $identifier === '' ? null : $identifier;
-        }, array_values($unitIdentifiers));
+        }, array_values($serializedItemIdentifiers));
     }
 
     public static function fromValidated(array $data, ?string $idempotencyKey = null): self
@@ -55,7 +55,7 @@ final class InventoryReceiveRequest extends InventoryStockCommand
             description: $data['description'] ?? null,
             trackingMode: $data['tracking_mode'] ?? null,
             unitCode: $data['unit_code'] ?? null,
-            unitIdentifiers: $data['unit_identifiers'] ?? [],
+            serializedItemIdentifiers: $data['serialized_item_identifiers'] ?? [],
             reason: $data['reason'] ?? null,
             idempotencyKey: $idempotencyKey,
         );

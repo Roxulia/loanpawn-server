@@ -5,11 +5,11 @@ namespace App\DataObjects\RequestObjects;
 use App\Exceptions\InvalidTenantRequest;
 
 /**
- * Filters physical serialized units within an item-scoped read.
+ * Filters physical serialized items within an item-scoped read.
  * availableOnly excludes issued/reserved units; custody and sellability remain distinct.
  * Repository reads must use stable ID ordering.
  */
-final class InventoryUnitFilter extends InventoryPageFilter
+final class InventorySerializedItemFilter extends InventoryPageFilter
 {
     public function __construct(
         int $page = 1,

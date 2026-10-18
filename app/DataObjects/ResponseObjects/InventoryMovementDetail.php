@@ -14,7 +14,7 @@ final class InventoryMovementDetail extends BaseDataObject
     public function __construct(
         public string $code,
         public string $inventoryItemCode,
-        public ?string $inventoryUnitCode,
+        public ?string $serializedItemCode,
         public string $type,
         public string $quantity,
         public ?InventoryLocationDetail $fromLocation,

@@ -12,7 +12,7 @@ use App\Enums\InventoryIssueContext;
 final class InventoryIssueRequest extends InventoryStockCommand
 {
     /** @var list<string> */
-    public array $inventoryUnitCodes;
+    public array $serializedItemCodes;
 
     public function __construct(
         public string $inventoryItemCode,
@@ -22,7 +22,7 @@ final class InventoryIssueRequest extends InventoryStockCommand
         public string $sourceCode,
         public InventoryIssueContext $operationContext,
         public ?string $reservationCode = null,
-        array $inventoryUnitCodes = [],
+        array $serializedItemCodes = [],
         public ?string $reason = null,
         public ?string $idempotencyKey = null,
     ) {
@@ -33,7 +33,7 @@ final class InventoryIssueRequest extends InventoryStockCommand
         $this->sourceType = trim($sourceType);
         $this->sourceCode = trim($sourceCode);
         $this->reservationCode = $reservationCode === null ? null : trim($reservationCode);
-        $this->inventoryUnitCodes = self::normalizeUnitCodes($inventoryUnitCodes);
+        $this->serializedItemCodes = self::normalizeSerializedItemCodes($serializedItemCodes);
     }
 
     public function toArray(): array

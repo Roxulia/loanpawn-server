@@ -9,7 +9,7 @@ namespace App\DataObjects\RequestObjects;
 final class InventoryReservationRequest extends InventoryStockCommand
 {
     /** @var list<string> */
-    public array $inventoryUnitCodes;
+    public array $serializedItemCodes;
 
     public function __construct(
         public string $inventoryItemCode,
@@ -17,7 +17,7 @@ final class InventoryReservationRequest extends InventoryStockCommand
         string|int|float $quantity,
         public string $sourceType,
         public string $sourceCode,
-        array $inventoryUnitCodes = [],
+        array $serializedItemCodes = [],
         public ?string $idempotencyKey = null,
     ) {
         // Normalize the command without allowing a caller-selected validation bypass.
@@ -26,6 +26,6 @@ final class InventoryReservationRequest extends InventoryStockCommand
         $this->locationCode = trim($locationCode);
         $this->sourceType = trim($sourceType);
         $this->sourceCode = trim($sourceCode);
-        $this->inventoryUnitCodes = self::normalizeUnitCodes($inventoryUnitCodes);
+        $this->serializedItemCodes = self::normalizeSerializedItemCodes($serializedItemCodes);
     }
 }

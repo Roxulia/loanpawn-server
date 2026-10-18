@@ -91,7 +91,7 @@ class PurchasingService extends BaseTenantService
                 return [
                     'purchase_order_item_code' => $orderItem['code'],
                     'quantity' => (float) $item['ordered_quantity'],
-                    'unit_identifiers' => $item['unit_identifiers'] ?? [],
+                    'serialized_item_identifiers' => $item['serialized_item_identifiers'] ?? [],
                 ];
             }, $data['items'], $order['items']);
 
@@ -339,7 +339,7 @@ class PurchasingService extends BaseTenantService
                     'tracking_mode' => $purchaseOrderItem->tracking_mode, 'unit_code' => $purchaseOrderItem->unit_code ?? 'unit',
                     'name' => $purchaseOrderItem->item_description, 'description' => $purchaseOrderItem->item_description,
                     'catalog_item_code' => $purchaseOrderItem->catalogItem?->business_code,
-                    'unit_identifiers' => $itemData['unit_identifiers'] ?? [],
+                    'serialized_item_identifiers' => $itemData['serialized_item_identifiers'] ?? [],
                     'source_type' => 'PurchaseReceiptLine', 'source_code' => $receiptItem->code,
                 ];
                 // Reuse a stable Inventory identity for tracked quantity and serialized goods.
@@ -351,7 +351,7 @@ class PurchasingService extends BaseTenantService
                 if ($purchaseOrderItem->tracking_mode !== 'UNIQUE' && $purchaseOrderItem->inventory_item_id === null) {
                     $purchaseOrderItem = $this->repository->updateOrderLine($purchaseOrderItem, ['inventory_item_id' => $inventoryItem->id]);
                 }
-                $inventoryUnitCodes = array_column($inventoryItemResource['units'] ?? [], 'code');
+                $serializedItemCodes = array_column($inventoryItemResource['serialized_items'] ?? [], 'code');
                 // Create a receipt-sourced acquisition lot at the purchase order item's snapshotted unit cost.
                 $ownership = $this->ownershipService->acquireFromSource(new OwnershipAcquisitionCreate(
                     inventoryItemCode: $inventoryItemResource['code'], quantity: $quantity,
@@ -362,7 +362,7 @@ class PurchasingService extends BaseTenantService
                 $receivedValue = round($quantity * (float) $purchaseOrderItem->unit_price, 2);
                 $receiptValue += $receivedValue;
                 $receiptItem = $this->repository->updateReceiptLine($receiptItem, [
-                    'inventory_item_id' => $inventoryItem->id, 'inventory_unit_codes' => $inventoryUnitCodes,
+                    'inventory_item_id' => $inventoryItem->id, 'serialized_item_codes' => $serializedItemCodes,
                     'owned_item_code' => $ownership['code'], 'acquisition_lot_code' => $ownership['lots'][0]['code'] ?? null,
                     'received_value' => $receivedValue,
                 ]);
@@ -399,10 +399,10 @@ class PurchasingService extends BaseTenantService
                     throw ValidationException::withMessages(['items' => [__('purchasing.return_exceeds_received')]]);
                 }
                 if ($receiptItem->orderLine->tracking_mode === 'SERIALIZED') {
-                    $unitCodes = $itemData['inventory_unit_codes'] ?? [];
+                    $unitCodes = $itemData['serialized_item_codes'] ?? [];
                     $alreadyReturnedCodes = $this->repository->returnedUnitCodes($tenantId, $receiptItem->id);
                     if (count($unitCodes) !== (int) $itemData['quantity'] || count(array_unique($unitCodes)) !== count($unitCodes)
-                        || array_diff($unitCodes, $receiptItem->inventory_unit_codes ?? []) !== []
+                        || array_diff($unitCodes, $receiptItem->serialized_item_codes ?? []) !== []
                         || array_intersect($unitCodes, $alreadyReturnedCodes) !== []) {
                         throw ValidationException::withMessages(['items' => [__('purchasing.serialized_return_units_required')]]);
                     }
@@ -419,13 +419,13 @@ class PurchasingService extends BaseTenantService
             foreach ($receiptItems as [$receiptItem, $quantity, $itemData]) {
                 // Create the return item first so every stock and ownership reduction has a stable source reference.
                 $returnItem = $this->repository->createReturnLine($tenantId, $returnRecord->id, $receiptItem->id, $quantity,
-                    $this->newCode($tenantId, 'purchase_return_lines'), $itemData['inventory_unit_codes'] ?? []);
+                    $this->newCode($tenantId, 'purchase_return_lines'), $itemData['serialized_item_codes'] ?? []);
                 $purchaseOrderItem = $receiptItem->orderLine;
                 // Issue only the goods being returned from the selected current custody location.
-                $this->inventoryService->issue([
+                $this->inventoryService->issueStock([
                     'inventory_item_code' => $receiptItem->inventoryItem->code,
                     'location_code' => $itemData['location_code'], 'quantity' => $quantity,
-                    'inventory_unit_codes' => $itemData['inventory_unit_codes'] ?? [],
+                    'serialized_item_codes' => $itemData['serialized_item_codes'] ?? [],
                     'source_type' => 'PurchaseReturnLine', 'source_code' => $returnItem->code,
                 ], 'purchasing-return-'.$returnItem->code);
                 // Reduce the precise receipt acquisition lot instead of a different lot for the same Catalog item.
@@ -556,7 +556,7 @@ class PurchasingService extends BaseTenantService
                 $receiptItem->loadMissing('inventoryItem');
                 return ['code' => $receiptItem->code, 'purchase_order_item_code' => $purchaseOrderItem?->code,
                     'quantity' => $receiptItem->received_quantity, 'inventory_item_code' => $receiptItem->inventoryItem?->code,
-                    'inventory_unit_codes' => $receiptItem->inventory_unit_codes ?? [], 'location_code' => $receiptItem->inventory_location_code,
+                    'serialized_item_codes' => $receiptItem->serialized_item_codes ?? [], 'location_code' => $receiptItem->inventory_location_code,
                     'owned_item_code' => $receiptItem->owned_item_code, 'acquisition_lot_code' => $receiptItem->acquisition_lot_code,
                     'received_value' => $receiptItem->received_value, 'tracking_mode' => $purchaseOrderItem?->tracking_mode];
             })->all()];
@@ -568,7 +568,7 @@ class PurchasingService extends BaseTenantService
                 $receiptItem = $returnItem->relationLoaded('receiptLine') ? $returnItem->receiptLine : $returnItem->receiptLine()->first();
                 return ['code' => $returnItem->code, 'purchase_receipt_item_code' => $receiptItem?->code,
                     'quantity' => $returnItem->returned_quantity, 'supplier_credit_amount' => $returnItem->supplier_credit_amount, 'supplier_credit_code' => $returnItem->supplier_credit_code,
-                    'supplier_payable_adjusted_amount' => $returnItem->supplier_payable_adjusted_amount, 'inventory_unit_codes' => $returnItem->inventory_unit_codes ?? [],
+                    'supplier_payable_adjusted_amount' => $returnItem->supplier_payable_adjusted_amount, 'serialized_item_codes' => $returnItem->serialized_item_codes ?? [],
                     'cash_refund_amount' => $returnItem->cash_refund_amount];
             })->all()];
     }

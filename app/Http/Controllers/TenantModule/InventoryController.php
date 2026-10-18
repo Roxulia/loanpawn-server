@@ -20,9 +20,9 @@ class InventoryController extends Controller
         return $this->successResponse($this->inventoryService->locations());
     }
 
-    public function units(): JsonResponse
+    public function measurementUnits(): JsonResponse
     {
-        return $this->successResponse($this->inventoryService->units());
+        return $this->successResponse($this->inventoryService->measurementUnits());
     }
 
     public function storeLocation(Request $request): JsonResponse
@@ -82,44 +82,44 @@ class InventoryController extends Controller
             'unit_code' => ['nullable', 'string', 'max:40'],
             'location_code' => ['required', 'string', 'max:40'],
             'quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-            'unit_identifiers' => ['nullable', 'array'],
-            'unit_identifiers.*' => ['nullable', 'string', 'max:120', 'distinct'],
+            'serialized_item_identifiers' => ['nullable', 'array'],
+            'serialized_item_identifiers.*' => ['nullable', 'string', 'max:120', 'distinct'],
             'reason' => ['nullable', 'string', 'max:255'],
             'source_type' => ['nullable', 'string', 'max:120'],
             'source_code' => ['nullable', 'string', 'max:120'],
         ], fn (array $data, ?string $key): array => $this->inventoryService->receive($data, $key), 201);
     }
 
-    public function move(Request $request): JsonResponse
+    public function moveStock(Request $request): JsonResponse
     {
         $rules = $this->movementRules();
         $rules['from_location_code'] = ['required', 'string', 'max:40'];
         $rules['to_location_code'] = ['required', 'string', 'max:40'];
         unset($rules['location_code']);
         return $this->mutate($request, $rules,
-            fn (array $data, ?string $key): array => $this->inventoryService->move($data, $key));
+            fn (array $data, ?string $key): array => $this->inventoryService->moveStock($data, $key));
     }
 
-    public function issue(Request $request): JsonResponse
+    public function issueStock(Request $request): JsonResponse
     {
         $rules = $this->movementRules();
         $rules['location_code'] = ['required', 'string', 'max:40'];
         unset($rules['from_location_code'], $rules['to_location_code']);
         return $this->mutate($request, $rules,
-            fn (array $data, ?string $key): array => $this->inventoryService->issue($data, $key));
+            fn (array $data, ?string $key): array => $this->inventoryService->issueStock($data, $key));
     }
 
-    public function adjust(Request $request): JsonResponse
+    public function adjustStock(Request $request): JsonResponse
     {
         $rules = $this->movementRules();
         $rules['location_code'] = ['required', 'string', 'max:40'];
         unset($rules['from_location_code'], $rules['to_location_code']);
         $rules['direction'] = ['required', Rule::in(['IN', 'OUT'])];
         $rules['reason'] = ['required', 'string', 'max:255'];
-        $rules['unit_identifiers'] = ['nullable', 'array'];
-        $rules['unit_identifiers.*'] = ['nullable', 'string', 'max:120', 'distinct'];
+        $rules['serialized_item_identifiers'] = ['nullable', 'array'];
+        $rules['serialized_item_identifiers.*'] = ['nullable', 'string', 'max:120', 'distinct'];
         return $this->mutate($request, $rules,
-            fn (array $data, ?string $key): array => $this->inventoryService->adjust($data, $key));
+            fn (array $data, ?string $key): array => $this->inventoryService->adjustStock($data, $key));
     }
 
     private function mutate(Request $request, array $rules, callable $operation, int $statusCode = 200): JsonResponse
@@ -148,8 +148,8 @@ class InventoryController extends Controller
             'reason' => ['nullable', 'string', 'max:255'],
             'source_type' => ['nullable', 'string', 'max:120'],
             'source_code' => ['nullable', 'string', 'max:120'],
-            'inventory_unit_codes' => ['nullable', 'array'],
-            'inventory_unit_codes.*' => ['string', 'max:40', 'distinct'],
+            'serialized_item_codes' => ['nullable', 'array'],
+            'serialized_item_codes.*' => ['string', 'max:40', 'distinct'],
         ];
         return $rules;
     }

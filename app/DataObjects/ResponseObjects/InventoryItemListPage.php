@@ -3,7 +3,7 @@
 namespace App\DataObjects\ResponseObjects;
 
 /**
- * Paginated item summaries without serialized-unit collections.
+ * Paginated item summaries without serialized-item collections.
  *
  * @extends InventoryReadPage<InventoryItemSummary>
  */

@@ -74,18 +74,18 @@ class SaleReturnService extends BaseTenantService
                     if (($disposition === 'RESTOCK' && !$location->is_sellable) || ($disposition === 'QUARANTINE' && $location->is_sellable)) {
                         throw ValidationException::withMessages(['items' => ['Return location sellability must match the selected disposition.']]);
                     }
-                    $unitCodes = $this->returnUnitCodes($allocation, $quantity, $itemData['inventory_unit_codes'] ?? [], $tenantId);
+                    $unitCodes = $this->returnUnitCodes($allocation, $quantity, $itemData['serialized_item_codes'] ?? [], $tenantId);
                     $line = $this->repository->createReturnLine($tenantId, [
                         'code' => $this->codeGenerator->generateForTenant($tenantId, 'sales_return_lines', CarbonImmutable::now()),
                         'sales_return_id' => $return->id, 'sales_delivery_allocation_id' => $allocation->id,
                         'inventory_location_id' => $location->id, 'quantity' => $quantity, 'cash_refund_amount' => 0,
                         'receivable_credit_amount' => 0, 'disposition' => $disposition,
-                        'inventory_unit_codes' => $unitCodes === [] ? null : json_encode($unitCodes),
+                        'serialized_item_codes' => $unitCodes === [] ? null : json_encode($unitCodes),
                     ]);
                     $movement = $this->inventoryService->receiveSaleReturn([
                         'inventory_item_code' => $allocation->line->inventoryItem->code,
                         'location_code' => $location->code, 'quantity' => $quantity,
-                        'inventory_unit_codes' => $unitCodes, 'source_code' => $line->code,
+                        'serialized_item_codes' => $unitCodes, 'source_code' => $line->code,
                     ], 'sale-return-inventory-'.$line->code);
                     $this->ownershipService->restoreForSaleReturn(
                         $allocation->line->ownedItem->code, $allocation->lot->code, $quantity, $line->code,
@@ -136,12 +136,12 @@ class SaleReturnService extends BaseTenantService
             return [];
         }
         if (abs($quantity - round($quantity)) > 0.001) throw ValidationException::withMessages(['quantity' => ['Serialized return quantities must be whole numbers.']]);
-        $issuedCodes = $allocation->inventory_unit_codes ?? [];
+        $issuedCodes = $allocation->serialized_item_codes ?? [];
         $returnedCodes = $this->repository->returnedUnitCodesForAllocation($tenantId, (int) $allocation->id);
         $available = array_values(array_diff($issuedCodes, $returnedCodes));
         $selected = $requested === [] ? array_slice($available, 0, (int) $quantity) : $requested;
         if (count($selected) !== (int) $quantity || array_diff($selected, $available) !== []) {
-            throw ValidationException::withMessages(['inventory_unit_codes' => ['Select unreturned serialized units from this delivery allocation.']]);
+            throw ValidationException::withMessages(['serialized_item_codes' => ['Select unreturned serialized units from this delivery allocation.']]);
         }
         return $selected;
     }

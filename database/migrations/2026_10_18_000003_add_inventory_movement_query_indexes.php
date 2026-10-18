@@ -8,13 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Support latest serialized-unit custody and item/location balance queries.
+        // Support latest serialized-item custody and item/location balance queries.
         Schema::table('inventory_movements', function (Blueprint $table): void {
             $table->index([
                 'tenant_id',
-                'inventory_unit_id',
+                'inventory_serialized_item_id',
                 'id'
-                ], 'inv_mov_unit_latest_idx');
+                ], 'inv_mov_serialized_item_latest_idx');
             $table->index([
                 'tenant_id',
                 'inventory_item_id',
@@ -32,7 +32,7 @@ return new class extends Migration
     {
         // Remove only this migration's indexes, retaining existing indexes and constraints.
         Schema::table('inventory_movements', function (Blueprint $table): void {
-            $table->dropIndex('inv_mov_unit_latest_idx');
+            $table->dropIndex('inv_mov_serialized_item_latest_idx');
             $table->dropIndex('inv_mov_item_to_loc_idx');
             $table->dropIndex('inv_mov_item_from_loc_idx');
         });
