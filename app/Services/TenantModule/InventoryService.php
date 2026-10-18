@@ -60,7 +60,8 @@ class InventoryService extends BaseTenantService
         // Resolve and lock the location by its public tenant-scoped business code.
         $tenantId = $this->resolveCurrentTenantId();
         return DB::transaction(function () use ($tenantId, $locationCode, $data): array {
-            $location = $this->repository->findLocationByCode($tenantId, $locationCode, true);
+            // Resolve the location within TenantContext and retain the exclusive edit lock.
+            $location = $this->repository->findLocationByCode($locationCode, true);
             abort_if($location === null, 404);
             if (isset($data['name'])) {
                 $data['name'] = trim($data['name']);
@@ -87,7 +88,8 @@ class InventoryService extends BaseTenantService
     {
         // Resolve a public business code to an internal model before constructing the response.
         $tenantId = $this->resolveCurrentTenantId();
-        $item = $this->repository->findItemByCode($tenantId, $itemCode);
+        // The repository applies TenantContext through the model scope.
+        $item = $this->repository->findItemByCode($itemCode);
         abort_if($item === null, 404);
         return $this->itemResource($tenantId, $item);
     }
@@ -95,7 +97,7 @@ class InventoryService extends BaseTenantService
     public function findForOwnershipByCode(string $itemCode): InventoryItem
     {
         // Resolve a public business code before Ownership uses the internal model ID.
-        $item = $this->repository->findItemByCode($this->resolveCurrentTenantId(), $itemCode, true);
+        $item = $this->repository->findItemByCode($itemCode, true);
         abort_if($item === null, 404);
         return $item;
     }
@@ -104,7 +106,8 @@ class InventoryService extends BaseTenantService
     {
         // Resolve the public Inventory item code before reading movement history.
         $tenantId = $this->resolveCurrentTenantId();
-        $item = $this->repository->findItemByCode($tenantId, $itemCode);
+        // The repository applies TenantContext through the model scope.
+        $item = $this->repository->findItemByCode($itemCode);
         abort_if($item === null, 404);
         return $this->repository->movements($tenantId, (int) $item->id)->map(
             fn ($movement): array => [
@@ -163,7 +166,8 @@ class InventoryService extends BaseTenantService
     // Resolve a tenant location internally so return lines can retain the required location foreign key.
     public function locationForSaleReturn(string $locationCode): InventoryLocation
     {
-        $location = $this->repository->findLocationByCode($this->resolveCurrentTenantId(), $locationCode);
+        // TenantContext determines the location's tenant through the model scope.
+        $location = $this->repository->findLocationByCode($locationCode);
         if ($location === null || !$location->is_active) throw ValidationException::withMessages(['location_code' => ['The selected Inventory location is unavailable.']]);
         return $location;
     }
@@ -223,7 +227,8 @@ class InventoryService extends BaseTenantService
         // Release custody reservations without appending a physical stock movement.
         $tenantId = $this->resolveCurrentTenantId();
         DB::transaction(function () use ($tenantId, $reservationCode, $quantity): void {
-            $reservation = $this->repository->reservationByCode($tenantId, $reservationCode, true);
+            // Resolve and lock the reservation within the current TenantContext.
+            $reservation = $this->repository->reservationByCode($reservationCode, true);
             if ($reservation === null || $reservation->status !== 'ACTIVE') {
                 return;
             }
@@ -289,7 +294,7 @@ class InventoryService extends BaseTenantService
                 $location = $this->activeLocationByCode($tenantId, (string) $data['location_code'], true, false);
                 $quantity = $this->validateQuantityForMode($item, $data['quantity']);
                 $reservation = isset($data['reservation_code'])
-                    ? $this->repository->reservationByCode($tenantId, (string) $data['reservation_code'], true)
+                    ? $this->repository->reservationByCode((string) $data['reservation_code'], true)
                     : null;
                 if ($reservation !== null && ($reservation->inventory_item_id !== $item->id
                     || $reservation->inventory_location_id !== $location->id
@@ -548,7 +553,8 @@ class InventoryService extends BaseTenantService
                 throw ValidationException::withMessages(['inventory_unit_codes' => ['One or more serialized units are unavailable.']]);
             }
             $reservedCodes = $this->repository->activeReservedUnitCodes($tenantId, $item->id, $locationId);
-            $ownReservationCodes = $reservationCode === null ? [] : ($this->repository->reservationByCode($tenantId, $reservationCode)?->inventory_unit_codes ?? []);
+            // TenantContext scopes reservation membership to the current tenant.
+            $ownReservationCodes = $reservationCode === null ? [] : ($this->repository->reservationByCode($reservationCode)?->inventory_unit_codes ?? []);
             if (array_diff($unitIds, $ownReservationCodes) !== [] && $reservationCode !== null) {
                 throw ValidationException::withMessages(['inventory_unit_codes' => ['The selected units do not belong to this reservation.']]);
             }
@@ -567,7 +573,8 @@ class InventoryService extends BaseTenantService
         $available = (float) $this->repository->balance($tenantId, $item->id, $locationId)
             - $this->repository->reservedBalance($tenantId, $item->id, $locationId);
         if ($reservationCode !== null) {
-            $reservation = $this->repository->reservationByCode($tenantId, $reservationCode);
+            // TenantContext scopes the supplied reservation to the current tenant.
+            $reservation = $this->repository->reservationByCode($reservationCode);
             $available += (float) ($reservation?->remaining_quantity ?? 0);
         }
         if ($available + 0.001 < $quantity) {
@@ -584,7 +591,7 @@ class InventoryService extends BaseTenantService
     private function activeLocationByCode(int $tenantId, string $locationCode, bool $lock, bool $requireActive = true): InventoryLocation
     {
         // Resolve a tenant-owned location using its business code.
-        $location = $this->repository->findLocationByCode($tenantId, $locationCode, $lock);
+        $location = $this->repository->findLocationByCode($locationCode, $lock);
         if ($location === null || ($requireActive && ! $location->is_active)) {
             throw ValidationException::withMessages(['location_code' => ['The selected location is unavailable.']]);
         }
@@ -594,7 +601,7 @@ class InventoryService extends BaseTenantService
     private function lockedItemByCode(int $tenantId, string $itemCode): InventoryItem
     {
         // Resolve and lock the tenant-owned Inventory item using its public business code.
-        $item = $this->repository->findItemByCode($tenantId, $itemCode, true);
+        $item = $this->repository->findItemByCode($itemCode, true);
         if ($item === null) {
             abort(404);
         }

@@ -7,6 +7,8 @@ use App\Models\InventoryModule\InventoryLocation;
 use App\Models\InventoryModule\InventoryMovement;
 use App\Models\InventoryModule\InventoryUnit;
 use App\Models\InventoryModule\InventoryReservation;
+use App\Exceptions\TenantNotFound;
+use App\Support\TenantContext;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -17,10 +19,39 @@ class InventoryRepository
         return InventoryLocation::query()->where('tenant_id', $tenantId)->orderBy('name')->get();
     }
 
-    public function findLocationByCode(int $tenantId, string $code, bool $lock = false): ?InventoryLocation
+    /**
+     * Resolve a location by public business code within the current TenantContext.
+     * The model's BelongToTenant global scope applies the tenant restriction.
+     * Exclusive locking supports location edits; shared locking supports stock
+     * operations that must prevent concurrent location restriction changes.
+     * Exclusive locking takes precedence when both flags are enabled.
+     * Locks require a caller-owned transaction that stays open until work finishes.
+     * Return the complete model, including update_key, or null when not found.
+     */
+    public function findLocationByCode(
+        string $code,
+        bool $lock = false,
+        bool $sharedLock = false,
+    ): ?InventoryLocation
     {
-        $query = InventoryLocation::query()->where('tenant_id', $tenantId)->where('code', $code);
-        return $lock ? $query->lockForUpdate()->first() : $query->first();
+        // Require context before relying on the model's automatic tenant scope.
+        if (! app(TenantContext::class)->hasTenant()) {
+            throw new TenantNotFound(null);
+        }
+
+        // Let BelongToTenant scope this code lookup using the current TenantContext.
+        $query = InventoryLocation::query()
+            ->where('code', $code);
+
+        // Preserve exclusive locking for existing callers and add an optional shared lock.
+        if ($lock) {
+            $query->lockForUpdate();
+        } elseif ($sharedLock) {
+            $query->sharedLock();
+        }
+
+        // Keep missing-record handling and location eligibility decisions in the service.
+        return $query->first();
     }
 
     public function createLocation(int $tenantId, array $data): InventoryLocation
@@ -71,12 +102,31 @@ class InventoryRepository
             ->get();
     }
 
-    public function findItemByCode(int $tenantId, string $code, bool $lock = false): ?InventoryItem
+    /**
+     * Resolve an item by public business code within the current TenantContext.
+     * The model's BelongToTenant global scope applies the tenant restriction.
+     * The full model includes update_key for later service-level version checks.
+     * With locking enabled, the caller must own an active transaction and keep it
+     * open until its stock operation finishes; this method does not start one.
+     * Missing items return null so the service can choose the domain response.
+     */
+    public function findItemByCode(string $code, bool $lock = false): ?InventoryItem
     {
-        $query = InventoryItem::query()->where('tenant_id', $tenantId)->where('code', $code);
+        // Require context before relying on the model's automatic tenant scope.
+        if (! app(TenantContext::class)->hasTenant()) {
+            throw new TenantNotFound(null);
+        }
+
+        // Let BelongToTenant scope this code lookup using the current TenantContext.
+        $query = InventoryItem::query()
+            ->where('code', $code);
+
+        // Acquire the item anchor's exclusive lock within the caller's transaction.
         if ($lock) {
             $query->lockForUpdate();
         }
+
+        // Return the complete item, including its version, without loading related collections.
         return $query->first();
     }
 
@@ -174,10 +224,36 @@ class InventoryRepository
         return InventoryReservation::query()->create(['tenant_id' => $tenantId] + $data);
     }
 
-    public function reservationByCode(int $tenantId, string $code, bool $lock = false): ?InventoryReservation
+    /**
+     * Resolve a reservation by public code within the current TenantContext.
+     * An expected item ID optionally binds the lookup to a caller's resolved item.
+     * Code-only lookup supports release workflows that first resolve the reservation.
+     * Exclusive locking requires a caller-owned transaction; missing or mismatched
+     * records return null for the service to handle without applying status filters.
+     */
+    public function reservationByCode(
+        string $code,
+        bool $lock = false,
+        ?int $inventoryItemId = null,
+    ): ?InventoryReservation
     {
-        $query = InventoryReservation::query()->where('tenant_id', $tenantId)->where('code', $code);
-        return $lock ? $query->lockForUpdate()->first() : $query->first();
+        // Require context before relying on the model's automatic tenant scope.
+        if (! app(TenantContext::class)->hasTenant()) {
+            throw new TenantNotFound(null);
+        }
+
+        // Resolve the tenant-scoped code and optionally constrain its item binding.
+        $query = InventoryReservation::query()
+            ->where('code', $code)
+            ->when($inventoryItemId !== null, fn ($query) => $query->where('inventory_item_id', $inventoryItemId));
+
+        // Keep the reservation lock in the caller's transaction until its work completes.
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        // Leave status, location, source, and remaining-quantity validation to the service.
+        return $query->first();
     }
 
     public function updateReservation(InventoryReservation $reservation, array $data): InventoryReservation
