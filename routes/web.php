@@ -180,7 +180,8 @@ Route::name('platform.')->group(function () {
         Route::get('/settings', [LanguageController::class, 'edit'])->name('settings');
         Route::put('/change-password', [AuthController::class, 'changePassword'])->name('password.change');
         Route::put('/change-language', [LanguageController::class, 'change'])->name('language.change');
-        Route::prefix('tenants')->name('tenants.')->controller(TenantManagementController::class)->group(function () {
+        // Reject non-numeric tenant IDs before route middleware or controller execution.
+        Route::prefix('tenants')->name('tenants.')->whereNumber('tenant')->controller(TenantManagementController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/create', 'create')->name('create');
             Route::post('/', 'store')->name('store');
