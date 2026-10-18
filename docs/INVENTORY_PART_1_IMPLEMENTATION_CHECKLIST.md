@@ -65,7 +65,7 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 | INV-06 | Location contracts | Complete |
 | INV-07 | Stock command/result contracts | Complete |
 | INV-08 | Paginated read contracts | Complete |
-| INV-09 | Tenant/version-aware lookups | In progress — reservation lookup awaiting review |
+| INV-09 | Tenant/version-aware lookups | In progress — reservation lookup accepted |
 | INV-10 | Batched balance query | Not started |
 | INV-11 | Reservation quantity/unit queries | Not started |
 | INV-12 | Unit custody/identifier queries | Not started |
@@ -218,7 +218,7 @@ Implement each checkbox as its own review unit when needed.
 - [x] Obtain acceptance for location-by-code lookup (INV-09b).
 - [ ] Review reservation/unit lookups with explicit tenant/item binding.
     - [x] Add reservation lookup expected-item binding using TenantContext (INV-09c).
-    - [ ] Obtain acceptance for reservation lookup (INV-09c).
+    - [x] Obtain acceptance for reservation lookup (INV-09c).
     - [ ] Review serialized-unit lookup tenant/item binding (next review unit).
 - [ ] Add conditional version updates and affected-row conflict handling.
 - [ ] Preserve unique-constraint enforcement and translate known conflicts at the service boundary.
@@ -553,6 +553,8 @@ Add a row after each review unit. Keep the step status register and checkboxes c
 
 | 2026-10-18 | INV-09b and tenant scoping revision acceptance | — | Reviewed and accepted by user | No additional execution | INV-09c |
 | 2026-10-18 | INV-09c | `InventoryRepository::reservationByCode`, four `InventoryService` call sites | Implemented; user review pending | Static review of TenantContext scope, missing-context rejection, optional expected-item binding, nullable return, exclusive lock, and caller signatures. No tests or database access | Serialized-unit lookup after acceptance |
+
+| 2026-10-18 | INV-09c acceptance | — | Reviewed and accepted by user | No additional execution | Serialized-unit lookup |
 
 ## Part 1 completion
 
