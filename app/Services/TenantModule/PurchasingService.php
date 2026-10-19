@@ -354,7 +354,6 @@ class PurchasingService extends BaseTenantService
                     inventoryItemCode: $purchaseOrderItem->tracking_mode !== 'UNIQUE'
                         ? $purchaseOrderItem->inventoryItem?->code
                         : null,
-                    idempotencyKey: 'purchasing-receipt-'.$receiptItem->code,
                 );
                 $inventoryItemResource = $this->inventoryService->receive($inventoryRequest);
                 $inventoryItem = $this->inventoryService->findForOwnershipByCode($inventoryItemResource['inventory_item_code']);
@@ -443,7 +442,6 @@ class PurchasingService extends BaseTenantService
                     sourceType: 'PurchaseReturnLine',
                     sourceCode: $returnItem->code,
                     operationContext: InventoryIssueContext::PurchaseReturn,
-                    idempotencyKey: 'purchasing-return-'.$returnItem->code,
                 ));
                 // Reduce the precise receipt acquisition lot instead of a different lot for the same Catalog item.
                 $this->ownershipService->reduceForPurchaseReturn(
@@ -626,6 +624,7 @@ class PurchasingService extends BaseTenantService
 
     private function runIdempotent(string $operation, array $payload, callable $callback, int $responseCode = 200, ?string $key = null): array
     {
+        // This business boundary owns replay; nested Inventory calls use no separate key.
         $tenantId = $this->resolveCurrentTenantId();
         $record = $this->idempotencyService->reserveOptional($operation, $key, $payload);
         if ($record !== null && $this->idempotencyService->isReplay($record)) $this->idempotencyService->replay($record);

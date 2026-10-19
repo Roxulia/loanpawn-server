@@ -477,9 +477,12 @@ class InventoryService extends BaseTenantService
                 $request->reservationCode === null ? [] : [$request->reservationCode],
                 $request->serializedItemCodes,
             );
-            $quantity = $this->validateLockedStockAvailability($stock, $request);
+            // Reservation consumption owns the same availability checks; run them only once.
             $reservation = $request->reservationCode === null
                 ? null : $this->consumeLockedStockReservation($stock, $request);
+            $quantity = $reservation === null
+                ? $this->validateLockedStockAvailability($stock, $request)
+                : InventoryQuantity::parse($request->quantity, $stock->items->get($request->inventoryItemCode)->tracking_mode);
 
             // Append exact physical effects after reservation consumption in the same transaction.
             $context = new InventoryMovementContext(reason: $request->reason, sourceType: $request->sourceType, sourceCode: $request->sourceCode, idempotencyRecordId: $recordId);
@@ -571,7 +574,7 @@ class InventoryService extends BaseTenantService
 
     /**
      * Validate a typed command against its resolved tenant-owned item.
-     * Returns exact integer thousandths for future mutation orchestration.
+     * Returns exact integer thousandths; inbound orchestration validates and normalizes identifiers.
      */
     public function validateStockCommandQuantity(
         InventoryReceiveRequest|InventoryMoveRequest|InventoryIssueRequest|InventoryReservationRequest|InventoryAdjustmentRequest|InventorySaleReturnRequest $request,
@@ -595,10 +598,6 @@ class InventoryService extends BaseTenantService
         // Validate optional receipt references against the already resolved item as well.
         if ($request instanceof InventoryReceiveRequest) {
             $this->validateExistingReceiptReferences($request, $item);
-            $this->validateSerializedReceive($this->resolveCurrentTenantId(), $item, $request->quantity, $request->serializedItemIdentifiers);
-        }
-        if ($request instanceof InventoryAdjustmentRequest && $request->direction === 'IN') {
-            $this->validateSerializedReceive($this->resolveCurrentTenantId(), $item, $request->quantity, $request->serializedItemIdentifiers);
         }
 
         return $quantity;
@@ -1878,39 +1877,6 @@ class InventoryService extends BaseTenantService
         }
         if ($this->repository->locationNameExists($name, $exceptId)) {
             throw new DuplicateValueFound(__('inventory.location_name_in_use'));
-        }
-    }
-
-    private function runIdempotent(
-        string $operation,
-        InventoryStockCommand $request,
-        callable $callback,
-        int $responseCode = 200,
-    ): array
-    {
-        $tenantId = $this->resolveCurrentTenantId();
-        // Serialize only at the idempotency boundary; service logic uses typed request properties.
-        $payload = $request->toArray();
-        unset($payload['idempotency_key']);
-        $record = $this->idempotencyService->reserveOptional($operation, $request->idempotencyKey, $payload);
-        if ($record !== null && $this->idempotencyService->isReplay($record)) {
-            $this->idempotencyService->replay($record);
-        }
-
-        try {
-            $result = DB::transaction(function () use ($callback, $tenantId, $record, $responseCode): array {
-                $result = $callback($tenantId, $record?->id);
-                if ($record !== null) {
-                    $this->idempotencyService->markCompleted($record, $responseCode, ['data' => $result]);
-                }
-                return $result;
-            });
-            return $result;
-        } catch (Throwable $exception) {
-            if ($record !== null) {
-                $this->idempotencyService->markFailed($record);
-            }
-            throw $exception;
         }
     }
 

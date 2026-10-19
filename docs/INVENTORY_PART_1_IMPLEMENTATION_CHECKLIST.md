@@ -106,7 +106,7 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 | INV-27 | Frontend connections | Accepted / verification pending |
 | INV-28 | Existing caller adaptations | Accepted / verification pending; Sales/Purchasing integration deferred by user |
 | INV-29 | Acceptance verification | Latest batch done / accepted — 78 tests, 2,168 assertions passed; remaining/deferred scenarios tracked below |
-| INV-30 | Overall operation, locking, and validation reanalysis/refactor | Deferred until INV-01-29 and all caller wiring are complete |
+| INV-30 | Overall operation, locking, and validation reanalysis/refactor | Done; user accepted the nested validation/idempotency scope; documented INV-29 deferrals remain |
 
 ## Foundation steps
 
@@ -815,25 +815,57 @@ Concurrency verification requires independent MySQL connections and a separately
 
 **Depends on:** Completed INV-01 through INV-29, including all orchestration, endpoints, request/response contracts, and business-caller wiring. Perform this review after the complete implementation is available; do not interrupt the remaining development sequence to perform the broad refactor now.
 
+**Acceptance:** Done per user instruction on 2026-10-20, within the clarified nested validation/idempotency scope documented below. Checkboxes record acceptance of that scope; outstanding INV-29 verification is unchanged.
+
 **Purpose:** Reassess the extensive operations, locking, transaction handling, and validation checks across the finished Inventory implementation. Compare the actual integrated workflows with current PawnRedemptionService, PawnInterestProcessService, and their called services/repositories. Existing Pawn patterns are comparison references, not assumed proof of concurrency correctness.
 
-- [ ] Confirm all planned methods/functions are wired and remaining dependency-only or superseded paths are identified.
-- [ ] Trace each complete workflow and record its transaction owner, item/location/reservation/serialized locks, current reads, validation phases, version writes, idempotency, and audit ownership.
-- [ ] Compare these flows with existing Pawn workflows, identifying genuine domain differences and avoidable implementation complexity.
-- [ ] Identify repeated lookups/locks, excessive lock scope, duplicated validation, redundant version checks, unnecessary transaction nesting, and parallel old/new wrappers.
-- [ ] For each proposed removal or simplification, document the invariant protected, all affected writers, database isolation/current-read requirements, and caller impact.
-- [ ] Prepare small dependency-first refactor units with specific files/functions and expected behavior; preserve readable orchestration through named phase helpers.
-- [ ] Apply the reviewed refactors while preserving exact quantities, tenant isolation, stock/reservation/custody correctness, atomic audit/idempotency, and bounded outer retry ownership.
-- [ ] Update INV-29 verification scenarios for the final simplified flows and execute checks only when authorized. Keep unperformed runtime/concurrency/performance verification pending.
-- [ ] Record retained safeguards and their reasons, removed duplication, remaining risks, and user review acceptance.
+- [x] Confirm all planned methods/functions are wired and remaining dependency-only or superseded paths are identified.
+- [x] Trace each complete workflow and record its transaction owner, item/location/reservation/serialized locks, current reads, validation phases, version writes, idempotency, and audit ownership.
+- [x] Compare these flows with existing Pawn workflows, identifying genuine domain differences and avoidable implementation complexity.
+- [x] Identify repeated lookups/locks, excessive lock scope, duplicated validation, redundant version checks, unnecessary transaction nesting, and parallel old/new wrappers.
+- [x] For each proposed removal or simplification, document the invariant protected, all affected writers, database isolation/current-read requirements, and caller impact.
+- [x] Prepare small dependency-first refactor units with specific files/functions and expected behavior; preserve readable orchestration through named phase helpers.
+- [x] Apply the reviewed refactors while preserving exact quantities, tenant isolation, stock/reservation/custody correctness, atomic audit/idempotency, and bounded outer retry ownership.
+- [x] Update INV-29 verification scenarios for the final simplified flows and execute checks only when authorized. Keep unperformed runtime/concurrency/performance verification pending.
+- [x] Record retained safeguards and their reasons, removed duplication, remaining risks, and user review acceptance.
 
 No automatic global isolation changes, business-scope expansion, or unrelated Pawn refactoring is authorized by this checkpoint.
+
+### INV-30 focused pass — nested validation and idempotency (2026-10-20)
+
+The user explicitly requested this pass now and clarified its focus on nested validation and idempotency. This overrides the sequencing prerequisite, but does not mark outstanding INV-29 checks complete. Existing Sales/Purchasing integration-test deferral remains in effect.
+
+| Workflow | Transaction/replay owner | Authoritative checks and writes | Audit owner |
+| --- | --- | --- | --- |
+| Public receive/move/issue/adjustment | Inventory operation wrapper; optional public request key | Tenant-bound item anchors; ordered location/reservation/serialized locks; current stock/reservations/custody; exact quantities; movement/version writes in the same transaction | Inventory |
+| Sale reserve/release/fulfillment and purchase receipt/return | Parent business wrapper; Inventory participates in its transaction with no separate generated key | Parent prelocks complete existing item sets; each Inventory operation still obtains fresh state and checks its own tracking, location, source, availability, and custody before mutation | Parent business operation |
+| Sale return | SaleReturnService wrapper; no inner generated key | Locked return disposition and existing serialized identity; append receipt/version atomically with parent financial records; movement retains SaleReturnLine provenance | SaleReturnService |
+| Pawn collateral receipt | Pawn transaction when present; stable collateral receipt key retained | Tenant/model binding; receipt creates custody and links the item; independently repeated reconciliation/backfill uses the same collateral key | Pawn caller |
+| Monthly checkpoint | Monthly summary transaction; unique publication guards rather than stock request key | Same item anchor as movement writers; current tail and atomic checkpoint publication; no physical movement/version change | Summary workflow |
+
+Applied in dependency order:
+
+1. **Quantity helper versus inbound orchestration:** `validateStockCommandQuantity` now handles tenant/item binding, exact quantity, selection shape, and receipt metadata only. Identifier normalization/existence validation stays in receipt/inbound-adjustment orchestration, where its returned identifiers are consumed. This removes the duplicate inbound-adjustment batch lookup. The per-insert identifier check and unique constraint remain: batch validation and insertion protect different boundaries, including database collation and concurrent insert races.
+2. **Issue versus reservation consumption:** reserved `issueStock` delegates the full locked availability validation to `consumeLockedStockReservation`; unreserved issue still validates directly. The subsequent exact quantity conversion performs no database reads. The public consumption helper retains its own validation so callers cannot mutate reservations without the safeguard. Its repeated reservation binding check is retained rather than accepting a caller-supplied trusted reservation/result.
+3. **Parallel wrapper:** removed unused private Inventory `runIdempotent`. Active operations already use `runStockOperation`, whose key reservation, audit, mutations, and completion share a transaction. No caller used the removed wrapper.
+4. **Nested keys:** removed seven generated Inventory keys from SalesService, PurchasingService, and SaleReturnService. Their enclosing business wrappers already own transaction/replay and their receipt/return/allocation records. This does not make an unkeyed parent HTTP request idempotent: it retains the existing optional-key contract. Internal movements still carry business source type/code; their now-null inner idempotency-record link is intentional. No schema or existing history is changed. Inventory continues to honor explicitly supplied keys for independently repeatable callers; there is no global bypass based on `BusinessCaller`.
+
+Safeguards retained after tracing callers:
+
+- **Nested transactions/savepoints:** allow local rollback when a caller catches an error; they do not independently commit the outer business transaction. Only outermost Inventory calls retry deadlocks. A generic removal based solely on transaction depth would change failure semantics.
+- **Repeated locks after parent prelock:** the parent establishes complete ordering across lines; the operation establishes fresh current state. Do not cache snapshots or skip locking because an earlier call acquired an anchor. Movement insertion also retains its repository anchor so all writers coordinate with checkpoints.
+- **Validation across boundaries:** DTO shape checks, tenant binding on resolved models, location state after locks, source/reservation membership, optimistic versions, and conditional version writes protect different invariants. No isolation-level change, floating-point stock arithmetic, or validation bypass was introduced.
+- **Pawn comparison:** redemption owns its request key and locks/revalidates a slip before downstream accounting/collateral calls. Interest processing likewise rechecks state after obtaining the authoritative slip lock. Those pre/post-lock checks are useful, while Inventory additionally coordinates multiple item/location/custody identities. Pawn's reserve/complete placement differs from Inventory's atomic wrapper and is not copied or changed in this pass.
+- **Other superseded helpers:** legacy unpaginated read/resource helpers and unused quantity helpers remain candidates for a separate cleanup; they are outside this focused nesting pass. Public list/detail/history/serialized routes already use the typed paginated paths.
+
+Verification: the combined authorized suite passed **79 tests / 2,173 assertions**. The initial sandbox run could not create the photo fixture directory; rerunning with filesystem access passed. No migrations ran. The added MySQL inbound-adjustment case checks one batch identifier query, successful exact receipt, and duplicate rejection without quantity/version changes. Existing reserved serialized issue tests exercise the simplified consumption flow. All four changed services passed PHP syntax checks; `git diff --check` passed. Parent business modules receive syntax/static caller checks; full Sales/Purchasing integration remains unperformed by explicit scope, so their end-to-end retry behavior is not claimed verified. Broader INV-29 performance, deployment, browser, and remaining matrix checks stay pending. User reviewed and accepted INV-30 as done on 2026-10-20 for the clarified nested validation/idempotency scope. Legacy cleanup candidates and documented INV-29 deferrals remain outside this acceptance.
 
 ## Review log
 
 Add a row after each review unit. Keep the step status register and checkboxes consistent with the actual work.
 
 | Date | Step/substep | Files/functions changed | Review outcome | Verification performed or pending | Next dependency |
+| 2026-10-20 | INV-30 acceptance | Inventory/Sales/Purchasing/SaleReturn services, MySQL verification test, checklist | Done; reviewed and accepted by user for nested validation/idempotency scope | Previously passed 79 tests / 2,173 assertions; no tests rerun for status-only update | Documented INV-29 deferrals and legacy cleanup candidates remain |
 |---|---|---|---|---|---|
 | 2026-10-20 | INV-29 concurrency/monthly verification batch | InventoryConcurrencyTest, InventoryMonthlySummaryTest, committed fixture and worker support | Done; reviewed and accepted by user | Combined 78 tests / 2,168 assertions passed; fixture cleanup confirmed; deferred/unperformed checks remain listed in INV-29 | Remaining INV-29 scenarios before overall INV-30 completion |
 | — | — | — | — | — | INV-01 |
@@ -1145,7 +1177,7 @@ The command recovers missing checkpoints; it does not force-rewrite already publ
 ## Part 1 completion
 
 - [ ] All INV-01 through INV-29 applicable deliverables are implemented and reviewed.
-- [ ] INV-30 overall reanalysis and reviewed refactoring are complete after all implementation and wiring.
+- [x] INV-30 reanalysis and refactoring accepted as done for the clarified nested validation/idempotency scope; documented verification deferrals remain.
 - [ ] All required acceptance verification is completed; unverified claims are not marked passed.
 - [ ] Required caller integrations and public contract replacement are connected consistently.
 - [ ] Remaining findings are assigned to their later module parts.

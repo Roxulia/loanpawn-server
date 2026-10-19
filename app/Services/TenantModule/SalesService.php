@@ -174,7 +174,6 @@ class SalesService extends BaseTenantService
                                 reservationCode: $reservation->inventory_reservation_code,
                                 expectedSourceType: 'SaleOrderLine',
                                 expectedSourceCode: $line->code,
-                                idempotencyKey: 'sales-release-'.$reservation->code,
                             ));
                             $this->ownershipService->releaseSaleReservation(
                                 $line->ownedItem->code, $reservation->lot->code, $quantity, $line->code,
@@ -331,7 +330,6 @@ class SalesService extends BaseTenantService
                             sourceType: 'SaleDeliveryAllocation',
                             sourceCode: $allocation->code,
                             operationContext: InventoryIssueContext::Sale,
-                            idempotencyKey: 'quick-sale-'.$allocation->code,
                         ));
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'quick-sale-ownership-'.$allocation->code);
@@ -415,7 +413,6 @@ class SalesService extends BaseTenantService
                             sourceType: 'SaleDeliveryAllocation',
                             sourceCode: $allocation->code,
                             operationContext: InventoryIssueContext::Sale,
-                            idempotencyKey: 'sales-delivery-'.$allocation->code,
                         ));
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'sales-ownership-'.$allocation->code);
@@ -480,7 +477,6 @@ class SalesService extends BaseTenantService
                     serializedItemCodes: $unitCodes,
                     sourceCode: $line->code,
                     sourceType: 'SaleOrderLine',
-                    idempotencyKey: 'sales-reserve-'.$line->code.'-'.$lot['code'].'-'.$location->code,
                 ));
                 $selectedCodes = [...$selectedCodes, ...$unitCodes];
                 $decimalQuantity = InventoryQuantity::format($take);
@@ -602,6 +598,7 @@ class SalesService extends BaseTenantService
 
     private function runIdempotent(string $operation, array $payload, callable $callback, int $responseCode, ?string $key): array
     {
+        // This business boundary owns replay; nested Inventory calls use no separate key.
         // Keep retries safe around order, payment, and delivery records.
         $tenantId = $this->resolveCurrentTenantId();
         $record = $this->idempotencyService->reserveOptional($operation, $key, $payload);

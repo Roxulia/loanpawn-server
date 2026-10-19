@@ -53,6 +53,40 @@ class InventoryMySqlVerificationTest extends InventoryMySqlTestCase
         $this->assertSame('2.000', $balances[$destination['code']]->quantity);
     }
 
+    public function test_inbound_adjustment_checks_identifiers_once_and_duplicate_failure_preserves_stock(): void
+    {
+        // Provision a serialized item through the normal receipt orchestration.
+        [$service, $pawnItem] = $this->stock();
+        $location = $pawnItem->locations[0]->location->code;
+        $received = $service->receive(new InventoryReceiveRequest(locationCode: $location, quantity: '1',
+            name: 'Adjustment verification', trackingMode: 'SERIALIZED', unitCode: 'unit', serializedItemIdentifiers: ['adjust-original']));
+        $request = new \App\DataObjects\RequestObjects\InventoryAdjustmentRequest(
+            $received['inventory_item_code'], $location, '1', 'IN', 'Stock count correction', serializedItemIdentifiers: ['adjust-added']);
+
+        // Normalization must perform one batch availability lookup, rather than one per validation layer.
+        DB::connection()->enableQueryLog();
+        DB::connection()->flushQueryLog();
+        try {
+            $adjusted = $service->adjustStock($request);
+            $checks = array_filter(DB::connection()->getQueryLog(), static fn (array $query): bool =>
+                str_contains($query['query'], '`identifier` in') && in_array('adjust-added', $query['bindings'], true));
+            $this->assertCount(1, $checks);
+        } finally {
+            DB::connection()->disableQueryLog();
+        }
+        $this->assertSame('2.000', $service->itemDetail($received['inventory_item_code'])->totalQuantity);
+
+        // Removing the redundant validation must retain identifier uniqueness and rollback behavior.
+        try {
+            $service->adjustStock($request);
+            $this->fail('An existing identifier must still be rejected.');
+        } catch (\App\Exceptions\DuplicateValueFound) {
+            $detail = $service->itemDetail($received['inventory_item_code']);
+            $this->assertSame('2.000', $detail->totalQuantity);
+            $this->assertSame($adjusted['update_key'], $detail->updateKey);
+        }
+    }
+
     public function test_public_idempotency_replays_original_result_and_changed_payload_conflicts(): void
     {
         [$service, $item, $destination] = $this->stock();

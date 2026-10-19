@@ -95,7 +95,6 @@ class SaleReturnService extends BaseTenantService
                         quantity: $quantityText,
                         serializedItemCodes: $unitCodes,
                         sourceCode: $line->code,
-                        idempotencyKey: 'sale-return-inventory-'.$line->code,
                         expectedSellable: $disposition === 'RESTOCK',
                     ));
                     $this->ownershipService->restoreForSaleReturn(
@@ -212,6 +211,7 @@ class SaleReturnService extends BaseTenantService
 
     private function runIdempotent(string $operation, array $payload, callable $callback, int $status, ?string $key): array
     {
+        // This business boundary owns replay; nested Inventory calls use no separate key.
         $tenantId = $this->resolveCurrentTenantId();
         $record = $this->idempotencyService->reserveOptional($operation, $key, $payload);
         if ($record !== null && $this->idempotencyService->isReplay($record)) $this->idempotencyService->replay($record);
