@@ -431,52 +431,45 @@ class InventoryService extends BaseTenantService
 
     public function adjustStock(InventoryAdjustmentRequest $request): array
     {
-        return $this->runIdempotent('inventory.adjust', $request, function (int $tenantId, ?int $recordId) use ($request): array {
-            // Keep internal movement metadata separate from the typed request.
+        // Standalone adjustments own their audit and atomic idempotency completion.
+        $operation = new InventoryOperationContext(
+            operation: 'inventory.adjust',
+            owner: InventoryOperationOwner::PublicInventory,
+            auditAction: 'inventory.adjusted',
+            auditTargetType: InventoryItem::class,
+        );
+
+        return $this->runStockOperation($operation, $request, function (int $tenantId, ?int $recordId) use ($request): array {
+            // Reuse ordered locks and keep movement provenance internal.
+            $stock = $this->lockStockForOperation(
+                [$request->inventoryItemCode],
+                [$request->locationCode],
+                serializedItemCodes: $request->serializedItemCodes,
+            );
+            $item = $stock->items->get($request->inventoryItemCode);
+            $location = $stock->locations->get($request->locationCode);
             $context = new InventoryMovementContext(reason: $request->reason, sourceType: $request->sourceType, sourceCode: $request->sourceCode, idempotencyRecordId: $recordId);
-            return DB::transaction(function () use ($tenantId, $request, $context): array {
-                $item = $this->lockedItemByCode($tenantId, (string) $request->inventoryItemCode);
-                $location = $this->activeLocationByCode(
-                    $tenantId,
-                    (string) $request->locationCode,
-                    true,
-                    $request->direction === 'IN',
-                );
-                $quantity = $this->validateQuantityForMode($item, $request->quantity);
-                $type = $request->direction === 'IN' ? 'ADJUST_IN' : 'ADJUST_OUT';
-                if ($type === 'ADJUST_OUT') {
-                    $this->assertAvailable($tenantId, $item, $location->id, $quantity, $request->serializedItemCodes ?? []);
-                }
-                if ($type === 'ADJUST_IN' && $item->tracking_mode === 'UNIQUE'
-                    && array_sum($this->repository->balances($tenantId, $item->id)) > 0) {
-                    throw ValidationException::withMessages([
-                        'inventory_item_code' => ['A unique item can only have one unit in custody.'],
-                    ]);
-                }
 
-                if ($item->tracking_mode === 'SERIALIZED') {
-                    $identifiers = $request->serializedItemIdentifiers ?? [];
-                    if ($type === 'ADJUST_IN') {
-                        $identifiers = $this->validateSerializedReceive($tenantId, $item, $quantity, $identifiers);
-                        foreach ($identifiers as $identifier) {
-                            // Use the same pre-insert guard as normal receipt.
-                            $unit = $this->createSerializedItemForReceipt($tenantId, $item, $identifier);
-                            $this->appendMovement($tenantId, $item, null, $location->id, 1, $type, $context, $unit->id);
-                        }
-                    } else {
-                    foreach ($this->lockedSerializedItemsByCodes($tenantId, $item, $request->serializedItemCodes ?? []) as $unit) {
-                            $this->appendMovement($tenantId, $item, $location->id, null, 1, $type, $context, $unit->id);
-                        }
-                    }
-                } else {
-                    $this->appendMovement($tenantId, $item, $type === 'ADJUST_OUT' ? $location->id : null,
-                        $type === 'ADJUST_IN' ? $location->id : null, $quantity, $type, $context);
-                }
+            // Outbound adjustment requires exact unreserved availability and current custody.
+            if ($request->direction === 'OUT') {
+                $quantity = $this->validateLockedStockAvailability($stock, $request);
+                return $this->appendIssueMovements($tenantId, $stock, $request, $quantity, $context, null, 'ADJUST_OUT')->toArray();
+            }
 
-                return $this->itemResource($tenantId, $item);
-            });
+            // Inbound adjustment reuses tracking/identifier checks and current UNIQUE custody.
+            if ($request->direction !== 'IN' || ! $location->is_active || $request->serializedItemCodes !== []) {
+                throw new InvalidTenantRequest(__('inventory.lock_selection_invalid'));
+            }
+            $quantity = $this->validateStockCommandQuantity($request, $item);
+            $identifiers = $this->validateSerializedReceive($tenantId, $item, $request->quantity, $request->serializedItemIdentifiers);
+            if ($item->tracking_mode === 'UNIQUE') {
+                $this->assertUniqueItemHasNoCustody($item);
+            }
+
+            return $this->appendReceiptMovements($tenantId, $item, $location, $quantity, $identifiers, $context, 'ADJUST_IN')->toArray();
         });
     }
+
 
     public function ensureMainShopForTenant(int $tenantId): void
     {
@@ -795,10 +788,11 @@ class InventoryService extends BaseTenantService
         int $quantity,
         array $identifiers,
         InventoryMovementContext $context,
+        string $movementType = 'RECEIVE',
     ): InventoryMutationResult {
         // Existing quantity/UNIQUE receipts append one exact movement.
         if ($item->tracking_mode !== 'SERIALIZED') {
-            $movement = $this->appendMovement($tenantId, $item, null, (int) $location->id, InventoryQuantity::format($quantity), 'RECEIVE', $context);
+            $movement = $this->appendMovement($tenantId, $item, null, (int) $location->id, InventoryQuantity::format($quantity), $movementType, $context);
 
             return $this->buildStockMutationResult($item, $quantity, collect([$movement]));
         }
@@ -808,7 +802,7 @@ class InventoryService extends BaseTenantService
         $codes = [];
         foreach ($identifiers as $identifier) {
             $serializedItem = $this->createSerializedItemForReceipt($tenantId, $item, $identifier);
-            $movements->push($this->appendMovement($tenantId, $item, null, (int) $location->id, '1.000', 'RECEIVE', $context, (int) $serializedItem->id));
+            $movements->push($this->appendMovement($tenantId, $item, null, (int) $location->id, '1.000', $movementType, $context, (int) $serializedItem->id));
             $codes[] = $serializedItem->code;
         }
 
@@ -882,10 +876,11 @@ class InventoryService extends BaseTenantService
     private function appendIssueMovements(
         int $tenantId,
         InventoryLockedStock $stock,
-        InventoryIssueRequest $request,
+        InventoryIssueRequest|InventoryAdjustmentRequest $request,
         int $quantity,
         InventoryMovementContext $context,
         ?InventoryReservation $reservation,
+        string $movementType = 'ISSUE',
     ): InventoryMutationResult {
         // Reuse validated locked models; appendMovement advances the item version.
         $item = $stock->items->get($request->inventoryItemCode);
@@ -894,10 +889,10 @@ class InventoryService extends BaseTenantService
         if ($item->tracking_mode === 'SERIALIZED') {
             foreach ($request->serializedItemCodes as $code) {
                 $serializedItem = $stock->serializedItems->get($code);
-                $movements->push($this->appendMovement($tenantId, $item, (int) $location->id, null, '1.000', 'ISSUE', $context, (int) $serializedItem->id));
+                $movements->push($this->appendMovement($tenantId, $item, (int) $location->id, null, '1.000', $movementType, $context, (int) $serializedItem->id));
             }
         } else {
-            $movements->push($this->appendMovement($tenantId, $item, (int) $location->id, null, InventoryQuantity::format($quantity), 'ISSUE', $context));
+            $movements->push($this->appendMovement($tenantId, $item, (int) $location->id, null, InventoryQuantity::format($quantity), $movementType, $context));
         }
 
         return $this->buildStockMutationResult($item, $quantity, $movements, $request->serializedItemCodes, $reservation);

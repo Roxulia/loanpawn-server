@@ -101,6 +101,7 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 | INV-23 | Internal receipt orchestration | Accepted / verification pending |
 | INV-24 | Reservation create/release orchestration | Accepted / verification pending |
 | INV-25 | Internal issue orchestration | Accepted / verification pending |
+| INV-ADJ-01 | Adjustment orchestration using shared stock helpers | Implemented / awaiting review |
 | INV-26 | Endpoints and gates | In progress — request DTO validation wired |
 | INV-27 | Frontend connections | In progress — move version field wired |
 | INV-28 | Existing caller adaptations | In progress — Inventory request DTOs wired |
@@ -627,6 +628,19 @@ Implement each checkbox as its own review unit when needed.
 
 **INV-25 implementation (2026-10-19):** Activated the existing ordered stock locks, exact availability/custody validation, reservation consumption, versioned mutation result, and atomic operation wrapper in `issueStock`. Supported Sale/PurchaseReturn provenance is checked; deferred Pawn redemption remains unavailable. Both Sales issue callers now provide the original `SaleOrderLine` reservation source. Business callers retain accounting/account/primary-audit ownership; standalone Manual issue owns its Inventory audit. The frontend issue response type is coordinated with the mutation result. PHP syntax and diff whitespace checks passed; runtime/concurrency verification, tests, and migrations were not executed.
 
+### INV-ADJ-01 — Adjustment orchestration amendment
+
+Requested after INV-25 acceptance to close the previously recorded adjustment orchestration gap.
+
+- [x] Use the shared atomic stock-operation wrapper for transaction, audit, idempotency, and bounded outer retry handling.
+- [x] Reuse ordered stock locks and exact outbound availability/reservation/custody checks.
+- [x] Reuse inbound tracking/identifier validation and current checkpoint-backed UNIQUE custody checks.
+- [x] Reuse receipt/issue append helpers with explicit `ADJUST_IN` / `ADJUST_OUT` movement types and versioned affected-record results.
+- [x] Coordinate the frontend adjustment response type with `InventoryMutationResult`.
+- [x] PHP syntax, frontend TypeScript, and diff whitespace checks; no tests, migrations, or database execution.
+- [ ] Obtain review acceptance.
+- [ ] Runtime/concurrency verification in INV-29 when authorized.
+
 ## Public integration steps
 
 ### INV-26 — Controller endpoints and feature gates
@@ -854,7 +868,7 @@ INV-21 now uses these filters in typed paginated read services. Controller activ
 
 InventoryLocationDetail is activated for location creation/update. INV-21 constructs InventoryItemSummary, InventoryItemDetail, InventoryLocationBalance, InventorySerializedItemDetail, InventoryMovementDetail, and Inventory page DTOs in the new read services; their HTTP activation remains INV-26.
 
-INV-22-25 activate InventoryMutationResult for move, receipt, reservation creation, typed release, and issue. Purchasing, Sales reservation consumers, Pawn custody, and frontend receipt/move/issue typings are adapted narrowly. Existing item/history array readers and adjustment/sale-return response consumers remain for coordinated INV-26-28 migration.
+INV-22-25 and INV-ADJ-01 activate InventoryMutationResult for move, receipt, reservation creation, typed release, issue, and adjustment. Purchasing, Sales reservation consumers, Pawn custody, and frontend receipt/move/issue/adjustment typings are adapted narrowly. Existing item/history array readers and sale-return response consumers remain for coordinated INV-26-28 migration.
 
 ### Review and verification
 
