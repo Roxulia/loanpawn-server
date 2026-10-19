@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Services\TenantModule;
+use App\Support\InventoryQuantity;
 use App\DataObjects\RequestObjects\InventoryIssueRequest;
 use App\Enums\InventoryIssueContext;
 use App\DataObjects\RequestObjects\InventoryReservationReleaseRequest;
@@ -155,11 +156,14 @@ class SalesService extends BaseTenantService
                     throw ValidationException::withMessages(['sale_code' => [__('sales.order_not_found')]]);
                 }
                 if ($action === 'confirm' && $order->status === 'DRAFT') {
+                    // Acquire every item before per-line location, reservation, or Ownership work.
+                    $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                     foreach ($order->lines as $line) {
                         $this->reserveLine($tenantId, $line);
                     }
                     $order->update(['status' => 'CONFIRMED']);
                 } elseif ($action === 'cancel' && $order->status === 'CONFIRMED' && $this->deliveredQuantity($order) <= 0.001) {
+                    $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                     foreach ($order->lines as $line) {
                         foreach ($this->repository->reservationsForLine($tenantId, (int) $line->id, true) as $reservation) {
                             $quantity = (float) $reservation->remaining_quantity;
@@ -289,6 +293,8 @@ class SalesService extends BaseTenantService
                 if ($order === null || $order->status !== 'CONFIRMED') {
                     throw ValidationException::withMessages(['sale_code' => [__('sales.invalid_order_transition')]]);
                 }
+                // Prelock all items before delivery allocations acquire stock/Ownership locks.
+                $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                 $saleDelivery = $this->repository->createDelivery($tenantId, [
                     'code' => $this->newCode($tenantId, 'sales_deliveries'), 'sales_order_id' => $order->id,
                     'delivered_at' => $data['delivered_at'], 'note' => 'Immediate counter sale', 'created_by' => $this->currentUserId(),
@@ -298,7 +304,7 @@ class SalesService extends BaseTenantService
                     $reservations = $this->repository->reservationsForLine($tenantId, (int) $line->id, true);
                     foreach ($reservations as $reservation) {
                         $take = (float) $reservation->remaining_quantity;
-                        if ($take <= 0.001) continue;
+                        if (InventoryQuantity::parseBalance((string) $reservation->remaining_quantity) === 0) continue;
                         $unitCodes = $line->tracking_mode === 'SERIALIZED' ? ($reservation->serialized_item_codes ?? []) : [];
                         $allocation = $this->repository->createDeliveryAllocation($tenantId, [
                             'code' => $this->newCode($tenantId, 'sales_delivery_allocations'),
@@ -361,23 +367,25 @@ class SalesService extends BaseTenantService
                 if ($order === null || $order->status !== 'CONFIRMED') {
                     throw ValidationException::withMessages(['sale_code' => [__('sales.invalid_order_transition')]]);
                 }
+                $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                 $delivery = $this->deliveryChargeService->deliveryById($tenantId, (int) $data['delivery_id']);
                 if ($delivery === null) throw ValidationException::withMessages(['delivery_id' => ['Delivery record not found.']]);
                 $deliveredValue = 0.0;
                 foreach ($data['items'] as $itemData) {
                     $line = $order->lines->firstWhere('code', $itemData['sales_order_line_code']);
                     if ($line === null) throw ValidationException::withMessages(['items' => [__('sales.line_not_found')]]);
-                    $quantity = (float) $itemData['quantity'];
-                    $this->validateQuantity($line->tracking_mode, $quantity);
+                    $quantityScaled = InventoryQuantity::parse($itemData['quantity'], $line->tracking_mode);
                     $reservations = $this->repository->reservationsForLine($tenantId, (int) $line->id, true);
-                    $reservedQuantity = (float) $reservations->sum('remaining_quantity');
-                    if ($quantity > $reservedQuantity + 0.001) {
+                    $reservedQuantity = $reservations->sum(fn ($reservation) => InventoryQuantity::parseBalance((string) $reservation->remaining_quantity));
+                    if ($quantityScaled > $reservedQuantity) {
                         throw ValidationException::withMessages(['items' => [__('sales.delivery_exceeds_reserved')]]);
                     }
-                    $left = $quantity;
+                    $left = $quantityScaled;
                     foreach ($reservations as $reservation) {
-                        if ($left <= 0.001) break;
-                        $take = min($left, (float) $reservation->remaining_quantity);
+                        if ($left === 0) break;
+                        $takeScaled = min($left, InventoryQuantity::parseBalance((string) $reservation->remaining_quantity));
+                        if ($takeScaled === 0) continue;
+                        $take = (float) InventoryQuantity::format($takeScaled);
                         $unitCodes = $line->tracking_mode === 'SERIALIZED'
                             ? array_slice($reservation->serialized_item_codes ?? [], 0, (int) $take)
                             : [];
@@ -411,14 +419,15 @@ class SalesService extends BaseTenantService
                         ));
                         $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'sales-ownership-'.$allocation->code);
-                        $remaining = max(0, (float) $reservation->remaining_quantity - $take);
+                        $remainingScaled = InventoryQuantity::parseBalance((string) $reservation->remaining_quantity) - $takeScaled;
+                        $remaining = InventoryQuantity::format($remainingScaled);
                         $remainingUnits = array_slice($reservation->serialized_item_codes ?? [], (int) $take);
                         $this->repository->updateReservation($reservation, [
-                            'remaining_quantity' => $remaining, 'status' => $remaining <= 0.001 ? 'CONSUMED' : 'ACTIVE',
+                            'remaining_quantity' => $remaining, 'status' => $remainingScaled === 0 ? 'CONSUMED' : 'ACTIVE',
                             'serialized_item_codes' => $remainingUnits,
                         ]);
                         $deliveredValue += round($take * (float) $line->unit_price, 2);
-                        $left -= $take;
+                        $left -= $takeScaled;
                     }
                 }
                 $order = $this->repository->orderByCode($tenantId, $code);
@@ -442,52 +451,55 @@ class SalesService extends BaseTenantService
     private function reserveLine(int $tenantId, SaleOrderLine $line): void
     {
         // Reserve FIFO ownership lots against actual physical locations before confirmation commits.
-        $item = $this->inventoryService->detailByCode($line->inventoryItem->code);
+        $locations = $this->inventoryService->saleLocationStock($line->inventoryItem->code);
         $lots = $this->ownershipService->fifoLots($line->ownedItem->code);
-        $remaining = (float) $line->ordered_quantity;
-        $locations = collect($item['locations'])->sortBy('location_code')->values();
-        $locationRemaining = $locations->mapWithKeys(fn (array $location): array => [
-            $location['location_code'] => (float) ($location['available_quantity'] ?? $location['quantity']),
-        ])->all();
+        $remaining = InventoryQuantity::parse($line->ordered_quantity, $line->tracking_mode);
+        // Use exact capacity and distinct identities across all FIFO lot allocations.
+        $locationRemaining = [];
+        $selectedCodes = [];
+        foreach ($locations as $stock) $locationRemaining[$stock->location->code] = $stock->availableThousandths;
         foreach ($lots as $lot) {
-            if ($remaining <= 0.001) break;
-            $lotRemaining = min($remaining, (float) $lot['available_quantity']);
-            foreach ($locations as $location) {
-                if ($lotRemaining <= 0.001) break;
-                $locationAvailable = (float) ($locationRemaining[$location['location_code']] ?? 0);
-                if ($locationAvailable <= 0.001) continue;
+            if ($remaining === 0) break;
+            $lotRemaining = min($remaining, InventoryQuantity::parseBalance((string) $lot['available_quantity']));
+            foreach ($locations as $stock) {
+                $location = $stock->location;
+                if ($lotRemaining === 0) break;
+                $locationAvailable = $locationRemaining[$location->code];
+                if ($locationAvailable === 0) continue;
                 $take = min($lotRemaining, $locationAvailable);
                 $unitCodes = [];
                 if ($line->tracking_mode === 'SERIALIZED') {
-                    $unitCodes = collect($item['serialized_items'])->where('location_code', $location['location_code'])->where('is_reserved', false)->pluck('code')->take((int) $take)->values()->all();
-                    $take = (float) count($unitCodes);
+                    $unitCodes = $this->inventoryService->saleSerializedItemCodes($line->inventoryItem->code, $location->code, intdiv($take, InventoryQuantity::SCALE), $selectedCodes);
+                    $take = count($unitCodes) * InventoryQuantity::SCALE;
                     if ($take <= 0) continue;
                 }
                 $inventoryReservation = $this->inventoryService->reserveForSale(new InventoryReservationRequest(
                     inventoryItemCode: $line->inventoryItem->code,
-                    locationCode: $location['location_code'],
-                    quantity: $take,
+                    locationCode: $location->code,
+                    quantity: InventoryQuantity::format($take),
                     serializedItemCodes: $unitCodes,
                     sourceCode: $line->code,
                     sourceType: 'SaleOrderLine',
-                    idempotencyKey: 'sales-reserve-'.$line->code.'-'.$lot['code'].'-'.$location['location_code'],
+                    idempotencyKey: 'sales-reserve-'.$line->code.'-'.$lot['code'].'-'.$location->code,
                 ));
-                $this->ownershipService->reserveSale($line->ownedItem->code, $lot['code'], $take, $line->code);
+                $selectedCodes = [...$selectedCodes, ...$unitCodes];
+                $decimalQuantity = InventoryQuantity::format($take);
+                $this->ownershipService->reserveSale($line->ownedItem->code, $lot['code'], (float) $decimalQuantity, $line->code);
                 $this->repository->createReservation($tenantId, (int) $line->id, [
                     'code' => $this->newCode($tenantId, 'sales_order_reservations'),
                     'acquisition_lot_id' => $lot['id'],
-                    'inventory_location_id' => $location['location_id'],
-                    'inventory_location_code' => $location['location_code'],
+                    'inventory_location_id' => $location->id,
+                    'inventory_location_code' => $location->code,
                     'inventory_reservation_code' => $inventoryReservation['reservation_code'],
-                    'quantity' => $take, 'remaining_quantity' => $take, 'serialized_item_codes' => $unitCodes,
+                    'quantity' => $decimalQuantity, 'remaining_quantity' => $decimalQuantity, 'serialized_item_codes' => $unitCodes,
                     'status' => 'ACTIVE',
                 ]);
                 $remaining -= $take;
                 $lotRemaining -= $take;
-                $locationRemaining[$location['location_code']] = $locationAvailable - $take;
+                $locationRemaining[$location->code] = $locationAvailable - $take;
             }
         }
-        if ($remaining > 0.001) {
+        if ($remaining > 0) {
             throw ValidationException::withMessages(['quantity' => [__('sales.insufficient_lots')]]);
         }
     }

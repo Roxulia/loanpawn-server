@@ -11,6 +11,9 @@ use App\DataObjects\RequestObjects\InventoryReceiveRequest;
 use App\DataObjects\RequestObjects\InventoryMoveRequest;
 use App\DataObjects\RequestObjects\InventoryIssueRequest;
 use App\DataObjects\RequestObjects\InventoryAdjustmentRequest;
+use App\DataObjects\RequestObjects\InventorySerializedItemFilter;
+use App\DataObjects\RequestObjects\InventoryPageFilter;
+use App\DataObjects\RequestObjects\InventoryListFilter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -65,21 +68,68 @@ class InventoryController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), ['search' => ['nullable', 'string', 'max:120']]);
+        // Validate bounded summary filters independently from item detail and physical identities.
+        $validator = Validator::make($request->query(), [
+            'search' => ['nullable', 'string', 'max:120'],
+            'page' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'tracking_mode' => ['nullable', Rule::in(['UNIQUE', 'SERIALIZED', 'QUANTITY'])],
+            'location_code' => ['nullable', 'string', 'max:40'],
+        ]);
         if ($validator->fails()) {
             return $this->validationErrorResponse($validator->errors());
         }
-        return $this->successResponse($this->inventoryService->items($validator->validated()['search'] ?? null));
+        // Return summaries without embedding every location and serialized identity.
+        return $this->successResponse($this->inventoryService->itemSummaryPage(
+            InventoryListFilter::fromValidated($validator->validated()),
+        )->toArray());
     }
 
     public function show(string $itemCode): JsonResponse
     {
-        return $this->successResponse($this->inventoryService->detailByCode($itemCode));
+        // Keep item detail bounded; serialized identities use their dedicated page endpoint.
+        return $this->successResponse($this->inventoryService->itemDetail($itemCode)->toArray());
     }
 
-    public function movements(string $itemCode): JsonResponse
+    public function movements(Request $request, string $itemCode): JsonResponse
     {
-        return $this->successResponse($this->inventoryService->movementsByCode($itemCode));
+        // Validate bounded history pagination before constructing the existing read filter.
+        $validator = Validator::make($request->query(), [
+            'page' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator->errors());
+        }
+
+        // Serialize the typed history page together with its pagination metadata.
+        return $this->successResponse($this->inventoryService->movementHistoryPage(
+            $itemCode,
+            InventoryPageFilter::fromValidated($validator->validated()),
+        )->toArray());
+    }
+
+    public function serializedItems(Request $request, string $itemCode): JsonResponse
+    {
+        // Validate bounded query filters before invoking the tenant-scoped read service.
+        $validator = Validator::make($request->query(), [
+            'page' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'location_code' => ['nullable', 'string', 'max:40'],
+            'available_only' => ['sometimes', 'boolean'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator->errors());
+        }
+
+        // Keep physical identities separate from Catalog measurement-unit options.
+        $page = $this->inventoryService->serializedItemsPage(
+            $itemCode,
+            InventorySerializedItemFilter::fromValidated($validator->validated()),
+        );
+
+        return $this->successResponse($page->toArray());
     }
 
     public function receive(Request $request): JsonResponse

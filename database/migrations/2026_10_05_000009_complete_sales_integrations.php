@@ -64,7 +64,8 @@ return new class extends Migration
             $table->foreignId('cogs_expense_transaction_id')->nullable()
                 ->constrained('tenant_accounting_transactions')->nullOnDelete();
             $table->foreignId('inventory_asset_transaction_id')->nullable()
-                ->constrained('tenant_accounting_transactions')->nullOnDelete();
+                // Keep this constraint below MySQL's 64-character identifier limit.
+                ->constrained('tenant_accounting_transactions', indexName: 'sale_alloc_inventory_asset_tx_fk')->nullOnDelete();
         });
 
         // Persist return disposition and the inventory/cost reversal that fulfils each return line.
@@ -100,7 +101,9 @@ return new class extends Migration
         Schema::table('sale_receivables', fn (Blueprint $table) => $table->dropConstrainedForeignId('delivery_id'));
         Schema::table('sales_delivery_allocations', function (Blueprint $table): void {
             $table->dropConstrainedForeignId('delivery_id');
-            $table->dropConstrainedForeignId('inventory_asset_transaction_id');
+            // Match the explicit name used when adding this foreign key.
+            $table->dropForeign('sale_alloc_inventory_asset_tx_fk');
+            $table->dropColumn('inventory_asset_transaction_id');
             $table->dropConstrainedForeignId('cogs_expense_transaction_id');
         });
         Schema::dropIfExists('delivery_order_charges');

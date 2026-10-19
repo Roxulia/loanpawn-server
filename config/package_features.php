@@ -97,6 +97,12 @@ return [
             'description' => 'Track item custody, locations, and stock movements.',
             'is_active' => true,
         ],
+        // Keep standalone stock mutations unavailable until their release is approved.
+        'inventory_manual_operations' => [
+            'name' => 'Inventory manual operations',
+            'description' => 'Receive, issue, and adjust stock outside business workflows.',
+            'is_active' => false,
+        ],
         'ownership_management' => [
             'name' => 'Ownership management',
             'description' => 'Track tenant owned items, acquisition lots, and ownership changes.',

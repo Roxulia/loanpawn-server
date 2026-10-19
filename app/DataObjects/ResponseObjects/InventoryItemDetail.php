@@ -30,6 +30,8 @@ final class InventoryItemDetail extends InventoryItemSummary
             reservedQuantity: $summary->reservedQuantity,
             availableQuantity: $summary->availableQuantity,
             updateKey: $summary->updateKey,
+            imageUrl: $summary->imageUrl,
+            imageUrlExpiresAt: $summary->imageUrlExpiresAt,
         );
 
         // Require typed location rows so serialization cannot leak raw models or arrays.

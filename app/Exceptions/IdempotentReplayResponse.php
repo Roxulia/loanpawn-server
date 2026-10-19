@@ -23,6 +23,12 @@ class IdempotentReplayResponse extends Exception
             ->header('Idempotent-Replay', 'true');
     }
 
+    public function responseData(): mixed
+    {
+        // Internal service callers need the completed result, not an HTTP short circuit.
+        return $this->standardizedBody()['data'];
+    }
+
     private function standardizedBody(): array
     {
         if (ApiResponse::isStandardPayload($this->responseBody)) {

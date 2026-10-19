@@ -18,6 +18,7 @@ final class InventorySaleReturnRequest extends InventoryStockCommand
         public string $sourceCode,
         array $serializedItemCodes = [],
         public ?string $idempotencyKey = null,
+        public ?bool $expectedSellable = null,
     ) {
         // Normalize the physical identities while preserving the caller's canonical return code.
         parent::__construct($quantity);

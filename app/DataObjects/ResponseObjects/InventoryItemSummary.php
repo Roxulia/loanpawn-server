@@ -24,6 +24,8 @@ class InventoryItemSummary extends BaseDataObject
         public string $reservedQuantity,
         public string $availableQuantity,
         public int $updateKey,
+        public ?string $imageUrl = null,
+        public ?string $imageUrlExpiresAt = null,
     ) {
         // Retain decimal strings and copied scalar values without database access.
     }

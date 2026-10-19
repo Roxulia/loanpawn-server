@@ -36,8 +36,14 @@ class OwnershipController extends Controller
     public function inventoryOptions(Request $request): JsonResponse
     {
         // Return tenant-scoped Inventory choices through the Ownership permission boundary.
-        $data = $request->validate(['search' => ['nullable', 'string', 'max:120']]);
-        return $this->successResponse($this->ownershipService->inventoryOptions($data['search'] ?? null));
+        $data = $request->validate([
+            'search' => ['nullable', 'string', 'max:120'],
+            'page' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+        return $this->successResponse($this->ownershipService->inventoryOptions(
+            \App\DataObjects\RequestObjects\InventoryListFilter::fromValidated($data),
+        )->toArray());
     }
 
     public function acquire(Request $request): JsonResponse

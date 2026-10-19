@@ -3,6 +3,8 @@
 namespace App\Services\TenantModule;
 
 use App\DataObjects\RequestObjects\OwnershipAcquisitionCreate;
+use App\DataObjects\RequestObjects\InventoryListFilter;
+use App\DataObjects\ResponseObjects\InventoryItemListPage;
 use App\Models\InventoryModule\InventoryItem;
 use App\Models\OwnershipModule\AcquisitionLot;
 use App\Models\OwnershipModule\OwnedItem;
@@ -123,10 +125,10 @@ class OwnershipService extends BaseTenantService
         ])->all();
     }
 
-    public function inventoryOptions(?string $search = null): array
+    public function inventoryOptions(InventoryListFilter $filter): InventoryItemListPage
     {
-        // Reuse Inventory's tenant-scoped item listing for Ownership acquisition selectors.
-        return $this->inventoryService->items($search);
+        // Reuse bounded summaries instead of loading every identity for an acquisition picker.
+        return $this->inventoryService->itemSummaryPage($filter);
     }
 
     public function manualAcquisition(OwnershipAcquisitionCreate $request, ?string $idempotencyKey): array
@@ -386,7 +388,8 @@ class OwnershipService extends BaseTenantService
                 'description' => $lot->description,
             ];
         })->all();
-        $inventory = $this->inventoryService->detailByCode($ownedItem->inventoryItem->code);
+        // Adapt typed Inventory detail while preserving Ownership's existing public response.
+        $inventory = $this->inventoryService->itemDetail($ownedItem->inventoryItem->code)->toArray();
         return [
             'id' => (int) $ownedItem->id,
             'code' => $ownedItem->code,
@@ -395,9 +398,14 @@ class OwnershipService extends BaseTenantService
             'name' => $inventory['name'],
             'description' => $inventory['description'],
             'tracking_mode' => $inventory['tracking_mode'],
-            'unit' => $inventory['unit'],
+            'unit' => $inventory['unit_name'],
             'inventory_total_quantity' => $inventory['total_quantity'],
-            'inventory_locations' => $inventory['locations'],
+            'inventory_locations' => array_map(static fn (array $row): array => [
+                'location_code' => $row['location']['code'], 'location' => $row['location']['name'],
+                'quantity' => $row['quantity'], 'reserved_quantity' => $row['reserved_quantity'],
+                'available_quantity' => $row['available_quantity'],
+                'is_active' => $row['location']['is_active'], 'is_sellable' => $row['location']['is_sellable'],
+            ], $inventory['locations']),
             'owned_quantity' => number_format($balances['owned'], 3, '.', ''),
             'pledged_quantity' => number_format($balances['pledged'], 3, '.', ''),
             'reserved_quantity' => number_format($balances['reserved'] ?? 0, 3, '.', ''),

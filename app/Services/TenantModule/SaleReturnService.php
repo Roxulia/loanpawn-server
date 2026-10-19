@@ -2,6 +2,7 @@
 
 namespace App\Services\TenantModule;
 use App\DataObjects\RequestObjects\InventorySaleReturnRequest;
+use App\Support\InventoryQuantity;
 
 use App\DataObjects\RequestObjects\TenantAccountingTransactionRecord;
 use App\Enums\AccountingCategory;
@@ -53,6 +54,8 @@ class SaleReturnService extends BaseTenantService
                 if (in_array($order->status, ['DRAFT', 'CANCELLED'], true)) {
                     throw ValidationException::withMessages(['sale_code' => ['Only delivered Sales orders can be returned.']]);
                 }
+                // Lock the order's complete item set before return allocation/location work.
+                $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                 $return = $this->repository->createReturn($tenantId, [
                     'code' => $this->codeGenerator->generateForTenant($tenantId, 'sales_returns', CarbonImmutable::now()),
                     'sales_order_id' => $order->id, 'returned_at' => $data['returned_at'], 'note' => $data['note'] ?? null,
@@ -65,9 +68,12 @@ class SaleReturnService extends BaseTenantService
                     if ($allocation === null || (int) $allocation->line->sales_order_id !== (int) $order->id) {
                         throw ValidationException::withMessages(['items' => ['The delivered allocation does not belong to this Sales order.']]);
                     }
-                    $quantity = (float) $itemData['quantity'];
+                    // Compare physical quantities exactly; financial calculations retain their existing units.
+                    $scaled = InventoryQuantity::parse($itemData['quantity'], $allocation->line->tracking_mode);
+                    $quantityText = InventoryQuantity::format($scaled);
+                    $quantity = (float) $quantityText;
                     $alreadyReturned = $this->repository->returnedForAllocation($tenantId, (int) $allocation->id);
-                    if ($quantity > (float) $allocation->quantity - $alreadyReturned + 0.001) {
+                    if ($scaled > InventoryQuantity::parseBalance((string) $allocation->quantity) - InventoryQuantity::parseBalance($alreadyReturned)) {
                         throw ValidationException::withMessages(['items' => ['Return quantity exceeds the unreturned delivered quantity.']]);
                     }
                     $location = $this->inventoryService->locationForSaleReturn($itemData['location_code']);
@@ -75,7 +81,7 @@ class SaleReturnService extends BaseTenantService
                     if (($disposition === 'RESTOCK' && !$location->is_sellable) || ($disposition === 'QUARANTINE' && $location->is_sellable)) {
                         throw ValidationException::withMessages(['items' => ['Return location sellability must match the selected disposition.']]);
                     }
-                    $unitCodes = $this->returnUnitCodes($allocation, $quantity, $itemData['serialized_item_codes'] ?? [], $tenantId);
+                    $unitCodes = $this->returnUnitCodes($allocation, $quantityText, $itemData['serialized_item_codes'] ?? [], $tenantId);
                     $line = $this->repository->createReturnLine($tenantId, [
                         'code' => $this->codeGenerator->generateForTenant($tenantId, 'sales_return_lines', CarbonImmutable::now()),
                         'sales_return_id' => $return->id, 'sales_delivery_allocation_id' => $allocation->id,
@@ -83,13 +89,14 @@ class SaleReturnService extends BaseTenantService
                         'receivable_credit_amount' => 0, 'disposition' => $disposition,
                         'serialized_item_codes' => $unitCodes === [] ? null : json_encode($unitCodes),
                     ]);
-                    $movement = $this->inventoryService->receiveSaleReturn(new InventorySaleReturnRequest(
+                    $this->inventoryService->receiveSaleReturn(new InventorySaleReturnRequest(
                         inventoryItemCode: $allocation->line->inventoryItem->code,
                         locationCode: $location->code,
-                        quantity: $quantity,
+                        quantity: $quantityText,
                         serializedItemCodes: $unitCodes,
                         sourceCode: $line->code,
                         idempotencyKey: 'sale-return-inventory-'.$line->code,
+                        expectedSellable: $disposition === 'RESTOCK',
                     ));
                     $this->ownershipService->restoreForSaleReturn(
                         $allocation->line->ownedItem->code, $allocation->lot->code, $quantity, $line->code,
@@ -104,7 +111,8 @@ class SaleReturnService extends BaseTenantService
                         $writeoffLedgerId = (int) $writeoff->id;
                     }
                     $this->repository->updateReturnLine($line, [
-                        'inventory_movement_id' => $movement['movement_id'],
+                        // Resolve internal persistence through source provenance, not a public ID field.
+                        'inventory_movement_id' => $this->inventoryService->movementForSource('SaleReturnLine', $line->code)->id,
                         'cogs_reversal_transaction_id' => $cogsLedger->id,
                         'inventory_asset_return_transaction_id' => $assetLedger->id,
                         'inventory_writeoff_transaction_id' => $writeoffLedgerId,
@@ -133,18 +141,20 @@ class SaleReturnService extends BaseTenantService
         return $order;
     }
 
-    private function returnUnitCodes($allocation, float $quantity, array $requested, int $tenantId): array
+    private function returnUnitCodes($allocation, string|int|float $quantity, array $requested, int $tenantId): array
     {
+        // Validate tracking before selecting from the delivery allocation's unreturned identities.
+        $scaled = InventoryQuantity::parse($quantity, $allocation->line->tracking_mode);
         if ($allocation->line->tracking_mode !== 'SERIALIZED') {
             if ($requested !== []) throw ValidationException::withMessages(['items' => ['Unit identifiers only apply to serialized items.']]);
             return [];
         }
-        if (abs($quantity - round($quantity)) > 0.001) throw ValidationException::withMessages(['quantity' => ['Serialized return quantities must be whole numbers.']]);
+        $count = intdiv($scaled, InventoryQuantity::SCALE);
         $issuedCodes = $allocation->serialized_item_codes ?? [];
         $returnedCodes = $this->repository->returnedUnitCodesForAllocation($tenantId, (int) $allocation->id);
         $available = array_values(array_diff($issuedCodes, $returnedCodes));
-        $selected = $requested === [] ? array_slice($available, 0, (int) $quantity) : $requested;
-        if (count($selected) !== (int) $quantity || array_diff($selected, $available) !== []) {
+        $selected = $requested === [] ? array_slice($available, 0, $count) : array_map(static fn ($code) => is_string($code) ? trim($code) : '', $requested);
+        if (count($selected) !== $count || count(array_unique($selected)) !== count($selected) || array_diff($selected, $available) !== []) {
             throw ValidationException::withMessages(['serialized_item_codes' => ['Select unreturned serialized units from this delivery allocation.']]);
         }
         return $selected;

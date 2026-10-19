@@ -102,10 +102,10 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 | INV-24 | Reservation create/release orchestration | Accepted / verification pending |
 | INV-25 | Internal issue orchestration | Accepted / verification pending |
 | INV-ADJ-01 | Adjustment orchestration using shared stock helpers | Implemented / awaiting review |
-| INV-26 | Endpoints and gates | In progress — request DTO validation wired |
-| INV-27 | Frontend connections | In progress — move version field wired |
-| INV-28 | Existing caller adaptations | In progress — Inventory request DTOs wired |
-| INV-29 | Acceptance verification | Not started |
+| INV-26 | Endpoints and gates | Implemented / runtime verification pending |
+| INV-27 | Frontend connections | Accepted / verification pending |
+| INV-28 | Existing caller adaptations | Accepted / verification pending; Sales/Purchasing integration deferred by user |
+| INV-29 | Acceptance verification | Latest batch done / accepted — 78 tests, 2,168 assertions passed; remaining/deferred scenarios tracked below |
 | INV-30 | Overall operation, locking, and validation reanalysis/refactor | Deferred until INV-01-29 and all caller wiring are complete |
 
 ## Foundation steps
@@ -649,14 +649,24 @@ Requested after INV-25 acceptance to close the previously recorded adjustment or
 
 **Files:** Individual `InventoryController` actions, `routes/api.php`, feature configuration/migration as separate review units.
 
-- [ ] Register inactive `inventory_manual_operations` consistently.
-- [ ] Wire paginated item/detail/history/unit contracts one endpoint at a time.
-- [ ] Keep `/inventory/measurement-units` as measurement-unit options; use an item-scoped route for serialized units.
-- [ ] Wire location create/update with version/idempotency rules.
-- [ ] Wire public move with item version/idempotency rules.
-- [ ] Gate standalone receive/issue/adjust without blocking internal business calls.
-- [ ] Replace old response contracts only with their consumers ready.
+- [x] Register inactive `inventory_manual_operations` consistently.
+- [x] Wire paginated item/detail/history/unit contracts one endpoint at a time.
+- [x] Keep `/inventory/measurement-units` as measurement-unit options; use an item-scoped route for serialized units.
+- [x] Wire location create/update with version/idempotency rules.
+- [x] Wire public move with item version/idempotency rules.
+- [x] Gate standalone receive/issue/adjust without blocking internal business calls.
+- [x] Replace old response contracts only with their consumers ready.
 - [ ] Review direct API restrictions and obtain acceptance per endpoint/unit.
+
+**INV-26 feature-gate unit (2026-10-19):** Registered inactive `inventory_manual_operations` in package feature configuration and an additive migration, with no package grants. Standalone receive/issue/adjust routes now require this feature in addition to their existing permissions and Inventory feature. Internal service callers and public moves retain their existing access rules. PHP syntax checks passed for configuration, routes, and migration; diff whitespace checks passed. No tests, migrations, database operations, or development server were run. Feature-gate review acceptance and runtime verification remain pending; paginated endpoint activation remains a separate review unit.
+
+**INV-26 feature-gate acceptance (2026-10-19):** User reviewed and accepted the feature-gate unit. Runtime verification remains pending.
+
+**INV-26 serialized-item endpoint unit (2026-10-19):** Added `GET /inventory/items/{itemCode}/serialized-items` under the existing Inventory feature and `list_inventory` permission. The controller validates query pagination (default 25, maximum 100), identifier search, location code, and `available_only` (`0`/`1` query values), then reuses `InventorySerializedItemFilter` and `serializedItemsPage`. The typed response contains `items`, `current_page`, `last_page`, `per_page`, and `total`. Measurement options and existing public response contracts are unchanged. Review acceptance and runtime verification remain pending; frontend selection integration remains INV-27.
+
+**INV-26 serialized-item endpoint acceptance (2026-10-19):** User reviewed and accepted this endpoint unit. Runtime verification remains pending.
+
+**INV-26/27 movement-history unit (2026-10-19):** Activated `movementHistoryPage` at the existing history endpoint with validated pagination (default 25, maximum 100). Updated the sole frontend consumer to typed page metadata and nested location details, reusing DataTable pagination. Item selection and mutation refresh reset history to page one; superseded requests cannot replace current history or errors. Existing feature/permission middleware remains in place. PHP syntax, TypeScript, and whitespace checks passed; no tests, migrations, or database execution. Review acceptance and runtime verification remain pending.
 
 ### INV-27 — Frontend connection
 
@@ -664,48 +674,131 @@ Requested after INV-25 acceptance to close the previously recorded adjustment or
 
 **Files:** `lonepawn-frontend/src/modules/inventory/types.ts`, `services/inventoryService.ts`, `pages/InventoryPage.tsx`; route/navigation/CSS/locales only as needed for each unit.
 
-- [ ] Update typed summary/detail/page/result contracts.
-- [ ] Connect paginated item list and detail-on-selection.
-- [ ] Connect movement history pagination.
-- [ ] Connect paginated unit selection and location filtering.
-- [ ] Connect location create/edit and empty-location deactivation feedback.
-- [ ] Connect moves using expected item version.
-- [ ] Preserve one idempotency key across retries of the same intent; rotate for changed/new intent.
-- [ ] Handle stale conflicts by refreshing detail instead of silently resubmitting.
-- [ ] Refresh selection/units after mutations; do not reuse stale list objects.
-- [ ] Hide deferred manual actions/routes and provide translated feedback.
-- [ ] Use separate responsive classes where needed without redesigning the page.
-- [ ] Obtain review acceptance for each individual read/action flow.
+- [x] Update typed summary/detail/page/result contracts.
+- [x] Connect paginated item list and detail-on-selection.
+- [x] Connect movement history pagination.
+- [x] Connect paginated unit selection and location filtering.
+- [x] Connect location create/edit and empty-location deactivation feedback.
+- [x] Connect moves using expected item version.
+- [x] Preserve one idempotency key across retries of the same intent; rotate for changed/new intent.
+- [x] Handle stale conflicts by refreshing detail instead of silently resubmitting.
+- [x] Refresh selection/units after mutations; do not reuse stale list objects.
+- [x] Hide deferred manual actions/routes and provide translated feedback.
+- [x] Use separate responsive classes where needed without redesigning the page.
+- [x] Obtain review acceptance for each individual read/action flow.
+
+**History acceptance and INV-27 batch authorization (2026-10-19):** User accepted the movement-history unit, then explicitly requested completion of all INV-27 implementation steps together. This supersedes the one-unit-per-turn limit for this frontend batch; it does not imply review acceptance or runtime verification.
+
+**INV-27 implementation (2026-10-19):** Activated bounded item-summary and detail endpoints with their frontend consumer. The register now supports paging, search, location and tracking filters; selection fetches current detail instead of reusing list objects. Serialized identities use the dedicated paginated endpoint with identifier/location/availability filters and distinct selections retained across pages, cleared on source/filter/action changes and mutation refresh. Location create/edit carries header idempotency and optimistic versions, exposes active/sellable controls, protects the default location, and shows backend stock/reservation rejection messages. Moves send exact decimal strings and the fresh item version. Reused shared payload-fingerprinted idempotency helpers, retaining keys after failures and clearing after successful/new intent; conflicts refresh displayed detail without resubmission. Standalone manual actions are feature gated in page/navigation/direct-route access. Added Myanmar feedback and separate mobile/desktop identity-filter classes. Existing Sales/Ownership internal array readers remain for INV-28; no unrelated workflow migration is claimed.
+
+**Verification:** PHP syntax, TypeScript build checks, and diff whitespace checks passed. Changed Inventory/routing/navigation files pass ESLint. Locale lint passes with its existing `react-refresh/only-export-components` violations excluded; that shared-file structure was not refactored. No tests, migrations, development server, or database operations were run. User acceptance and runtime scenarios remain pending.
 
 ### INV-28 — Existing caller adaptations
+
+**INV-27/photo acceptance and next-phase reanalysis (2026-10-19):** User completed review of the frontend/photo work and requested preparation/reanalysis for the next phase, then authorized INV-28/29 implementation and verification. INV-27 and photo display are accepted. The reanalysis is consolidated into the implementation units and verification record below; no broad INV-30 refactor has been started.
+
+**Inventory photo display amendment (2026-10-19):** User requested photos to distinguish similar items and a default image when none is available. Item summaries/details now expose nullable `image_url` and `image_url_expires_at`, reusing linked Pawn collateral photos through tenant-scoped read projections and the existing private-file utility (five-minute signed URLs). The latest non-deleted linked collateral with a stored image is selected; missing files return no photo. No storage paths are exposed and no photo is copied. List/mobile rows and selected detail show the photo, with a bundled default item illustration for missing or failed images; actual photos can be opened at full size. This display amendment adds no upload endpoint or schema change. PHP syntax, TypeScript, and targeted frontend lint checks passed; runtime image/tenant-isolation verification and user acceptance remain pending. No tests or migrations run.
 
 **Depends on:** Completed new Inventory contracts and operations.
 
 **Files:** Individual changes in Purchasing, Sales, and Ownership services.
 
-- [ ] Purchasing: use receipt-specific affected unit codes instead of the item's full unit collection.
-- [ ] Purchasing: prelock existing Inventory item sets deterministically.
-- [ ] Sales: use bounded availability reads and keep unit selections distinct across allocations.
-- [ ] Sales: use typed reservation/mutation results and ordered item prelocking.
-- [ ] Ownership: adapt options/detail/lookup consumption without changing its business rules.
-- [ ] Coordinate each changed return shape with its caller before activation; avoid duplicate wiring work.
-- [ ] Confirm Pawn receipt compatibility; leave redemption/acquisition changes for Part 6.
-- [ ] Obtain review acceptance for each caller adaptation.
+- [x] Purchasing: use receipt-specific affected unit codes instead of the item's full unit collection.
+- [x] Purchasing: prelock existing Inventory item sets deterministically.
+- [x] Sales: use bounded availability reads and keep unit selections distinct across allocations.
+- [x] Sales: use typed reservation/mutation results and ordered item prelocking.
+- [x] Ownership: adapt options/detail/lookup consumption without changing its business rules.
+- [x] Coordinate each changed return shape with its caller before activation; avoid duplicate wiring work.
+- [x] Confirm Pawn receipt compatibility; leave redemption/acquisition changes for Part 6.
+- [x] Obtain review acceptance for each caller adaptation.
+
+**INV-28 review acceptance (2026-10-20):** User accepted the implementation and initial verification batch and requested the next work. Caller adaptation review is accepted; deferred business integration and remaining INV-29 scenarios remain distinct from implementation acceptance.
+
+#### Consolidated INV-28 implementation plan and outcome
+
+| Unit | Reanalysis finding | Implementation and verification status |
+|---|---|---|
+| 28a — Ordered caller item locks | Per-line lock ordering did not establish a complete multi-item workflow order. | Added `InventoryService::prelockItems`, reusing the existing tenant-scoped ordered repository lookup and requiring a transaction. Purchasing receipts/returns and Sales confirm/cancel/delivery/return callers acquire complete existing item sets first. New receipt items remain created inside their caller transaction. Full cross-workflow concurrency remains pending. |
+| 28b — Purchasing results | Receipt-specific identity results were already consumed. | Preserved completed `inventory_item_code` / `serialized_item_codes` usage and PurchaseReturn provenance; added prelocking without changing financial ownership. Sales/Purchasing integration testing is deferred by user. |
+| 28c — Sales allocation | Full serialized snapshots could reuse identities across FIFO lots and used tolerance-based quantities. | Replaced full item resources with locked sale-eligible location stock, exact scaled allocation, and bounded current serialized pages. Chosen codes are excluded across allocations; subsequent lines read current reservations. Delivery allocation quantities and remaining membership are exact. No public database-ID fields were added. |
+| 28d — Internal references | Sales needs internal location IDs; return lines need an Inventory movement reference. | Added internal `InventorySaleLocationStock` and source-based movement resolution. Public result DTOs retain business codes. Missing return movement provenance now fails rather than persisting an empty linkage. |
+| 28e — Ownership reads | Acquisition options and detail still consumed the old full-item array. | Wired typed paginated summaries through the Ownership controller/client/picker; mapped bounded typed detail back to Ownership's established response fields. Added separate search/page state, stale-response protection and page recovery. TypeScript and targeted lint checked; browser interaction is not claimed. |
+| 28f — Existing sale-return compatibility | Return orchestration used the older wrapper, quantity tolerance, and full-item result. | Reused atomic stock wrapper, ordered locks, existing-identity custody checks and exact quantities. Disposition is rechecked under the location lock. Caller persists the movement via source provenance. Reused append-side version advancement; no extra version increment. Internal Inventory return contract is verified; no SaleReturnService business integration test or feature activation is claimed. |
+| 28g — Pawn compatibility | Pawn still requires an Inventory model after custody receipt. | Preserved model return and collateral links. Real Pawn creation/retry/rollback/move/expiry/photo integration passed. Internal replay now returns its completed data to the business caller; public replay retains its HTTP behavior. |
+
+**Retained safeguards:** tenant resolution, exact quantities, item anchors, live reservation/custody checks, caller-owned finance/audit, and transaction ownership. Per user discussion, internal idempotency is not intrinsically required for every nested call: outer workflow idempotency plus one transaction can suffice. Inventory's independently repeatable custody-receipt case is verified; redundant per-line keys/wrappers are a documented INV-30 simplification candidate, not a reason to remove protections without tracing callers.
+
+**Deferred Pawn finding:** `CollateralItemService::redeemProcess` currently updates collateral status but does not issue Inventory. A characterization test confirms this existing gap; implementing redemption/acquisition effects remains Part 6. A passing characterization test is not a claim that end-to-end Pawn redemption is complete.
 
 ## Acceptance verification
 
 ### INV-29 — Verify one scenario group at a time
 
+#### Executed verification — 2026-10-20
+
+User confirmed the disposable test schema was migrated, authorized implementation/testing/fixes, and requested real Pawn-to-Inventory integration while deferring Sales/Purchasing integration. The read-only preflight passed on MySQL 8.0.40. No migrations were executed by the agent.
+
+Final targeted command: `php vendor/phpunit/phpunit/phpunit --do-not-cache-result --no-coverage tests/Unit/InventoryQuantityTest.php tests/Unit/InventoryReadEndpointTest.php tests/Unit/MigrationIdentifierLengthTest.php tests/Feature/PawnModule/PawnInventoryIntegrationTest.php tests/Feature/TenantModule/InventoryMySqlVerificationTest.php`.
+
+**Result: 60 tests, 2,062 assertions passed.** Includes 18 database-backed integration/verification tests using the existing schema, plus the 42 quantity/read-boundary/migration-name tests. `InventoryMySqlTestCase` explicitly selects the test-only connection from `.env.test` or `.env.testing`; fixture writes are rolled back. Cache fallback names and throttle cache are process-local arrays; business services and MySQL persistence are real. Photo tests use an isolated test filesystem and signed URL builder. No `RefreshDatabase`, schema refresh, or migration execution is used.
+
+| Scenario group | Executed evidence | Limits / remaining work |
+|---|---|---|
+| Pawn creation/custody | Real ManagementService creates Normal/Jewellery collateral, distinct same-name items, correct quantities/location/version/link, loan-account debit and accounting rows, without acquiring Ownership. | Does not implement Part 6 redemption. |
+| Pawn retry/rollback | Repeated custody receipt returns the original model without additional movement/version. Injected failure after custody rolls back slip, collateral, Inventory, internal idempotency, and leaves account unchanged. | Fault is deliberately injected at initial-interest persistence; not every possible later failure point is exhausted. |
+| Pawn isolation/move/expiry | Another tenant cannot read/receive the collateral; moves preserve Pawn links and split balances; stale move fails; expiry preserves custody/history. | No full competing order workflows. |
+| Images | Actual upload utility writes a Pawn photo; Inventory detail/summary return signed links and expiry, omit raw-path fields, and return null for a missing file. | UI default illustration is implemented; browser failed/expired-image rendering remains unexecuted. |
+| Exact stock and versions | `2.001` against `2.000` is rejected without movement/version writes; exact exhaustion succeeds; stale location edits fail. | Tracking permutations beyond the covered cases remain pending. |
+| Reservations/identities | Bounded selection excludes prior choices; reserved identity cannot move; partial release and issue preserve remaining codes and status. Internal return restores the existing identity once and validates disposition under lock. | These exercise Inventory APIs, not Sales/Purchasing workflow integration. |
+| Idempotency | Public move replays field-equivalent data/header; changed payload conflicts; independent custody replay does not abort its caller. | No claim about every outer workflow's idempotency implementation. |
+| Locations/gates | Default/stocked deactivation rejected; empty location deactivates; real HTTP receive/issue/adjust requests return 403 with no stock effects. | Reservation-location edit races remain pending. |
+| Reads/checkpoints | Page five reaches items beyond the old cap; page sizes 1 and 25 have equal query counts. Published checkpoint does not hide a newer receipt below its watermark, nor a later move. | Full summary-service/job execution, all time boundaries, recovery, and representative query plans remain pending. |
+| MySQL locking | Independent PDO contender receives MySQL NOWAIT error 3572 while the item anchor is owned. | Proves anchor exclusion only. Full two-operation final-stock/unit competition, opposite-order workflows, and append/summarizer races are not claimed. |
+
+**Failures classified and resolved:** fixture username width, cache/throttle bootstrap isolation, test idempotency table name, test constructor argument, JSON object-key ordering and photo URL callback were harness/test issues. Internal HTTP-replay leakage was a product defect, fixed with business-caller result replay. Sale-return integration reused append-side version advancement to avoid an additional version bump. Existing redemption behavior is recorded as deferred, not changed to satisfy a test. Acceptance decisions remain governed by the agreed plan; neither current code nor tests independently redefine the requirements.
+
+**Still pending:** user review; Sales/Purchasing business integration (explicitly deferred); broader cross-tenant reservation/tracking permutations; full stock/location/summary concurrency; full monthly summary/job/recovery scenarios; representative MySQL EXPLAIN/performance measurements; browser checks. The checklist's parent verification groups remain unchecked where any required scenario is unperformed.
+
+#### Extended INV-29 concurrency and monthly verification — 2026-10-20
+
+User accepted the preceding implementation/60-test batch and requested continued verification. Added `InventoryConcurrencyTest.php`, `InventoryMonthlySummaryTest.php`, a minimal committed-fixture base, and a separate PHP worker. No application behavior was changed in this verification unit.
+
+**Combined result: 78 tests, 2,168 assertions passed.** The prior five test files plus `tests/Feature/TenantModule/InventoryConcurrencyTest.php` and `tests/Feature/TenantModule/InventoryMonthlySummaryTest.php` passed together. PHP syntax and diff whitespace checks passed. No migrations or development servers were run.
+
+| New runtime scenario | Result |
+|---|---|
+| Two processes issue the final quantity or serialized identity | Holder succeeds; contender is observed in a real MySQL lock wait, then rejects after rechecking stock. One issue movement and zero final stock. |
+| Opposite item-code input orders | Complete item anchor sets serialize and both callers complete without deadlock. This is an Inventory anchor test, not a Sales/Purchasing order test. |
+| Receipt versus location deactivation | The edit waits on the receipt's shared location lock, then rejects because the committed receipt leaves stock there. |
+| Append commits before summarizer obtains the item | Summary waits, then publishes without hiding the current-month receipt; checkpoint plus live tail remains correct. |
+| Summarizer publishes before waiting append | Actual summary transaction is held at checkpoint publication; append waits, then becomes visible in the live tail exactly once. |
+| Two simultaneous summarizers | Both are observed waiting on the same anchor; total published headers equal the item count, with no duplicate tenant/item/month rows. |
+| Real summary rerun and next month | First run publishes; repeat skips; subsequent month uses the earlier checkpoint and tail. Derived maintenance leaves item versions unchanged. |
+| Missing prior month and backdated business date | Longer-tail calculation agrees with source quantity; repository recording time overrides a caller's old created timestamp. |
+| Failure while publishing the second item | The second header/balances roll back; the first completed item remains; rerun skips the first and completes only the missing item. |
+| Tenant context restoration | Original context object and tenant ID are restored after success and injected failure. |
+| Timezone and month policy | Asia/Yangon cutoff is stored in UTC; later timezone changes do not rewrite the existing checkpoint boundary. Malformed/current/future months reject without publication. |
+| Tenant job and explicit recovery command | Real tenant job publishes; command and duplicate job skip completed headers. |
+| Root fan-out and scheduler registration | Root pins the completed month before dispatch (dispatch faked and tenant enumeration limited to the fixture); Artisan schedule has day 2 / 00:45 UTC with overlap prevention. |
+
+**Fixture boundaries:** these tests need committed data visible across independent connections and invoke the summary outside a transaction. `CommittedInventoryFixture` creates a dedicated unique test tenant, then stops workers and removes only its own source children, tenant and owner in dependency order with foreign-key enforcement left enabled. Final read-only cleanup check found **zero committed verification tenants remaining**. Earlier Pawn tests continue to use rollback-only fixtures.
+
+**Harness corrections:** the combined run exposed Windows pipe readiness races and unreliable lock-wait observation through `information_schema.innodb_trx`. Worker startup now receives only nonsecret fixture references in argv, buffered output is polled with bounded deadlines, and actual lock waits are observed through `performance_schema.data_lock_waits` joined to the contender's connection ID. Credentials stay in the test environment file. Scheduler verification explicitly starts Artisan registration instead of assuming HTTP bootstrap has registered scheduled events. No stock or summary production rule was relaxed to make these tests pass.
+
+**Remaining after this unit:** Sales/Purchasing integration remains user-deferred; broader cross-tenant reservation/tracking and location eligibility permutations, concurrent receive/issue combinations beyond the tested cases, representative MySQL EXPLAIN/performance checks, browser validation, and deployed scheduler/queue-worker consumption remain pending. Root dispatch was intentionally faked; no live queue worker was started. User marked this verification batch done on 2026-10-20; review acceptance is complete for the executed batch, without claiming the remaining scenarios have passed.
+
+**Execution authorization and initial results (2026-10-19):** User requested INV-29 work. Added `tests/Unit/InventoryQuantityTest.php` and `tests/Unit/InventoryReadEndpointTest.php`; 41 tests / 63 assertions passed. Coverage includes exact decimal parsing/round trips, zero balance versus positive input, one-thousandth comparison, storage bounds, tracking fractions, unsupported/non-finite inputs, and mocked read-controller pagination/filter validation. These tests use no schema setup or database queries and do not establish authoritative stock, tenant-query, middleware, rollback, or row-lock correctness. PHPUnit reported an inability to write its optional result cache; test execution itself succeeded. Integration, image storage, gates, monthly checkpoints, and independent-connection MySQL verification remain pending after INV-28. No migrations were run.
+
 **Depends on:** Connected backend/frontend/caller implementation. Verification requiring execution remains pending until authorized.
 
 **Proposed test files:** `InventoryQuantityTest.php`, `InventoryReadTest.php`, `InventoryLocationTest.php`, `InventoryMovementTest.php`, `InventoryReservationTest.php`, `InventoryConcurrencyTest.php` under the appropriate existing test directories.
 
-- [ ] Quantity: zero versus `0.001`, exact exhaustion, fractions, precision/range overflow, and non-finite values.
+- [x] Quantity: zero versus `0.001`, exact exhaustion, fractions, precision/range overflow, and non-finite values.
 - [ ] Tracking: invalid UNIQUE/SERIALIZED fractions, duplicate/wrong-item/wrong-location/issued units, identifiers after trimming and `"0"`.
 - [ ] Locations: same-location move, inactive destination, non-sellable sale stock, default deactivation, stocked/reserved location deactivation.
 - [ ] Optimistic concurrency: stale location edits and stale public moves return 409 without writes.
 - [ ] Reservations: invalid supplied code, cross-tenant binding, partial issue/release, no stale serialized codes.
-- [ ] Pessimistic concurrency: two operations compete for final stock/unit; only valid quantity succeeds.
+- [x] Pessimistic concurrency: two operations compete for final stock/unit; only valid quantity succeeds.
 - [ ] Lock ordering: concurrent receive/issue and location deactivation do not allow invalid custody or opposite-order locking.
 - [ ] Idempotency: same key/payload replays, changed payload conflicts, retry after uncertain response does not duplicate effects.
 - [ ] Rollback: failure before audit/reservation completion and outer caller rollback remove internal Inventory effects.
@@ -713,7 +806,7 @@ Requested after INV-25 acceptance to close the previously recorded adjustment or
 - [ ] Integration: receipt returns only new units; Sales and Ownership work with replacement contracts.
 - [ ] Query plans: inspect indexed batch reads on a prepared representative MySQL dataset.
 - [ ] Monthly checkpoints: verify full-ledger equivalence, checkpoint-plus-tail quantities, month boundaries, below-watermark new-month rows, late/backdated writes, append/summary locks, duplicate jobs, rollback/resume, tenant context restoration, and scheduler/worker behavior described in [Monthly inventory checkpoints](#monthly-inventory-checkpoints).
-- [ ] Gates: direct calls to disabled standalone operations produce no side effects.
+- [x] Gates: direct calls to disabled standalone operations produce no side effects.
 - [ ] Record results and unresolved findings; obtain final Part 1 review acceptance.
 
 Concurrency verification requires independent MySQL connections and a separately prepared disposable schema. Do not run migrations as part of verification. SQLite alone is insufficient for locking claims.
@@ -742,6 +835,7 @@ Add a row after each review unit. Keep the step status register and checkboxes c
 
 | Date | Step/substep | Files/functions changed | Review outcome | Verification performed or pending | Next dependency |
 |---|---|---|---|---|---|
+| 2026-10-20 | INV-29 concurrency/monthly verification batch | InventoryConcurrencyTest, InventoryMonthlySummaryTest, committed fixture and worker support | Done; reviewed and accepted by user | Combined 78 tests / 2,168 assertions passed; fixture cleanup confirmed; deferred/unperformed checks remain listed in INV-29 | Remaining INV-29 scenarios before overall INV-30 completion |
 | — | — | — | — | — | INV-01 |
 | 2026-10-18 | INV-01 | `lang/en/inventory.php`, `lang/mm/inventory.php` | Implemented; user review pending | Static review of six matching keys and wording; no tests run | INV-02 after INV-01 acceptance |
 | 2026-10-18 | INV-01 acceptance | — | Accepted by user before INV-02 | No additional execution | INV-02 |

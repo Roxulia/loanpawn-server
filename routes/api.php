@@ -541,14 +541,20 @@ Route::prefix('tenant')->group(function () {
                     ->middleware('tenant.permission:list_inventory');
                 Route::get('items/{itemCode}/movements', [InventoryController::class, 'movements'])
                     ->middleware('tenant.permission:list_inventory');
+                // Read physical identities through their own bounded, item-scoped endpoint.
+                Route::get('items/{itemCode}/serialized-items', [InventoryController::class, 'serializedItems'])
+                    ->middleware('tenant.permission:list_inventory');
                 Route::post('receive', [InventoryController::class, 'receive'])
-                    ->middleware('tenant.permission:receive_inventory');
+                    // Gate standalone receipt while business callers retain service access.
+                    ->middleware(['tenant.permission:receive_inventory', 'tenant.feature:inventory_manual_operations']);
                 Route::post('move', [InventoryController::class, 'moveStock'])
                     ->middleware('tenant.permission:move_inventory');
                 Route::post('issue', [InventoryController::class, 'issueStock'])
-                    ->middleware('tenant.permission:issue_inventory');
+                    // Apply the same inactive feature to standalone issue.
+                    ->middleware(['tenant.permission:issue_inventory', 'tenant.feature:inventory_manual_operations']);
                 Route::post('adjust', [InventoryController::class, 'adjustStock'])
-                    ->middleware('tenant.permission:adjust_inventory');
+                    // Apply the same inactive feature to standalone adjustment.
+                    ->middleware(['tenant.permission:adjust_inventory', 'tenant.feature:inventory_manual_operations']);
             });
 
             Route::prefix('ownership')->middleware(['tenant.feature:ownership_management', 'tenant.feature:inventory_management'])->group(function () {

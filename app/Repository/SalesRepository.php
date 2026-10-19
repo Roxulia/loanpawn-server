@@ -142,9 +142,10 @@ class SalesRepository
         return $line->refresh();
     }
 
-    public function returnedForAllocation(int $tenantId, int $allocationId): float
+    public function returnedForAllocation(int $tenantId, int $allocationId): string
     {
-        return (float) SaleReturnLine::query()->where('tenant_id', $tenantId)->where('sales_delivery_allocation_id', $allocationId)->sum('quantity');
+        // Preserve SQL DECIMAL digits for exact Inventory return limits.
+        return (string) SaleReturnLine::query()->where('tenant_id', $tenantId)->where('sales_delivery_allocation_id', $allocationId)->sum('quantity');
     }
 
     public function updatePaymentAccounting(SalePayment $payment, int $ledgerId): SalePayment

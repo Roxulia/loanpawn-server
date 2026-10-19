@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Models\InventoryModule\InventoryItem;
+use App\Models\PawnModule\PawnCollateralItem;
 use App\Models\InventoryModule\InventoryLocation;
 use App\Models\InventoryModule\InventoryMovement;
 use App\Models\InventoryModule\InventorySerializedItem;
@@ -329,6 +330,7 @@ class InventoryRepository
         // Read services opt into batched Catalog/unit references; mutation callers remain unchanged.
         if ($withReadReferences) {
             $query->with(['catalogItem', 'unit']);
+            $this->includeItemImagePath($query);
         }
 
         // Acquire the item anchor's exclusive lock within the caller's transaction.
@@ -640,6 +642,9 @@ class InventoryRepository
                 'unit'
                 ]);
 
+        // Select a single existing Pawn photo without loading collateral collections per row.
+        $this->includeItemImagePath($query);
+
         // Filter location membership by positive net custody, rather than historical presence.
         if ($filter->locationCode !== null) {
             $location = $this->findLocationByCode($filter->locationCode);
@@ -679,7 +684,7 @@ class InventoryRepository
      * Page serialized items with current custody and active reservation membership.
      * JSON membership uses MySQL JSON_CONTAINS to match the production database.
      */
-    public function serializedItemPage(int $itemId, InventorySerializedItemFilter $filter): LengthAwarePaginator
+    public function serializedItemPage(int $itemId, InventorySerializedItemFilter $filter, bool $forUpdate = false): LengthAwarePaginator
     {
         // Build a tenant-scoped latest-custody subquery limited to this item.
         $latest = $this->latestSerializedItemMovementIds()->where('inventory_item_id', $itemId);
@@ -729,6 +734,11 @@ class InventoryRepository
                 ->whereNotExists((clone $reservations)->selectRaw('1')->toBase());
         }
 
+        // Internal allocation needs a current read beneath its existing item/reservation locks.
+        if ($forUpdate) {
+            $this->assertInventoryTransaction();
+            $query->lockForUpdate();
+        }
         return $query->orderBy('inventory_serialized_items.id')
             ->paginate($filter->perPage, ['inventory_serialized_items.*'], 'page', $filter->page);
     }
@@ -945,6 +955,18 @@ class InventoryRepository
     }
 
     /** Resolve tenant scope once for new Inventory queries, failing before an unscoped read. */
+    private function includeItemImagePath(Builder $query): void
+    {
+        // Scope both the item and its linked photo to the same tenant; ignore deleted collateral.
+        $image = $this->inventoryQuery(PawnCollateralItem::class)
+            ->select('image_url')
+            ->whereColumn('inventory_item_id', 'inventory_items.id')
+            ->whereColumn('pawn_collateral_items.tenant_id', 'inventory_items.tenant_id')
+            ->whereNotNull('image_url')->where('image_url', '<>', '')
+            ->orderByDesc('id')->limit(1);
+        $query->addSelect('inventory_items.*')->selectSub($image, 'collateral_image_path');
+    }
+
     private function inventoryQuery(string $modelClass): Builder
     {
         // Reuse the models' TenantContext global scope rather than accepting a tenant ID.

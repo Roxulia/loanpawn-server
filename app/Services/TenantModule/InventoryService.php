@@ -27,6 +27,7 @@ use App\Exceptions\DuplicateValueFound;
 use App\Exceptions\TenantNotFound;
 use App\Support\InventoryQuantity;
 use App\Repository\InventoryRepository;
+use App\Utility\FileStorageUtility;
 use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
 use App\Services\TenantModule\TenantIdempotencyService;
@@ -64,6 +65,7 @@ class InventoryService extends BaseTenantService
         private CatalogTaxonomyService $catalogTaxonomyService,
         private TenantIdempotencyService $idempotencyService,
         private TableIdGenerationService $tableIdGenerationService,
+        private FileStorageUtility $fileStorageUtility,
     ) {
     }
 
@@ -297,32 +299,88 @@ class InventoryService extends BaseTenantService
 
     public function receiveSaleReturn(InventorySaleReturnRequest $request): array
     {
-        return $this->runIdempotent('inventory.receive.sale_return', $request, function (int $tenantId, ?int $recordId) use ($request): array {
-            return DB::transaction(function () use ($tenantId, $recordId, $request): array {
-                $item = $this->lockedItemByCode($tenantId, (string) $request->inventoryItemCode);
-                $location = $this->activeLocationByCode($tenantId, (string) $request->locationCode, true);
-                $quantity = $this->validateQuantityForMode($item, $request->quantity);
-                $unitCodes = $request->serializedItemCodes ?? [];
-                if ($item->tracking_mode === 'SERIALIZED' && count($unitCodes) !== (int) $quantity) {
-                    throw ValidationException::withMessages(['serialized_item_codes' => ['Returned units must match the return quantity.']]);
+        // SaleReturnService owns financial posting and its primary audit.
+        $operation = new InventoryOperationContext(operation: 'inventory.receive.sale_return', owner: InventoryOperationOwner::BusinessCaller, responseCode: 201);
+        return $this->runStockOperation($operation, $request, function (int $tenantId, ?int $recordId) use ($request): array {
+            $stock = $this->lockStockForOperation([$request->inventoryItemCode], [$request->locationCode], serializedItemCodes: $request->serializedItemCodes);
+            $item = $stock->items->get($request->inventoryItemCode);
+            $location = $stock->locations->get($request->locationCode);
+            $quantity = $this->validateStockCommandQuantity($request, $item);
+            if (! $location->is_active || $request->sourceCode === '') {
+                throw new InvalidTenantRequest(__('inventory.lock_selection_invalid'));
+            }
+            // Recheck return disposition after acquiring the location lock.
+            if ($request->expectedSellable !== null && (bool) $location->is_sellable !== $request->expectedSellable) {
+                throw new InvalidTenantRequest(__('inventory.lock_selection_invalid'));
+            }
+            // Existing identities may return only from a recorded issued state.
+            foreach ($stock->serializedItems as $unit) {
+                $last = $stock->custody->get($unit->id);
+                if ((int) $unit->inventory_item_id !== (int) $item->id || $last === null || $last->to_location_id !== null) {
+                    throw new InvalidTenantRequest(__('inventory.serialized_unavailable'));
                 }
-                // Keep internal movement metadata separate from the typed request.
-                $context = new InventoryMovementContext(reason: 'Customer sale return', sourceType: 'SaleReturnLine', sourceCode: $request->sourceCode, idempotencyRecordId: $recordId);
-                foreach ($unitCodes as $unitCode) {
-                    // Bind the selected identity to this item and the current TenantContext.
-                    $unit = $this->repository->findSerializedItemsByCodesForUpdate($item->id, [$unitCode])->first();
-                    if ($unit === null || $this->repository->latestSerializedItemMovement($tenantId, $unit->id)?->to_location_id !== null) {
-                        throw ValidationException::withMessages(['serialized_item_codes' => ['A returned unit is not currently issued.']]);
-                    }
-                    $this->appendMovement($tenantId, $item, null, $location->id, 1, 'RECEIVE', $context, $unit->id);
-                }
-                if ($item->tracking_mode !== 'SERIALIZED') {
-                    $this->appendMovement($tenantId, $item, null, $location->id, $quantity, 'RECEIVE', $context);
-                }
-                $movement = $this->repository->movementBySource($tenantId, 'SaleReturnLine', (string) $request->sourceCode);
-                return ['movement_id' => $movement?->id, 'item' => $this->itemResource($tenantId, $item)];
-            });
-        }, 201);
+            }
+            if ($item->tracking_mode === 'UNIQUE') $this->assertUniqueItemHasNoCustody($item);
+            $context = new InventoryMovementContext(reason: 'Customer sale return', sourceType: 'SaleReturnLine', sourceCode: $request->sourceCode, idempotencyRecordId: $recordId);
+            $movements = collect();
+            foreach ($stock->serializedItems as $unit) {
+                $movements->push($this->appendMovement($tenantId, $item, null, $location->id, '1.000', 'RECEIVE', $context, $unit->id));
+            }
+            if ($item->tracking_mode !== 'SERIALIZED') {
+                $movements->push($this->appendMovement($tenantId, $item, null, $location->id, InventoryQuantity::format($quantity), 'RECEIVE', $context));
+            }
+            return $this->buildStockMutationResult($item, $quantity, $movements, $request->serializedItemCodes)->toArray();
+        });
+    }
+
+    /** Prelock every existing item before a business caller touches locations or reservations. */
+    public function prelockItems(array $codes): Collection
+    {
+        // Reuse ordered tenant-scoped item locks and reject incomplete reference sets.
+        $this->assertStockValidationTransaction();
+        $codes = $this->normalizeStockReferenceCodes($codes);
+        return $codes === [] ? collect() : $this->lockSelectedStockItems($codes);
+    }
+
+    /** Resolve a movement for internal persistence without exposing its database ID publicly. */
+    public function movementForSource(string $sourceType, string $sourceCode): InventoryMovement
+    {
+        // Missing provenance must roll back the caller instead of persisting an empty linkage.
+        return $this->repository->movementBySource($this->resolveCurrentTenantId(), $sourceType, $sourceCode)
+            ?? throw new InvalidTenantRequest(__('inventory.stock_inconsistent'));
+    }
+
+    /** Return current locked, sale-eligible locations and exact available quantities. */
+    public function saleLocationStock(string $itemCode): array
+    {
+        $this->prelockItems([$itemCode]);
+        $locations = $this->repository->locations($this->resolveCurrentTenantId())->filter(fn ($location) => $location->is_active && $location->is_sellable);
+        if ($locations->isEmpty()) return [];
+        $stock = $this->lockStockForOperation([$itemCode], $locations->pluck('code')->all());
+        $item = $stock->items->get($itemCode);
+        // Internal location models carry IDs needed by Sales without changing public DTOs.
+        return $stock->locations->map(function ($location) use ($stock, $item): \App\DataObjects\ResponseObjects\InventorySaleLocationStock {
+            [$reserved] = $this->summarizeLockedReservations($this->activeLockedReservationsAtLocation($stock, $item, $location), $item);
+            return new \App\DataObjects\ResponseObjects\InventorySaleLocationStock($location, max(0, ($stock->balances[$item->id][$location->id] ?? 0) - $reserved));
+        })->all();
+    }
+
+    /** Select only the required identities in bounded pages; reservation revalidates under locks. */
+    public function saleSerializedItemCodes(string $itemCode, string $locationCode, int $count, array $excluded = []): array
+    {
+        // A fractional serialized allocation must never accidentally select every row.
+        if ($count <= 0) return [];
+        $item = $this->prelockItems([$itemCode])->get($itemCode);
+        $selected = [];
+        $page = 1;
+        do {
+            $result = $this->repository->serializedItemPage($item->id, new InventorySerializedItemFilter(page: $page, perPage: min(100, $count), locationCode: $locationCode, availableOnly: true), true);
+            foreach ($result->items() as $unit) {
+                if (! in_array($unit->code, $excluded, true)) $selected[] = $unit->code;
+                if (count($selected) === $count) return $selected;
+            }
+        } while (++$page <= $result->lastPage());
+        return $selected;
     }
 
 
@@ -720,7 +778,11 @@ class InventoryService extends BaseTenantService
                 // Recreate reservation records and callback results inside each transaction attempt.
                 return $this->executeStockOperationAttempt($context, $request, $callback, $tenantId);
             } catch (IdempotentReplayResponse $replay) {
-                // Replay is an existing successful result, not a failed stock operation.
+                // An internal replay must return to its business caller without replacing its response.
+                if ($context->owner === InventoryOperationOwner::BusinessCaller) {
+                    return $replay->responseData();
+                }
+                // Public operations preserve the existing HTTP replay response and header.
                 throw $replay;
             } catch (Throwable $exception) {
                 // Validation/version/idempotency/duplicate failures never qualify for retries.
@@ -977,6 +1039,13 @@ class InventoryService extends BaseTenantService
             }
         }
 
+        // Reuse Pawn's private disk and short-lived URL policy; never expose stored paths.
+        $imagePath = $item->getAttribute('collateral_image_path');
+        $expiration = CarbonImmutable::now()->addMinutes(5);
+        $imageUrl = $this->fileStorageUtility->fileExists($imagePath, 'local')
+            ? $this->fileStorageUtility->getTemporaryFileUrl($imagePath, $expiration, 'local')
+            : null;
+
         return new InventoryItemSummary(
             code: $item->code,
             name: $item->name,
@@ -990,6 +1059,8 @@ class InventoryService extends BaseTenantService
             reservedQuantity: InventoryQuantity::format($reserved),
             availableQuantity: InventoryQuantity::format($available),
             updateKey: (int) $item->update_key,
+            imageUrl: $imageUrl,
+            imageUrlExpiresAt: $imageUrl === null ? null : $expiration->toISOString(),
         );
     }
 
