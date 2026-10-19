@@ -100,7 +100,7 @@ Suggested states: Not started, In progress, Implemented / awaiting review, Accep
 | INV-22 | Move orchestration | Accepted / verification pending |
 | INV-23 | Internal receipt orchestration | Accepted / verification pending |
 | INV-24 | Reservation create/release orchestration | Accepted / verification pending |
-| INV-25 | Internal issue orchestration | Not started |
+| INV-25 | Internal issue orchestration | Accepted / verification pending |
 | INV-26 | Endpoints and gates | In progress — request DTO validation wired |
 | INV-27 | Frontend connections | In progress — move version field wired |
 | INV-28 | Existing caller adaptations | In progress — Inventory request DTOs wired |
@@ -618,12 +618,14 @@ Implement each checkbox as its own review unit when needed.
 
 **Files:** `InventoryService::issueStock(...)`.
 
-- [ ] Validate supplied reservation and internal source context.
-- [ ] Recheck availability/custody under locks.
-- [ ] Issue exact quantity/units without a tolerance-based shortfall.
-- [ ] Consume reservation quantity/codes consistently and increment version.
-- [ ] Return affected records; retain caller-owned accounting/account/audit completion.
-- [ ] Obtain review acceptance.
+- [x] Validate supplied reservation and internal source context.
+- [x] Recheck availability/custody under locks.
+- [x] Issue exact quantity/units without a tolerance-based shortfall.
+- [x] Consume reservation quantity/codes consistently and increment version.
+- [x] Return affected records; retain caller-owned accounting/account/audit completion.
+- [x] Obtain review acceptance.
+
+**INV-25 implementation (2026-10-19):** Activated the existing ordered stock locks, exact availability/custody validation, reservation consumption, versioned mutation result, and atomic operation wrapper in `issueStock`. Supported Sale/PurchaseReturn provenance is checked; deferred Pawn redemption remains unavailable. Both Sales issue callers now provide the original `SaleOrderLine` reservation source. Business callers retain accounting/account/primary-audit ownership; standalone Manual issue owns its Inventory audit. The frontend issue response type is coordinated with the mutation result. PHP syntax and diff whitespace checks passed; runtime/concurrency verification, tests, and migrations were not executed.
 
 ## Public integration steps
 
@@ -795,6 +797,8 @@ Add a row after each review unit. Keep the step status register and checkboxes c
 
 | 2026-10-18 | INV-21-24 acceptance | Read services, move, receipt, reservation orchestration, immediate consumers | Reviewed and accepted by user | No additional execution; runtime/concurrency verification remains in INV-29. INV-25 issue work and the unassigned adjustment orchestration gap remain pending | INV-25 |
 
+| 2026-10-19 | INV-25 acceptance | Internal issue orchestration, Sales reservation source binding, frontend issue response typing | Reviewed and accepted by user | PHP syntax, TypeScript, and whitespace checks passed during implementation; runtime/concurrency verification remains pending in INV-29. No additional execution for acceptance | INV-26 |
+
 ## DTO usage and contract integration
 
 ### Current request contracts
@@ -850,7 +854,7 @@ INV-21 now uses these filters in typed paginated read services. Controller activ
 
 InventoryLocationDetail is activated for location creation/update. INV-21 constructs InventoryItemSummary, InventoryItemDetail, InventoryLocationBalance, InventorySerializedItemDetail, InventoryMovementDetail, and Inventory page DTOs in the new read services; their HTTP activation remains INV-26.
 
-INV-22-24 activate InventoryMutationResult for move, receipt, reservation creation, and typed release. Purchasing, Sales reservation consumers, Pawn custody, and frontend receipt/move typings are adapted narrowly. Existing item/history array readers and issue/adjustment/sale-return response consumers remain for coordinated INV-25-28 migration.
+INV-22-25 activate InventoryMutationResult for move, receipt, reservation creation, typed release, and issue. Purchasing, Sales reservation consumers, Pawn custody, and frontend receipt/move/issue typings are adapted narrowly. Existing item/history array readers and adjustment/sale-return response consumers remain for coordinated INV-26-28 migration.
 
 ### Review and verification
 

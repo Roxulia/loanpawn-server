@@ -319,6 +319,9 @@ class SalesService extends BaseTenantService
                             quantity: $take,
                             serializedItemCodes: $unitCodes,
                             reservationCode: $reservation->inventory_reservation_code,
+                            // Bind consumption to the original Inventory sale-line reservation.
+                            expectedReservationSourceType: 'SaleOrderLine',
+                            expectedReservationSourceCode: $line->code,
                             sourceType: 'SaleDeliveryAllocation',
                             sourceCode: $allocation->code,
                             operationContext: InventoryIssueContext::Sale,
@@ -398,6 +401,9 @@ class SalesService extends BaseTenantService
                             quantity: $take,
                             serializedItemCodes: $unitCodes,
                             reservationCode: $reservation->inventory_reservation_code,
+                            // Bind consumption to the original Inventory sale-line reservation.
+                            expectedReservationSourceType: 'SaleOrderLine',
+                            expectedReservationSourceCode: $line->code,
                             sourceType: 'SaleDeliveryAllocation',
                             sourceCode: $allocation->code,
                             operationContext: InventoryIssueContext::Sale,

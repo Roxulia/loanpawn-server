@@ -53,4 +53,6 @@ return [
     'location_has_stock' => 'The location still holds inventory. Move or issue all stock before deactivating it.',
     // UNIQUE receipt must not duplicate current physical custody.
     'unique_already_received' => 'This unique item is already held in inventory.',
+    // Supported internal issue provenance.
+    'issue_context_invalid' => 'The inventory issue source does not match a supported operation.',
 ];

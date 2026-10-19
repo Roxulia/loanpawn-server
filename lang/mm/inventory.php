@@ -1,6 +1,8 @@
 <?php
 
 return [
+    // Supported internal issue provenance.
+    'issue_context_invalid' => 'စာရင်းထုတ်ယူမှု၏ ရင်းမြစ်သည် ခွင့်ပြုထားသော လုပ်ဆောင်မှုနှင့် မကိုက်ညီပါ။',
     // Quantity format, precision, and range validation.
     'quantity_invalid' => 'အရေအတွက်ကို မှန်ကန်သော ဂဏန်းဖြင့် ထည့်ပါ။',
     'quantity_positive' => 'အရေအတွက်ကို သုညထက်ပို၍ ထည့်ပါ။',

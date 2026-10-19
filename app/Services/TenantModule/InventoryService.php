@@ -401,41 +401,31 @@ class InventoryService extends BaseTenantService
 
     public function issueStock(InventoryIssueRequest $request): array
     {
-        return $this->runIdempotent('inventory.issue', $request, function (int $tenantId, ?int $recordId) use ($request): array {
-            // Keep internal movement metadata separate from the typed request.
+        // Business workflows retain their accounting and primary audit completion.
+        $operation = new InventoryOperationContext(
+            operation: 'inventory.issue',
+            owner: $request->operationContext === InventoryIssueContext::Manual
+                ? InventoryOperationOwner::PublicInventory : InventoryOperationOwner::BusinessCaller,
+            auditAction: 'inventory.issued',
+            auditTargetType: InventoryItem::class,
+        );
+
+        return $this->runStockOperation($operation, $request, function (int $tenantId, ?int $recordId) use ($request): array {
+            // Bind trusted provenance before acquiring the complete stock lock set.
+            $this->validateIssueSourceContext($request);
+            $stock = $this->lockStockForOperation(
+                [$request->inventoryItemCode],
+                [$request->locationCode],
+                $request->reservationCode === null ? [] : [$request->reservationCode],
+                $request->serializedItemCodes,
+            );
+            $quantity = $this->validateLockedStockAvailability($stock, $request);
+            $reservation = $request->reservationCode === null
+                ? null : $this->consumeLockedStockReservation($stock, $request);
+
+            // Append exact physical effects after reservation consumption in the same transaction.
             $context = new InventoryMovementContext(reason: $request->reason, sourceType: $request->sourceType, sourceCode: $request->sourceCode, idempotencyRecordId: $recordId);
-            return DB::transaction(function () use ($tenantId, $request, $context): array {
-                $item = $this->lockedItemByCode($tenantId, (string) $request->inventoryItemCode);
-                $location = $this->activeLocationByCode($tenantId, (string) $request->locationCode, true, false);
-                $quantity = $this->validateQuantityForMode($item, $request->quantity);
-                $reservation = isset($request->reservationCode)
-                    ? $this->repository->reservationByCode((string) $request->reservationCode, true)
-                    : null;
-                if ($reservation !== null && ($reservation->inventory_item_id !== $item->id
-                    || $reservation->inventory_location_id !== $location->id
-                    || $reservation->status !== 'ACTIVE'
-                    || (float) $reservation->remaining_quantity + 0.001 < $quantity)) {
-                    throw ValidationException::withMessages(['reservation_code' => ['The inventory reservation is unavailable.']]);
-                }
-                $this->assertAvailable($tenantId, $item, $location->id, $quantity, $request->serializedItemCodes ?? [], $reservation?->code);
-
-                if ($item->tracking_mode === 'SERIALIZED') {
-                    foreach ($this->lockedSerializedItemsByCodes($tenantId, $item, $request->serializedItemCodes ?? []) as $unit) {
-                        $this->appendMovement($tenantId, $item, $location->id, null, 1, 'ISSUE', $context, $unit->id);
-                    }
-                } else {
-                    $this->appendMovement($tenantId, $item, $location->id, null, $quantity, 'ISSUE', $context);
-                }
-                if ($reservation !== null) {
-                    $remaining = max(0, (float) $reservation->remaining_quantity - $quantity);
-                    $this->repository->updateReservation($reservation, [
-                        'remaining_quantity' => $remaining,
-                        'status' => $remaining <= 0.001 ? 'CONSUMED' : 'ACTIVE',
-                    ]);
-                }
-
-                return $this->itemResource($tenantId, $item);
-            });
+            return $this->appendIssueMovements($tenantId, $stock, $request, $quantity, $context, $reservation)->toArray();
         });
     }
 
@@ -869,6 +859,48 @@ class InventoryService extends BaseTenantService
         }
 
         return $this->buildStockMutationResult($item, $quantity, $movements, $request->serializedItemCodes);
+    }
+
+    /** Validate supported caller provenance without enabling deferred workflows. */
+    private function validateIssueSourceContext(InventoryIssueRequest $request): void
+    {
+        // Each enabled business issue identifies its own persisted source record.
+        $sourceType = match ($request->operationContext) {
+            InventoryIssueContext::Sale => 'SaleDeliveryAllocation',
+            InventoryIssueContext::PurchaseReturn => 'PurchaseReturnLine',
+            default => null,
+        };
+        if ($request->operationContext === InventoryIssueContext::PawnRedemption
+            || ($sourceType !== null && ($request->sourceType !== $sourceType || ! $request->sourceCode))
+            || ($request->operationContext === InventoryIssueContext::Manual
+                && ($request->sourceType !== null || $request->sourceCode !== null || $request->reservationCode !== null))) {
+            throw new InvalidTenantRequest(__('inventory.issue_context_invalid'));
+        }
+    }
+
+    /** Append only selected issue records and return their final version and reservation balance. */
+    private function appendIssueMovements(
+        int $tenantId,
+        InventoryLockedStock $stock,
+        InventoryIssueRequest $request,
+        int $quantity,
+        InventoryMovementContext $context,
+        ?InventoryReservation $reservation,
+    ): InventoryMutationResult {
+        // Reuse validated locked models; appendMovement advances the item version.
+        $item = $stock->items->get($request->inventoryItemCode);
+        $location = $stock->locations->get($request->locationCode);
+        $movements = collect();
+        if ($item->tracking_mode === 'SERIALIZED') {
+            foreach ($request->serializedItemCodes as $code) {
+                $serializedItem = $stock->serializedItems->get($code);
+                $movements->push($this->appendMovement($tenantId, $item, (int) $location->id, null, '1.000', 'ISSUE', $context, (int) $serializedItem->id));
+            }
+        } else {
+            $movements->push($this->appendMovement($tenantId, $item, (int) $location->id, null, InventoryQuantity::format($quantity), 'ISSUE', $context));
+        }
+
+        return $this->buildStockMutationResult($item, $quantity, $movements, $request->serializedItemCodes, $reservation);
     }
 
     /** Resolve read metadata through the existing lookup with eager reference loading. */
