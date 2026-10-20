@@ -118,11 +118,42 @@ These rules apply to every module part; they are not a separate implementation m
 
 ## Part 1 — Inventory
 
+### Implementation status — 2026-10-20
+
+**Implementation complete; verification pending.** All planned Part 1 implementation phases are delivered, including the agreed photo-display amendment and the accepted INV-30 nested validation/idempotency refactor. This records implementation completion, not final verification or production readiness. Detailed history and scenario evidence remain in [the Part 1 implementation checklist](INVENTORY_PART_1_IMPLEMENTATION_CHECKLIST.md).
+
+### Delivered implementation and plan amendments
+
+- **Stock foundations:** exact three-decimal quantity arithmetic, QUANTITY/UNIQUE/SERIALIZED validation, tenant-scoped references, query indexes, ordered item/location/reservation/serialized-item locks, and optimistic item/location versions. Physical and reservation changes advance item versions; stale public edits/moves are rejected.
+- **Typed contracts and reads:** coordinated request/result DTOs and paginated item summaries, selected-item detail, serialized-item selection, and movement history. Pages default to 25 and cap at 100. Measurement-unit options remain separate from serialized identities at `/inventory/measurement-units`. Serialized-item naming is coordinated across schema, persistence, API contracts, and consumers.
+- **Stock operations and gates:** location create/edit/deactivation, moves, internal receipt/issue, reservation creation/release/consumption, adjustment, and existing-identity return compatibility use shared stock safeguards. The default location stays active; stocked/reserved locations cannot deactivate. Standalone receive/issue/adjust remain behind inactive `inventory_manual_operations`; internal business callers retain their own authorization and transaction responsibilities.
+- **Atomic workflow handling:** Inventory-owned public operations coordinate mutations, audit, and idempotency in one transaction. Business callers retain primary audit, finance, and replay ownership. The accepted INV-30 pass removes redundant nested generated keys, duplicate validation, and an unused wrapper while retaining current-state checks, ordered locks, and local rollback safeguards.
+- **Frontend:** searchable/filterable paginated stock and history, fresh detail on selection, bounded serialized-item selection, location controls, exact move payloads with expected versions, retry-stable idempotency keys, conflict refresh without automatic resubmission, mutation refresh, translated feedback, and separate responsive classes where needed.
+- **Item images and placeholder amendment:** summaries/details expose nullable `image_url` and `image_url_expires_at`, reusing the latest non-deleted linked Pawn collateral photo through tenant-scoped reads and five-minute signed private-file URLs. List/mobile rows and selected detail show the photo, with a bundled default item illustration when the image is missing or fails to load. Photos can open at full size. Missing files return no photo; storage paths remain private. This adds no Inventory upload endpoint, copied photo, or image schema.
+- **Monthly checkpoints:** exact tenant/item/location closing quantities, tenant-local UTC cutoffs, recording-time plus movement-watermark coverage, checkpoint-plus-live-tail balances, older-checkpoint/full-ledger fallback, shared append/summary item anchors, atomic per-item publication, resumable/idempotent summaries, scheduled tenant jobs, and the recovery command. Reservations and serialized custody remain live; movement history remains authoritative.
+- **Existing caller adaptations:** receipt-specific newly received serialized-item results, deterministic multi-item prelocking in Purchasing/Sales, distinct serialized allocations with exact quantities, typed results, source-based return movement linkage, paginated Ownership selectors, and preserved Pawn custody model/link/replay behavior. These adaptations do not declare the later business module parts complete.
+
+### Verification evidence and remaining work
+
+The latest recorded authorized suite passed **79 tests / 2,173 assertions**. Evidence includes real Pawn creation/custody/retry/rollback/photo integration, Inventory stock/reservation/read/gate checks, independent-connection MySQL competition, and monthly checkpoint concurrency, rerun, recovery, timezone, and rollback/resume cases. PHP syntax, frontend TypeScript/targeted lint, and diff whitespace checks are recorded in the checklist. These are previously executed results; this status update reruns no tests or migrations.
+
+Part 1 remains **pending verification** for:
+
+- Remaining tracking, cross-tenant reservation, location eligibility, idempotency/rollback, and bounded-read scenario permutations; additional concurrent receive/issue combinations beyond the tested cases.
+- Representative MySQL `EXPLAIN` and performance measurements.
+- Browser interaction and missing/failed/expired-image placeholder checks.
+- Deployed scheduler fan-out, scheduled-queue worker consumption, and operational retry/logging checks; root dispatch was faked in the recorded test.
+- Sales/Purchasing end-to-end integration, explicitly deferred by the user; carry this into Parts 4/5 and the release-wide acceptance checks. Ownership workflow acceptance belongs to Part 2.
+- Reconciliation of historical pending checklist entries with the executed evidence, remaining scenario results, and final Part 1 verification acceptance.
+
+Pawn redemption custody issue and expired-collateral acquisition remain Part 6. Packing and Business Loan collateral restrictions remain Parts 7/8. Legacy helper cleanup candidates are outside the accepted focused INV-30 pass and are not an additional unfinished Part 1 implementation phase.
+
 ### Included capabilities and boundaries
 
 - Track QUANTITY, UNIQUE, and SERIALIZED stock.
 - Manage locations and move available stock.
 - Show physical on-hand, operational availability, unit identity, location, and immutable movement history.
+- Show linked item photos with a default illustration for missing or failed images in stock rows and selected detail.
 - Provide internal receive/issue/reservation operations to reviewed callers.
 - Store monthly closing quantities by tenant/item/location and calculate current quantities from the latest completed checkpoint plus uncovered movements.
 - Run a monthly scheduled Inventory summarizer using the financial summarizer's queue, operation-logging, and overlap conventions.
