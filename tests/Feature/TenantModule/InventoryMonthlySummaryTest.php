@@ -12,9 +12,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Tests\Support\CommittedInventoryFixture;
+use Tests\Support\CommittedInventoryTestCase;
 
-class InventoryMonthlySummaryTest extends CommittedInventoryFixture
+class InventoryMonthlySummaryTest extends CommittedInventoryTestCase
 {
     public function test_real_summary_reuses_previous_checkpoint_and_is_idempotent_without_version_changes(): void
     {
@@ -56,20 +56,15 @@ class InventoryMonthlySummaryTest extends CommittedInventoryFixture
 
     public function test_failed_second_item_has_no_partial_checkpoint_and_resume_skips_completed_item(): void
     {
-        $armed = true;
-        $headers = 0;
-        DB::listen(static function (QueryExecuted $query) use (&$armed, &$headers): void {
-            if (! $armed) return;
-            if (str_starts_with($query->sql, 'insert into `inventory_monthly_checkpoints`')) ++$headers;
-            if ($headers === 2 && str_starts_with($query->sql, 'insert into `inventory_monthly_checkpoint_balances`')) throw new \RuntimeException('Injected second-item checkpoint failure');
-        });
+        // Arrange a controlled failure while the second item is published.
+        $stopFailure = $this->failOnSecondItem();
         $context = app(TenantContext::class);
         $context->set(999999999);
         try {
             app(InventoryMonthlySummaryService::class)->summarizeTenant($this->fixtureTenant->id, '2026-10');
             $this->fail('The injected fault must stop publication.');
         } catch (\RuntimeException $exception) { $this->assertSame('Injected second-item checkpoint failure', $exception->getMessage()); }
-        finally { $armed = false; }
+        finally { $stopFailure(); }
         $this->assertSame($context, app(TenantContext::class));
         $this->assertSame(999999999, $context->id());
         $this->assertSame(1, DB::table('inventory_monthly_checkpoints')->where('tenant_id', $this->fixtureTenant->id)->count());
@@ -98,11 +93,6 @@ class InventoryMonthlySummaryTest extends CommittedInventoryFixture
     {
         try { app(InventoryMonthlySummaryService::class)->summarizeTenant($this->fixtureTenant->id, $month); $this->fail('Month must be rejected.'); }
         catch (InvalidTenantRequest) { $this->assertSame(0, DB::table('inventory_monthly_checkpoints')->where('tenant_id', $this->fixtureTenant->id)->count()); }
-    }
-
-    public static function invalidMonths(): array
-    {
-        return [['2026-13'], ['2026-1'], ['invalid'], ['2026-11'], ['2027-01']];
     }
 
     public function test_real_recovery_command_and_tenant_job_share_idempotent_publication(): void
@@ -137,9 +127,35 @@ class InventoryMonthlySummaryTest extends CommittedInventoryFixture
         $this->assertSame('UTC', $event->timezone);
         $this->assertTrue($event->withoutOverlapping);
     }
+    public static function invalidMonths(): array
+    {
+        return [['2026-13'], ['2026-1'], ['invalid'], ['2026-11'], ['2027-01']];
+    }
+
     private function versions(): array
     {
         return DB::table('inventory_items')->where('tenant_id', $this->fixtureTenant->id)->orderBy('id')->pluck('update_key', 'id')->all();
     }
 
+    private function failOnSecondItem(): \Closure
+    {
+        // Disable the listener in finally so later cleanup and recovery can proceed.
+        $armed = true;
+        $headers = 0;
+        DB::listen(static function (QueryExecuted $query) use (&$armed, &$headers): void {
+            if (! $armed) {
+                return;
+            }
+            if (str_starts_with($query->sql, 'insert into `inventory_monthly_checkpoints`')) {
+                ++$headers;
+            }
+            if ($headers === 2 && str_starts_with($query->sql, 'insert into `inventory_monthly_checkpoint_balances`')) {
+                throw new \RuntimeException('Injected second-item checkpoint failure');
+            }
+        });
+
+        return static function () use (&$armed): void {
+            $armed = false;
+        };
+    }
 }

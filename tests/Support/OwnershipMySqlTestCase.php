@@ -6,8 +6,8 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 
-/** Reuses the disposable MySQL connection and rollback-only Inventory test boundary. */
-abstract class OwnershipMySqlTestCase extends InventoryMySqlTestCase
+/** Uses the shared disposable MySQL connection and rollback-only test boundary. */
+abstract class OwnershipMySqlTestCase extends MySqlTestCase
 {
     use OwnershipFixture;
 
@@ -17,7 +17,7 @@ abstract class OwnershipMySqlTestCase extends InventoryMySqlTestCase
         parent::setUp();
         Carbon::setTestNow(Carbon::parse('2026-10-15 12:00:00', 'UTC'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-15 12:00:00', 'UTC'));
-        $this->provisionOwnershipTenant();
+        $this->createTenant();
     }
 
     protected function tearDown(): void

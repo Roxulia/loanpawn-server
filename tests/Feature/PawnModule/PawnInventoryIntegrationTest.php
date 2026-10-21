@@ -16,18 +16,10 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
-use Tests\Support\{InventoryMySqlTestCase, PawnInventoryFixture};
+use Tests\Support\PawnInventoryTestCase;
 
-class PawnInventoryIntegrationTest extends InventoryMySqlTestCase
+class PawnInventoryIntegrationTest extends PawnInventoryTestCase
 {
-    use PawnInventoryFixture;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->provisionPawnTenant();
-    }
-
     public function test_pawn_creation_receives_exact_custody_and_keeps_financial_ownership_separate(): void
     {
         $slip = $this->createPawnSlip();
@@ -113,7 +105,7 @@ class PawnInventoryIntegrationTest extends InventoryMySqlTestCase
         $slip = $this->createPawnSlip();
         $collateral = PawnCollateralItem::query()->where('loan_contract_id', $slip->id)->sole();
         $code = $collateral->inventoryItem->code;
-        $this->provisionPawnTenant();
+        $this->createTenant();
         $service = app(InventoryService::class);
         $this->assertSame(0, $service->itemSummaryPage(new InventoryListFilter())->total);
         try { $service->itemDetail($code); $this->fail('Cross-tenant detail must fail.'); }

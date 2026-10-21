@@ -10,32 +10,10 @@ use App\Repository\InventoryRepository;
 use App\Services\TenantModule\InventoryService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Tests\Support\{InventoryMySqlTestCase, PawnInventoryFixture};
+use Tests\Support\PawnInventoryTestCase;
 
-class InventoryMySqlVerificationTest extends InventoryMySqlTestCase
+class InventoryMySqlVerificationTest extends PawnInventoryTestCase
 {
-    use PawnInventoryFixture;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->provisionPawnTenant();
-    }
-
-    protected function tearDown(): void
-    {
-        CarbonImmutable::setTestNow();
-        parent::tearDown();
-    }
-
-    private function stock(): array
-    {
-        $slip = $this->createPawnSlip();
-        $collateral = PawnCollateralItem::query()->where('loan_contract_id', $slip->id)->sole();
-        $service = app(InventoryService::class);
-        return [$service, $service->itemDetail($collateral->inventoryItem->code), $service->createLocation(new InventoryLocationCreate('Verification vault', 'VAULT'))];
-    }
-
     public function test_one_thousandth_shortfall_is_rejected_without_writes_and_exact_exhaustion_succeeds(): void
     {
         [$service, $item, $destination] = $this->stock();
@@ -268,4 +246,13 @@ class InventoryMySqlVerificationTest extends InventoryMySqlTestCase
         $this->assertSame($singleQueries, count(DB::connection()->getQueryLog()));
         DB::connection()->disableQueryLog();
     }
+    private function stock(): array
+    {
+        // Arrange Pawn custody stock and a separate destination for verification.
+        $slip = $this->createPawnSlip();
+        $collateral = PawnCollateralItem::query()->where('loan_contract_id', $slip->id)->sole();
+        $service = app(InventoryService::class);
+        return [$service, $service->itemDetail($collateral->inventoryItem->code), $service->createLocation(new InventoryLocationCreate('Verification vault', 'VAULT'))];
+    }
+
 }

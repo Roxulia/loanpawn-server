@@ -23,51 +23,25 @@ trait OwnershipFixture
     protected array $ownershipFixtureRoleIds = [];
     protected array $ownershipFixture = [];
 
-    protected function provisionOwnershipTenant(): array
+    protected function createTenant(): array
     {
-        // Track each parent immediately so committed cleanup also handles partial setup failures.
+        // Build isolated source facts without invoking acquisition behavior.
         $suffix = bin2hex(random_bytes(4));
-        $owner = PlatformUser::query()->create(['code' => 'PU'.$suffix, 'name' => 'Ownership Test Owner',
-            'email' => $suffix.'@ownership.test', 'phone' => '099'.$suffix, 'password' => 'secret123', 'status' => 'active']);
-        $this->ownershipFixtureOwnerIds[] = (int) $owner->id;
-        $tenant = Tenant::query()->create(['platform_user_id' => $owner->id, 'tenant_code' => 'ot'.$suffix,
-            'subdomain' => 'ot'.$suffix, 'name' => 'Ownership Test '.$suffix, 'status' => 'active']);
-        $this->ownershipFixtures[$tenant->id] = ['tenant' => $tenant];
-        app(TenantContext::class)->set($tenant);
+        $owner = $this->createOwner($suffix);
+        $tenant = $this->createTenantRecord($suffix, $owner);
+        [$role, $actor] = $this->createUser($suffix, $tenant);
+        [$currency, $account] = $this->createAccount($suffix, $tenant);
+        [$unit, $location] = $this->createLocation($suffix, $tenant);
 
-        // Grant no business permissions by default; individual HTTP tests choose their permissions.
-        $role = TenantRole::query()->create(['name' => 'Ownership Test '.$suffix, 'is_default' => false, 'permissions' => []]);
-        $this->ownershipFixtureRoleIds[] = (int) $role->id;
-        $actor = TenantUser::query()->create(['code' => 'TU'.$suffix, 'tenant_id' => $tenant->id,
-            'role_id' => $role->id, 'username' => $suffix, 'name' => 'Ownership Test User',
-            'nrc' => '12/PaTaNa(N)'.$suffix, 'email' => 'actor'.$suffix.'@ownership.test',
-            'phone' => '095'.$suffix, 'password' => 'secret123', 'status' => 'active', 'is_deleted' => false]);
-
-        // Use tenant-owned finance/unit metadata so tests never mutate shared platform records.
-        $currency = Currency::query()->create(['tenant_id' => $tenant->id, 'scope_key' => 'tenant:'.$tenant->id,
-            'code' => 'MMK', 'name' => 'Test Kyat', 'decimal_precision' => 2, 'rounding_mode' => 'HALF_UP', 'is_active' => true]);
-        TenantSetting::query()->create(['tenant_id' => $tenant->id, 'key' => 'timezone', 'value' => 'UTC']);
-        TenantSetting::query()->create(['tenant_id' => $tenant->id, 'key' => 'currency_preferences', 'category' => 'finance',
-            'default_currency_id' => $currency->id, 'reporting_currency_id' => $currency->id, 'update_key' => 0]);
-        $accountType = FinancialAccountTypes::query()->create(['tenant_id' => $tenant->id,
-            'code' => 'otcash'.$suffix, 'name' => 'Test Cash', 'is_active' => true]);
-        $account = FinancialAccount::query()->create(['tenant_id' => $tenant->id, 'account_type_id' => $accountType->id,
-            'currency_id' => $currency->id, 'account_code' => 'OT'.$suffix, 'account_name' => 'Ownership Test Cash',
-            'balance' => '1000000.0000', 'is_active' => true, 'is_default' => true, 'is_deleted' => false,
-            'allow_negative_balance' => false]);
-        $unit = CatalogUnit::query()->create(['tenant_id' => $tenant->id, 'scope_key' => 'tenant:'.$tenant->id,
-            'code' => 'otunit'.$suffix, 'name' => 'Test piece', 'is_active' => true, 'is_system' => false]);
-        $location = InventoryLocation::query()->create(['tenant_id' => $tenant->id, 'code' => 'OL'.$suffix,
-            'name' => 'Ownership Test Shop', 'type' => 'SHOP', 'is_default' => true, 'is_active' => true, 'is_sellable' => true]);
-
-        // Return references for cross-tenant cases and activate the newly created tenant explicitly.
+        // Track and activate complete fixtures for later tenant switching and cleanup.
         $fixture = compact('tenant', 'owner', 'role', 'actor', 'currency', 'account', 'unit', 'location');
         $this->ownershipFixtures[$tenant->id] = $fixture;
-        $this->activateOwnershipFixture($fixture);
+        $this->setTenant($fixture);
+
         return $fixture;
     }
 
-    protected function activateOwnershipFixture(array $fixture): void
+    protected function setTenant(array $fixture): void
     {
         // Tests switching tenants must switch both scope and actor, never just a supplied tenant ID.
         $this->ownershipFixture = $fixture;
@@ -75,7 +49,7 @@ trait OwnershipFixture
         Auth::guard('tenantuser')->setUser($fixture['actor']);
     }
 
-    protected function createOwnershipInventoryItem(string $mode = 'QUANTITY', string $name = 'Ownership goods'): InventoryItem
+    protected function createItem(string $mode = 'QUANTITY', string $name = 'Ownership goods'): InventoryItem
     {
         // An identity fixture is not a receipt: do not manufacture physical stock or Ownership.
         if (! in_array($mode, ['QUANTITY', 'UNIQUE', 'SERIALIZED'], true)) {
@@ -86,7 +60,7 @@ trait OwnershipFixture
             'unit_id' => $this->ownershipFixture['unit']->id, 'quantity_scale' => 1, 'update_key' => 0]);
     }
 
-    protected function createOwnershipPurchase(
+    protected function createPurchase(
         InventoryItem $item,
         string $quantity = '10.000',
         string $unitPrice = '12.34',
@@ -98,9 +72,7 @@ trait OwnershipFixture
         if ((int) $item->tenant_id !== $tenantId) {
             throw new LogicException('Purchase fixture item must belong to the active fixture tenant.');
         }
-        $person = TenantPerson::query()->create(['tenant_id' => $tenantId, 'name' => 'Ownership Supplier']);
-        $supplier = PurchaseSupplier::query()->create(['tenant_id' => $tenantId, 'code' => 'OS'.bin2hex(random_bytes(6)),
-            'person_id' => $person->id, 'type' => 'INDIVIDUAL', 'is_active' => true]);
+        $supplier = $this->createSupplier($tenantId);
         $order = PurchaseOrder::query()->create(['tenant_id' => $tenantId, 'code' => 'PO'.bin2hex(random_bytes(6)),
             'supplier_id' => $supplier->id, 'status' => $status, 'ordered_at' => '2026-10-15',
             'currency_code' => $this->ownershipFixture['currency']->code, 'created_by' => $this->ownershipFixture['actor']->id]);
@@ -109,27 +81,15 @@ trait OwnershipFixture
             'tracking_mode' => $item->tracking_mode, 'unit_label' => $this->ownershipFixture['unit']->name,
             'unit_code' => $this->ownershipFixture['unit']->code, 'ordered_quantity' => $quantity, 'unit_price' => $unitPrice]);
 
-        // Null/zero payment builds unpaid/free-source cases without a fake zero-value payment row.
-        $payment = null;
-        if ($paid !== null && ! preg_match('/\A0+(?:\.0+)?\z/', $paid)) {
-            $payment = PurchasePayment::query()->create(['tenant_id' => $tenantId, 'code' => 'PP'.bin2hex(random_bytes(6)),
-                'purchase_order_id' => $order->id, 'paid_at' => '2026-10-15', 'amount' => $paid,
-                'financial_account_id' => $this->ownershipFixture['account']->id,
-                'created_by' => $this->ownershipFixture['actor']->id]);
-        }
+        $payment = $this->createPayment($order, $paid);
         return compact('order', 'line', 'payment', 'supplier', 'item');
     }
 
-    protected function receiveOwnershipPurchase(array $purchase, string $quantity, array $identifiers = []): array
+    protected function receivePurchase(array $purchase, string $quantity, array $identifiers = []): array
     {
         // Seed receipt provenance, then exercise real Inventory receipt; do not acquire/link Ownership here.
         $tenantId = (int) $this->ownershipFixture['tenant']->id;
-        if ((int) $purchase['order']->tenant_id !== $tenantId
-            || (int) $purchase['line']->purchase_order_id !== (int) $purchase['order']->id
-            || (int) $purchase['item']->tenant_id !== $tenantId
-            || (int) $purchase['line']->inventory_item_id !== (int) $purchase['item']->id) {
-            throw new LogicException('Receipt fixture must use its active tenant purchase source.');
-        }
+        $this->checkPurchase($purchase, $tenantId, 'Receipt fixture must use its active tenant purchase source.');
         $receipt = PurchaseReceipt::query()->create(['tenant_id' => $tenantId, 'code' => 'PR'.bin2hex(random_bytes(6)),
             'purchase_order_id' => $purchase['order']->id, 'received_at' => '2026-10-15',
             'created_by' => $this->ownershipFixture['actor']->id]);
@@ -146,16 +106,11 @@ trait OwnershipFixture
         return compact('receipt', 'receiptLine', 'inventory');
     }
 
-    protected function seedOwnershipLot(array $purchase): array
+    protected function createLot(array $purchase): array
     {
         // Isolate quantity-operation tests with a known ledger baseline, never as acquisition evidence.
         $tenantId = (int) $this->ownershipFixture['tenant']->id;
-        if ((int) $purchase['order']->tenant_id !== $tenantId
-            || (int) $purchase['line']->purchase_order_id !== (int) $purchase['order']->id
-            || (int) $purchase['item']->tenant_id !== $tenantId
-            || (int) $purchase['line']->inventory_item_id !== (int) $purchase['item']->id) {
-            throw new LogicException('Ownership baseline must use one active tenant purchase/item.');
-        }
+        $this->checkPurchase($purchase, $tenantId, 'Ownership baseline must use one active tenant purchase/item.');
         $ownedItem = OwnedItem::query()->firstOrCreate(['tenant_id' => $tenantId,
             'inventory_item_id' => $purchase['item']->id], ['code' => 'OW'.bin2hex(random_bytes(6)),
             'lifecycle_status' => 'ACTIVE', 'created_by' => $this->ownershipFixture['actor']->id]);
@@ -171,5 +126,102 @@ trait OwnershipFixture
             'source_type' => 'PurchaseOrderLine', 'source_code' => $purchase['line']->code,
             'occurred_at' => '2026-10-15 12:00:00', 'created_by' => $this->ownershipFixture['actor']->id]);
         return compact('ownedItem', 'lot', 'movement');
+    }
+
+    private function createOwner(string $suffix): PlatformUser
+    {
+        // Track the owner immediately so partial setup can still be cleaned.
+        $owner = PlatformUser::query()->create(['code' => 'PU'.$suffix, 'name' => 'Ownership Test Owner',
+            'email' => $suffix.'@ownership.test', 'phone' => '099'.$suffix, 'password' => 'secret123', 'status' => 'active']);
+        $this->ownershipFixtureOwnerIds[] = (int) $owner->id;
+
+        return $owner;
+    }
+
+    private function createTenantRecord(string $suffix, PlatformUser $owner): Tenant
+    {
+        // Track and activate the tenant before creating dependent records.
+        $tenant = Tenant::query()->create(['platform_user_id' => $owner->id, 'tenant_code' => 'ot'.$suffix,
+            'subdomain' => 'ot'.$suffix, 'name' => 'Ownership Test '.$suffix, 'status' => 'active']);
+        $this->ownershipFixtures[$tenant->id] = ['tenant' => $tenant];
+        app(TenantContext::class)->set($tenant);
+
+        return $tenant;
+    }
+
+    private function createUser(string $suffix, Tenant $tenant): array
+    {
+        // Grant no business permissions by default; individual HTTP tests choose their permissions.
+        $role = TenantRole::query()->create(['name' => 'Ownership Test '.$suffix, 'is_default' => false, 'permissions' => []]);
+        $this->ownershipFixtureRoleIds[] = (int) $role->id;
+        $actor = TenantUser::query()->create(['code' => 'TU'.$suffix, 'tenant_id' => $tenant->id,
+            'role_id' => $role->id, 'username' => $suffix, 'name' => 'Ownership Test User',
+            'nrc' => '12/PaTaNa(N)'.$suffix, 'email' => 'actor'.$suffix.'@ownership.test',
+            'phone' => '095'.$suffix, 'password' => 'secret123', 'status' => 'active', 'is_deleted' => false]);
+
+        return [$role, $actor];
+    }
+
+    private function createAccount(string $suffix, Tenant $tenant): array
+    {
+        // Use tenant-owned finance/unit metadata so tests never mutate shared platform records.
+        $currency = Currency::query()->create(['tenant_id' => $tenant->id, 'scope_key' => 'tenant:'.$tenant->id,
+            'code' => 'MMK', 'name' => 'Test Kyat', 'decimal_precision' => 2, 'rounding_mode' => 'HALF_UP', 'is_active' => true]);
+        TenantSetting::query()->create(['tenant_id' => $tenant->id, 'key' => 'timezone', 'value' => 'UTC']);
+        TenantSetting::query()->create(['tenant_id' => $tenant->id, 'key' => 'currency_preferences', 'category' => 'finance',
+            'default_currency_id' => $currency->id, 'reporting_currency_id' => $currency->id, 'update_key' => 0]);
+        $accountType = FinancialAccountTypes::query()->create(['tenant_id' => $tenant->id,
+            'code' => 'otcash'.$suffix, 'name' => 'Test Cash', 'is_active' => true]);
+        $account = FinancialAccount::query()->create(['tenant_id' => $tenant->id, 'account_type_id' => $accountType->id,
+            'currency_id' => $currency->id, 'account_code' => 'OT'.$suffix, 'account_name' => 'Ownership Test Cash',
+            'balance' => '1000000.0000', 'is_active' => true, 'is_default' => true, 'is_deleted' => false,
+            'allow_negative_balance' => false]);
+        return [$currency, $account];
+    }
+
+    private function createLocation(string $suffix, Tenant $tenant): array
+    {
+        // Create tenant-owned unit and physical location metadata.
+        $unit = CatalogUnit::query()->create(['tenant_id' => $tenant->id, 'scope_key' => 'tenant:'.$tenant->id,
+            'code' => 'otunit'.$suffix, 'name' => 'Test piece', 'is_active' => true, 'is_system' => false]);
+        $location = InventoryLocation::query()->create(['tenant_id' => $tenant->id, 'code' => 'OL'.$suffix,
+            'name' => 'Ownership Test Shop', 'type' => 'SHOP', 'is_default' => true, 'is_active' => true, 'is_sellable' => true]);
+
+        return [$unit, $location];
+    }
+
+    private function createSupplier(int $tenantId): PurchaseSupplier
+    {
+        // Persist supplier facts without invoking Purchasing workflows.
+        $person = TenantPerson::query()->create(['tenant_id' => $tenantId, 'name' => 'Ownership Supplier']);
+        $supplier = PurchaseSupplier::query()->create(['tenant_id' => $tenantId, 'code' => 'OS'.bin2hex(random_bytes(6)),
+            'person_id' => $person->id, 'type' => 'INDIVIDUAL', 'is_active' => true]);
+        return $supplier;
+    }
+
+    private function createPayment(PurchaseOrder $order, ?string $paid): ?PurchasePayment
+    {
+        // Use the source order's tenant for the optional payment row.
+        $tenantId = (int) $order->tenant_id;
+        // Null/zero payment builds unpaid/free-source cases without a fake zero-value payment row.
+        $payment = null;
+        if ($paid !== null && ! preg_match('/\A0+(?:\.0+)?\z/', $paid)) {
+            $payment = PurchasePayment::query()->create(['tenant_id' => $tenantId, 'code' => 'PP'.bin2hex(random_bytes(6)),
+                'purchase_order_id' => $order->id, 'paid_at' => '2026-10-15', 'amount' => $paid,
+                'financial_account_id' => $this->ownershipFixture['account']->id,
+                'created_by' => $this->ownershipFixture['actor']->id]);
+        }
+        return $payment;
+    }
+
+    private function checkPurchase(array $purchase, int $tenantId, string $message): void
+    {
+        // Reject mixed-tenant and mismatched source records before fixture writes.
+        if ((int) $purchase['order']->tenant_id !== $tenantId
+            || (int) $purchase['line']->purchase_order_id !== (int) $purchase['order']->id
+            || (int) $purchase['item']->tenant_id !== $tenantId
+            || (int) $purchase['line']->inventory_item_id !== (int) $purchase['item']->id) {
+            throw new LogicException($message);
+        }
     }
 }

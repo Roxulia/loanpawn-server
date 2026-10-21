@@ -120,14 +120,14 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-02 | Source, data, API, and quantity decisions | Complete — OWN-02a–h Q&A accepted; implementation/tests not started |
 | OWN-03 | Acceptance matrix and test boundaries | Review deferred by user — provisional reference; expectations reviewed per test during Stage 2 |
 | OWN-04 | Test harness and fixtures | Complete — OWN-04a–d implementation/review accepted; fixture/worker runtime verification pending |
-| OWN-05 | Unit tests | Not started |
-| OWN-06 | Acquisition integration tests | Not started |
-| OWN-07 | Receipt/serialized linking integration tests | Not started |
-| OWN-08 | Sale and pledge quantity integration tests | Not started |
-| OWN-09 | API/read/gate tests | Not started |
-| OWN-10 | Transaction/idempotency/concurrency tests | Not started |
-| OWN-11 | Monthly summary tests | Not started |
-| OWN-12 | Initial test results and test acceptance | Not started |
+| OWN-05 | Unit tests | Writing/review complete (05a-e accepted); production prerequisites and execution pending |
+| OWN-06 | Acquisition integration tests | Writing/review complete (06a-e accepted); production prerequisites and MySQL execution pending |
+| OWN-07 | Receipt/serialized linking integration tests | Writing and review accepted by user; implementation and execution pending |
+| OWN-08 | Sale and pledge quantity integration tests | Test writing and expectation review accepted; implementation/execution pending |
+| OWN-09 | API, read, and gate tests | Test writing and expectation review accepted; implementation/execution pending |
+| OWN-10 | Atomicity, idempotency, and concurrency tests | Test writing and expectation review accepted; implementation/execution pending |
+| OWN-11 | Monthly summary tests | Test writing and expectation review accepted; implementation/execution pending |
+| OWN-12 | Review tests and initial results | Coverage/expectation review accepted via review document; OWN-12b execution pending authorization and prepared schema |
 | OWN-13 | Feature gates and permission wiring | Not started |
 | OWN-14 | Messages and exact arithmetic foundations | Not started |
 | OWN-15 | Schema, models, constraints, indexes | Not started |
@@ -706,7 +706,7 @@ Suggested test files are `OwnershipQuantityTest`, `OwnershipContractTest`, `Owne
 
 **Question: What does the rollback fixture create?**
 
-**Answer:** `OwnershipMySqlTestCase` extends the existing guarded `InventoryMySqlTestCase`, reusing its disposable MySQL connection, rollback transaction, and cache/throttle isolation. `OwnershipFixture` creates a uniquely identified tenant, actor/role, tenant-owned currency/account/unit/location, and explicitly switches actor plus TenantContext when activating a fixture. Default roles have no business permissions and no features are enabled; HTTP tests choose those separately. Clocks are frozen for reproducible source dates and reset during teardown.
+**Answer:** `OwnershipMySqlTestCase` extends the shared guarded `MySqlTestCase`, reusing its disposable MySQL connection, rollback transaction, and cache/throttle isolation. `OwnershipFixture` creates a uniquely identified tenant, actor/role, tenant-owned currency/account/unit/location, and explicitly switches actor plus TenantContext when activating a fixture. Default roles have no business permissions and no features are enabled; HTTP tests choose those separately. Clocks are frozen for reproducible source dates and reset during teardown.
 
 **Question: Can tests represent paid goods that have not arrived?**
 
@@ -722,11 +722,11 @@ Suggested test files are `OwnershipQuantityTest`, `OwnershipContractTest`, `Owne
 
 **Question: How do independent processes see the same records?**
 
-**Answer:** `CommittedOwnershipFixture` disables the enclosing fixture transaction; the future test then uses explicit transactions for the operation under inspection. Workers are registered and stopped before teardown. Cleanup first validates every recorded tenant ID/code and its unique Ownership Test marker, then deletes only records whose `tenant_id` belongs to those exact fixtures. It discovers actual tenant-owned tables from metadata and retries only FK-blocked parents after children; it never disables FK checks or creates/drops tables. All fixture tenants are cleaned together so intentionally cross-tenant negative-test source links can be removed in dependency order. It removes its tracked global roles/owners last and asserts its tenant/owner IDs are gone. An unresolved FK blocker raises a visible error rather than deleting unrelated data.
+**Answer:** `CommittedOwnershipTestCase` disables the enclosing fixture transaction; the future test then uses explicit transactions for the operation under inspection. Workers are registered and stopped before teardown. Cleanup first validates every recorded tenant ID/code and its unique Ownership Test marker, then deletes only records whose `tenant_id` belongs to those exact fixtures. It discovers actual tenant-owned tables from metadata and retries only FK-blocked parents after children; it never disables FK checks or creates/drops tables. All fixture tenants are cleaned together so intentionally cross-tenant negative-test source links can be removed in dependency order. It removes its tracked global roles/owners last and asserts its tenant/owner IDs are gone. An unresolved FK blocker raises a visible error rather than deleting unrelated data.
 
 **Question: What worker support is available?**
 
-**Answer:** `OwnershipWorkerProcess` starts bounded separate PHP processes with allowlisted nonsecret reference payloads, polls buffered JSON states, observes actual MySQL waits through `performance_schema.data_lock_waits`, and releases held transactions through stdin. Each process has a 20-second parent timeout; state/lock observation and holder-release waits have shorter deadlines. Raw SQL/error output and credentials are not returned as worker diagnostics.
+**Answer:** `OwnershipWorker` inherits shared process coordination from `TestWorker` and starts bounded separate PHP processes with allowlisted nonsecret reference payloads, polls buffered JSON states, observes actual MySQL waits through `performance_schema.data_lock_waits`, and releases held transactions through stdin. Each process has a 20-second parent timeout; state/lock observation and holder-release waits have shorter deadlines. Raw SQL/error output and credentials are not returned as worker diagnostics.
 
 **Question: Which actions does the Ownership worker implement now?**
 
@@ -744,93 +744,434 @@ Suggested test files are `OwnershipQuantityTest`, `OwnershipContractTest`, `Owne
 
 **Depends on:** Accepted OWN-02 design and per-test expectation review; OWN-04 only where framework bootstrap is required. OWN-03 remains a provisional reference.
 
-- [ ] **OWN-05a:** Test exact quantity zero/positive distinction, `0.001`, precision, overflow, invalid values, UNIQUE one, and SERIALIZED whole quantities. Reuse existing Inventory tests where they already prove shared arithmetic; test Ownership's use of that contract.
-- [ ] **OWN-05b:** Test exact cost/value normalization, bounds, zero, negative/over-precision rejection, and no float conversion in new Ownership DTOs.
-- [ ] **OWN-05c:** Test command normalization, optional unknown serials before receipt, duplicate serial selection, and separate trusted source context versus public input.
-- [ ] **OWN-05d:** Test typed result/read serialization, pagination boundaries, public codes, reserved fields, and no lazy model/database work during serialization.
-- [ ] **OWN-05e:** Test transition calculations: reserve, release, sale consumption, pledge, pledge release, and forfeiture. Use separately reviewable cases for each operation.
+- [x] **OWN-05a:** Test exact quantity zero/positive distinction, `0.001`, precision, overflow, invalid values, UNIQUE one, and SERIALIZED whole quantities. Reuse existing Inventory tests where they already prove shared arithmetic; test Ownership's use of that contract. **Written in `tests/Unit/OwnershipQuantityTest.php`; expectations/interface accepted through “done and next”. Execution and OWN-14 implementation remain pending.**
+- [x] **OWN-05b:** Test exact cost/value normalization, bounds, zero, negative/over-precision rejection, and no float conversion in new Ownership DTOs. **Written in `tests/Unit/OwnershipCostTest.php`; expectations/interface accepted through “done and next”. Execution and OWN-14/16 implementation remain pending.**
+- [x] **OWN-05c:** Test command normalization, optional unknown serials before receipt, duplicate serial selection, and separate trusted source context versus public input. **Written in `tests/Unit/OwnershipCommandTest.php`; expectations/interface accepted through "done next one". Execution and OWN-16 implementation remain pending.**
+- [x] **OWN-05d:** Test typed result/read serialization, pagination boundaries, public codes, reserved fields, and no lazy model/database work during serialization. **Written in `OwnershipContractTest` and `OwnershipPageTest`, sharing `OwnershipResponseTestCase`; expectations/interface accepted through "done and work until 05 complete". OWN-16 implementation and execution remain pending.**
+- [x] **OWN-05e:** Test transition calculations: reserve, release, sale consumption, pledge, pledge release, and forfeiture. Use separately reviewable cases for each operation. **Written in `OwnershipTransitionTest`; the user accepted the new cases through "ok done next" after discussing the balance/movement meaning. Production gaps and execution remain pending.**
+
+#### OWN-05a — Quantity test expectations
+
+**Status:** Test expectations and the proposed interface accepted through the user's “done and next”. OWN-05a is checked for writing/review only. Production implementation and test execution remain pending; no runtime result is implied. The unit changed tests and this checklist only.
+
+**Question: What is the setup and action?**
+
+**Answer:** `OwnershipQuantityTest` extends the existing framework `TestCase` only for exception/message support. It uses literal values and named providers, with no tenant fixtures, database access, worker processes, or quantity arithmetic implemented inside the test. Operation cases reuse `InventoryQuantityTest` through PHPUnit's external data-provider attribute; the earlier test file stays unchanged.
+
+**Question: Which operation quantities should succeed?**
+
+**Answer:** The existing Inventory cases supply `0.001`, an exact three-decimal quantity, supported numeric input, UNIQUE exactly one, SERIALIZED whole quantities, whitespace/leading-zero normalization, and the `DECIMAL(14,3)` maximum `99999999999.999`. Ownership must return canonical three-decimal strings. Zero, negative, malformed, non-finite, over-precision, overflowing, invalid UNIQUE, and fractional SERIALIZED operation inputs raise the existing `InvalidTenantRequest`.
+
+**Question: How are accumulated balances different?**
+
+**Answer:** A balance may be zero or larger than an operation input, up to `999999999999999999999.999` (`DECIMAL(24,3)`). Tests include values above the PHP scaled-integer range and adjacent large values differing by `0.001`. Normalize and compare exact decimal strings without rounding, float conversion, or using the smaller operation parser for totals. Reject negative, malformed, over-precision, and overflowing balance strings, and reject an invalid operand on either side of a comparison. Expected comparison results are literal `-1`, `0`, or `1`.
+
+**Question: Which interface do these tests target?**
+
+**Answer:** The test-first proposal is `App\Support\OwnershipQuantity::normalize(mixed $quantity, string $trackingMode = 'QUANTITY'): string`, `normalizeBalance(string $quantity): string`, and `compare(string $left, string $right): int`. The operation method must reuse `InventoryQuantity::parse` and `format`; wider balance normalization/comparison is the missing narrow capability identified during review. This wrapper is not a replacement arithmetic implementation or proof that Ownership services are already wired to it. The class does not exist yet and belongs to OWN-14 after the test-writing/review gates; its connection to real commands/services is verified in subsequent units. The user accepted this proposed interface with OWN-05a; implementation remains deferred.
+
+**Question: What changes if a value is rejected, and what has been verified?**
+
+**Answer:** These are pure value tests, so no persistent data is created or changed. PHP syntax and static review are the only checks performed; PHPUnit has not run. Missing `OwnershipQuantity` is a known production-implementation blocker, not an observed assertion failure or a skipped test. No passing runtime result is claimed. OWN-05a/b review is accepted; OWN-05c review is accepted; OWN-05d review is accepted and OWN-05e writing is complete; runtime verification remains pending.
+
+#### OWN-05b — Cost and estimated-value test expectations
+
+**Status:** The user accepted the cost/value expectations and proposed interface through “done and next”. OWN-05b is checked for writing/review only. OWN-14/16 implementation and runtime verification remain pending; no tests were run for this acceptance update.
+
+**Question: What setup and action do these tests use?**
+
+**Answer:** Reuse the existing `Tests\TestCase`, with literal costs and named providers. Small public test methods call the cost helper or the actual `OwnershipAcquisitionCreate::fromValidated` factory; one private `request()` helper supplies stable valid fields. No tenant fixtures, database work, workers, payment posting, or test-specific arithmetic is involved. No additional test parent is needed because only the existing framework lifecycle is shared.
+
+**Question: Which costs and estimated values should succeed?**
+
+**Answer:** Accept exact decimal strings and integer inputs. Normalize `12.34` to `12.3400`, zero to `0.0000`, and `0.0001` unchanged. Preserve the distinct large values `99999999999999.9998` and `99999999999999.9999`, the latter being the `DECIMAL(18,4)` maximum. Whitespace, a leading plus, and leading zeros normalize consistently with quantity inputs. An omitted or explicit-null estimated value stays null; an explicitly supplied zero stays a four-decimal string.
+
+**Question: What is rejected?**
+
+**Answer:** Negative, malformed, over-precision, overflowing, scientific-notation, and comma-separated text; booleans/arrays; and finite or non-finite floats. Even an extra fifth zero decimal place rejects instead of rounding. Float rejection is the exact-input boundary accepted with OWN-05b: callers must retain original decimal strings rather than trying to recover lost digits. Required cost rejects null; optional estimated value accepts null but rejects all other invalid values through `InvalidTenantRequest`.
+
+**Question: Which helper and DTO contracts are tested?**
+
+**Answer:** Proposed narrow helper: `App\Support\OwnershipCost::normalize(mixed $value): string` and `normalizeOptional(mixed $value): ?string`. No suitable exact-cost utility was found: existing Purchasing/Sales formatters accept floats and use `number_format`. Implement the helper in OWN-14c, not in this test-writing unit. The existing acquisition DTO is already scheduled for exact-string adaptation in OWN-16a; these tests require its cost/estimate properties, `toArray`, and JSON output to retain canonical strings/null without float conversion. They do not redesign trusted acquisition source context, activate manual acquisition, or test payment eligibility; those remain in their assigned units.
+
+**Question: What remains unchanged on failure, and what was verified?**
+
+**Answer:** These pure value/factory tests create no persistent data. PHP syntax and diff whitespace checks only; no PHPUnit execution or runtime pass/failure is claimed. `OwnershipCost` is absent, and the current acquisition DTO still casts costs to floats. Record those as pending OWN-14/16 implementation, not reasons to weaken expectations or silently skip tests. OWN-05c review is accepted; OWN-05d review is accepted and OWN-05e writing is complete; runtime verification remains pending.
+
+#### OWN-05c — Command test expectations
+
+**Status:** The user accepted the command expectations and proposed interfaces through "done next one". OWN-05c is checked for writing/review only. OWN-16 implementation and runtime verification remain pending; no tests were run for this acceptance update.
+
+**Question: What setup and action do these tests use?**
+
+**Answer:** Reuse `Tests\TestCase` with small test methods, named providers, and private `acquisition()`, `source()`, and `link()` helpers. All inputs are plain values; no database, tenant fixture, purchase payment, physical receipt, or acquisition operation runs. No additional test base is needed. The actual Inventory receipt DTO is reused for the identifier `"0"` check instead of adding another identifier normalizer.
+
+**Question: What should normalize successfully?**
+
+**Answer:** Trim item, purchase-source, receipt-line, and selected-piece references without changing their case. Normalize source module and currency to uppercase and keep exact quantity/cost strings. Linking reindexes selected piece codes while preserving selection order. The string `"0"` remains a valid nonblank code/identifier; numeric zero is not silently converted to a string code.
+
+**Question: Can acquisition happen before serial numbers are known?**
+
+**Answer:** Yes. A typed SERIALIZED purchase source supplies quantity `3` without piece codes or identifiers; the resulting acquisition command contains `3.000` and no invented piece selection. Actual piece creation, link membership, count matching, and receipt/item/tenant associations require later service and integration tests.
+
+**Question: What should linking reject?**
+
+**Answer:** Exact duplicate codes and duplicates created by trimming, including `"0"` versus `" 0 "`. Reject blank, null, numeric, boolean, or nested-array entries through `InvalidTenantRequest`; do not silently deduplicate a user's selected quantity. An empty selection remains valid at the DTO boundary for nonserialized linking; the service resolves tracking mode and enforces SERIALIZED selection counts. Missing HTTP idempotency headers are also an endpoint responsibility; the DTO preserves the explicit factory argument and cannot replace it from payload data.
+
+**Question: How are trusted and public inputs separated?**
+
+**Answer:** The proposed internal value object is `App\DataObjects\RequestObjects\OwnershipSource`, supplied by the real source resolver. Its constructor carries tenant ID, source module/type/code, item code, tracking mode, quantity, acquisition date, unit cost, optional estimate, currency, and optional description. `OwnershipAcquisitionCreate::fromSource(OwnershipSource $source): self` retains that typed object in a nullable `source` property and derives acquisition values from it. The existing public `fromValidated(array)` factory keeps `source` null and ignores authority fields, even an injected typed source object. Public serialization omits source authority metadata. This fixture is resolver-output data, not evidence that a real purchase is fully paid or that a caller is authorized.
+
+**Answer:** The proposed public link DTO is `OwnershipReceiptLinkRequest::fromValidated(array $data, ?string $idempotencyKey = null): self`, with `purchaseReceiptLineCode`, canonical `quantity`, `serializedItemCodes` (default empty), integer `updateKey`, and `idempotencyKey`. Both public factories ignore tenant selection, paid assertions, internal bypass flags, and nested or flat source-context inputs; no such authority keys may appear in their public arrays. Item/lot references remain path/service responsibilities. These proposals belong to OWN-16 after test review; no DTO, source resolver, or production helper is implemented in this unit.
+
+**Question: What changes on failure, and what was verified?**
+
+**Answer:** No persistent state exists in these pure DTO tests. PHP syntax and diff whitespace checks only; no PHPUnit execution or passing runtime result is claimed. `OwnershipSource`, `OwnershipReceiptLinkRequest`, and the acquisition DTO's `fromSource`/`source` support are missing; those are known OWN-16 prerequisites. HTTP security, tenant isolation, paid-source qualification, and no-write database effects remain assigned to later integration/API tests. OWN-05d review is accepted and OWN-05e writing is complete; runtime verification remains pending.
+
+#### OWN-05d - Response and pagination test expectations
+
+**Status:** The user accepted OWN-05d through "done and work until 05 complete" and authorized completion of the remaining Phase 05 writing. OWN-05d is checked for writing/review only. No production DTO/filter changes or runtime verification are implied.
+
+**Question: What setup and action do these tests use?**
+
+**Answer:** Two test subclasses share plain typed-response fixtures in `OwnershipResponseTestCase`. This parent extends the existing framework `TestCase` and prohibits database connection/table/select/selectOne facade calls during construction and serialization. Fixtures contain scalar values and copied response DTOs, not persisted models or lazy relations. No schema, fixtures, payments, worker processes, or real queries are executed.
+
+**Question: Which fields and types must responses preserve?**
+
+**Answer:** Compare complete literal arrays and their JSON round trips for item summaries, lots, movements, receipt candidates, and pieces. Quantities remain three-decimal strings, historical costs remain four-decimal strings (including the maximum cost), reserved quantities/deltas are present, signed consumption deltas stay signed strings, public references remain codes, and optional catalog/photo/value/identifier fields remain null. The piece identifier "0" is retained. Exact key sets exclude internal IDs, raw storage paths and unbounded lot/history/piece collections. Ownership availability, physical custody, received-backed, awaiting-receipt and pending-link quantities have separate fields.
+
+**Question: How do detail and mutation results differ?**
+
+**Answer:** `OwnershipItemDetail` receives an item summary, existing typed `InventoryLocationBalance` projections and `receiptLinkState`. It copies the bounded summary and exposes locations plus receipt-link state, without embedding lots or pieces. `OwnershipResult` contains `ownedItemCode`, `updateKey`, and affected-only `lotCodes`, `movementCodes`, `receiptLinkCodes` and `serializedItemCodes`; the latter two default to empty lists. These tests prove output shape from supplied affected references, not the service's selection of those references. Actual affected-row selection and HTTP success envelopes remain later service/API acceptance.
+
+**Question: What are the pagination rules?**
+
+**Answer:** `OwnershipListFilter::fromValidated` defaults to page 1, size 25 and holding `all`; page 2/size 100 succeeds. Reject page below 1 and size outside 1-100 with `InvalidTenantRequest`. Input-type validation belongs to the HTTP layer; these factory cases use validated integers. Every response page uses exactly `{items,current_page,last_page,per_page,total}`. Empty results have last page 1. Response construction rejects raw arrays, raw models, wrong DTO row types, too many rows, and invalid metadata through `InvalidArgumentException`, matching the existing Inventory programming-error convention.
+
+**Question: Which interfaces are proposed for OWN-16?**
+
+**Answer:** Follow existing constructor-promoted camelCase fields and `BaseDataObject::toArray` snake_case serialization. Row contracts are `OwnershipItemSummary`, `OwnershipLot`, `OwnershipMovementRow`, `OwnershipReceiptCandidate`, and `OwnershipPiece`; their constructor fields and complete public arrays are specified by the shared fixture. Detail and mutation contracts are described above. Collection contracts are `OwnershipItemPage`, `OwnershipLotPage`, `OwnershipMovementPage`, `OwnershipReceiptPage`, and `OwnershipPiecePage`, each accepting `(items, currentPage, lastPage, perPage, total)` and restricting its row type. Reuse the existing `InventoryReadPage` validation/serialization through inheritance where suitable rather than copying it. `OwnershipListFilter` reuses `InventoryPageFilter` bounds. The fixture parent is test-only shared setup, not a new production abstraction.
+
+**Question: What remains pending?**
+
+**Answer:** All proposed Ownership response/page/filter classes are absent and belong to OWN-16. Syntax and whitespace checks are the only verification; PHPUnit has not run and no runtime pass/failure is claimed. Database-call guards become runtime evidence only when executed. Stable database ordering, filter queries, permission middleware, signed photo URL generation, endpoint envelopes, and service mapping are tested in their assigned later units. OWN-05e writing is now complete; runtime verification remains pending.
+
+#### OWN-05e - Transition decision tests
+
+**Status:** The user accepted the newly written 05e cases through "ok done next" after clarification of balances and `assertMovement`. All OWN-05 writing/review units are complete. Production gaps and test execution remain pending; acceptance does not imply a passing runtime result.
+
+**Question: Why are these service unit tests instead of a new pure calculator?**
+
+**Answer:** Inspection found transition decisions inside `OwnershipService::changeQuantity`, with database sums in `OwnershipRepository`, not an existing standalone pure calculator. The accepted matrix explicitly says not to force a calculation helper solely to test it. These tests invoke real public service entrypoints and mock external ports using the existing service-test pattern. The DB transaction facade executes its callback without opening a connection. Repository reads supply independent literal before-balances and unsaved identity records; no SQL balances, real source commitments or locking behavior are claimed.
+
+**Question: Which successful transitions are specified?**
+
+**Answer:** Each test starts independently with B=(owned,reserved,pledged). Reserve 4 from (10,0,0) proposes deltas (0,+4,0), representing (10,4,0). Release 1 from (10,4,0) proposes (0,-1,0), representing (10,3,0). Consume 2 from (10,3,0) proposes (-2,-2,0), representing (8,1,0). Pledge 4 from (10,0,0) proposes (0,0,+4); release 1 from (10,0,4) proposes (0,0,-1); forfeit 2 from (10,0,3) proposes (-2,0,-2). Matching full forfeiture from (10,0,10) must propose (-10,0,-10) despite zero free quantity. Reserving exactly the remaining 0.001 succeeds without a tolerance.
+
+**Question: What result is actually asserted without a database?**
+
+**Answer:** Capture the real `createMovement` payload, then throw a unique test-owned exception at that mocked persistence boundary. Assert the same exception identity, movement type, exact quantity, all three signed canonical delta strings, and source reference. The mock requires exactly one proposed movement. No test helper calculates the transition or pretends to persist/sum movements. A captured payload proves only the service's proposed effect: final stored B values, source binding, commitment updates, successful completion, physical effects and atomicity remain OWN-08/10 integration checks. The sentinel is test-only fault injection and never enters production code.
+
+**Question: Which operations must reject before proposing a movement?**
+
+**Answer:** Independently reject each operation's excess reserve, sale-release, reserved-consumption, pledge, pledge-release or pledged-forfeiture quantity, including a 0.001 shortfall and fully reserved/pledged capacity. Each of the six entrypoints also rejects zero, negative and over-precision quantities. Require the agreed `InvalidTenantRequest` and prohibit `createMovement` for rejection cases. Invalid source relationships and other-source commitments are not simulated as validated business data; their real lookup/no-write behavior remains OWN-08.
+
+**Question: Which production gaps must later units address?**
+
+**Answer:** Current methods take floats and propose numeric deltas, use `ValidationException`, omit the positive sale-reservation capacity guard, and reject some fully pledged forfeitures against free quantity. `consumeSaleReservation(ownedItemCode, lotCode, exactQuantity, sourceCode)` is the proposed atomic sale-consumption entrypoint, producing `SALE_CONSUME` with owned/reserved negative deltas; it is not implemented. Existing entrypoints otherwise remain `reserveSale`, `releaseSaleReservation`, `reservePledge`, `releasePledge`, and `reduceForfeiture`. Exact inputs/messages belong to OWN-14/16/20, source lookup/commitments to OWN-18/19, and real sale/pledge orchestration to OWN-24/25. Adapt test ports alongside reviewed contracts when these units activate; never weaken the expected business effect or replace the service with a fake calculator.
+
+**Question: What was verified and what remains open?**
+
+**Answer:** PHP syntax/class loading and diff whitespace checks only. No PHPUnit, database, migration, worker, job, or server execution occurred, and no production files were changed. Missing classes/methods, old float/exception behavior and new mocked-port needs are prerequisite gaps, not measured assertion failures. The user has accepted the new cases; Phase 05 test writing/review is complete without claiming production readiness or runtime success.
+
+#### Phase 05 writing completion
+
+- Quantity: `OwnershipQuantityTest` covers the accepted operation/balance contract using existing Inventory providers.
+- Costs: `OwnershipCostTest` covers helper and actual acquisition-DTO exact cost/value boundaries.
+- Commands: `OwnershipCommandTest` covers normalization and typed-source versus public-factory separation.
+- Responses/pages: `OwnershipContractTest` and `OwnershipPageTest` share `OwnershipResponseTestCase` and cover public serialization, bounded typed pages and database-call guards.
+- Transitions: `OwnershipTransitionTest` covers real service decisions through the mocked movement boundary; persisted outcomes remain later integration acceptance.
+
+**Completion boundary:** All five test-writing units are written and their expectations/interfaces accepted. OWN-05e acceptance was recorded through "ok done next". None of the unit tests have been executed. Known production dependencies remain explicitly deferred under the tests-first stage gate. The next authorized unit is OWN-06a acquisition integration test writing, not production implementation.
 
 ### OWN-06 — Acquisition integration tests
 
 **Depends on:** OWN-04/05; real MySQL schema preparation before execution.
 
-- [ ] **OWN-06a:** Test fully paid acquisition before any receipt: owned quantity/cost exists, physical stock stays zero, and no Inventory movement is created.
-- [ ] **OWN-06b:** Test unpaid/part-paid source rejection, cross-tenant/missing/mismatched source rejection, and zero-total purchase semantics agreed in OWN-02e.
-- [ ] **OWN-06c:** Test multiple immutable lots with separate costs/currencies; original snapshots survive later quantity changes.
-- [ ] **OWN-06d:** Test duplicate acquisition source, replay, and conflicting request data without duplicate lots/movements. Separate replay assertions from source-conflict assertions.
-- [ ] **OWN-06e:** Test UNIQUE current-ownership duplication rejection and valid new-lot acquisition after the earlier ownership is exhausted.
+- [x] **OWN-06a:** Test fully paid acquisition before any receipt: owned quantity/cost exists, physical stock stays zero, and no Inventory movement is created. **Written in `OwnershipAcquisitionTest`; expectations/interface accepted through "done go on". Production prerequisites and execution remain pending.**
+- [x] **OWN-06b:** Test unpaid/part-paid source rejection, cross-tenant/missing/mismatched source rejection, and zero-total purchase semantics agreed in OWN-02e. **Written in `OwnershipSourceTest`, sharing `OwnershipPurchaseTestCase` with 06a; accepted through "done next" after explanation of the ineligible source cases. Production prerequisites and execution remain pending.**
+- [x] **OWN-06c:** Test multiple immutable lots with separate costs/currencies; original snapshots survive later quantity changes. **Written in `OwnershipLotTest`; accepted through "done and next step" after expanding test comments. Production prerequisites and execution remain pending.**
+- [x] **OWN-06d:** Test duplicate acquisition source, replay, and conflicting request data without duplicate lots/movements. Separate replay assertions from source-conflict assertions. **Written in `OwnershipReplayTest`; accepted through "good, next". Production prerequisites and execution remain pending.**
+- [x] **OWN-06e:** Test UNIQUE current-ownership duplication rejection and valid new-lot acquisition after the earlier ownership is exhausted. **Written in `OwnershipUniqueTest`; accepted through "done next". Production prerequisites and execution remain pending.**
+
+#### OWN-06a - Fully paid acquisition before receipt
+
+**Status:** The user accepted OWN-06a through "done go on". Its writing/expectation/interface review is complete; production prerequisites and MySQL execution remain pending. Reusable acquisition helpers now live in `OwnershipPurchaseTestCase`, shared with OWN-06b; 06a scenarios and their default assertions are preserved.
+
+**Question: What are the setup and action?**
+
+**Answer:** Extend the existing rollback-only `OwnershipMySqlTestCase`. Reuse source-only helpers to persist real Inventory identity, confirmed purchase/order line and payment records. Do not seed a lot or movement, call full Purchasing workflows, mock source eligibility, or create receipts. Order date is 2026-10-10, effective settlement date 2026-10-12, and the existing frozen recording time 2026-10-15 12:00:00 UTC. Invoke the real acquisition entrypoint with the purchase-line code and stable per-source idempotency key.
+
+**Question: What should successful acquisition create?**
+
+**Answer:** For QUANTITY 10 paid 123.40, UNIQUE 1 paid 12.34, and SERIALIZED 3 paid 37.02, create one owned aggregate, one source lot and one acquisition movement. Preserve the original item association, exact quantity, unit cost 12.3400, currency, and settlement date. The source is `PURCHASING / PurchaseOrderLine / line code`, not a receipt. Real SQL movement sums show owned equal to the purchased quantity and reserved/pledged zero. The result explicitly identifies the affected item/lot/movement, with no link or piece references.
+
+**Question: How do identities work before stock exists?**
+
+**Answer:** A purchase with no assigned Inventory identity creates and persists one from its source metadata, with version zero and no physical stock; an unrelated same-name identity must not be chosen automatically. Separately identified same-name goods retain separate owned aggregates and lots. Two matching QUANTITY purchases explicitly selecting the same existing identity keep that one item/owned aggregate, separate source lots, and exact total owned 12.000. These cases do not authorize duplicate current UNIQUE ownership or serialized reacquisition; OWN-06e covers those rules.
+
+**Question: What must remain unchanged?**
+
+**Answer:** Real Inventory detail stays at physical quantity 0.000, with no receipt, Inventory movement, serialized piece, or reservation added. Snapshot this tenant's payment/receipt/Inventory/financial/accounting row counts and cash balance after source setup, and assert acquisition leaves them unchanged. Existing identity versions stay unchanged; the identity-creation case instead checks the new identity's zero version. Tests use actual database sums and real Inventory reads, not mock balance results. Acquisition may create its own normal audit/idempotency records, so unrelated full-row-count prohibitions are not imposed on those records.
+
+**Question: Which internal entrypoint do these tests propose?**
+
+**Answer:** `OwnershipService::acquirePurchaseLine(string $purchaseLineCode, ?string $idempotencyKey = null): OwnershipResult` is a narrow purchase-specific entrypoint. Ownership resolves/validates the actual purchase source through the already agreed `PurchasingOwnershipSourceService`, using the canonical line reference under its transaction, then reuses acquisition orchestration. The caller cannot supply quantity/cost/date/tenant/paid claims. This method is currently absent; implement it with OWN-20/22 and caller activation after the tests-first gates. The existing source-argument method still permits only receipt-line Purchasing sources; tests do not adapt to that known incorrect behavior.
+
+**Question: What has been verified, and what is not covered yet?**
+
+**Answer:** PHP syntax/class loading and whitespace checks only. No test, database query, fixture creation, migration, worker or server was executed. A prepared disposable MySQL schema and reviewed source/identity/exact DTO/result/orchestration implementations are prerequisites for later execution. No baseline assertion failure or runtime success is claimed. Unpaid/cross-tenant source rejection, duplicate/replay/conflict behavior and historical lot/UNIQUE reacquisition safeguards remain OWN-06b-e; full Quick Buy payments and receipt rollback remain Part 4 acceptance.
+
+#### OWN-06b - Source eligibility and zero-total acquisition
+
+**Status:** The user accepted OWN-06b through "done next" after clarification of line 17 and its provider cases. Its writing/expectation/interface review is complete; production prerequisites and MySQL execution remain pending. Rejection/snapshot helpers now live in `OwnershipPurchaseTestCase` for reuse by currency cases; the existing 06b scenarios are preserved.
+
+**Question: What setup and action do the tests use?**
+
+**Answer:** Persist real confirmed/draft/cancelled purchase sources, order lines and payment records with the existing source-only fixtures. Invoke the same proposed `acquirePurchaseLine` entrypoint as 06a. No eligibility, balances or service effects are mocked. Both acquisition test classes inherit their shared source-action, lot/movement, balance, custody and financial-state assertions. Default 06a expectations remain unchanged; cost/date parameters only add zero-total support.
+
+**Question: Which sources must reject?**
+
+**Answer:** Positive-total unpaid purchases, a one-cent shortfall, draft/cancelled purchases even when paid, and negative totals reject with `InvalidTenantRequest` (422). Payment of another order cannot settle the requested source, and payment covering only one line cannot qualify an underpaid multi-line order. Missing and other-tenant source codes raise `TenantNotFound` (404). A same-tenant source associated with a foreign order/item, a foreign payment, or a mismatched item tracking mode rejects without borrowing foreign authority. The foreign-parent fixture retains a matching payment/total so the scenario does not depend on an unrelated underpayment.
+
+**Question: What must rejection leave unchanged?**
+
+**Answer:** Snapshot complete stored rows for every fixture tenant after setup, including both sides of intentionally invalid associations. Compare purchases/payments/receipts, Inventory identities/versions/locations/custody/serials/reservations, Ownership items/lots/movements, cash accounts, financial transactions and accounting entries before/after rejection. Require no completed or stranded processing idempotency record for the attempted key; an existing-policy failed diagnostic record may remain. No foreign-key enforcement is disabled. These snapshots intentionally inspect full row contents so in-place mutations cannot hide behind unchanged counts.
+
+**Question: How does a free purchase differ from an unpaid purchase?**
+
+**Answer:** A confirmed order with total zero has nothing due, so it acquires quantity 10.000 at unit cost 0.0000 without any payment row. The lot uses the order date 2026-10-15, not an invented settlement event. Assert one real aggregate/lot/acquisition movement, exact balances, no physical stock, no receipt or serial creation, and unchanged payment/cash/financial/accounting/Inventory state. A positive-total unpaid order remains invalid; zero tender does not make positive-cost goods free.
+
+**Question: Can public flags or Quick Buy tender rules change these expectations?**
+
+**Answer:** No. OWN-05c already tests that public factories cannot hydrate paid/tenant/bypass authority; this source entrypoint accepts only the line code and retry key. OWN-06b proves settlement from stored records, not from a public paid assertion. Full Quick Buy under/over-tender, cash posting and business-workflow rollback remain Part 4 acceptance, rather than being invented as another Ownership payment subsystem. HTTP middleware/envelope behavior remains OWN-09.
+
+**Question: What was verified and what remains pending?**
+
+**Answer:** PHP syntax/class loading, preservation of 06a public test methods, and diff whitespace checks only. No PHPUnit, MySQL queries, fixture provisioning/deletion, migration, worker, job or server executed. Real schema, source eligibility, exact contracts and purchase acquisition implementation remain prerequisites; no runtime success or observed assertion failure is claimed. Missing receipt/source/constraint prerequisites are classified separately during authorized execution. OWN-06c review is accepted; OWN-06d review is accepted; OWN-06e is now written for review.
+
+#### OWN-06c - Immutable lots and currency snapshots
+
+**Status:** The user accepted OWN-06c through "done and next step" after requesting more detailed comments. Its writing/expectation/interface review is complete. Expanded comments preserve executable PHP tokens; production prerequisites and MySQL execution remain pending.
+
+**Question: Which purchases and lot values are tested?**
+
+**Answer:** Two fully paid purchases explicitly reuse one QUANTITY item but retain separate source lots: 10 units at 12.3400 MMK settled 2026-10-11, and 10 units at 99.9900 USD settled 2026-10-12. Each payment uses a real account in its own currency. Adding the second lot must not rewrite the first lot's persisted snapshot, cost, estimated value, source, date or currency. Their shared item may have owned quantity 20.000; monetary costs and account balances remain separate and no mixed-currency value total is invented. Snapshot balances independently for all of this tenant's accounts.
+
+**Question: What happens after physical receipt and linking?**
+
+**Answer:** Acquire 10 units first, then receive/link 4 through the existing real Inventory receipt helper and the new typed Ownership link command. Compare full persisted lot rows before receipt, after receipt and after linking; the acquisition date/quantity/cost/currency/description/estimated-value snapshot must remain unchanged. Real Inventory stock becomes 4.000 while owned stays 10.000, reserved/pledged remain zero, and no extra lot appears. Link behavior itself is reviewed more fully in OWN-07.
+
+**Question: What happens after a sale quantity change?**
+
+**Answer:** Start with an acquired lot and 10 real received/linked units, plus a minimal real confirmed sale order/line in that lot's currency. Reserve 2 then consume 1 through real Ownership entrypoints. Original lot rows must remain byte-for-byte equal; actual SQL ledger totals become owned 9.000, reserved 1.000, pledged 0.000. This tests historical lot preservation during Ownership primitives, not full Quick Sell payment/delivery, physical issue coordination, source-commitment concurrency or end-to-end transaction success. Those remain OWN-08/10 and Part 5 acceptance.
+
+**Question: Which currency changes should succeed or fail?**
+
+**Answer:** A lot acquired while its currency was active remains readable after deactivation, retaining its original code/cost/date without revaluation or business writes. In contrast, a new acquisition rejects a source whose currency has since become inactive or soft-deleted, with the shared complete-row no-write/replay checks. A visible active alphanumeric code `TEST4` succeeds, matching current currency validation instead of imposing a new three-letter ISO-only rule. Fixtures use tenant-owned currencies/accounts, not modifications to shared platform records.
+
+**Question: Which new interfaces are proposed?**
+
+**Answer:** Reuse the already reviewed `OwnershipReceiptLinkRequest` and `consumeSaleReservation` contracts. The linking service entrypoint is proposed as `OwnershipService::linkReceipt(string $ownedItemCode, string $lotCode, OwnershipReceiptLinkRequest $request): OwnershipResult`, using a real receipt-line code, exact quantity and current aggregate version. The historical read is `OwnershipService::lotPage(string $ownedItemCode, OwnershipLotFilter $filter): OwnershipLotPage`; its filter factory accepts the already agreed currency filter and bounded pagination. These absent interfaces belong to OWN-16/23/26. Minimal Sale order/line fixture creation exercises source data for the primitive and does not substitute a fake calculator or complete Sales workflow.
+
+**Question: What was verified and what remains pending?**
+
+**Answer:** PHP syntax/class loading, preservation of 06b public test methods/providers, and whitespace checks only. No PHPUnit, database query, fixture creation/cleanup, currency deletion/deactivation, migration, worker or server was executed. Source/identity/exact DTO/version/link/source-commitment/read/orchestration implementations and separately prepared MySQL schema remain prerequisites. No passing runtime result or observed assertion failure is claimed. OWN-06d review is accepted; OWN-06e is now written for review.
+
+#### OWN-06d - Duplicate source acquisition and idempotency
+
+**Status:** The user accepted OWN-06d through "good, next". Its writing/expectation/interface review is complete; production prerequisites and execution remain pending. The optional-key shared helper preserves its original stable per-source default for previous cases.
+
+**Question: What setup and action are used?**
+
+**Answer:** Reuse `OwnershipPurchaseTestCase` and real paid purchase sources, real Ownership effects and real idempotency records in prepared MySQL. Invoke the same proposed `acquirePurchaseLine` entrypoint. The helper's optional key only controls caller request identity; source validation and replay handling remain real service work, not mocked behavior. Each test starts independently and takes snapshots after legitimate setup/first acquisition.
+
+**Question: What should an identical retry return?**
+
+**Answer:** Reusing a completed key with the same purchase-line code returns the original typed `OwnershipResult`, including its item/version and exact affected lot/movement/link/piece references. It must not throw the public HTTP replay short-circuit into this internal caller. Compare complete business rows and complete completed/processing replay rows before/after the retry, with still exactly one lot/movement and owned quantity 10.000. Verify the original result is actually stored in the completed record; MySQL JSON object key ordering is ignored only for decoded storage comparison, while typed return arrays are compared strictly.
+
+**Question: Does a different key permit acquiring the same source again?**
+
+**Answer:** No. A second key for an already acquired purchase line raises `InvalidTenantRequest` (422). Keep the original lot/movement, exact balances, source snapshots, cash/financial/Inventory state and completed result unchanged. A failed diagnostic row for the new key may follow existing policy, but no new completed or stranded processing request may remain. This verifies the service outcome; direct constraint/race checks remain in the relevant schema/concurrency tests.
+
+**Question: What if the same key names another purchase line?**
+
+**Answer:** Prepare a second valid, fully paid source so it cannot fail for an unrelated eligibility reason. Reuse the first request's key with the second source code. Expect `IdempotencyKeyConflict` (409), no acquisition for the second line, and the original completed record/body unchanged. Only the actual caller intent changes; tests do not invent client-supplied quantity/cost/payment fields or mutate an immutable source to simulate a different request.
+
+**Question: How are multiple purchases and older replays distinguished?**
+
+**Answer:** A separate test acquires two paid purchases for the same explicit item with separate keys; the second result must name its new lot/movement, not the first historical lot, and owned quantity becomes 20.000. Another independent case then replays the first key after a later acquisition. The replay must still match the first result, including its original version, without reverting the current aggregate version or returning the later lot. Real stored business rows and replay records must stay unchanged.
+
+**Question: What was verified and what remains pending?**
+
+**Answer:** PHP syntax/class loading and diff whitespace checks only. No PHPUnit, source fixtures, database queries, migrations, workers, jobs or application server were executed. The existing source entrypoint/result/exact-contract/source uniqueness/internal replay implementation and prepared MySQL schema remain prerequisites; no runtime success or observed assertion failure is claimed. Public HTTP replay headers, owning-operation/tenant key scoping, uncertain-response transport scenarios and concurrency are covered by later API/atomicity units. OWN-06e is now written for review.
+
+#### OWN-06e - UNIQUE duplication and valid reacquisition
+
+**Status:** The user accepted OWN-06e through "done next". All OWN-06 writing/expectation reviews are accepted; implementation and execution remain pending. Existing source/helper defaults remain preserved.
+
+**Question: When must a second UNIQUE acquisition reject?**
+
+**Answer:** Prepare two distinct fully paid purchase lines explicitly selecting the same UNIQUE item. After the first acquires quantity 1.000, the second source must reject with `InvalidTenantRequest` and no business changes, even while physical stock is still zero before receipt. A separate test receives/links the first unit and fully reserves it: owned=1, reserved=1, available=0. The second acquisition still rejects because zero available quantity does not mean prior Ownership ended. Shared rejection checks protect all stored business state and prevent completed/stranded processing replay records.
+
+**Question: How is complete disposal prepared without faking a zero balance?**
+
+**Answer:** Acquire the first unit from a real paid purchase, receive it through real Inventory, link its receipt, and persist a minimal confirmed sale line. Reserve physical stock and Ownership for the same source; persist the caller's real reservation reference and delivery allocation. In a controlled transaction, call real reserved Ownership consumption and Inventory sale issue using that reservation/provenance, then mark the source reservation consumed. No lot/ledger rows or balances are manually reset or deleted. Verify actual aggregate owned/reserved/pledged totals and physical stock all reach zero before attempting reacquisition.
+
+**Question: What should a later purchase create?**
+
+**Answer:** A distinct fully paid purchase for the now-disposed identity acquires quantity 1.000 in a new lot with settlement date 2026-10-15, compared with the old lot's 2026-10-12 date. Keep the same Inventory identity and same owned aggregate, return the new affected lot/movement, and retain the original lot row and its complete movement history unchanged. Actual ledger sums must show old lot zero and new lot one, with exactly one positive-balance lot, one item, one owned aggregate and two historical lots. Reacquisition itself creates no receipt, physical movement, extra payment or cash/accounting effect; the new paid goods may again be awaiting arrival.
+
+**Question: What source/custody helpers are reused?**
+
+**Answer:** Use existing `paidPurchase`, acquisition assertions, `receivePurchase`, and the reviewed receipt-link/sale quantity contracts. Previously private `lotSnapshots`, `linkReceipt`, and `saleLine` now belong to the shared purchase test parent. New local helpers coordinate the UNIQUE reservation/disposal and persist only the existing Sales reservation/delivery/allocation records needed for valid Inventory issue provenance. The Inventory sale issue uses its actual required reservation, original SaleOrderLine binding, and SaleDeliveryAllocation source; it does not use the deferred manual-issue route or a bypass flag.
+
+**Question: What does this test prove, and what remains outside it?**
+
+**Answer:** On later execution it can prove the UNIQUE Ownership lifecycle and preservation of real lot/Inventory history through these primitives. The minimal sale records do not prove complete Quick Sell payment, accounting, user authorization, delivery workflow, or concurrency; those remain OWN-08/10 and Part 5 acceptance. UNIQUE tracking does not create serialized-piece rows, and this test asserts none exist; actual SERIALIZED current-membership/history constraints and reacquisition are covered by OWN-07e, not inferred from a UNIQUE identity test.
+
+**Question: What was verified?**
+
+**Answer:** PHP syntax/class loading, preserved 06c public cases/providers, and diff whitespace only. No PHPUnit, MySQL queries, purchase/receipt/sale fixture creation, reservation/disposal, migration, worker or server was executed. Source qualification, typed contracts, version/link/commitment/consumption orchestration, and prepared MySQL schema remain prerequisites. No runtime success or measured assertion failure is claimed. All OWN-06 writing units are present and their review is accepted. No runtime success is implied.
 
 ### OWN-07 — Receipt and serialized-piece linking integration tests
 
 **Depends on:** OWN-06 fixture/contracts.
 
-- [ ] **OWN-07a:** Test receipt links to an existing acquisition without another acquisition movement or cost change; ownership and received totals remain separate.
-- [ ] **OWN-07b:** Test receipt-link quantity limits, distinct partial links, excess/duplicate linking, and wrong purchase/lot/item/tenant rejection.
-- [ ] **OWN-07c:** Test paid serialized acquisition with unknown pieces, receipt of actual pieces, pending-link reporting, and successful exact lot membership.
-- [ ] **OWN-07d:** Test duplicate/wrong-item/wrong-tenant/not-received/already-owned-in-another-lot pieces. Every rejection leaves links and quantities unchanged.
-- [ ] **OWN-07e:** Test serialized history after sale/return/reacquisition; one current membership with old history retained. Public return activation remains deferred.
-- [ ] **OWN-07f:** Test that owned-but-unreceived, received-but-unowned, and unlinked pieces cannot satisfy sale/pledge eligibility, including a different lot of the same item physically present.
+- [x] **OWN-07a:** Test receipt links to an existing acquisition without another acquisition movement or cost change; ownership and received totals remain separate. **Written in the full OWN-07 batch; expectation/interface/schema-mapping review and execution pending.**
+- [x] **OWN-07b:** Test receipt-link quantity limits, distinct partial links, excess/duplicate linking, and wrong purchase/lot/item/tenant rejection. **Written in the full OWN-07 batch; expectation/interface/schema-mapping review and execution pending.**
+- [x] **OWN-07c:** Test paid serialized acquisition with unknown pieces, receipt of actual pieces, pending-link reporting, and successful exact lot membership. **Written in the full OWN-07 batch; expectation/interface/schema-mapping review and execution pending.**
+- [x] **OWN-07d:** Test duplicate/wrong-item/wrong-tenant/not-received/already-owned-in-another-lot pieces. Every rejection leaves links and quantities unchanged. **Written in the full OWN-07 batch; expectation/interface/schema-mapping review and execution pending.**
+- [x] **OWN-07e:** Test serialized history after sale/return/reacquisition; one current membership with old history retained. Public return activation remains deferred. **Written in the full OWN-07 batch; expectation/interface/schema-mapping review and execution pending.**
+- [x] **OWN-07f:** Test that owned-but-unreceived, received-but-unowned, and unlinked pieces cannot satisfy sale/pledge eligibility, including a different lot of the same item physically present. **Written in the full OWN-07 batch; expectation/interface/schema-mapping review and execution pending.**
+
+#### OWN-07a-f - Receipt and serialized linking test-writing batch
+
+**Authorization/status:** The user accepted OWN-06e through "done next", then expanded the new unit to "work for all 07". All six OWN-07 writing units are now present. Their checkboxes remain open for review of these newly written cases/interfaces; no production services, DTOs, model/schema files, migrations or runtime operations were changed/executed.
+
+**Question: Which files cover each unit?**
+
+| Unit | Test coverage |
+|---|---|
+| OWN-07a | `OwnershipReceiptLinkTest`: paid acquisition followed by partial receipt/link, full receipt linked in distinct parts, multiple receipts into the original lot, trusted internal auto-link success and fault rollback |
+| OWN-07b | `OwnershipReceiptLimitTest`: receipt/lot capacities, exact 0.001 excess, fresh-key duplicate allocation, wrong purchase/lot/item, foreign receipt and foreign lot |
+| OWN-07c | `OwnershipPieceLinkTest`: no invented serials at acquisition; real A/B/C receipt; two-plus-one linking, pending-link projection, exact current memberships and unchanged original acquisition |
+| OWN-07d | Same piece-link class: duplicate/count mismatch, nonexistent/unreceived/wrong-receipt/wrong-item/foreign/already-owned piece rejection, plus direct MySQL single-current-membership constraint |
+| OWN-07e | `OwnershipPieceHistoryTest`: sale closes membership and consumes received allocation; authorized original-source return opens a new episode; later paid purchase reuses the physical identity in another lot; repeated/wrong-source/excess returns reject |
+| OWN-07f | `OwnershipEligibilityTest`: sale and pledge each reject owned/unreceived, received/unowned and received/unlinked goods; QUANTITY and SERIALIZED lot A stock cannot supply awaiting lot B; positive controls succeed with eligible linked pieces |
+
+**Question: What setup and shared helpers do these tests use?**
+
+**Answer:** `OwnershipReceiptTestCase` extends the already shared rollback-only purchase harness, adding plain helpers for real paid goods, actual stored receipt/member/commitment snapshots, rejection effects, public lot projections and exact current piece membership. `OwnershipPieceTestCase` adds real controlled sale/return quantity setup. Existing `linkReceipt` now returns its typed result and accepts optional selected codes/explicit key; old callers retain the same empty-code/default-key behavior. The existing delivery-allocation source helper moved from the UNIQUE test to the purchase parent with an optional empty-default piece list. No fixture creates fake Ownership balances or disables foreign keys. Existing 06e public scenarios remain preserved.
+
+**Question: How do receipt quantity and Ownership stay separate?**
+
+**Answer:** Acquiring 10 then receiving/linking 4 keeps owned=10, received-backed=4 and awaiting=6. Receiving all 10 before linking must still allow distinct 4+6 links: awaiting=0 does not mean link capacity=0. One receipt can link 1+3 up to its actual four units, but an extra 0.001 or another fresh-key full link rejects. Original purchase receipts across a lot cannot allocate more than original acquired quantity. Tests compare immutable lot snapshots and actual ledger sums, with exactly one acquisition movement rather than assuming every link must use the same history representation.
+
+**Question: What does auto-link rollback prove?**
+
+**Answer:** The proposed trusted `OwnershipService::linkPurchaseReceipt(string $receiptLineCode): OwnershipResult` resolves the original paid purchase lot from actual receipt provenance inside its caller's transaction. An unambiguous receipt succeeds without a public/manual-selection bypass. A separate test listens for the real receipt-link INSERT and throws a unique exception immediately after it, while receipt creation, Inventory receive and auto-link run in one transaction. Verify the fault was actually observed, all source/custody/link/membership/commitment rows match the pre-receipt snapshot, stock is zero, the earlier paid acquisition survives, and no processing replay remains. This proves controlled internal receipt/link rollback only; complete Quick Buy finance/activation remains Part 4.
+
+**Question: How are invalid links checked?**
+
+**Answer:** Use fresh request keys and snapshots after a successful receipt so rejection must preserve already recorded custody. Compare full business rows for all acting/foreign fixture tenants plus live links, membership episodes, source commitments, piece commitments and Sales provenance. Invalid associations/selection/capacity give `InvalidTenantRequest` (422); missing/foreign public receipt or lot resources give `TenantNotFound` (404). Failed diagnostics may remain, but no completed/stranded processing link key is allowed. No negative case is accepted merely because a missing class/table or unrelated setup error prevented execution.
+
+**Question: What schema/model mapping do the new tests propose?**
+
+**Answer:** Test-first model names are `OwnershipReceiptLink`, `OwnershipPieceMembership`, `OwnershipCommitment`, and `OwnershipPieceCommitment` under `App\Models\OwnershipModule`. Tests obtain actual table names from the model rather than inventing migration object names. Referenced link attributes are tenant ID, acquisition-lot ID, purchase-receipt-line ID, exact `linked_quantity` and `remaining_owned_quantity`. Referenced membership attributes are tenant ID, acquisition-lot ID, actual `inventory_serialized_item_id`, optional `ended_at`, and nullable `current_piece_id` for a current episode. These names are proposals for explicit OWN-15 review; map them consistently if that review changes them, without altering the accepted business expectations. No absent schema is silently skipped or reported ready.
+
+**Answer:** The direct constraint test first creates two valid memberships in separate lots for different pieces. It clones the second row with a new code and the first piece ID, respecting metadata-reported generated columns. Identify the current-piece unique index by column set (`current_piece_id`, optionally prefixed by tenant ID), then require MySQL duplicate-key error 1062 naming that index. An unrelated duplicate code/source key or FK error does not satisfy the test. Generated versus application-maintained current-key details must be finalized in OWN-15; actual constraint execution remains pending.
+
+**Question: Which serialized service interfaces are proposed?**
+
+**Answer:** Reuse `linkReceipt` and the reviewed typed link command, passing selected public piece codes. Internal sale reserve/consume and original-source return accept explicit `serializedItemCodes` alongside existing codes/quantity so the exact selected piece set cannot be inferred arbitrarily. Return setup persists real `SaleReturn`/`SaleReturnLine` evidence tied to the original allocation and uses existing `InventorySaleReturnRequest` to restore custody, followed by `restoreForSaleReturn` to restore the original lot. No public returns/refunds or full sale accounting are enabled. A repeated return uses a new return source against the already returned allocation and must still reject. The excess-return case also has an invalid piece count and does not claim to isolate source-capacity validation from count validation.
+
+**Question: How is pledge eligibility tested before Part 8 exists?**
+
+**Answer:** Sale uses actual confirmed sale-line source records. Pledge uses an explicit typed resolver-output boundary fixture, proposed `OwnershipPledgeSource`, carrying tenant, BusinessLoanCollateral source code/type, item/lot context, exact quantity/currency and selected piece codes, supplied through internal `sourceContext`. This is not a public paid/bypass assertion, a persisted fake collateral table, or proof of lender/loan authorization. Real Ownership balances, receipt allocations, piece memberships, commitments and Inventory custody remain unmocked. Positive controls use the same adapter after linkage, preventing negative cases from masquerading as proof when source setup itself is invalid. Part 8 still owns real collateral resolver/creation, lender handover, maturity and financial settlement. OWN-16/20 must review the narrow internal adapter/interface before activation.
+
+**Question: What has been verified, and what remains pending?**
+
+**Answer:** PHP syntax/class loading, static preservation of existing UNIQUE cases/providers, and diff whitespace checks only. No PHPUnit, MySQL metadata/data queries, fixtures, direct duplicate INSERT, disposal, return, migration, worker, job or server was run. All new production model/DTO/source/commitment/link/history interfaces, existing Inventory serialized-identity reuse compatibility and separately prepared MySQL schema remain implementation/execution prerequisites. Source/table/constraint blockers, actual assertion failures, HTTP permission behavior and concurrency must be recorded separately at their authorized stages. Phase 07 test writing is complete; review and runtime success are not fabricated. Next planned unit is OWN-08a sale-reservation integration tests.
 
 ### OWN-08 — Sale and collateral quantity integration tests
 
 **Depends on:** OWN-06/07.
 
-- [ ] **OWN-08a:** Test positive sale reservation against exact available quantity; reject a `0.001` excess and preserve owned quantity.
-- [ ] **OWN-08b:** Test partial/full sale release only against the same source/lot and reject repeated/excess or another source's release.
-- [ ] **OWN-08c:** Test reserved sale consumption reduces owned and its reservation atomically; exact exhaustion leaves no negative balance or stranded reservation.
-- [ ] **OWN-08d:** Test authorized immediate unreserved sale helper behavior agreed in OWN-02d; it cannot consume another sale's reservation or pledged quantity.
-- [ ] **OWN-08e:** Test pledge excludes reserved/unreceived/unlinked stock, preserves owned quantity, and records exact source/lot/pieces.
-- [ ] **OWN-08f:** Test partial/full pledge release restores availability with no new lot, acquisition, or cash effect; wrong-source/repeated release rejects.
-- [ ] **OWN-08g:** Test fully pledged forfeiture succeeds by checking the matching pledged balance, reduces owned and pledged together, and cannot remove another loan's pieces.
-- [ ] **OWN-08h:** Test existing internal sale/purchase-return compatibility against original source/lot and allowed quantity. Do not enable public returns or implement their complete business accounting.
+- [x] **OWN-08a:** Test positive sale reservation against exact available quantity; reject a `0.001` excess and preserve owned quantity.
+- [x] **OWN-08b:** Test partial/full sale release only against the same source/lot and reject repeated/excess or another source's release.
+- [x] **OWN-08c:** Test reserved sale consumption reduces owned and its reservation atomically; exact exhaustion leaves no negative balance or stranded reservation.
+- [x] **OWN-08d:** Test authorized immediate unreserved sale helper behavior agreed in OWN-02d; it cannot consume another sale's reservation or pledged quantity.
+- [x] **OWN-08e:** Test pledge excludes reserved/unreceived/unlinked stock, preserves owned quantity, and records exact source/lot/pieces.
+- [x] **OWN-08f:** Test partial/full pledge release restores availability with no new lot, acquisition, or cash effect; wrong-source/repeated release rejects.
+- [x] **OWN-08g:** Test fully pledged forfeiture succeeds by checking the matching pledged balance, reduces owned and pledged together, and cannot remove another loan's pieces.
+- [x] **OWN-08h:** Test existing internal sale/purchase-return compatibility against original source/lot and allowed quantity. Do not enable public returns or implement their complete business accounting.
 
 ### OWN-09 — API, read, and gate tests
 
 **Depends on:** OWN-02 accepted endpoint contracts, OWN-04 fixtures, and individual test expectation review. OWN-03 full-table review is deferred.
 
-- [ ] **OWN-09a:** Test feature/permission combinations through real middleware for existing Ownership reads and manual acquisition; direct disabled writes have no effects.
-- [ ] **OWN-09b:** Test linking read/write permissions and cross-tenant references; public payloads cannot select trusted paid-source or bypass context.
-- [ ] **OWN-09c:** Test item pagination/search/stable order, including depleted and awaiting-receipt records, beyond old caps; test lot pagination separately.
-- [ ] **OWN-09d:** Test history and serialized-candidate pagination/filtering; response includes source, reserved delta, and required provenance.
-- [ ] **OWN-09e:** Test page-sized batch query behavior with one versus multiple items/lots; summaries omit unbounded lot/serialized collections.
-- [ ] **OWN-09f:** Test photo URL/expiry reuse, null for missing files, and no raw storage path disclosure. Browser placeholder behavior is a separate confirmation.
-- [ ] **OWN-09g:** Test public receipt-link stale-version 409/no writes, current-version success, and same-key replay before stale-version rejection under the accepted OWN-02f version contract.
+- [x] **OWN-09a:** Test feature/permission combinations through real middleware for existing Ownership reads and manual acquisition; direct disabled writes have no effects.
+- [x] **OWN-09b:** Test linking read/write permissions and cross-tenant references; public payloads cannot select trusted paid-source or bypass context.
+- [x] **OWN-09c:** Test item pagination/search/stable order, including depleted and awaiting-receipt records, beyond old caps; test lot pagination separately.
+- [x] **OWN-09d:** Test history and serialized-candidate pagination/filtering; response includes source, reserved delta, and required provenance.
+- [x] **OWN-09e:** Test page-sized batch query behavior with one versus multiple items/lots; summaries omit unbounded lot/serialized collections.
+- [x] **OWN-09f:** Test photo URL/expiry reuse, null for missing files, and no raw storage path disclosure. Browser placeholder behavior is a separate confirmation.
+- [x] **OWN-09g:** Test public receipt-link stale-version 409/no writes, current-version success, and same-key replay before stale-version rejection under the accepted OWN-02f version contract.
 
 ### OWN-10 — Atomicity, idempotency, and concurrency tests
 
 **Depends on:** OWN-04 and the relevant acquisition/quantity cases.
 
-- [ ] **OWN-10a:** Test parent transaction rollback removes Ownership acquisition/links/movements and local completion/audit effects together with Inventory effects.
-- [ ] **OWN-10b:** Test injected mutation/audit/completion failures and successful retry. Public replay preserves HTTP behavior; internal replay returns data without aborting its caller.
-- [ ] **OWN-10c:** Test changed-payload key conflicts and uncertain-response replay without duplicate effects; keys are scoped by tenant/operation.
-- [ ] **OWN-10d:** Test simultaneous acquisition of one purchase source and simultaneous link of one serialized piece. At most one current acquisition/link wins.
-- [ ] **OWN-10e:** Test two operations compete for final lot quantity/piece; sale versus pledge cannot both consume availability.
-- [ ] **OWN-10f:** Test opposite item/lot input ordering across two processes with bounded completion and correct final balances.
-- [ ] **OWN-10g:** Test receipt/link versus sale eligibility under contention; the result must use committed current membership/custody, not a stale pre-lock snapshot.
+- [x] **OWN-10a:** Test parent transaction rollback removes Ownership acquisition/links/movements and local completion/audit effects together with Inventory effects.
+- [x] **OWN-10b:** Test injected mutation/audit/completion failures and successful retry. Public replay preserves HTTP behavior; internal replay returns data without aborting its caller.
+- [x] **OWN-10c:** Test changed-payload key conflicts and uncertain-response replay without duplicate effects; keys are scoped by tenant/operation.
+- [x] **OWN-10d:** Test simultaneous acquisition of one purchase source and simultaneous link of one serialized piece. At most one current acquisition/link wins.
+- [x] **OWN-10e:** Test two operations compete for final lot quantity/piece; sale versus pledge cannot both consume availability.
+- [x] **OWN-10f:** Test opposite item/lot input ordering across two processes with bounded completion and correct final balances.
+- [x] **OWN-10g:** Test receipt/link versus sale eligibility under contention; the result must use committed current membership/custody, not a stale pre-lock snapshot.
 
 ### OWN-11 — Monthly summary tests
 
 **Depends on:** OWN-04; monthly semantics below accepted in OWN-02g.
 
-- [ ] **OWN-11a:** Test first checkpoint against full-ledger owned/reserved/pledged totals by item/lot, including paid goods awaiting receipt and zero balances.
-- [ ] **OWN-11b:** Test next checkpoint uses the previous base; duplicate run skips completed item/month without changing balances or stock versions.
-- [ ] **OWN-11c:** Test current balances after new acquisition, reserve, release, sale, pledge, and forfeiture on a previously summarized lot. Split transition cases for review.
-- [ ] **OWN-11d:** Test current-month rows below the watermark, later IDs, and backdated occurrence dates remain included exactly once.
-- [ ] **OWN-11e:** Test first deployment, missing preceding month, missed schedule, and older-checkpoint fallback.
-- [ ] **OWN-11f:** Test tenant-local cutoff, timezone change, invalid/current/future month rejection, and context restoration after success/failure.
-- [ ] **OWN-11g:** Test source-bound reservation/pledge and serialized membership remain correct across checkpoints; a total cannot authorize another source's release.
-- [ ] **OWN-11h:** Test append-before-summary and summary-before-append races with independent connections; each direction is a separate review unit if needed.
-- [ ] **OWN-11i:** Test concurrent summaries, failed item publication, no partial header/children, and resume skipping earlier committed items.
-- [ ] **OWN-11j:** Test root job month pinning, tenant fan-out, queue/logging/overlap conventions, schedule registration, and explicit recovery command as separately reviewed cases.
-- [ ] **OWN-11k:** Test query structure excludes checkpoint-covered old movements from operational balance reads and incremental summary input. Real EXPLAIN/timing remains OWN-33.
+- [x] **OWN-11a:** Test first checkpoint against full-ledger owned/reserved/pledged totals by item/lot, including paid goods awaiting receipt and zero balances.
+- [x] **OWN-11b:** Test next checkpoint uses the previous base; duplicate run skips completed item/month without changing balances or stock versions.
+- [x] **OWN-11c:** Test current balances after new acquisition, reserve, release, sale, pledge, and forfeiture on a previously summarized lot. Split transition cases for review.
+- [x] **OWN-11d:** Test current-month rows below the watermark, later IDs, and backdated occurrence dates remain included exactly once.
+- [x] **OWN-11e:** Test first deployment, missing preceding month, missed schedule, and older-checkpoint fallback.
+- [x] **OWN-11f:** Test tenant-local cutoff, timezone change, invalid/current/future month rejection, and context restoration after success/failure.
+- [x] **OWN-11g:** Test source-bound reservation/pledge and serialized membership remain correct across checkpoints; a total cannot authorize another source's release.
+- [x] **OWN-11h:** Test append-before-summary and summary-before-append races with independent connections; each direction is a separate review unit if needed.
+- [x] **OWN-11i:** Test concurrent summaries, failed item publication, no partial header/children, and resume skipping earlier committed items.
+- [x] **OWN-11j:** Test root job month pinning, tenant fan-out, queue/logging/overlap conventions, schedule registration, and explicit recovery command as separately reviewed cases.
+- [x] **OWN-11k:** Test query structure excludes checkpoint-covered old movements from operational balance reads and incremental summary input. Real EXPLAIN/timing remains OWN-33.
 
 ### OWN-12 — Review tests and initial results
 
 **Depends on:** All OWN-04–11 tests written.
 
-- [ ] **OWN-12a:** Reconcile individually reviewed tests and recorded expectation amendments against OWN-02 requirements, using OWN-03 as a provisional coverage reference. Identify missing requirements before feature implementation without requiring full-table approval.
+- [x] **OWN-12a:** Reconcile individually reviewed tests and recorded expectation amendments against OWN-02 requirements, using OWN-03 as a provisional coverage reference. Identify missing requirements before feature implementation without requiring full-table approval.
 - [ ] **OWN-12b:** When authorized and schema-ready, execute initial tests and record existing passes, expected missing-feature failures, and harness/environment blockers separately. Do not count syntax/load errors as behavioral coverage.
-- [ ] **OWN-12c:** Obtain user acceptance of test expectations. Record database tests blocked by unprepared future schema as pending execution, not waived coverage.
+- [x] **OWN-12c:** Obtain user acceptance of test expectations. Record database tests blocked by unprepared future schema as pending execution, not waived coverage.
+
+### OWN-08 through OWN-12 writing batch (2026-10-22)
+
+**Authorization:** The user requested "write test until phase 12". This authorizes the complete test-writing batch, not production implementation, migrations, execution, or automatic acceptance of new expectations. The user's earlier "done" accepts OWN-07.
+
+**Coverage review:** See [OWNERSHIP_TEST_REVIEW.md](OWNERSHIP_TEST_REVIEW.md) for the child-by-child mapping, proposed interfaces/schema fields, fixture boundaries, and verification limits. OWN-08 through OWN-11 tests are written. OWN-12a reconciliation is prepared for review; OWN-12b execution and OWN-12c user acceptance remain pending. No unchecked review unit is represented as runtime success.
+
+**Static findings corrected:** Receipt fixtures return `receiptLine`, not `line`; worker linking uses the previously reviewed request factory and three-argument service; monthly acquisitions compare recording time with the selected frozen server clock. Committed-fixture teardown is shared through `CommittedOwnershipFixture` so monthly/quantity tests retain exact-tenant cleanup and bounded worker shutdown without duplicating lifecycle logic.
 
 ## Stage 3 — Feature gates
 
@@ -1114,6 +1455,9 @@ Example: October closes with owned 100, reserved 10, pledged 20. A November acqu
 - [ ] **OWN-33b:** Record source commitment/link-candidate query plans; verify indexes avoid repeated full-history calculations.
 - [ ] **OWN-33c:** Measure first versus incremental monthly publication, missed-month catch-up, and large-lot batching. Record dataset and timings, not unsupported speed claims.
 - [ ] **OWN-33d:** Review findings and apply only test-backed necessary fixes; keep unperformed measurements pending.
+- [ ] **OWN-33e:** Measure simultaneous users writing the same lot at increasing concurrency, alongside ordinary reads. Record request latency (p50/p95/p99), lock-wait time, throughput, conflicts, retries, deadlocks and timeouts. Recheck exact balances/source commitments and final-unit exclusivity after each workload. Compare with users accessing different lots to expose unnecessarily broad locking; report monthly publication contention separately.
+
+**User requirement (2026-10-22):** Multiple users accessing the same lot must preserve correctness and remain responsive. Zero latency is not a feasible guarantee: conflicting writes must serialize briefly. Keep the lock scope narrow and transaction duration short; do not hold locks during external I/O. Measure read responsiveness while writes contend, rather than assuming every read must wait. Worker timeouts are harness safeguards, not acceptable application latency targets. Numerical latency/concurrency acceptance thresholds remain to be agreed before performance acceptance; no performance result is claimed from unexecuted correctness tests.
 
 ### OWN-34 — Final complexity review and completion record
 
@@ -1163,9 +1507,29 @@ Add one row per child review unit. Update the status register and child checkbox
 | 2026-10-20 | OWN-04a disposable MySQL preflight | `tests/Support/ownership_database_preflight.php`; this checklist | Prepared / awaiting review; reuses existing Inventory connection/preflight unchanged | PHP syntax passed; read-only MySQL 8.0.40 metadata inspection passed existing baselines and reported absent receipt/monthly tables and aggregate version. Full new-schema readiness intentionally pending OWN-15; no fixtures, PHPUnit, migrations, or production changes | User review, then OWN-04b |
 | 2026-10-20 | OWN-04a acceptance | This checklist | User marked the unit done; OWN-04a checked. OWN-04b–d remain not started | Prior syntax/read-only preflight evidence retained; future OWN-15 schema dependencies unchanged. No checks rerun for this status update | OWN-04b rollback fixture |
 | 2026-10-20 | OWN-04b rollback fixture | `OwnershipFixture`, `OwnershipMySqlTestCase`; this checklist | Implemented / awaiting review in user-authorized full OWN-04 batch | Syntax/static validation only. Real tenant/source/Inventory fixture helpers written without running them or invoking acquisition as setup evidence | User review; runtime checks with later tests |
-| 2026-10-20 | OWN-04c committed fixture | `CommittedOwnershipFixture`; this checklist | Implemented / awaiting review | Exact fixture-ID cleanup, FK-preserving dependency retries, worker stopping, and final ID assertions implemented; no committed data created or cleanup executed | User review; runtime checks with later tests |
-| 2026-10-20 | OWN-04d worker coordination | `OwnershipWorkerProcess`, Ownership worker, shared Inventory worker bootstrap, existing Inventory worker include; this checklist | Implemented / awaiting review | Seven-file PHP syntax and whitespace checks; extraction/body static comparison passed. No workers or feature tests run; actual contention and Windows pipe behavior remain pending | User review, then OWN-05a |
+| 2026-10-20 | OWN-04c committed fixture | `CommittedOwnershipTestCase`; this checklist | Implemented / awaiting review | Exact fixture-ID cleanup, FK-preserving dependency retries, worker stopping, and final ID assertions implemented; no committed data created or cleanup executed | User review; runtime checks with later tests |
+| 2026-10-20 | OWN-04d worker coordination | `OwnershipWorker`, Ownership worker, shared Inventory worker bootstrap, existing Inventory worker include; this checklist | Implemented / awaiting review | Seven-file PHP syntax and whitespace checks; extraction/body static comparison passed. No workers or feature tests run; actual contention and Windows pipe behavior remain pending | User review, then OWN-05a |
 | 2026-10-20 | OWN-04b–d acceptance | This checklist | User requested “mark done”; OWN-04b–d checked and OWN-04 implementation/review marked complete | Prior syntax/static evidence retained; no checks rerun. Fixture/cleanup/worker runtime verification and future schema readiness remain pending | OWN-05a quantity tests |
+
+| 2026-10-21 | OWN-05a acceptance / OWN-05b cost tests | `OwnershipQuantityTest`, `OwnershipCostTest`; this checklist | User accepted 05a through "done and next"; 05b written / awaiting expectation and interface review | PHP syntax and diff whitespace only. Cost helper missing; DTO exact-cost adaptation pending OWN-14/16. No tests, database work, migrations, workers, or services executed | User review of OWN-05b, then OWN-05c |
+
+| 2026-10-21 | OWN-05b acceptance / OWN-05c command tests | `OwnershipCostTest`, `OwnershipCommandTest`; this checklist | User accepted 05b through "done and next"; 05c written / awaiting expectation and interface review | PHP syntax and diff whitespace only. Typed source/link DTOs and acquisition source support pending OWN-16. No tests, database work, migrations, workers, or services executed | User review of OWN-05c, then OWN-05d |
+
+| 2026-10-21 | OWN-05c acceptance / OWN-05d response tests | `OwnershipContractTest`, `OwnershipPageTest`, `OwnershipResponseTestCase`; this checklist | User accepted 05c through "done next one"; 05d written / awaiting expectation and interface review | PHP syntax and diff whitespace only. Ownership response/filter/page DTOs pending OWN-16. No tests, database work, migrations, workers, or services executed | User review of OWN-05d, then OWN-05e |
+
+| 2026-10-21 | OWN-05d acceptance / OWN-05 writing completion | `OwnershipTransitionTest`; Phase 05 test files; this checklist | User accepted 05d and authorized finishing 05. OWN-05a-e writing complete; new 05e case review remains pending | PHP syntax/class loading and whitespace only. No tests or database operations run; source/exact-contract/orchestration implementation deferred | Review newly written 05e cases; next planned unit is OWN-06 |
+
+| 2026-10-21 | OWN-05e acceptance / OWN-06a paid-before-receipt tests | `OwnershipAcquisitionTest`; this checklist | User accepted 05e through "ok done next"; Phase 05 writing/review complete; 06a written awaiting expectation/interface review | PHP syntax/class loading and whitespace only. No MySQL or tests run. Purchase-source entrypoint/identity/result prerequisites pending | User review of OWN-06a, then OWN-06b |
+
+| 2026-10-21 | OWN-06a acceptance / OWN-06b eligibility tests | `OwnershipSourceTest`, shared `OwnershipPurchaseTestCase`, refactored `OwnershipAcquisitionTest`; this checklist | User accepted 06a through "done go on"; 06b written awaiting expectation/interface review | PHP syntax/class loading and whitespace only; 06a test cases preserved. No tests, database operations, migrations or services executed | User review of OWN-06b, then OWN-06c |
+
+| 2026-10-21 | OWN-06b acceptance / OWN-06c immutable lot tests | `OwnershipLotTest`, shared purchase helpers, preserved `OwnershipSourceTest`; this checklist | User accepted 06b through "done next"; 06c written awaiting expectation/interface review | PHP syntax/class loading, preserved 06b cases and whitespace only. No tests, database operations, currency changes, migrations or services executed | User review of OWN-06c, then OWN-06d |
+
+| 2026-10-21 | OWN-06c acceptance / OWN-06d duplicate and replay tests | `OwnershipReplayTest`, optional-key shared acquisition helper; this checklist | User accepted 06c through "done and next step"; 06d written awaiting expectation/interface review | PHP syntax/class loading and whitespace only. No tests, database operations, migrations or services executed | User review of OWN-06d, then OWN-06e |
+
+| 2026-10-21 | OWN-06d acceptance / OWN-06e UNIQUE lifecycle tests | `OwnershipUniqueTest`, reused lot/link/sale fixture helpers; this checklist | User accepted 06d through "good, next"; 06e written awaiting scenario review; all 06 writing units present | PHP syntax/class loading, preserved 06c cases and whitespace only. No tests, database operations, quantity disposal, migrations or services executed | User review of OWN-06e, then OWN-07a |
+
+| 2026-10-21 | OWN-06e acceptance / all OWN-07 test writing | Receipt/link/limit/piece/history/eligibility tests and shared receipt/piece helpers; this checklist | User accepted 06e and requested "work for all 07"; 07a-f writing complete, new expectation/schema/interface review pending | PHP syntax/class loading, static preservation and whitespace only. No tests, database operations, metadata checks, migrations or services executed | Review OWN-07 batch; next planned unit OWN-08a |
 
 ## Part 2 completion
 
@@ -1179,3 +1543,7 @@ Add one row per child review unit. Update the status register and child checkbox
 - [ ] Full business workflow handoffs and future unpaid-sale/delivery placeholders are recorded in the owning plan parts.
 - [ ] Main module plan records all delivered amendments, image/linking behavior, monthly summaries, and remaining verification.
 - [ ] User accepts Part 2 implementation status before advancing; final verified completion is claimed only when all applicable checks are satisfied.
+
+**2026-10-22 batch record:** OWN-07 accepted; OWN-08-11 test writing and OWN-12 coverage reconciliation prepared under full batch authorization. PHP syntax/class loading and whitespace checks only; no PHPUnit, workers, SQL, migrations, scheduler, queue, command execution or development server. New expectations remain for user review; runtime results await authorization and prepared schema.
+
+**2026-10-22 review acceptance:** The user accepted the batch after reading `docs/OWNERSHIP_TEST_REVIEW.md`, without a full line-by-line code review. OWN-08-11 expectations and OWN-12a/c review are accepted on that basis. This is not runtime verification or proof of test implementation correctness. OWN-12b remains unchecked: execution, prepared schema, production implementation and measured performance are pending. Next planned unit is OWN-13a feature/permission inventory; no development or execution is started by this acceptance record.

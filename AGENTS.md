@@ -80,3 +80,14 @@ Only do the following if user didn't give you reference UI or UI description.
         $interestPaid = min($left, $interestDue);
         $left -= $interestPaid;
     }
+
+## Version 2.0 tests and support code
+
+- Apply these rules only to tests for the 2.0 release and their fixtures, workers, and database checks. Leave earlier-version tests unchanged.
+- Keep test methods focused on setup, action, and assertions. Move substantial or repeated steps into small, clearly named helpers; reuse existing helpers first.
+- Use short, familiar names that explain the purpose. Avoid repeating the class name in every method name.
+- Put shared lifecycle behavior in a generic parent class and keep module-specific behavior in subclasses. Share only responsibilities that are actually the same.
+- Put public test methods first, then public helpers/providers, followed by protected and private helpers in usage order. Comment meaningful phases.
+- Give test comments a little more detail: explain the setup, why an action matters, and the expected result or unchanged data. Use concrete quantities where useful, and state what a mocked or partial workflow actually proves. Keep comments readable and avoid repeating each line of code.
+- Preserve scenarios, assertions, fixture isolation, worker protocols, and database safeguards during refactors.
+- Do not run tests unless requested. Never run migrations or start a development server for this work.
