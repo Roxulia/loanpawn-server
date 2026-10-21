@@ -6,8 +6,8 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 
-/** Reuses the disposable MySQL connection and rollback-only Inventory test boundary. */
-abstract class OwnershipMySqlTestCase extends InventoryMySqlTestCase
+/** Reuses the shared disposable MySQL connection and rollback-only test boundary. */
+abstract class OwnershipMySqlTestCase extends MySqlTestCase
 {
     use OwnershipFixture;
 
