@@ -16,6 +16,9 @@ class SaleOrder extends Model
 {
     use BelongToTenant;
 
+    // Match the existing sales schema instead of Eloquent's inferred sale_orders table.
+    protected $table = 'sales_orders';
+
     protected $fillable = ['tenant_id', 'code', 'customer_id', 'status', 'sold_at', 'currency_code', 'note', 'created_by'];
     protected $casts = ['sold_at' => 'date:Y-m-d'];
 

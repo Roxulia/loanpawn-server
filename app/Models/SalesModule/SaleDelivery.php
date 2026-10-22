@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SaleDelivery extends Model
 {
     use BelongToTenant;
+    // Preserve the existing sales delivery table name.
+    protected $table = 'sales_deliveries';
     protected $fillable = ['tenant_id', 'code', 'sales_order_id', 'delivered_at', 'note', 'created_by'];
     protected $casts = ['delivered_at' => 'date:Y-m-d'];
     public function order(): BelongsTo { return $this->belongsTo(SaleOrder::class, 'sales_order_id'); }

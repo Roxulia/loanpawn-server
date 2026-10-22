@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\DB;
 
 class OwnershipRepository
 {
+    use \App\Repository\Ownership\ReadQueries;
+    use \App\Repository\Ownership\StateQueries;
+
     /** @return ReadCollection<int, object> Latest eligible header keyed by owned-item ID. */
     public function latestCompletedCheckpoints(int $tenantId, array $ownedItemIds, string $cutoffAt): ReadCollection
     {
@@ -197,7 +200,7 @@ class OwnershipRepository
             ->where('source_type', $type)->where('source_code', $sourceCode)->first();
     }
 
-    private function latestCompletedCheckpointQuery(int $tenantId, array $ownedItemIds, string $cutoffAt): Builder
+    private function latestCompletedCheckpointQuery(int $tenantId, array|Builder $ownedItemIds, string $cutoffAt): Builder
     {
         // Group eligible months in SQL rather than issuing one latest-checkpoint query per item.
         $months = DB::table('ownership_monthly_checkpoints as candidate')
@@ -217,7 +220,7 @@ class OwnershipRepository
             ->where('checkpoint.cutoff_at', '<=', $cutoffAt)->select('checkpoint.*');
     }
 
-    private function openingItemBalanceQuery(int $tenantId, array $ownedItemIds, string $cutoffAt): Builder
+    private function openingItemBalanceQuery(int $tenantId, array|Builder $ownedItemIds, string $cutoffAt): Builder
     {
         // Keep the selected header as a composable SQL relation for atomic base-plus-tail reads.
         return DB::query()->fromSub($this->latestCompletedCheckpointQuery($tenantId, $ownedItemIds, $cutoffAt), 'opening')
@@ -227,7 +230,7 @@ class OwnershipRepository
 
     private function uncoveredMovementQuery(
         int $tenantId,
-        array $ownedItemIds,
+        array|Builder $ownedItemIds,
         string $checkpointCutoffAt,
         ?string $recordedBefore = null,
         ?int $maximumMovementId = null,

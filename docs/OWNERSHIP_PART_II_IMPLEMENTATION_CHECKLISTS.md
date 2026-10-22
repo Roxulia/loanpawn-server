@@ -132,7 +132,7 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-14 | Messages and exact arithmetic foundations | OWN-14a–c accepted; runtime verification and DTO/caller activation pending |
 | OWN-15 | Schema, models, constraints, indexes | OWN-15a–i accepted; fresh MySQL migration and structure checks passed; runtime behavior/rollback pending |
 | OWN-16 | Typed command/read/result contracts | Complete — OWN-16a–f review accepted; module/Public-or-Internal/RequestObjects-or-ResponseObjects layout accepted; runtime tests pending |
-| OWN-17 | Batched checkpoint-backed balance queries | OWN-17a–d review accepted; focused repository tests written but unexecuted; OWN-17e/f not started |
+| OWN-17 | Batched checkpoint-backed balance queries | OWN-17a–d accepted; OWN-17e/f implemented with focused runtime verification; implementation review pending; public API/UI activation remains later work |
 | OWN-18 | Source, receipt, and serialized-link queries | Not started |
 | OWN-19 | Ordered locking/current-read helpers | Not started |
 | OWN-20 | Validation helpers | Not started |
@@ -1406,6 +1406,26 @@ All Ownership references in controllers, services, tests, and worker support wer
 - [x] **OWN-17d:** Implement batched current item balances as base plus deltas; do not call one full-history sum per item.
 - [ ] **OWN-17e:** Implement batched current lot balances and FIFO eligible-lot reads with explicit currency and receipt-link eligibility; no per-lot resource loop queries.
 - [ ] **OWN-17f:** Implement bounded summary/detail/lot/history queries with stable order, page filters, and no unbounded eager loading. Review each query separately.
+
+**Implementation sequence (2026-10-22):** User accepted the dedicated FIFO test review and explicitly authorized OWN-17e/f implementation and test execution. Both backend implementations are delivered for review; the checkboxes remain unchecked pending implementation acceptance. This does not accept later API/UI activation or the remaining module parts.
+
+**OWN-17f pagination implementation — delivered for review:** Bounded item summaries/detail, lot pages, movement history and receipt-scoped serialized candidates reuse OWN-16 contracts (default 25, maximum 100). Queries enforce tenant scope, stable ordering, holding/tracking/currency/search filters, and empty/out-of-range metadata. Facts/photos are batched and DTO serialization is query-free. Public endpoint/permission activation remains OWN-29 and frontend page/filter state remains OWN-31; neither is silently activated here.
+
+**FIFO contract amendment:** Dedicated allocation tests and implementation evidence are recorded in [OWNERSHIP_FIFO_TEST_REVIEW.md](OWNERSHIP_FIFO_TEST_REVIEW.md). Shared `allocateFifo` takes Inventory item code, quantity and explicit serial numbers for SERIALIZED goods. It allocates under caller-held transaction locks; callers apply Sale or pledge effects. QUANTITY uses oldest eligible lots; explicit serials determine their actual lots/pieces without substitution. Carts do not reserve. Results preserve per-lot currencies; financial callers enforce their own currency policy. Packed-stock coverage awaits the real Part 7 fixture.
+
+#### OWN-17e/f — FIFO and pagination implementation
+
+**Delivered:** `OwnershipRepository` composes batch current-lot/read queries and current locking state reads through small repository traits. Ownership services separate lookup, exact locked balances, allocation, and bounded response mapping. Inventory supplies its own authoritative custody/reservation snapshots, serial resolution, and batched photos. `OwnershipFifoResult` contains exact allocation references and saved per-lot cost/currency.
+
+**Required foundations:** Real receipt linking, payment-qualified acquisition for read fixtures, and source-bound reserve/release/consume/pledge primitives are implemented sufficiently to exercise the accepted FIFO/read scenarios. This does not complete OWN-18–25 or their full acceptance matrices. Legacy Sales orchestration retains its existing ledger operations through explicitly named compatibility methods until OWN-30 activation; the new reservation contract always creates a source commitment. Four Sales source models now explicitly map to their existing `sales_*` tables, correcting Eloquent's incorrect inferred `sale_*` names discovered during execution.
+
+**Test harness corrections:** Windows stdin cannot be nonblocking; the holder uses a blocking fallback bounded by the existing parent process timeout and tracked teardown. Contention tests still require an observed MySQL lock wait. The receipt helper's version lookup is restricted to recorded fixture tenants so a foreign-lot rejection reaches the actual service instead of failing in fixture setup; expected service rejection/assertions are unchanged.
+
+**Schema authorization:** The configured `lonepawn_test` initially lacked OWN-15 tables; `loanpawn_test` was absent on this server. User explicitly authorized only the seven existing OWN-15 migrations (`2026_10_22_000002` through `000008`). They were applied to `lonepawn_test` after a guard against the normal application database. No fresh rebuild, seeding or normal-application migration ran. The read-only Ownership structure check then passed on MySQL 8.0.40.
+
+**Deferred by scope:** An expanded helper check reached `OwnershipReceiptLinkTest::test_link_failure_rolls_back_its_enclosing_receipt_transaction`, whose absent internal `linkPurchaseReceipt()` belongs to OWN-23. The user directed that later-phase errors be skipped. It remains pending without changing/skipping its executable expectation or claiming the entire Ownership suite passes. Generic packs, complete purchase/sale/loan orchestration, monthly publication, public API/UI activation and measured query plans remain their existing later phases.
+
+**Final verification:** OWN-17e/f FIFO/read/pagination/balance and associated DTO suites passed **364 tests / 4,256 assertions**. Existing Inventory/Pawn regression suites passed **19 tests / 116 assertions** in a separate final run. Changed PHP syntax, tracked diff and new-file whitespace checks passed. The four FIFO contention cases retain observed MySQL lock waits. One combined run encountered the existing photo URL comparison crossing a one-second expiry boundary; the unchanged suite passed on the final separate rerun. Full later-phase Ownership verification is not claimed. Detailed execution boundaries are recorded in the FIFO review document.
 
 #### OWN-17a–d — Checkpoint/base/tail/item-balance query batch
 

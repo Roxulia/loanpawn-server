@@ -175,7 +175,7 @@ class SalesService extends BaseTenantService
                                 expectedSourceType: 'SaleOrderLine',
                                 expectedSourceCode: $line->code,
                             ));
-                            $this->ownershipService->releaseSaleReservation(
+                            $this->ownershipService->releaseLegacySaleReservation(
                                 $line->ownedItem->code, $reservation->lot->code, $quantity, $line->code,
                             );
                             $this->repository->updateReservation($reservation, ['remaining_quantity' => 0, 'status' => 'RELEASED']);
@@ -331,7 +331,7 @@ class SalesService extends BaseTenantService
                             sourceCode: $allocation->code,
                             operationContext: InventoryIssueContext::Sale,
                         ));
-                        $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
+                        $this->ownershipService->releaseLegacySaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'quick-sale-ownership-'.$allocation->code);
                         $this->repository->updateReservation($reservation, ['remaining_quantity' => 0, 'status' => 'CONSUMED', 'serialized_item_codes' => []]);
                         $deliveredValue += round($take * (float) $line->unit_price, 2);
@@ -414,7 +414,7 @@ class SalesService extends BaseTenantService
                             sourceCode: $allocation->code,
                             operationContext: InventoryIssueContext::Sale,
                         ));
-                        $this->ownershipService->releaseSaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
+                        $this->ownershipService->releaseLegacySaleReservation($line->ownedItem->code, $reservation->lot->code, $take, $line->code);
                         $this->ownershipService->reduceForSale($line->ownedItem->code, $reservation->lot->code, $take, 'SaleLine', $allocation->code, 'sales-ownership-'.$allocation->code);
                         $remainingScaled = InventoryQuantity::parseBalance((string) $reservation->remaining_quantity) - $takeScaled;
                         $remaining = InventoryQuantity::format($remainingScaled);
@@ -480,7 +480,7 @@ class SalesService extends BaseTenantService
                 ));
                 $selectedCodes = [...$selectedCodes, ...$unitCodes];
                 $decimalQuantity = InventoryQuantity::format($take);
-                $this->ownershipService->reserveSale($line->ownedItem->code, $lot['code'], (float) $decimalQuantity, $line->code);
+                $this->ownershipService->reserveLegacySale($line->ownedItem->code, $lot['code'], (float) $decimalQuantity, $line->code);
                 $this->repository->createReservation($tenantId, (int) $line->id, [
                     'code' => $this->newCode($tenantId, 'sales_order_reservations'),
                     'acquisition_lot_id' => $lot['id'],

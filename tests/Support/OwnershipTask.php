@@ -74,11 +74,17 @@ class OwnershipTask extends WorkerTask
         if ($lots->count() !== count($lotCodes)) throw new LogicException('Unknown fixture Ownership lot.');
     }
 
-    private function waitForRelease(array $request): void
+    protected function waitForRelease(array $request): void
     {
         // Holder release is bounded independently of the parent's process timeout.
         if (! empty($request['wait'])) {
-            if (! stream_set_blocking(STDIN, false)) throw new RuntimeException('Nonblocking worker input is unavailable.');
+            // Windows cannot make this stdin pipe nonblocking. The parent's twenty-second process
+            // timeout and teardown still bound its blocking read and stop it on any contender failure.
+            if (! stream_set_blocking(STDIN, false)) {
+                $release = fgets(STDIN);
+                if ($release === false || trim($release) !== 'continue') throw new RuntimeException('Worker release was invalid.');
+                return;
+            }
             $deadline = microtime(true) + 10;
             $release = '';
             do {

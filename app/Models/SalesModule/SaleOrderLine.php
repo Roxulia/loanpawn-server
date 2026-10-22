@@ -13,6 +13,9 @@ class SaleOrderLine extends Model
 {
     use BelongToTenant;
 
+    // Match the persisted source table used by Inventory and Ownership provenance.
+    protected $table = 'sales_order_lines';
+
     protected $fillable = ['tenant_id', 'code', 'sales_order_id', 'inventory_item_id', 'owned_item_id', 'item_description', 'tracking_mode', 'unit_label', 'ordered_quantity', 'unit_price'];
     protected $casts = ['ordered_quantity' => 'decimal:3', 'unit_price' => 'decimal:2'];
 

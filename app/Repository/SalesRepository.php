@@ -16,6 +16,13 @@ use Illuminate\Database\Eloquent\Collection;
 
 class SalesRepository
 {
+    public function ownershipLine(int $tenantId, string $code): ?\App\Models\SalesModule\SaleOrderLine
+    {
+        // Source rows are locked before the caller acquires Inventory/Ownership anchors.
+        return \App\Models\SalesModule\SaleOrderLine::query()->where('tenant_id', $tenantId)->where('code', $code)
+            ->lockForUpdate()->with('order')->first();
+    }
+
     public function customerByCode(int $tenantId, string $code): ?TenantCustomer
     {
         return TenantCustomer::query()->where('tenant_id', $tenantId)->where('code', $code)->where('is_deleted', false)->first();

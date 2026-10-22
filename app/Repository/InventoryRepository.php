@@ -31,6 +31,21 @@ use Illuminate\Support\Facades\DB;
  */
 class InventoryRepository
 {
+    public function serializedItemsByIdentifiers(int $itemId, array $identifiers): Collection
+    {
+        // Resolve immutable identity only; the service subsequently locks and rechecks actual custody.
+        return $this->inventoryQuery(InventorySerializedItem::class)->where('inventory_item_id', $itemId)
+            ->whereIn('identifier', $identifiers)->orderBy('id')->get();
+    }
+
+    public function summaryItemsByCodes(array $codes): Collection
+    {
+        // Reuse summary reference loading for a bounded set selected by another module's page.
+        $query = $this->inventoryQuery(InventoryItem::class)->whereIn('code', $codes)->with(['unit', 'catalogItem']);
+        $this->includeItemImagePath($query);
+        return $query->get();
+    }
+
 
     /** Lock all item anchors in ID order inside the caller's transaction. */
     public function findItemsByCodesForUpdate(array $codes): Collection
@@ -684,7 +699,7 @@ class InventoryRepository
      * Page serialized items with current custody and active reservation membership.
      * JSON membership uses MySQL JSON_CONTAINS to match the production database.
      */
-    public function serializedItemPage(int $itemId, InventorySerializedItemFilter $filter, bool $forUpdate = false): LengthAwarePaginator
+    public function serializedItemPage(int $itemId, InventorySerializedItemFilter $filter, bool $forUpdate = false, ?array $candidateCodes = null): LengthAwarePaginator
     {
         // Build a tenant-scoped latest-custody subquery limited to this item.
         $latest = $this->latestSerializedItemMovementIds()->where('inventory_item_id', $itemId);
@@ -696,6 +711,7 @@ class InventoryRepository
         // Join one latest movement and its current location per unit, preventing duplicate rows.
         $query = $this->inventoryQuery(InventorySerializedItem::class)
             ->where('inventory_serialized_items.inventory_item_id', $itemId)
+            ->when($candidateCodes !== null, fn ($q) => $q->whereIn('inventory_serialized_items.code', $candidateCodes))
             ->leftJoinSub($latest, 'latest_serialized_item_movements', function (JoinClause $join): void {
                 $join->on('inventory_serialized_items.id', '=', 'latest_serialized_item_movements.inventory_serialized_item_id');
             })

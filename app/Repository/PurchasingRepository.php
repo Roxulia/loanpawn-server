@@ -17,6 +17,63 @@ use Illuminate\Support\Facades\DB;
 
 class PurchasingRepository
 {
+    public function ownershipLine(int $tenantId, string $code, bool $lock = false): ?PurchaseOrderLine
+    {
+        // Purchase-source resolution remains in its owning repository/service boundary.
+        return PurchaseOrderLine::query()->where('tenant_id', $tenantId)->where('code', $code)
+            ->when($lock, fn ($q) => $q->lockForUpdate())->with('order')->first();
+    }
+
+    public function ownershipPaymentCurrencyIds(int $tenantId, int $orderId): array
+    {
+        // Retain the actual currency identity of settled payments even if its code has another visible match.
+        return DB::table('purchase_payments as payment')->join('financial_accounts as account', function ($join): void {
+            $join->on('account.id', '=', 'payment.financial_account_id')->on('account.tenant_id', '=', 'payment.tenant_id');
+        })->where('payment.tenant_id', $tenantId)->where('payment.purchase_order_id', $orderId)
+            ->distinct()->pluck('account.currency_id')->all();
+    }
+
+    public function ownershipSettlement(int $tenantId, int $orderId): object
+    {
+        // Compare exact SQL DECIMAL aggregates without PHP floating-point money arithmetic.
+        $bill = PurchaseOrderLine::query()->where('tenant_id', $tenantId)->where('purchase_order_id', $orderId)
+            ->selectRaw('COALESCE(SUM(ordered_quantity * unit_price), 0) AS total');
+        $paid = PurchasePayment::query()->where('tenant_id', $tenantId)->where('purchase_order_id', $orderId)
+            ->selectRaw('COALESCE(SUM(amount), 0) AS total, MAX(paid_at) AS settled_at');
+        return DB::query()->fromSub($bill, 'bill')->crossJoinSub($paid, 'paid')
+            ->selectRaw('paid.total >= bill.total AS settled, bill.total = 0 AS free, paid.settled_at')->first();
+    }
+
+    public function ownershipReceiptPage(int $tenantId, string $lineCode, $filter)
+    {
+        // Scope receipt candidates to their canonical purchase line before applying bounded pagination.
+        return PurchaseReceiptLine::query()->where('tenant_id', $tenantId)
+            ->whereHas('orderLine', fn ($q) => $q->where('tenant_id', $tenantId)->where('code', $lineCode))
+            ->when($filter->search !== null, fn ($q) => $q->where('code', 'like', '%'.$filter->search.'%'))
+            ->with(['receipt', 'orderLine'])->orderBy('id')->paginate($filter->perPage, ['*'], 'page', $filter->page);
+    }
+
+    public function ownershipReceivedQuantities(int $tenantId, array $lineCodes): \Illuminate\Support\Collection
+    {
+        // Batch source receipt totals for item and lot read projections.
+        return DB::table('purchase_receipt_lines as receipt')->join('purchase_order_lines as line', function ($join): void {
+            $join->on('line.id', '=', 'receipt.purchase_order_line_id')->on('line.tenant_id', '=', 'receipt.tenant_id');
+        })->where('receipt.tenant_id', $tenantId)->whereIn('line.code', $lineCodes)->select('line.code')
+            ->selectRaw('SUM(receipt.received_quantity) AS quantity')->groupBy('line.code')->get()->keyBy('code');
+    }
+
+    public function ownershipItemReceipts(int $tenantId, array $ownedIds): \Illuminate\Support\Collection
+    {
+        // Aggregate canonical source receipts in SQL; an item page never loads every lot source into PHP.
+        return DB::table('acquisition_lots as lot')->join('purchase_order_lines as line', function ($join): void {
+            $join->on('line.code', '=', 'lot.source_code')->on('line.tenant_id', '=', 'lot.tenant_id');
+        })->join('purchase_receipt_lines as receipt', function ($join): void {
+            $join->on('receipt.purchase_order_line_id', '=', 'line.id')->on('receipt.tenant_id', '=', 'line.tenant_id');
+        })->where('lot.tenant_id', $tenantId)->where('lot.source_module', 'PURCHASING')->where('lot.source_type', 'PurchaseOrderLine')
+            ->whereIn('lot.owned_item_id', $ownedIds)->select('lot.owned_item_id')->selectRaw('SUM(receipt.received_quantity) AS quantity')
+            ->groupBy('lot.owned_item_id')->get()->keyBy('owned_item_id');
+    }
+
     public function suppliers(int $tenantId, ?string $search): Collection
     {
         return PurchaseSupplier::query()->where('tenant_id', $tenantId)

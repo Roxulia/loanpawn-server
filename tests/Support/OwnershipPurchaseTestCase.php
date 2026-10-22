@@ -177,7 +177,10 @@ abstract class OwnershipPurchaseTestCase extends OwnershipMySqlTestCase
     {
         // Link the actual receipt line to this lot using the current aggregate version and a stable
         // retry key. The service must validate receipt association; the helper does not seed a link.
-        $owned = OwnedItem::query()->findOrFail($lot->owned_item_id);
+        // Negative cross-tenant cases need the known fixture's version so the actual service rejects
+        // its foreign public code. Limit this test-only lookup to exact recorded fixture tenants.
+        $owned = OwnedItem::withoutGlobalScope('tenant')->whereIn('tenant_id', array_keys($this->ownershipFixtures))
+            ->where('tenant_id', $lot->tenant_id)->findOrFail($lot->owned_item_id);
         $request = OwnershipReceiptLinkRequest::fromValidated([
             'purchase_receipt_line_code' => $receipt['receiptLine']->code, 'quantity' => $quantity,
             'serialized_item_codes' => $codes,

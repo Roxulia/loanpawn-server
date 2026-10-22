@@ -221,6 +221,69 @@ class InventoryService extends BaseTenantService
         return $item;
     }
 
+    public function findForOwnershipById(int $itemId): InventoryItem
+    {
+        // Internal sources resolve the current Inventory anchor through its owning service.
+        return $this->repository->findItemByIdForUpdate($itemId)
+            ?? throw new TenantNotFound(__('inventory.item_not_found'));
+    }
+
+    public function createOwnershipIdentity(InventoryReceiveRequest $request): InventoryItem
+    {
+        // Reuse item/unit/catalog validation without receiving stock or creating serialized identities.
+        $this->assertStockValidationTransaction();
+        return $this->createInventoryItem($this->resolveCurrentTenantId(), $request);
+    }
+
+    public function ownershipStock(InventoryItem $item, array $serials = [], ?array $pieceCodes = null): \App\DataObjects\ResponseObjects\InventoryOwnershipStock
+    {
+        // Ownership has acquired its aggregate/lot anchors before entering downstream custody locks.
+        $this->assertStockValidationTransaction();
+        $selected = $pieceCodes === null
+            ? $this->repository->serializedItemsByIdentifiers((int) $item->id, $serials)->pluck('code')->all()
+            : $pieceCodes;
+        $locations = $this->repository->locations($this->resolveCurrentTenantId());
+        if ($locations->isEmpty()) return new \App\DataObjects\ResponseObjects\InventoryOwnershipStock([], []);
+        $stock = $this->lockStockForOperation([$item->code], $locations->pluck('code')->all(), [], $selected);
+        $rows = [];
+        $reservedCodes = [];
+        foreach ($stock->locations->sortBy('id') as $location) {
+            [$reserved, $codes] = $this->summarizeLockedReservations($this->activeLockedReservationsAtLocation($stock, $item, $location), $item);
+            $reservedCodes += $codes;
+            if ($location->is_active && $location->is_sellable) {
+                $rows[(int) $location->id] = ['id' => (int) $location->id, 'code' => $location->code,
+                    'name' => $location->name, 'available' => max(0, ($stock->balances[$item->id][$location->id] ?? 0) - $reserved)];
+            }
+        }
+        // Exact identities may exist but be issued, at an ineligible location, or held by another source.
+        $pieces = [];
+        foreach ($stock->serializedItems->sortBy('id') as $piece) {
+            $locationId = $stock->custody->get($piece->id)?->to_location_id;
+            $pieces[] = ['id' => (int) $piece->id, 'code' => $piece->code, 'identifier' => $piece->identifier,
+                'location_id' => $locationId, 'available' => isset($rows[$locationId])
+                    && $rows[$locationId]['available'] >= 1000 && ! isset($reservedCodes[$piece->code])];
+        }
+        return new \App\DataObjects\ResponseObjects\InventoryOwnershipStock($rows, $pieces);
+    }
+
+    public function summariesByCodes(array $codes): \Illuminate\Support\Collection
+    {
+        // Share the existing batch balance/photo path with Ownership's bounded item page.
+        $items = $this->repository->summaryItemsByCodes($codes);
+        $balances = $this->readItemBalanceData($items);
+        return $items->map(fn (InventoryItem $item) => $this->buildItemReadSummary(
+            $item, $this->buildItemReadLocations($item, $balances)))->keyBy('code');
+    }
+
+    public function receiptPiecePage(string $itemCode, array $codes, \App\DataObjects\RequestObjects\InventorySerializedItemFilter $filter)
+    {
+        // Scope candidate identities before pagination, reusing custody/reservation projections.
+        $item = $this->resolveItemForRead($itemCode);
+        $page = $this->repository->serializedItemPage((int) $item->id, $filter, false, $codes);
+        $page->setCollection(collect($page->items())->map(fn ($piece) => $this->buildSerializedItemReadDetail($item, $piece)));
+        return $page;
+    }
+
     public function movementsByCode(string $itemCode): array
     {
         // Resolve the public Inventory item code before reading movement history.
