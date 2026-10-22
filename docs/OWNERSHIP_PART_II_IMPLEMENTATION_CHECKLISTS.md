@@ -133,7 +133,7 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-15 | Schema, models, constraints, indexes | OWN-15a–i accepted; fresh MySQL migration and structure checks passed; runtime behavior/rollback pending |
 | OWN-16 | Typed command/read/result contracts | Complete — OWN-16a–f review accepted; module/Public-or-Internal/RequestObjects-or-ResponseObjects layout accepted; runtime tests pending |
 | OWN-17 | Batched checkpoint-backed balance queries | Complete — OWN-17a–f implementation/review accepted; selected runtime evidence recorded; public API/UI activation and release-wide verification remain later work |
-| OWN-18 | Source, receipt, and serialized-link queries | OWN-18a–e implemented/reused and wired into required consumers; focused suite passed 97 tests / 4,190 assertions; implementation review pending |
+| OWN-18 | Source, receipt, and serialized-link queries | OWN-18a–e implemented/reused and wired into required consumers; focused suite passed 97 tests / 4,190 assertions; accepted |
 | OWN-19 | Ordered locking/current-read helpers | Not started |
 | OWN-20 | Validation helpers | Not started |
 | OWN-21 | Mutation/transaction/idempotency helpers | Not started |
@@ -1450,7 +1450,7 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Depends on:** OWN-15/16 and OWN-06–08 tests.
 
-**Agreed plan (2026-10-22):** Review and complete the existing helpers introduced for OWN-17; do not recreate them. The user subsequently requested "make 18", authorizing OWN-18a–e as a batch, and clarified that existing helpers must be used in the required functions. Implementation is delivered below; child checkboxes remain unchecked until review acceptance.
+**Agreed plan (2026-10-22):** Review and complete the existing helpers introduced for OWN-17; do not recreate them. The user subsequently requested "make 18", authorizing OWN-18a–e as a batch, and clarified that existing helpers must be used in the required functions. Implementation is delivered below. The user accepted OWN-18a–e with "done" on 2026-10-22; all child checkboxes are complete.
 
 | Unit | Existing foundation and planned work | Acceptance checks |
 |---|---|---|
@@ -1464,15 +1464,15 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Implementation boundary:** Cross-module lock coordination remains OWN-19; API/UI activation remains OWN-29/31. The earlier one-unit-at-a-time plan is superseded for this expressly authorized OWN-18 batch only.
 
-- [ ] **OWN-18a:** Implement tenant/item-bound acquisition source lookup and unique-source guard.
-- [ ] **OWN-18b:** Implement exact receipt allocation totals/candidates and receipt-source lookup; do not infer eligibility from item-level physical totals.
-- [ ] **OWN-18c:** Implement batched current serialized memberships and bounded piece candidates through Inventory services where another module owns the reads.
-- [ ] **OWN-18d:** Implement source/lot-bound current sale commitment lookup, then pledge lookup as a separate unit. Old movements need not be re-summed from inception to release a current commitment.
-- [ ] **OWN-18e:** Implement narrowly scoped persistence helpers for each link/commitment/membership operation. Query helpers contain no business transition rules.
+- [x] **OWN-18a:** Implement tenant/item-bound acquisition source lookup and unique-source guard.
+- [x] **OWN-18b:** Implement exact receipt allocation totals/candidates and receipt-source lookup; do not infer eligibility from item-level physical totals.
+- [x] **OWN-18c:** Implement batched current serialized memberships and bounded piece candidates through Inventory services where another module owns the reads.
+- [x] **OWN-18d:** Implement source/lot-bound current sale commitment lookup, then pledge lookup as a separate unit. Old movements need not be re-summed from inception to release a current commitment.
+- [x] **OWN-18e:** Implement narrowly scoped persistence helpers for each link/commitment/membership operation. Query helpers contain no business transition rules.
 
 #### OWN-18a–e — Reuse, consumer wiring and verification
 
-**Review status:** Implemented / awaiting user review. The user requested the whole phase; no next-phase implementation was started. Existing helper behavior is reused unless the following specific gap required an extension.
+**Review status:** Accepted by the user with "done" on 2026-10-22. OWN-18a–e are complete; OWN-19 remains the next pending phase. Existing helper behavior is reused unless the following specific gap required an extension.
 
 | Unit | Delivered |
 |---|---|
