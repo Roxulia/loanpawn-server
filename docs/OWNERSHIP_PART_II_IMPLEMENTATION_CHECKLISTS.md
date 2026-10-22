@@ -132,8 +132,8 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-14 | Messages and exact arithmetic foundations | OWN-14a–c accepted; runtime verification and DTO/caller activation pending |
 | OWN-15 | Schema, models, constraints, indexes | OWN-15a–i accepted; fresh MySQL migration and structure checks passed; runtime behavior/rollback pending |
 | OWN-16 | Typed command/read/result contracts | Complete — OWN-16a–f review accepted; module/Public-or-Internal/RequestObjects-or-ResponseObjects layout accepted; runtime tests pending |
-| OWN-17 | Batched checkpoint-backed balance queries | OWN-17a–d accepted; OWN-17e/f implemented with focused runtime verification; implementation review pending; public API/UI activation remains later work |
-| OWN-18 | Source, receipt, and serialized-link queries | Not started |
+| OWN-17 | Batched checkpoint-backed balance queries | Complete — OWN-17a–f implementation/review accepted; selected runtime evidence recorded; public API/UI activation and release-wide verification remain later work |
+| OWN-18 | Source, receipt, and serialized-link queries | OWN-18a–e implemented/reused and wired into required consumers; focused suite passed 97 tests / 4,190 assertions; implementation review pending |
 | OWN-19 | Ordered locking/current-read helpers | Not started |
 | OWN-20 | Validation helpers | Not started |
 | OWN-21 | Mutation/transaction/idempotency helpers | Not started |
@@ -1404,12 +1404,12 @@ All Ownership references in controllers, services, tests, and worker support wer
 - [x] **OWN-17b:** Implement exact opening item/lot balances from the selected headers; child records are scoped through the tenant-bound parent.
 - [x] **OWN-17c:** Implement uncovered movement delta query using both recording cutoff and watermark coverage.
 - [x] **OWN-17d:** Implement batched current item balances as base plus deltas; do not call one full-history sum per item.
-- [ ] **OWN-17e:** Implement batched current lot balances and FIFO eligible-lot reads with explicit currency and receipt-link eligibility; no per-lot resource loop queries.
-- [ ] **OWN-17f:** Implement bounded summary/detail/lot/history queries with stable order, page filters, and no unbounded eager loading. Review each query separately.
+- [x] **OWN-17e:** Implement batched current lot balances and FIFO eligible-lot reads with explicit currency and receipt-link eligibility; no per-lot resource loop queries.
+- [x] **OWN-17f:** Implement bounded summary/detail/lot/history queries with stable order, page filters, and no unbounded eager loading. Review each query separately.
 
-**Implementation sequence (2026-10-22):** User accepted the dedicated FIFO test review and explicitly authorized OWN-17e/f implementation and test execution. Both backend implementations are delivered for review; the checkboxes remain unchecked pending implementation acceptance. This does not accept later API/UI activation or the remaining module parts.
+**Acceptance (2026-10-22):** User requested "marks done and plan for next phase" after reviewing the implementation and receipt-link explanation. OWN-17e/f checked; all OWN-17 children are accepted. Existing passing-test evidence is retained without rerunning tests for this documentation update. This does not accept later API/UI activation, deferred cases or the remaining module parts. Next phase is OWN-18.
 
-**OWN-17f pagination implementation — delivered for review:** Bounded item summaries/detail, lot pages, movement history and receipt-scoped serialized candidates reuse OWN-16 contracts (default 25, maximum 100). Queries enforce tenant scope, stable ordering, holding/tracking/currency/search filters, and empty/out-of-range metadata. Facts/photos are batched and DTO serialization is query-free. Public endpoint/permission activation remains OWN-29 and frontend page/filter state remains OWN-31; neither is silently activated here.
+**OWN-17f pagination implementation — accepted:** Bounded item summaries/detail, lot pages, movement history and receipt-scoped serialized candidates reuse OWN-16 contracts (default 25, maximum 100). Queries enforce tenant scope, stable ordering, holding/tracking/currency/search filters, and empty/out-of-range metadata. Facts/photos are batched and DTO serialization is query-free. Public endpoint/permission activation remains OWN-29 and frontend page/filter state remains OWN-31; neither is silently activated here.
 
 **FIFO contract amendment:** Dedicated allocation tests and implementation evidence are recorded in [OWNERSHIP_FIFO_TEST_REVIEW.md](OWNERSHIP_FIFO_TEST_REVIEW.md). Shared `allocateFifo` takes Inventory item code, quantity and explicit serial numbers for SERIALIZED goods. It allocates under caller-held transaction locks; callers apply Sale or pledge effects. QUANTITY uses oldest eligible lots; explicit serials determine their actual lots/pieces without substitution. Carts do not reserve. Results preserve per-lot currencies; financial callers enforce their own currency policy. Packed-stock coverage awaits the real Part 7 fixture.
 
@@ -1450,11 +1450,43 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Depends on:** OWN-15/16 and OWN-06–08 tests.
 
+**Agreed plan (2026-10-22):** Review and complete the existing helpers introduced for OWN-17; do not recreate them. The user subsequently requested "make 18", authorizing OWN-18a–e as a batch, and clarified that existing helpers must be used in the required functions. Implementation is delivered below; child checkboxes remain unchecked until review acceptance.
+
+| Unit | Existing foundation and planned work | Acceptance checks |
+|---|---|---|
+| OWN-18a | Reuse `findBySourceCode`, `PurchaseSourceService` and Purchasing source queries. Review canonical tenant/module/type/code lookup and same-item association. Retain the existing unique-source constraint; distinguish a missing source from a source already allocated to a different item instead of hiding duplicates with an item-only filter. | Same source in another tenant remains isolated; wrong item/type/module rejects through the owning service; valid and duplicate source results are unambiguous. Payment/acquisition orchestration changes remain OWN-20a/22. |
+| OWN-18b | Reuse `receiptLinks`, `receiptAllocatedTotals`, `receiptFacts` and bounded receipt candidates. Verify exact original linked quantities against the correct receipt/lot/source; sold quantities must not reopen original receipt linking capacity. Keep receipt lookup in `PurchaseSourceService`. | Partial allocations sum exactly; receipt candidates exclude other purchase lines/items/tenants; zero/exhausted allocation remains historical; candidate pages retain correct totals and order. |
+| OWN-18c | Reuse batched current memberships, piece commitments, `InventoryService::receiptPiecePage` and serial resolution. Fill only missing tenant/item/lot/receipt-bound selection helpers, with no per-piece query loop. | Ended memberships do not authorize current use; exact selected serials map to their actual current lot; foreign/unlinked/issued pieces do not leak into eligible selections; bounded reads remain receipt-scoped. |
+| OWN-18d | Add narrowly targeted current commitment lookup by tenant, owned item, lot, SALE/PLEDGE kind, source type and source code; review SALE first, then PLEDGE. Reuse current commitment rows and their remaining quantities rather than loading all unrelated/exhausted item commitments or summing movement history for source release. | Other sale/loan/kind/lot cannot supply remaining quantity; exhausted source stays exhausted; batched source selection has fixed query count. Lifecycle/forfeiture orchestration remains OWN-24/25. |
+| OWN-18e | Reuse existing create helpers; review missing model-specific update/end helpers for receipt links, commitments and memberships. Keep transition validation in services, transactions owned by callers, and historical episodes retained. | Writes affect only resolved tenant-bound records; current-membership uniqueness remains enforced; failed caller operations restore the previous rows; no schema change or business-specific logic enters the repository. |
+
+**Verification plan:** Reuse accepted source/link/piece/sale tests where their production prerequisites are available. Add focused repository coverage only for uncovered helper boundaries, using real disposable MySQL fixtures and preserving existing expectations. Re-run relevant OWN-17 FIFO/pagination cases after changing their consumers. If an existing test reaches missing later orchestration such as OWN-23 `linkPurchaseReceipt()`, record that boundary and defer it without changing the expected outcome or implementing the next phase. Test execution requires an execution instruction for the implementation work; no migrations or development server are included in this plan.
+
+**Implementation boundary:** Cross-module lock coordination remains OWN-19; API/UI activation remains OWN-29/31. The earlier one-unit-at-a-time plan is superseded for this expressly authorized OWN-18 batch only.
+
 - [ ] **OWN-18a:** Implement tenant/item-bound acquisition source lookup and unique-source guard.
 - [ ] **OWN-18b:** Implement exact receipt allocation totals/candidates and receipt-source lookup; do not infer eligibility from item-level physical totals.
 - [ ] **OWN-18c:** Implement batched current serialized memberships and bounded piece candidates through Inventory services where another module owns the reads.
 - [ ] **OWN-18d:** Implement source/lot-bound current sale commitment lookup, then pledge lookup as a separate unit. Old movements need not be re-summed from inception to release a current commitment.
 - [ ] **OWN-18e:** Implement narrowly scoped persistence helpers for each link/commitment/membership operation. Query helpers contain no business transition rules.
+
+#### OWN-18a–e — Reuse, consumer wiring and verification
+
+**Review status:** Implemented / awaiting user review. The user requested the whole phase; no next-phase implementation was started. Existing helper behavior is reused unless the following specific gap required an extension.
+
+| Unit | Delivered |
+|---|---|
+| OWN-18a | Extended existing `findBySourceCode` with optional locking and used it in `AcquisitionService`'s duplicate guard. Canonical tenant/module/type/code lookup deliberately does not hide an existing source behind a different expected item. Existing Purchasing source services, item association validation and database source uniqueness are retained. |
+| OWN-18b | Retained and verified existing `receiptLinks`, `receiptAllocatedTotals`, `receiptFacts`, `PurchaseSourceService` receipt lookup and paginated candidates. Consumption changes remaining owned backing but does not reopen original linking capacity. `ReceiptLinkService` retains its current locking-row capacity calculation; replacing it with an ordinary snapshot SUM would weaken mutation validation. No duplicate receipt-total helper was added. |
+| OWN-18c | Extended existing batched `currentMemberships` with optional owned-item/receipt-link/piece-ID scopes. FIFO, receipt linking and quantity services now pass the owned-item scope. Existing `pieceCommitments`, Inventory serial/custody resolution and receipt-scoped candidate pagination remain reused. Ended membership episodes remain historical and excluded from current reads. |
+| OWN-18d | Extended existing `commitments` with optional owned-item, SALE/PLEDGE kind, source type and source code filters, applied in SQL before loading or locking rows. `QuantityService` now uses those filters for source capacity, release and consumption. It no longer loads commitments for unrelated sales/loans. The selected source's exhausted rows remain visible with zero remaining quantity. |
+| OWN-18e | Reused the four existing create helpers. Replaced generic `updateState` with model-specific `updateCommitment`, `updateReceiptRemaining`, `endMembership` and `endPieceCommitment`; wired all existing quantity mutation call sites to them. Writes include tenant/ID scope and fixed permitted columns. Episode-ending updates apply only once to open rows; services roll back when a required write does not succeed. No source/link identity or original linked quantity is overwritten. |
+
+**Tests written before helper changes:** `OwnershipSourceQueryTest` covers canonical source/item duplicate handling and tenant isolation; original receipt capacity after consumption; one-query batched membership and source-commitment selection; source/kind/type/item separation; capacity across multiple lots; tenant-restricted model-specific writes; caller rollback; retained end timestamps; and the real MySQL single-current-membership uniqueness constraint. Known ledger fixtures isolate repository behavior; they do not claim to certify later complete orchestration.
+
+**Verification:** The final focused run passed **97 tests / 4,190 assertions**: `OwnershipSourceQueryTest`, `OwnershipSourceTest`, `OwnershipReceiptLimitTest`, `OwnershipSaleTest`, `OwnershipReadTest`, `OwnershipPaginationQueryTest`, and all four FIFO classes. Seven changed/new PHP files passed syntax checks; diff whitespace checks passed. No migration, seeding, browser, scheduler, development server or later-phase orchestration execution was added. Tests use the existing disposable MySQL configuration; FIFO concurrency still observes actual database lock waits.
+
+**Deferred:** Existing OWN-23 `linkPurchaseReceipt()` orchestration, OWN-19 cross-caller lock audit/monthly append coordination, full pledge release/forfeiture lifecycle and API/UI activation remain their owning phases. No test was weakened or changed to skip a future requirement. Query-count assertions prove batching for their selected actions, not measured latency or optimizer plans (OWN-33).
 
 ### OWN-19 — Ordered locks and current reads
 

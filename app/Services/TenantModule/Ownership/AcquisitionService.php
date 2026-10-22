@@ -55,7 +55,7 @@ class AcquisitionService extends BaseTenantService
                 $currency = $this->currencies->findActiveVisibleForTenant($tenant, (int) $currencyId);
                 if ($currency->code !== $line->order->currency_code) throw new InvalidTenantRequest(__('ownership.purchase_source_invalid'));
             }
-            if ($this->repository->findBySourceCode($tenant, 'PURCHASING', 'PurchaseOrderLine', $code) !== null) {
+            if ($this->repository->findBySourceCode($tenant, 'PURCHASING', 'PurchaseOrderLine', $code, true) !== null) {
                 throw new InvalidTenantRequest(__('ownership.source_already_recorded'));
             }
             $owner = $this->repository->ownedItemForInventory($tenant, (int) $item->id, true);

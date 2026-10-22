@@ -55,7 +55,7 @@ class ReceiptLinkService extends BaseTenantService
                 || $lotUsed + $quantity > InventoryQuantity::parse($lot->acquired_quantity)) {
                 throw new InvalidTenantRequest(__('ownership.receipt_link_exceeded'));
             }
-            $members = $this->repository->currentMemberships($tenant, $lots->pluck('id')->all(), true);
+            $members = $this->repository->currentMemberships($tenant, $lots->pluck('id')->all(), true, ownedItemId: (int) $owner->id);
             $stock = $this->inventoryService->ownershipStock($item, pieceCodes: $request->serializedItemCodes);
             $this->validatePieces($item->tracking_mode, $quantity, $request->serializedItemCodes,
                 $receipt->serialized_item_codes ?? [], $stock->pieces, $members);

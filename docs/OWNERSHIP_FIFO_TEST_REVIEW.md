@@ -2,7 +2,7 @@
 
 ## Accepted contract
 
-The dedicated test review was accepted and the user authorized **OWN-17e FIFO** and **OWN-17f pagination** implementation with test execution. The backend implementations are now delivered for review. Implementation acceptance, public API/UI activation and complete business workflow verification remain separate.
+The dedicated test review was accepted and the user authorized **OWN-17e FIFO** and **OWN-17f pagination** implementation with test execution. The user subsequently requested "marks done and plan for next phase": both backend implementations are accepted. Public API/UI activation and complete business workflow verification remain separate; next phase is OWN-18 source/link repository helpers.
 
 The cart does not reserve. At checkout the caller owns a transaction, resolves/locks its business source, asks FIFO to allocate, and applies the returned rows before commit. Allocation alone writes no business, reservation, replay, audit, or checkpoint records. A database lock lasts through this short transaction, never through cart editing.
 
@@ -66,4 +66,4 @@ The preceding paragraph is historical evidence from test writing. Current runtim
 
 These are **383 selected passing tests / 4,372 assertions across the final two runs**, not a claim that the entire Ownership suite passes. The expanded support run stopped at the later absent `linkPurchaseReceipt()` orchestration method. A combined regression run also observed the existing photo test compare URLs generated on opposite sides of a one-second boundary; the unchanged Inventory/Pawn suite passed on its separate final rerun. No photo-signing or later-phase orchestration change was added to fix those out-of-scope cases.
 
-Implementation is delivered for review. Public routes/UI, generic Packing, monthly publication/performance and full business workflow acceptance remain their owning phases.
+OWN-17e/f implementation is accepted. Public routes/UI, generic Packing, monthly publication/performance and full business workflow acceptance remain their owning phases. This acceptance update reruns no tests or migrations.

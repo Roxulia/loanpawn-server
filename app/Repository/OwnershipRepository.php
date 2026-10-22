@@ -194,10 +194,12 @@ class OwnershipRepository
         return ['owned' => (float) $totals->owned, 'pledged' => (float) $totals->pledged, 'reserved' => (float) $totals->reserved];
     }
 
-    public function findBySourceCode(int $tenantId, string $module, string $type, string $sourceCode): ?AcquisitionLot
+    public function findBySourceCode(int $tenantId, string $module, string $type, string $sourceCode, bool $lock = false): ?AcquisitionLot
     {
+        // Preserve canonical source identity across items so a mismatched item cannot hide a duplicate.
         return AcquisitionLot::query()->where('tenant_id', $tenantId)->where('source_module', $module)
-            ->where('source_type', $type)->where('source_code', $sourceCode)->first();
+            ->where('source_type', $type)->where('source_code', $sourceCode)
+            ->when($lock, fn ($query) => $query->lockForUpdate())->first();
     }
 
     private function latestCompletedCheckpointQuery(int $tenantId, array|Builder $ownedItemIds, string $cutoffAt): Builder

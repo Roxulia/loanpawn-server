@@ -37,10 +37,12 @@ class QuantityService extends BaseTenantService
             $this->validateSource($line, $pledge, $owner, $lot, $sourceCode, $quantity, $pieceCodes);
             $balance = $this->balances->locked((int) $owner->id, $lots)[$lot->id];
             $links = $this->repository->receiptLinks($tenant, [$lot->id], true);
-            $members = $this->repository->currentMemberships($tenant, [$lot->id], true);
-            $commitments = $this->repository->commitments($tenant, $lots->pluck('id')->all(), true);
+            $members = $this->repository->currentMemberships($tenant, [$lot->id], true, ownedItemId: (int) $owner->id);
             $kind = $pledge === null ? 'SALE' : 'PLEDGE';
             $sourceType = $pledge === null ? 'SaleOrderLine' : 'BusinessLoanCollateral';
+            // Reuse the existing query with source filters; unrelated sales/loans are not loaded or locked.
+            $commitments = $this->repository->commitments($tenant, $lots->pluck('id')->all(), true,
+                ownedItemId: (int) $owner->id, kind: $kind, sourceType: $sourceType, sourceCode: $sourceCode);
             $commitment = $commitments->where('acquisition_lot_id', $lot->id)->where('kind', $kind)
                 ->where('source_type', $sourceType)->firstWhere('source_code', $sourceCode);
             $held = $this->repository->pieceCommitments($tenant, $members->pluck('id')->all(), true);
@@ -64,11 +66,11 @@ class QuantityService extends BaseTenantService
                 }
                 $stock = $this->inventoryService->ownershipStock($item, pieceCodes: $pieceCodes);
                 $selected = $this->validatePieces($item->tracking_mode, $amount, $pieceCodes, $stock, $members, $held, $commitment);
-                $this->repository->updateState($commitment, ['remaining_quantity' => InventoryQuantity::format(
-                    InventoryQuantity::parseBalance($commitment->remaining_quantity) - $amount)]);
+                $this->requireSaved($this->repository->updateCommitment($tenant, $commitment, $commitment->quantity,
+                    InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->remaining_quantity) - $amount)));
                 foreach ($held as $hold) {
                     if ($selected->has($hold->ownership_piece_membership_id)) {
-                        $this->repository->updateState($hold, ['ended_at' => CarbonImmutable::now('UTC')]);
+                        $this->requireSaved($this->repository->endPieceCommitment($tenant, $hold, CarbonImmutable::now('UTC')));
                     }
                 }
                 if ($action === 'consume') $this->consumeLinks($links, $selected, $amount, $item->tracking_mode);
@@ -139,8 +141,9 @@ class QuantityService extends BaseTenantService
     {
         // Repeated allocations for one source/location split accumulate on the same source-bound record.
         if ($commitment !== null) {
-            $this->repository->updateState($commitment, ['quantity' => InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->quantity) + $amount),
-                'remaining_quantity' => InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->remaining_quantity) + $amount)]);
+            $this->requireSaved($this->repository->updateCommitment($this->resolveCurrentTenantId(), $commitment,
+                InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->quantity) + $amount),
+                InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->remaining_quantity) + $amount)));
             return $commitment;
         }
         return $this->repository->createCommitment(['tenant_id' => $this->resolveCurrentTenantId(), 'owned_item_id' => $owner->id,
@@ -155,11 +158,19 @@ class QuantityService extends BaseTenantService
             $take = $mode === 'SERIALIZED' ? $selected->where('ownership_receipt_link_id', $link->id)->count() * 1000
                 : min($amount, InventoryQuantity::parseBalance($link->remaining_owned_quantity));
             if ($take === 0) continue;
-            $this->repository->updateState($link, ['remaining_owned_quantity' => InventoryQuantity::format(
-                InventoryQuantity::parseBalance($link->remaining_owned_quantity) - $take)]);
+            $this->requireSaved($this->repository->updateReceiptRemaining($this->resolveCurrentTenantId(), $link,
+                InventoryQuantity::format(InventoryQuantity::parseBalance($link->remaining_owned_quantity) - $take)));
             $amount -= $take;
         }
         if ($amount !== 0) throw new InvalidTenantRequest(__('ownership.receipt_link_required'));
-        foreach ($selected as $member) $this->repository->updateState($member, ['ended_at' => CarbonImmutable::now('UTC')]);
+        foreach ($selected as $member) {
+            $this->requireSaved($this->repository->endMembership($this->resolveCurrentTenantId(), $member, CarbonImmutable::now('UTC')));
+        }
+    }
+
+    private function requireSaved(bool $saved): void
+    {
+        // A missing/stale/foreign target must roll back the caller rather than leave a partial mutation.
+        if (! $saved) throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
     }
 }

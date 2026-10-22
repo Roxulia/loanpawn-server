@@ -29,7 +29,7 @@ class FifoService extends BaseTenantService
         $lots = $this->repository->lockedLots($tenant, (int) $owner->id);
         $balances = $this->balances->locked((int) $owner->id, $lots);
         $links = $this->repository->receiptLinks($tenant, $lots->pluck('id')->all(), true)->groupBy('acquisition_lot_id');
-        $members = $this->repository->currentMemberships($tenant, $lots->pluck('id')->all(), true);
+        $members = $this->repository->currentMemberships($tenant, $lots->pluck('id')->all(), true, ownedItemId: (int) $owner->id);
         $held = $this->repository->pieceCommitments($tenant, $members->pluck('id')->all(), true)->keyBy('ownership_piece_membership_id');
         $stock = $this->inventoryService->ownershipStock($item, $serials);
 
