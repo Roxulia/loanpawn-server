@@ -1,11 +1,12 @@
 <?php
 
 namespace App\Services\TenantModule;
+
 use App\DataObjects\RequestObjects\InventoryReceiveRequest;
 use App\DataObjects\RequestObjects\InventoryIssueRequest;
 use App\Enums\InventoryIssueContext;
 
-use App\DataObjects\RequestObjects\OwnershipAcquisitionCreate;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
 use App\DataObjects\RequestObjects\TenantAccountingTransactionRecord;
 use App\Enums\AccountingCategory;
 use App\Models\PurchasingModule\PurchaseOrder;
@@ -365,8 +366,9 @@ class PurchasingService extends BaseTenantService
                 // Create a receipt-sourced acquisition lot at the purchase order item's snapshotted unit cost.
                 $ownership = $this->ownershipService->acquireFromSource(new OwnershipAcquisitionCreate(
                     inventoryItemCode: $inventoryItemResource['inventory_item_code'], quantity: $quantity,
-                    acquiredAt: $data['received_at'], unitCostBasis: (float) $purchaseOrderItem->unit_price,
-                    estimatedUnitValue: (float) $purchaseOrderItem->unit_price, currencyCode: $order->currency_code,
+                    // Pass the stored decimal directly into the exact acquisition contract.
+                    acquiredAt: $data['received_at'], unitCostBasis: $purchaseOrderItem->unit_price,
+                    estimatedUnitValue: $purchaseOrderItem->unit_price, currencyCode: $order->currency_code,
                     description: $purchaseOrderItem->item_description,
                 ), 'PURCHASING', 'PurchaseReceiptLine', $receiptItem->code, 'purchasing-ownership-'.$receiptItem->code);
                 $receivedValue = round($quantity * (float) $purchaseOrderItem->unit_price, 2);

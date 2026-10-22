@@ -128,11 +128,11 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-10 | Atomicity, idempotency, and concurrency tests | Test writing and expectation review accepted; implementation/execution pending |
 | OWN-11 | Monthly summary tests | Test writing and expectation review accepted; implementation/execution pending |
 | OWN-12 | Review tests and initial results | Coverage/expectation review accepted via review document; OWN-12b execution pending authorization and prepared schema |
-| OWN-13 | Feature gates and permission wiring | Not started |
-| OWN-14 | Messages and exact arithmetic foundations | Not started |
-| OWN-15 | Schema, models, constraints, indexes | Not started |
-| OWN-16 | Typed command/read/result contracts | Not started |
-| OWN-17 | Batched checkpoint-backed balance queries | Not started |
+| OWN-13 | Feature gates and permission wiring | Accepted with amendment: receipt-link permissions decided; route wiring deferred to OWN-29c; runtime verification pending |
+| OWN-14 | Messages and exact arithmetic foundations | OWN-14a–c accepted; runtime verification and DTO/caller activation pending |
+| OWN-15 | Schema, models, constraints, indexes | OWN-15a–i accepted; fresh MySQL migration and structure checks passed; runtime behavior/rollback pending |
+| OWN-16 | Typed command/read/result contracts | Complete — OWN-16a–f review accepted; module/Public-or-Internal/RequestObjects-or-ResponseObjects layout accepted; runtime tests pending |
+| OWN-17 | Batched checkpoint-backed balance queries | OWN-17a–d review accepted; focused repository tests written but unexecuted; OWN-17e/f not started |
 | OWN-18 | Source, receipt, and serialized-link queries | Not started |
 | OWN-19 | Ordered locking/current-read helpers | Not started |
 | OWN-20 | Validation helpers | Not started |
@@ -1181,11 +1181,47 @@ Suggested test files are `OwnershipQuantityTest`, `OwnershipContractTest`, `Owne
 
 **Files:** Package feature configuration, additive gate migration if missing, `routes/api.php`; frontend navigation/routes reviewed separately.
 
-- [ ] **OWN-13a:** Inventory existing `ownership_management`, `inventory_management`, Ownership permissions, and `ownership_manual_acquisition` before creating anything new.
-- [ ] **OWN-13b:** Register inactive manual acquisition only if missing; preserve administrator overrides and existing grants. Review configuration and migration separately; execute neither migration nor seeding.
-- [ ] **OWN-13c:** Apply the manual-acquisition gate at the existing write route. Retain authorized internal acquisition without exposing a public bypass.
-- [ ] **OWN-13d:** Specify and wire receipt-link permission using an appropriate existing permission where sufficient; review any new permission as a separate unit before granting it.
-- [ ] **OWN-13e:** Hide disabled manual actions/direct frontend routes and preserve staged/credit/delivery/return gates. Test public restrictions separately from internal availability.
+- [x] **OWN-13a:** Inventory existing `ownership_management`, `inventory_management`, Ownership permissions, and `ownership_manual_acquisition` before creating anything new.
+- [x] **OWN-13b:** Register inactive manual acquisition only if missing; preserve administrator overrides and existing grants. Review configuration and migration separately; execute neither migration nor seeding.
+- [x] **OWN-13c:** Apply the manual-acquisition gate at the existing write route. Retain authorized internal acquisition without exposing a public bypass.
+- [x] **OWN-13d:** Specify receipt-link permission using an appropriate existing permission. Accepted amendment: wire the existing route middleware during OWN-29c endpoint activation rather than declaring middleware for absent controller actions. No new permission or grants required.
+- [x] **OWN-13e:** Hide disabled manual actions/direct frontend routes and preserve staged/credit/delivery/return gates. Test public restrictions separately from internal availability.
+
+#### OWN-13a — Existing gate and permission inventory
+
+**Prepared:** 2026-10-22. **Review:** Accepted by the user through "done next"; OWN-13a checked. Static source inspection only; database registration, deployed grants, and runtime enforcement were not verified.
+
+| Area | Existing source evidence | Outcome / next work |
+|---|---|---|
+| Module features | `config/package_features.php` defines active `ownership_management` and `inventory_management`. Their existing migrations (`2026_10_02_000001_add_ownership_management_feature.php`, `2026_10_01_000004_add_inventory_feature.php`) register them and assign trial=false, basic=true, premium=true. | Reuse existing registrations; do not add duplicate module features or reset package assignments. Source defaults are not proof of current database values. |
+| Ownership permissions | `config/tenant_permissions.php` and `2026_10_02_000002_add_ownership_permissions.php` define `list_owned_item`, `create_owned_item`, and `manage_owned_item`. The migration adds role/user permission columns, grants owner/admin all three and regular users list access. Frontend permission codes and staff labels already include all three. | Preserve current grants. No separate receipt-link permission was found in these definitions; reuse suitability belongs to OWN-13d. |
+| API gates | The Ownership route group in `routes/api.php` requires both module features. Reads require `list_owned_item`; public `POST acquisitions` and expired-collateral transfer require `create_owned_item`. `OwnershipController::acquire` calls `OwnershipService::manualAcquisition`. | The existing public manual write lacks its dedicated deferred-operation gate; add it in OWN-13c without gating trusted internal business acquisition. |
+| Manual feature registration | Source searches found `ownership_manual_acquisition` only in planning/checklist documentation, with no registration in feature configuration or migrations and no application wiring. | OWN-13b must prepare an inactive registration using existing conventions, preserving existing administrator/package choices. No migration or seeding executed. |
+| Feature and permission enforcement | `EnsureTenantFeature` delegates to `TenantLicenseService`, which checks the licensed plan through `PackageService::planHasFeature`. `EnsureTenantPermission` delegates to `TenantUserPermissionService`; the owning platform user bypasses permission checks, and effective role/user permissions honor `access_all`. | Preserve existing permission overrides. Permission bypass is separate from the feature middleware; do not introduce a manual-feature bypass for administrators. |
+| Frontend exposure | `router.tsx` protects Ownership pages with both module gates and the relevant permission. `Sidebar.tsx` and `OwnedItemsPage.tsx` expose Record acquisition using `create_owned_item`; the direct acquisition route has no manual feature gate. | OWN-13e must hide the action/navigation and guard the direct route with the dedicated feature. No frontend files changed during this inventory. |
+
+**Verification:** Read-only source searches and inspection. No production code, executable tests, database reads/writes, migrations, seeding, workers, or servers executed. Next dependency is user review of this inventory, followed by OWN-13b inactive feature registration.
+
+#### OWN-13b — Inactive manual-acquisition registration
+
+**Prepared:** 2026-10-22. **Review:** User accepted configuration and migration through "done , make next one until 13 done"; OWN-13b checked. The two changes are recorded separately:
+
+- **Configuration:** `config/package_features.php` now declares `ownership_manual_acquisition` with `is_active=false`. No package feature list or permission grant changed.
+- **Migration:** `2026_10_22_000001_add_ownership_manual_acquisition_feature.php` returns immediately if the code already exists; otherwise inserts an inactive feature with no package assignments. Existing active flags, metadata, and grants are preserved. Rollback deliberately retains the registration because it cannot establish ownership of a pre-existing row or later administrator grants.
+
+**Verification:** Both PHP files passed syntax checks; diff whitespace passed. PHP reported an existing missing Redis extension startup warning. No tests, migrations, seeding, or database operations ran. Runtime registration remains pending. The existing `PackageSeeder` writes feature name/description but does not use configured `is_active` on creation; this unit does not change that shared behavior. The new migration is the inactive database-registration path; configuration alone is not proof of an inactive database row. API/UI gate wiring remains OWN-13c/e.
+
+#### OWN-13c–e — Remaining gate wiring batch
+
+**Acceptance amendment (2026-10-22):** User accepted through "i see mark done and proceed" after reviewing the redundant controller middleware. Removed `HasMiddleware`, imports, and `middleware()` from OwnershipController. The OWN-13d permission decision is accepted; actual `tenant.permission:list_owned_item` candidate-read and `tenant.permission:manage_owned_item` link-write middleware must be attached in `routes/api.php` at OWN-29c. The original implementation record below is historical and superseded for OWN-13d. No receipt-link permission enforcement is claimed before activation. OWN-13c/e accepted; runtime evidence remains pending.
+
+**Authorization:** The user requested completion through OWN-13, authorizing the remaining children together. **Review:** Implemented / awaiting acceptance; OWN-13c/d/e remain unchecked. No runtime verification claimed.
+
+- **OWN-13c:** `routes/api.php` now requires `tenant.feature:ownership_manual_acquisition` in addition to `create_owned_item` on public `POST acquisitions`. Existing Ownership/Inventory group gates remain. No internal service acquisition method or caller changed.
+- **OWN-13d:** Reuse `manage_owned_item` for linking and `list_owned_item` for candidate reads, as accepted in OWN-02 and expressed by the existing HTTP tests. `OwnershipController` now implements Laravel `HasMiddleware`: `linkReceipt` requires the manage permission and `receiptLinkCandidates` requires the list permission. These are reserved action names for OWN-29c; their methods/routes are not yet activated. OWN-29c must use these names and retain both module feature gates. No new permissions or grants added. This wires the permission declaration, not a functioning receipt-link endpoint.
+- **OWN-13e:** The acquisition route now has the dedicated frontend feature guard. Sidebar navigation, page navigation, form visibility, and submission require that feature; existing create permission is retained. Other workflows and their existing gates were not changed.
+
+**Verification:** PHP syntax passed for route/controller changes; frontend `npx tsc -b --pretty false` passed; both repositories passed diff whitespace checks. Existing missing Redis extension startup warning persists. No PHPUnit, browser, migrations, seeding, database, workers, scheduler, or development server execution. Manual gate behavior awaits OWN-12b/32 execution with the prepared schema and feature registration. Receipt-link endpoint behavior remains dependent on OWN-23/29c. Next implementation unit after batch acceptance is OWN-14a.
 
 ## Stage 4 — Helper function writing
 
@@ -1195,9 +1231,21 @@ Suggested test files are `OwnershipQuantityTest`, `OwnershipContractTest`, `Owne
 
 **Files:** `lang/en/ownership.php`, `lang/mm/ownership.php`, existing exact quantity helper and cost utilities found during review.
 
-- [ ] **OWN-14a:** Add matching localized keys for paid source, receipt-link state, source-bound quantity, and monthly-summary errors; reuse existing exception classes where suitable.
-- [ ] **OWN-14b:** Connect Ownership quantity parsing/formatting to `InventoryQuantity`; remove no legacy call until its consumer is ready.
-- [ ] **OWN-14c:** Implement the reviewed exact cost/value normalization only if no suitable utility exists; no floating-point arithmetic or unrelated money-system refactor.
+- [x] **OWN-14a:** Add matching localized keys for paid source, receipt-link state, source-bound quantity, and monthly-summary errors; reuse existing exception classes where suitable.
+- [x] **OWN-14b:** Connect Ownership quantity parsing/formatting to `InventoryQuantity`; remove no legacy call until its consumer is ready.
+- [x] **OWN-14c:** Implement the reviewed exact cost/value normalization only if no suitable utility exists; no floating-point arithmetic or unrelated money-system refactor.
+
+#### OWN-14a–c — Foundations batch
+
+**Acceptance (2026-10-22):** User accepted through "ok marks done and next phase" after the Myanmar wording revision. OWN-14a–c checked. Syntax/static evidence only; tests remain unexecuted and DTO/caller activation remains pending. The original preparation record below is retained as history.
+
+**Authorization:** User requested "all 14 not just part". **Review:** Implemented / awaiting acceptance; OWN-14a–c remain unchecked.
+
+- **OWN-14a:** Added matching English/Myanmar keys for payment-qualified sources, receipt allocation/piece/link state, source commitments, monthly validation/recovery, and exact balance/cost errors. Existing keys retained. Reuse `InvalidTenantRequest` (422) for helper validation; existing `TenantNotFound` and `AlreadyUpdatedException` remain the later resource/stale-version contracts. No new exception classes.
+- **OWN-14b:** Added `App\Support\OwnershipQuantity`. Operation normalization delegates to `InventoryQuantity::parse/format`; zero-allowing DECIMAL(24,3) balance normalization and comparison use digit strings to avoid scaled integer overflow and float rounding. Existing legacy consumers remain unchanged pending coordinated service/DTO activation.
+- **OWN-14c:** Searched existing Support/Utility helpers; no suitable exact four-decimal cost utility found. Added `App\Support\OwnershipCost` matching the reviewed helper interface: string/integer input, non-negative DECIMAL(18,4), canonical four-decimal output, nullable optional estimate. Reject floats, malformed, negative, over-precision and overflow input without rounding. DTO adaptation remains OWN-16a; the DTO assertions in OwnershipCostTest are therefore still pending, not claimed passing.
+
+**Verification:** PHP syntax passed for both helper files, both locale files, and the controller cleanup; diff whitespace passed. Locale keys statically matched. No PHPUnit or database operations executed. PHP's existing missing Redis extension startup warning remains. New helpers are implemented foundations, not activated acquisition/quantity business workflows. Next unit after acceptance is OWN-15a.
 
 ### OWN-15 — Schema, models, and indexes
 
@@ -1205,39 +1253,178 @@ Suggested test files are `OwnershipQuantityTest`, `OwnershipContractTest`, `Owne
 
 **Files:** Small additive migrations and models under the existing Ownership module; each schema responsibility is reviewed separately.
 
-- [ ] **OWN-15a:** Add acquisition-to-purchase identity support needed before receipt, retaining existing item/code uniqueness and immutable source snapshots; review the proposed aggregate `update_key` as its own schema/model child before activation if accepted in OWN-02f.
-- [ ] **OWN-15b:** Add receipt-to-lot quantity link records with stable source references and constraints against duplicate receipt allocation.
-- [ ] **OWN-15c:** Add exact serialized lot membership/history and a database-enforced single-current-membership rule; permit historical reacquisition without duplicate current ownership.
-- [ ] **OWN-15d:** Add or reuse source-bound sale/pledge commitment records needed for exact consumption/release. These track commitments, not a substitute continuously updated aggregate balance table.
-- [ ] **OWN-15e:** Add monthly checkpoint header schema: tenant/item/month, timezone/cutoff, watermark, completion, and unique publication constraint.
-- [ ] **OWN-15f:** Add monthly item/lot closing balance schema with exact owned/reserved/pledged quantities, including zero rows.
-- [ ] **OWN-15g:** Inventory existing indexes; add only necessary tenant/item/lot/time/watermark and source/link lookup indexes. Review model casts/relations one model at a time.
-- [ ] **OWN-15h:** Review up/down and fresh-deployment compatibility. Do not run migrations; separately prepared schema remains an execution prerequisite.
-- [ ] **OWN-15i:** If accepted in OWN-02f, add/cast the Ownership aggregate `update_key` with default zero as a separate schema/model review. It advances on logical mutations, not monthly publication.
+- [x] **OWN-15a:** Add acquisition-to-purchase identity support needed before receipt, retaining existing item/code uniqueness and immutable source snapshots; review the proposed aggregate `update_key` as its own schema/model child before activation if accepted in OWN-02f.
+- [x] **OWN-15b:** Add receipt-to-lot quantity link records with stable source references and constraints against duplicate receipt allocation.
+- [x] **OWN-15c:** Add exact serialized lot membership/history and a database-enforced single-current-membership rule; permit historical reacquisition without duplicate current ownership.
+- [x] **OWN-15d:** Add or reuse source-bound sale/pledge commitment records needed for exact consumption/release. These track commitments, not a substitute continuously updated aggregate balance table.
+- [x] **OWN-15e:** Add monthly checkpoint header schema: tenant/item/month, timezone/cutoff, watermark, completion, and unique publication constraint.
+- [x] **OWN-15f:** Add monthly item/lot closing balance schema with exact owned/reserved/pledged quantities, including zero rows.
+- [x] **OWN-15g:** Inventory existing indexes; add only necessary tenant/item/lot/time/watermark and source/link lookup indexes. Review model casts/relations one model at a time.
+- [x] **OWN-15h:** Review up/down and fresh-deployment compatibility. Migration execution was subsequently explicitly authorized for the disposable testing environment; see verification record. Rollback remains unexecuted.
+- [x] **OWN-15i:** If accepted in OWN-02f, add/cast the Ownership aggregate `update_key` with default zero as a separate schema/model review. It advances on logical mutations, not monthly publication.
+
+#### OWN-15a — Acquisition identity schema review
+
+**Acceptance:** User accepted through "done and proceed full 15", authorizing OWN-15b–i as a batch. The original preparation record below is historical; OWN-15a is checked.
+
+**Prepared:** 2026-10-22. **Review:** Awaiting acceptance; OWN-15a remains unchecked. No additive migration is needed for this child based on the existing schema definitions.
+
+- `2026_10_03_000004_integrate_purchasing_inventory_accounting.php` already adds nullable `purchase_order_lines.inventory_item_id`, with a restrictive Inventory foreign key. `PurchaseOrderLine` already exposes it through fillable attributes and `inventoryItem()`. It can hold the stable identity before receipt; only the misleading receipt-only model comment was changed.
+- `2026_10_02_000003_create_ownership_tables.php` already gives acquisition lots tenant/module/type/source-code references and the unique `ownership_lot_source_code_unique` constraint. The canonical `PURCHASING / PurchaseOrderLine / line code` fits existing columns without a receipt dependency or duplicate pointer. Existing nullable source fields remain compatible with historical/internal sources; trusted source qualification must be enforced by later services.
+- Existing lot date, acquired quantity, four-decimal cost/estimate, and currency fields hold the original acquisition snapshots. `AcquisitionLot` already casts date/quantity/cost appropriately. This review does not claim database-level immutability enforcement or implemented correction/mutation safeguards; later orchestration must preserve those snapshots.
+- Existing aggregate uniqueness on tenant/item and tenant/code is retained. Aggregate `update_key` remains a separate schema/model review under OWN-15i. No receipt links, serial membership, or physical movements were added by this unit.
+
+**Verification:** Read-only migration/model/test-fixture inspection, PHP syntax for the comment-only PurchaseOrderLine change, and diff whitespace checks. No database metadata checks, migration, PHPUnit, or application execution. A deployed database is not claimed to match these migration definitions. Next child after acceptance is OWN-15b.
+
+#### OWN-15b–i — Schema/model batch
+
+**Acceptance:** User accepted through "ok done next" after the fresh-schema results and model documentation updates. OWN-15b–i checked. Earlier awaiting-review notes below are historical; behavioral and rollback verification remain pending.
+
+**Authorized structure verification (2026-10-22):** The user explicitly requested fresh migrations in the testing environment followed by an SQL structure check, overriding the earlier no-migration restriction for this test-only operation. Initial authentication failed before any migration; the next attempt found the then-configured `lonepawn_test` missing, created it, and began migrating. After the user changed the configured target to `loanpawn_test`, the earlier process was stopped. It may retain partial migrated schema; it was not deleted. The current target was revalidated against the normal application database and rebuilt with `migrate:fresh` on the explicit test connection, without seeding. All migrations, including all OWN-15 migrations, completed successfully on `loanpawn_test`, MySQL 8.0.42. Normal application database was not migrated.
+
+`php tests/Support/ownership_structure_check.php` passed: eight Ownership/source tables inspected for expected fields/types, InnoDB, required unique/lookup indexes, new foreign-key targets/delete rules, current-membership generated expressions, and non-null aggregate version default zero. `php tests/Support/inventory_database_preflight.php` also passed with no required tables missing. The new read-only `OwnershipStructureCheck` reuses disposable-target connection safeguards and does not bootstrap Laravel or mutate data. This proves fresh schema creation and the listed metadata, not all schema nullability/check rules, runtime allocation/uniqueness behavior, locking, rollback, service correctness, or test fixture readiness. PHPUnit, rollback, seeders, jobs, workers and servers were not run. PHP still reports the missing Redis extension startup warning. Earlier static-only notes below are historical and superseded only for this explicitly performed fresh migration/metadata check.
+
+**Prepared:** 2026-10-22 under the user's full OWN-15 authorization. **Review:** Implementation and static review prepared / awaiting acceptance. OWN-15b–i remain unchecked; schema has not been applied or exercised in MySQL.
+
+| Child | Deliverable / review notes |
+|---|---|
+| OWN-15b | Migration `2026_10_22_000002_create_ownership_receipt_links.php` and `OwnershipReceiptLink`: tenant/item/lot/receipt references, public code, exact original linked and remaining-owned quantities, replay reference. Distinct partial allocations are supported. Code/replay uniqueness prevents duplicate identities; aggregate receipt/lot capacity and fresh-key duplicate selections require the later locked validation, not an incorrect one-row-per-receipt constraint. |
+| OWN-15c | Migration `000003_create_ownership_piece_memberships` and `OwnershipPieceMembership`: receipt-link/lot/piece references and start/end episodes. Generated `current_piece_id` is the piece ID only for an open episode; a unique index permits one current membership globally per physical piece and any number of ended episodes. Generated keys are excluded from fillable fields. Reacquisition preserves old episodes. |
+| OWN-15d | Migration `000004_create_ownership_commitments`, `OwnershipCommitment`, and `OwnershipPieceCommitment`: source-bound SALE/PLEDGE kind, exact original/remaining quantity, lot/item references, and per-piece commitment episodes. Source uniqueness is tenant/lot/kind/type/code. Generated unique current-membership keys prevent simultaneous active commitments for one membership; closing/reopening and source validation remain service responsibilities. These records are live commitments, not cached aggregate balances. |
+| OWN-15e | Migration `000005_create_ownership_monthly_checkpoints` and `OwnershipMonthlyCheckpoint`: tenant/item/month uniqueness, saved timezone/UTC cutoff, movement watermark, completion time, and DECIMAL(24,3) owned/reserved/pledged item closings. Publication remains transactional orchestration work. |
+| OWN-15f | Migration `000006_create_ownership_monthly_checkpoint_balances` and `OwnershipMonthlyCheckpointBalance`: one exact closing per header/lot, including zero. Explicit short parent foreign-key name, cascading derived children and restrictive source-lot references. No Eloquent timestamps on closing rows. No cost/currency totals or physical custody snapshots. |
+| OWN-15g | Migration `000007_add_ownership_read_indexes`: tenant/item/created-at/ID and tenant/item/ID movement indexes for checkpoint tails. Existing acquisition tenant/item/date index already includes the InnoDB primary-key suffix, so no redundant FIFO index added. Existing source uniqueness/source-history and lot-time movement indexes retained; new link/commitment/membership indexes support their tenant/source/lot/history lookups. Model casts preserve exact decimals and immutable dates. Index usefulness still needs OWN-33 EXPLAIN measurements. |
+| OWN-15h | Static up/down ordering reviewed: receipt links → memberships → commitments → checkpoint headers → checkpoint balances → indexes → version. Reverse rollback removes dependents first. New history references restrict ordinary source deletion; full schema rollback removes the new tables and their stored data, so it is not a data-preserving operational recovery procedure. Existing source rows/movements are not rewritten or backfilled. Fresh deployments use existing Purchasing/Inventory/Ownership migrations first. Legacy rows are not silently assumed linked, committed, or checkpointed. |
+| OWN-15i | Migration `000008_add_owned_item_update_key` adds unsigned aggregate version default zero. `OwnedItem` exposes/casts the version; no automatic event increment is installed. Later mutation helpers advance once per logical change, and summaries must not advance it. |
+
+**Common boundaries:** New tables use InnoDB and the existing `BelongToTenant` model convention. Foreign keys retain valid referenced IDs; same-tenant/item/source association, capacity bounds, acquisition snapshot preservation, and locking must still be validated by later service/repository units. New schema does not activate endpoints or repair historical business data. The existing metadata preflight deliberately remains pending schema review; it must be expanded to these accepted definitions before claiming prepared-schema readiness. Source/model declarations are not proof of deployed schema, constraint enforcement, atomicity, or concurrency correctness.
+
+**Verification:** PHP syntax passed for all seven new migrations and all nine Ownership models, plus the existing manual-feature migration. Diff whitespace passed. Static review caught and shortened an overlong generated foreign-key name and removed a redundant FIFO index. No migrations, rollback, SQL/preflight, PHPUnit, jobs, workers, scheduler, or servers executed. MySQL generated-column/foreign-key creation, duplicate membership rejection, real schema readiness and rollback execution remain unverified. Next phase after batch acceptance is OWN-16; deferred metadata readiness work must precede authorized database tests.
 
 ### OWN-16 — Typed contracts
 
 **Depends on:** OWN-02 wire decisions, OWN-05 contract tests, OWN-14.
 
-**Files:** Existing request DTO `OwnershipAcquisitionCreate`; new request/response DTOs using project conventions.
+**Files:** Ownership controller/API contracts under `app/DTOs/Ownership/Public/{RequestObjects,ResponseObjects}`; service-only contracts under `app/DTOs/Ownership/Internal/RequestObjects`. This follows the user's module/public-or-internal/request-or-response/class layout. Existing Inventory/shared DTOs remain in their original directories. Earlier Ownership paths in this document are historical references superseded by this namespace layout.
 
-- [ ] **OWN-16a:** Update acquisition input to exact strings and explicit stable source/item context; coordinate constructors only at caller activation.
-- [ ] **OWN-16b:** Define one receipt-link command with expected lot/source, exact quantity, selected pieces, and replay information.
-- [ ] **OWN-16c:** Define quantity-operation commands for sale and pledge contexts separately. Trusted source context is never selected by public request input.
-- [ ] **OWN-16d:** Define a mutation result returning exact affected lot/movement/link/piece references, not every lot on an item.
-- [ ] **OWN-16e:** Define item filter/summary/page contracts; define detail separately without unbounded lot/piece collections.
-- [ ] **OWN-16f:** Define lot, movement-history, and serialized-link filter/row/page contracts as separate units; include reserved quantities/deltas and pagination metadata.
+- [x] **OWN-16a:** Update acquisition input to exact strings and explicit stable source/item context; coordinate constructors only at caller activation.
+- [x] **OWN-16b:** Define one receipt-link command with expected lot/source, exact quantity, selected pieces, and replay information.
+- [x] **OWN-16c:** Define quantity-operation commands for sale and pledge contexts separately. Trusted source context is never selected by public request input.
+- [x] **OWN-16d:** Define a mutation result returning exact affected lot/movement/link/piece references, not every lot on an item.
+- [x] **OWN-16e:** Define item filter/summary/page contracts; define detail separately without unbounded lot/piece collections.
+- [x] **OWN-16f:** Define lot, movement-history, and serialized-link filter/row/page contracts as separate units; include reserved quantities/deltas and pagination metadata.
+
+#### OWN-16a.1 — Typed acquisition source context
+
+**Acceptance:** User accepted through "done next pls". Source context review accepted; earlier awaiting-review notes below are historical.
+
+**Prepared:** 2026-10-22. **Review:** Implemented / awaiting acceptance. OWN-16a remains unchecked because its acquisition DTO and caller coordination are unfinished.
+
+Added `OwnershipSource` as the prerequisite contract expected by the reviewed command tests. It carries readonly tenant/source/item/tracking context and acquisition snapshots. It trims stable references, normalizes module/currency/tracking case, preserves code case and string "0", and uses OwnershipQuantity/OwnershipCost for canonical exact values. There is no public array factory and no payment/bypass flag. Construction does not establish settlement, active currency, record association, or tenant authority; the later trusted resolver must prove those facts.
+
+**Split rationale:** Existing OwnershipAcquisitionCreate has live float constructors in Purchasing and expired-Pawn paths, and OwnershipService still has float validation. Replacing its property contract before coordinating those consumers would activate an incomplete change. This first subunit adds the source dependency only; the next subunit reviews exact acquisition DTO conversion and coordinated compatibility. No existing caller, endpoint, or DTO changed here.
+
+**Verification:** PHP syntax and diff whitespace passed. No PHPUnit or SQL ran for this subunit. Command tests also require the pending acquisition factory and receipt-link DTO, so no passing test suite is claimed.
+
+#### OWN-16a.2 — Exact acquisition command and existing caller compatibility
+
+**Acceptance:** User accepted through "review done next step" after the value-object rollback and explanatory property comments. OWN-16a checked. Exact scalar strings/null and original test expectations are the accepted contract; behavioral verification remains pending.
+
+**Current user decision (supersedes value-type amendment below):** The user requested removal of the two new value objects and restoration of the original tests. Removed OwnershipUnitCost/OwnershipEstimatedValue and their consumer wrappers; acquisition/source fields are again canonical four-decimal strings/null using OwnershipCost. Ordinary JSON encode/decode retains those scalar fields. Added property comments explaining original per-unit acquisition cost versus estimated per-unit value, the shared currency, examples such as "125000.1234" / "150000.0000", and unknown estimate versus zero. Restored original scalar assertions, fixtures, and serialization checks; removed only the added value-type-specific assertions/cases. No existing precision/range/null rejection coverage removed. Earlier value-type record below is historical, not the current implementation. Syntax/static checks only; tests not executed.
+
+**User-requested value-type amendment:** The user asked for specific DataType/ValueType fields instead of generic cost/value strings. Added distinct immutable `OwnershipUnitCost` and `OwnershipEstimatedValue` under `app/DataObjects/ValueObjects`, each created through `from()` using the existing exact OwnershipCost rules. Acquisition and source DTO constructors/properties now require the matching type; an estimate cannot be passed as actual cost or vice versa. Unknown estimate remains null. Public factories construct types from validated scalars; JSON and persistence explicitly retain four-decimal strings/null. Purchasing and the legacy Pawn boundary construct the matching values; Ownership persistence unwraps `value`. Currency remains the existing DTO currency field, not an invented value-object currency default.
+
+The reviewed test contract is amended specifically from string-valued DTO properties to typed properties with exact `value` strings. Existing valid/invalid/precision/range/null/wire assertions are retained; tests now assert the distinct types, source-value identity, direct scalar JSON serialization, and constructor rejection of swapped roles. Tests were edited before production changes for this amendment. PHP syntax and whitespace checks passed; PHPUnit and SQL were not executed. The implementation below describes the original scalar preparation; its property-type description is superseded by this amendment. Review remains pending.
+
+**Prepared:** 2026-10-22. **Review:** Implemented / awaiting acceptance; OWN-16a remains unchecked until review.
+
+`OwnershipAcquisitionCreate` now exposes canonical three-decimal quantity and four-decimal cost/estimate strings. The public `fromValidated` factory requires positive quantity, preserves exact cost validation, trims item/currency references, and ignores caller-supplied source/payment/tenant/bypass fields. `fromSource(OwnershipSource)` copies the typed resolved context; `toArray()` keeps decimal strings/null and omits internal source authority. The source context itself is not proof of settlement or tenant eligibility.
+
+Coordinated existing consumers in the same change: Purchasing passes its stored decimal unit price directly; Ownership acquisition quantity validation delegates to OwnershipQuantity using the actual tracking mode, without float coercion. The Pawn controller passes exact string/integer values through and explicitly serializes legacy JSON float costs to decimal text without adding monetary arithmetic. This compatibility boundary cannot recover digits already lost by a JSON float and does not weaken the strict public acquisition factory's float-cost rejection. The direct constructor retains the existing zero-quantity Pawn value-only placeholder; public factories reject zero, and actual recording validates the source-resolved positive quantity. Existing source timing, receipt-triggered Purchasing behavior, financial arithmetic, mutation results, and service signature remain unchanged pending their assigned orchestration/caller units.
+
+**Verification:** PHP syntax passed for the DTO, OwnershipController, OwnershipService, and PurchasingService; diff whitespace passed. Searches checked all production constructor/factory callers and the quantity-validator call site. No PHPUnit, SQL, migrations, or full Purchasing/Pawn workflow executed. OwnershipCostTest and acquisition cases in OwnershipCommandTest remain unexecuted; the complete command suite still needs the receipt-link DTO. Next child after acceptance is OWN-16b.
+
+#### OWN-16b — Receipt-link request contract
+
+**Acceptance:** User accepted through "done , next". OWN-16b checked; earlier awaiting-review notes below are historical. Runtime verification remains pending.
+
+**Prepared:** 2026-10-22. **Review:** Implemented / awaiting acceptance; OWN-16b remains unchecked.
+
+Added `OwnershipReceiptLinkRequest` with receipt-line reference, exact positive quantity, distinct normalized serialized-piece codes, expected aggregate `updateKey`, and separately supplied idempotency key. Reuses `InventoryStockCommand` quantity/code helpers; rejects duplicate codes after trimming while preserving order and literal "0". The public factory allowlists fields and rejects missing/invalid/negative versions without silently casting to zero. Payload idempotency keys cannot replace the caller argument; `toArray()` contains only receipt/quantity/pieces/version, without internal source or tenant authority. A null replay key remains representable for internal construction/tests; the later public controller must require it.
+
+The expected item/lot are the existing service/path arguments, not additional request-selected authority. Matching the receipt to its paid purchase lot, tenant/item checks, tracking-mode/piece-count checks, remaining capacity, replay handling, and stale-version checks remain later service/controller responsibilities. No receipt-link endpoint or orchestration activated.
+
+**Verification:** PHP syntax and diff whitespace passed; reviewed against existing OwnershipCommandTest and receipt/worker fixture call sites. No PHPUnit, SQL, migrations, or workers ran. Next unit after acceptance is OWN-16c.
+
+#### OWN-16c — Separate sale and pledge quantity contracts
+
+**Acceptance:** User explicitly confirmed "current 16c is reviewed" and authorized completion of OWN-16d–f as a batch. OWN-16c checked. The later public/internal separation changes paths/namespaces only; these contracts remain service-only.
+
+**Prepared:** 2026-10-22. **Review:** Implemented / awaiting acceptance; OWN-16c remains unchecked.
+
+- `OwnershipSaleRequest` identifies owned item/lot, sale-line commitment source, exact quantity, selected piece codes, and optional replay key.
+- `OwnershipPledgeRequest` separately identifies owned item/lot, collateral source type/code, exact quantity, selected pieces, replay key, and optional typed `OwnershipPledgeSource`. Existing-source release/forfeiture may omit fresh resolver output; the service must resolve the actual persisted commitment.
+- `OwnershipPledgeSource` matches the already reviewed integration/worker fixture constructor: tenant, collateral source, item/lot, exact quantity, currency, selected pieces. It is internal resolver data, not evidence of loan authorization or lender custody. No fake collateral persistence introduced.
+
+All three reuse InventoryStockCommand exact quantity and piece-code helpers. They normalize code whitespace/currency case and preserve piece order and string "0". No public `fromValidated` factory, tenant-selection endpoint, paid flag, or validation bypass was added. Source existence, blank/invalid associations, duplicate selections, tracking-mode/count rules, source-context matching, currency eligibility and sufficient quantities remain authoritative service validations in OWN-20/24/25. Current primitive service signatures/callers remain unchanged; command activation belongs to the later orchestration/caller units.
+
+**Test contract addition:** Before implementation, added three focused `OwnershipOperationRequestTest` cases for sale normalization, separate typed pledge context, and existing pledge operations without fabricated new context. These supplement existing real source-bound sale/pledge integration expectations without modifying earlier assertions. New test expectations await this unit's review; no tests run.
+
+**Verification:** PHP syntax passed for all three DTOs and the new test file; diff whitespace passed. Existing pledge source fixture/worker constructor compatibility reviewed. No PHPUnit, SQL, migrations, workers or business workflows executed. Next unit after acceptance is OWN-16d.
+
+#### OWN-16d–f — Results, read contracts, and DTO separation batch
+
+**Acceptance:** User accepted through "done , plan for next batch" after the final requested folder structure. OWN-16d/e/f checked; implementation review complete. Tests remain unexecuted, and API/service activation remains in later units. Earlier awaiting-review records below are historical.
+
+**Authorization:** User requested completion through OWN-16 and then explicit public/internal DTO separation. **Review:** Implemented / awaiting acceptance; OWN-16d/e/f remain unchecked. No runtime test results claimed.
+
+| Child | Delivered contracts and boundaries |
+|---|---|
+| OWN-16d | `OwnershipResult` contains item public code/version and lists of affected lot, movement, receipt-link, and piece codes. Reference groups reject nonstring entries and normalize list keys. Services must choose only affected rows; the DTO performs no history expansion or database access. |
+| OWN-16e | `OwnershipListFilter` implements page/search/tracking/holding inputs with default holding=all. `OwnershipItemSummary` contains reviewed public identity, quantity, image/expiry, lot-count, lifecycle, and version fields. `OwnershipItemDetail` flattens the summary and appends typed existing InventoryLocationBalance projections plus receipt-link state. `OwnershipItemPage` contains bounded typed summaries and flat pagination metadata. No embedded lots/history/pieces. |
+| OWN-16f | `OwnershipLotFilter`, `OwnershipMovementFilter`, and `OwnershipCandidateFilter` implement currency/holding, pagination-only history, and search/optional receipt selection. `OwnershipPageFilter` reuses Inventory page bounds and shared optional search/code/holding normalization. Rows are `OwnershipLot`, `OwnershipMovementRow`, `OwnershipReceiptCandidate`, and `OwnershipPiece`. Their respective typed pages reuse InventoryReadPage validation and paginator metadata copying. Signed movement deltas, cost strings/null, unknown identifiers, and string "0" are retained. Source, photo, quantity, and eligibility facts must be resolved in batched service/repository reads, not lazy DTO access. |
+
+**Public/internal layout (Ownership only, rooted at `app/DTOs/Ownership`):**
+
+- `Public/RequestObjects`: OwnershipAcquisitionCreate, OwnershipReceiptLinkRequest, OwnershipPageFilter, OwnershipListFilter, OwnershipLotFilter, OwnershipMovementFilter, OwnershipCandidateFilter. These are controller-facing payload/query contracts; the acquisition factory still ignores public source authority.
+- `Public/ResponseObjects`: OwnershipResult, OwnershipItemSummary, OwnershipItemDetail, OwnershipLot, OwnershipMovementRow, OwnershipReceiptCandidate, OwnershipPiece, and the five typed page DTOs. These define API output even when a service also returns them to another service; mutation-result controller activation remains later work.
+- `Internal/RequestObjects`: OwnershipSource, OwnershipSaleRequest, OwnershipPledgeRequest, OwnershipPledgeSource. These are service-to-service commands/context and have no public request factories.
+
+All Ownership references in controllers, services, tests, and worker support were updated together, including mixed Inventory/Ownership grouped imports and fully qualified references. No compatibility aliases or unrelated Inventory DTO moves were introduced. Existing API envelopes and JSON field names are unchanged; new paginated endpoints/service results remain unactivated until OWN-26/29/30. Cost/value fields retain the accepted scalar string/null contract and explanatory examples.
+
+**Final folder amendment:** The user specified `DTOs / module name / public or internal / classfile`, then requested request/response separation as well. Final namespaces and paths are `App\DTOs\Ownership\Public\RequestObjects`, `App\DTOs\Ownership\Public\ResponseObjects`, and `App\DTOs\Ownership\Internal\RequestObjects`. The intermediate `app/DataObjects/Public` / `Internal` and flat module layouts were replaced. All 23 DTOs and all application/test/worker references use the final layout; autoload/inheritance and 41-file PHP syntax checks were repeated successfully. No old or intermediate Ownership namespaces remain in application/tests. No internal response contract is currently needed; add an Internal/ResponseObjects directory only when a service-only result requires it.
+
+**Verification:** PHP syntax passed across 41 DTO/reference files; Composer autoload/inheritance checks passed for all 23 Ownership DTOs without booting Laravel or opening a database. Searches found no old root Ownership request/response namespaces in application/tests; diff whitespace passed. Existing response/page test fixtures were reviewed against constructor names and expected flat wire fields; their assertions were not weakened. No PHPUnit, SQL, migrations, jobs, workers, scheduler, browser or server execution in this batch. PHP emitted the existing missing Redis extension warning during autoload checking. Next phase after acceptance is OWN-17.
 
 ### OWN-17 — Batched checkpoint-backed balance queries
 
 **Depends on:** OWN-15, OWN-11 balance tests. All queries stay in `OwnershipRepository`.
 
-- [ ] **OWN-17a:** Implement tenant-scoped latest-completed-checkpoint selection for requested item IDs/cutoff.
-- [ ] **OWN-17b:** Implement exact opening item/lot balances from the selected headers; child records are scoped through the tenant-bound parent.
-- [ ] **OWN-17c:** Implement uncovered movement delta query using both recording cutoff and watermark coverage.
-- [ ] **OWN-17d:** Implement batched current item balances as base plus deltas; do not call one full-history sum per item.
+- [x] **OWN-17a:** Implement tenant-scoped latest-completed-checkpoint selection for requested item IDs/cutoff.
+- [x] **OWN-17b:** Implement exact opening item/lot balances from the selected headers; child records are scoped through the tenant-bound parent.
+- [x] **OWN-17c:** Implement uncovered movement delta query using both recording cutoff and watermark coverage.
+- [x] **OWN-17d:** Implement batched current item balances as base plus deltas; do not call one full-history sum per item.
 - [ ] **OWN-17e:** Implement batched current lot balances and FIFO eligible-lot reads with explicit currency and receipt-link eligibility; no per-lot resource loop queries.
 - [ ] **OWN-17f:** Implement bounded summary/detail/lot/history queries with stable order, page filters, and no unbounded eager loading. Review each query separately.
+
+#### OWN-17a–d — Checkpoint/base/tail/item-balance query batch
+
+**Acceptance:** User accepted through "done and write message for staged changes". OWN-17a–d checked; earlier awaiting-review notes below are historical. Focused tests remain unexecuted and live caller/locking/performance work remains pending.
+
+**Authorization:** User approved implementation of a–d after the proposed batch plan. **Review:** Implemented / awaiting acceptance; OWN-17a–d remain unchecked.
+
+| Child | Implemented in OwnershipRepository |
+|---|---|
+| OWN-17a | `latestCompletedCheckpoints` selects the latest completed month per requested owned-item ID in one tenant/item/cutoff-scoped grouped query. Saved cutoff must not exceed the requested checkpoint cutoff. Completion means non-null publication completion, not that publication happened before the historical month boundary. Empty requests return no rows/queries. |
+| OWN-17b | `openingItemBalances` returns exact selected header totals; `openingLotBalances` joins child closings through the selected tenant-bound parent and matching tenant/item lot. Missing checkpoints yield no base rows rather than invented checkpoints. Returned values remain MySQL DECIMAL strings. |
+| OWN-17c | `uncoveredMovementDeltas` groups exact signed deltas by item/lot. A row is uncovered when no base exists, its ID exceeds the watermark, its recording time is at/after the saved cutoff, or recording time is null. Optional recording-before and maximum-ID bounds support later monthly publication. Unknown recording times remain visible on live reads and are excluded from a bounded monthly closing. Business occurrence dates do not determine coverage. |
+| OWN-17d | `currentItemBalances` combines the selected opening totals and uncovered deltas in one SQL statement/snapshot for all requested item IDs. Requested tenant aggregates with no movement/base return exact zeros; foreign IDs are excluded. Owned/reserved/pledged/available values are cast as DECIMAL(24,3) in SQL and returned as strings; negatives are not clamped away. No PHP monetary/quantity arithmetic or per-item balance query loop. |
+
+**Dependency boundaries:** Existing `movementBalances`/`lotBalances` float readers and their live callers are retained until coordinated activation. These new methods do not activate operational service reads, FIFO/receipt eligibility (17e/18), public paging (17f/26/29), source validation, appends, monthly publication, or row-lock/current-read enforcement (19). Standalone opening/tail methods are separate statements: a caller composing them must coordinate on the later aggregate anchor; the new combined item read avoids that composition by using one SQL statement. A consistent snapshot is not a claim of authoritative current-read locking or contention safety.
+
+**Focused tests written before query implementation:** `OwnershipBalanceQueryTest` uses real rollback fixtures and explicitly seeded ledger/checkpoint facts, without calling missing acquisition/publication services. Cases cover tenant/item/cutoff-bound latest headers and no-base fallback; parent-bound exact lot openings; low-ID cutoff-boundary rows, higher-ID backdated rows, null recording time and bounded summary tails; two maximum input-sized lots summed without float loss; one-statement batching, empty requests, zero aggregates and foreign-ID exclusion. Test fixtures are not evidence that acquisition, publication, or mutation workflows work. Existing Stage 2 behavior expectations and assertions remain unchanged.
+
+**Verification:** Repository and new test PHP syntax passed; diff whitespace passed; static query/fixture review only. No PHPUnit, SQL, preflight, migrations, jobs, workers, servers, or concurrency execution in this batch. One-statement query construction is implemented; actual MySQL execution, query counts, full-ledger equivalence, query plans and latency remain unverified. No performance claim from syntax checks. Next dependency is batch review; proposed following work is OWN-17f, then OWN-18 source/link queries before fully eligible FIFO work in OWN-17e.
 
 ### OWN-18 — Source and link repository helpers
 
@@ -1495,6 +1682,20 @@ Add one row per child review unit. Update the status register and child checkbox
 
 | Date | Step/substep | Files/functions changed | Review outcome | Verification performed or pending | Next dependency |
 |---|---|---|---|---|---|
+| 2026-10-22 | OWN-17a–d query batch | OwnershipRepository, OwnershipBalanceQueryTest, this checklist | User authorized a–d; query helpers implemented and focused tests written before implementation / awaiting review | PHP syntax and whitespace passed; no PHPUnit/SQL. Legacy callers remain unchanged; locking/performance verification pending | Review a–d; then bounded read queries and source/link dependencies |
+| 2026-10-22 | OWN-16c acceptance / OWN-16d–f and public/internal split | Result/read/filter/page DTOs, all Ownership DTO namespaces, controller/service/test/worker imports, this checklist | User accepted 16c, authorized full remaining 16 and requested DTO separation; d/e/f implementation prepared / awaiting review | 41-file syntax, 23-DTO autoload/inheritance, old-namespace search and whitespace passed. No PHPUnit/SQL; live read/caller activation pending | Batch review, then OWN-17 |
+| 2026-10-22 | OWN-16b acceptance / OWN-16c sale and pledge contracts | OwnershipSaleRequest, OwnershipPledgeRequest, OwnershipPledgeSource, OwnershipOperationRequestTest, this checklist | Receipt-link command accepted; separate quantity contracts and three new expectation cases prepared / awaiting review | PHP syntax, existing fixture signature review and whitespace only; no PHPUnit or SQL | Review OWN-16c, then OWN-16d |
+| 2026-10-22 | OWN-16a acceptance / OWN-16b receipt-link command | OwnershipReceiptLinkRequest, this checklist | User accepted scalar acquisition/source contract after rollback; receipt-link command implemented / awaiting review | PHP syntax, fixture/contract inspection and whitespace only; no PHPUnit or SQL | Review OWN-16b, then OWN-16c |
+| 2026-10-22 | OWN-16a value-type amendment | Two Ownership value types, source/acquisition DTOs, Purchasing/Ownership/controller consumers, cost/command tests, this checklist | User requested specific DataType/ValueType; distinct cost/estimate contracts implemented, tests amended before implementation | PHP syntax, consumer search and whitespace only; no PHPUnit/SQL. Exact scalar serialization/persistence retained | Review amended OWN-16a, then OWN-16b |
+| 2026-10-22 | OWN-16a.1 acceptance / OWN-16a.2 acquisition DTO | OwnershipAcquisitionCreate, OwnershipController, OwnershipService, PurchasingService, this checklist | Source context accepted through "done next pls"; exact acquisition contract and coordinated caller compatibility implemented / awaiting review | Four-file PHP syntax and whitespace passed; caller searches only. No PHPUnit/database operations; receipt-timed legacy Purchasing workflow remains | Review OWN-16a, then OWN-16b |
+| 2026-10-22 | OWN-15 acceptance / OWN-16a.1 source contract | OwnershipSource, this checklist | OWN-15 accepted after schema/model documentation review; typed source context prepared / awaiting review | PHP syntax and whitespace passed; no tests/SQL for this unit; live acquisition DTO remains unchanged pending coordinated consumers | Review source context, then remaining OWN-16a acquisition contract |
+| 2026-10-22 | OWN-15 authorized fresh migration / SQL structure verification | New read-only OwnershipStructureCheck and entrypoint; this checklist | User authorized testing-environment migrate:fresh and structure checks; implementation acceptance remains pending | All migrations completed on loanpawn_test / MySQL 8.0.42; OWN-15 metadata and Inventory prerequisite checks passed. Earlier lonepawn_test attempt stopped after target changed; possible partial schema retained. No PHPUnit, rollback, seeding or production DB migration | Review OWN-15; OWN-16 next; behavioral tests separately authorized |
+| 2026-10-22 | OWN-15a acceptance / full OWN-15b–i batch | Seven additive migrations, six new Ownership models, OwnedItem version cast, this checklist | User accepted 15a and authorized full 15; each remaining child recorded above / awaiting acceptance | PHP syntax and whitespace passed; FK/index/model/up-down review only. No SQL, migrations, PHPUnit or runtime constraint evidence | Batch acceptance, then OWN-16; prepared-schema metadata checks before execution |
+| 2026-10-22 | OWN-14 acceptance / OWN-15a schema review | PurchaseOrderLine comment, this checklist; read-only acquisition/purchasing migrations and models | OWN-14 accepted after Myanmar wording revision; OWN-15a prepared using existing schema / awaiting review | Existing identity/source/snapshot columns and uniqueness reviewed; PHP syntax and whitespace only. No tests, migration, or SQL | User review of OWN-15a, then OWN-15b |
+| 2026-10-22 | OWN-13 acceptance/amendment; OWN-14a–c batch | Controller middleware cleanup, OwnershipQuantity, OwnershipCost, English/Myanmar Ownership messages, this checklist | OWN-13 accepted with route wiring deferred to OWN-29c; all OWN-14 authorized and implemented / awaiting review | PHP syntax and whitespace passed; no PHPUnit/database execution; DTO/caller integration remains later units | Review OWN-14, then OWN-15a |
+| 2026-10-22 | OWN-13b acceptance / OWN-13c–e batch | API route, OwnershipController permission declarations, frontend router/sidebar/OwnedItemsPage, this checklist | User accepted 13b and authorized remaining 13 batch; 13c–e implemented / awaiting review | PHP syntax, frontend TypeScript, diff whitespace passed. No runtime tests or database execution; receipt-link activation remains OWN-29c | Batch acceptance, then OWN-14a |
+| 2026-10-22 | OWN-13a acceptance / OWN-13b registration | Feature configuration, additive manual-acquisition migration, this checklist | User accepted 13a through "done next"; 13b configuration and migration prepared for separate review | PHP syntax and whitespace passed; Redis startup warning noted. No tests, migration, seeding, or database execution | User review of OWN-13b, then OWN-13c |
+| 2026-10-22 | OWN-13a feature/permission inventory | This checklist; read-only configuration, migrations, middleware/services, routes, frontend permission/navigation inspection | Inventory prepared / awaiting review; checkbox remains unchecked | Existing module gates and three permissions confirmed in source; manual feature registration/API/UI gate absent. Static inspection only; no tests or database operations | User review, then OWN-13b |
 | 2026-10-20 | Checklist creation | This document only | Prepared from session decisions; detailed units await review | No executable tests, production code, migrations, jobs, or runtime operations performed | OWN-01a |
 | 2026-10-20 | OWN-01a purchase timing analysis | This checklist; read-only inspection of Purchasing/Ownership acquisition and receipt functions | Analysis prepared / awaiting user acceptance; checkbox remains unchecked | Static trace found receipt-triggered acquisition, no payment-triggered acquisition, and no Quick Buy full-payment guard at the reviewed boundary. No runtime tests or database operations; documentation whitespace checked | User review of OWN-01a; OWN-01b after acceptance |
 | 2026-10-20 | OWN-01a acceptance | This checklist | User accepted through “ok next”; OWN-01a checked | No additional runtime verification | Remaining OWN-01 analysis |

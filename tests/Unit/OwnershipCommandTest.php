@@ -2,7 +2,10 @@
 
 namespace Tests\Unit;
 
-use App\DataObjects\RequestObjects\{InventoryReceiveRequest, OwnershipAcquisitionCreate, OwnershipReceiptLinkRequest, OwnershipSource};
+use App\DataObjects\RequestObjects\InventoryReceiveRequest;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipReceiptLinkRequest;
+use App\DTOs\Ownership\Internal\RequestObjects\OwnershipSource;
 use App\Exceptions\InvalidTenantRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;

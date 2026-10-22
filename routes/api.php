@@ -571,7 +571,8 @@ Route::prefix('tenant')->group(function () {
                 Route::get('items/{ownedItemCode}/movements', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'movements'])
                     ->middleware('tenant.permission:list_owned_item');
                 Route::post('acquisitions', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'acquire'])
-                    ->middleware('tenant.permission:create_owned_item');
+                    // Restrict standalone acquisition without blocking internal business acquisition.
+                    ->middleware(['tenant.permission:create_owned_item', 'tenant.feature:ownership_manual_acquisition']);
             });
 
             Route::prefix('slip-documents')

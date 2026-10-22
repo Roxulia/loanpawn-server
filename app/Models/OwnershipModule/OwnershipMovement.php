@@ -6,6 +6,13 @@ use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Represents one recorded change to owned, sale-reserved, or pledged quantity.
+ * Stores signed quantity changes and the source that caused them against an item and lot.
+ * For example, a sale reservation changes reserved quantity without reducing ownership.
+ * Movements form the retained ledger used with monthly checkpoints to calculate balances.
+ * This model stores and casts the record; validation, locking, and posting belong to services.
+ */
 class OwnershipMovement extends Model
 {
     use BelongToTenant;

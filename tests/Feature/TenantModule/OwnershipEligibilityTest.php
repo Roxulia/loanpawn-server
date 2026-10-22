@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\TenantModule;
 
-use App\DataObjects\RequestObjects\OwnershipPledgeSource;
+use App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource;
 use App\Exceptions\{ApiException, InvalidTenantRequest};
 use App\Services\TenantModule\{InventoryService, OwnershipService};
 use Illuminate\Support\Facades\DB;

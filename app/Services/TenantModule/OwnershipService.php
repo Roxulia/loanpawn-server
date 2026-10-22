@@ -2,7 +2,7 @@
 
 namespace App\Services\TenantModule;
 
-use App\DataObjects\RequestObjects\OwnershipAcquisitionCreate;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
 use App\DataObjects\RequestObjects\InventoryListFilter;
 use App\DataObjects\ResponseObjects\InventoryItemListPage;
 use App\Models\InventoryModule\InventoryItem;
@@ -347,18 +347,10 @@ class OwnershipService extends BaseTenantService
         }
     }
 
-    private function validateQuantity(InventoryItem $item, float $quantity): void
+    private function validateQuantity(InventoryItem $item, string $quantity): void
     {
-        // Keep the ownership quantity precision compatible with physical tracking mode.
-        if (! is_finite($quantity) || $quantity <= 0 || round($quantity, 3) !== $quantity) {
-            throw ValidationException::withMessages(['quantity' => [__('ownership.quantity_precision')]]);
-        }
-        if ($item->tracking_mode === 'UNIQUE' && $quantity !== 1.0) {
-            throw ValidationException::withMessages(['quantity' => [__('ownership.unique_quantity')]]);
-        }
-        if ($item->tracking_mode === 'SERIALIZED' && floor($quantity) !== $quantity) {
-            throw ValidationException::withMessages(['quantity' => [__('ownership.serialized_quantity')]]);
-        }
+        // Validate resolved acquisition quantity without converting the new DTO string back to a float.
+        \App\Support\OwnershipQuantity::normalize($quantity, $item->tracking_mode);
     }
 
     private function ownedItemResource(int $tenantId, ?OwnedItem $ownedItem): array

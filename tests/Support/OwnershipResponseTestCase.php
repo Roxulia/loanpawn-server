@@ -3,7 +3,11 @@
 namespace Tests\Support;
 
 use App\DataObjects\BaseDataObject;
-use App\DataObjects\ResponseObjects\{OwnershipItemSummary, OwnershipLot, OwnershipMovementRow, OwnershipReceiptCandidate, OwnershipPiece};
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemSummary;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipLot;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipMovementRow;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipReceiptCandidate;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipPiece;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 

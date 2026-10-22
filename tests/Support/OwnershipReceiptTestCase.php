@@ -2,7 +2,7 @@
 
 namespace Tests\Support;
 
-use App\DataObjects\RequestObjects\OwnershipLotFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipLotFilter;
 use App\Exceptions\{ApiException, InvalidTenantRequest, TenantNotFound};
 use App\Models\OwnershipModule\{AcquisitionLot, OwnedItem, OwnershipPieceMembership, OwnershipReceiptLink, OwnershipCommitment, OwnershipPieceCommitment};
 use App\Services\TenantModule\OwnershipService;

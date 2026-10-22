@@ -2,7 +2,11 @@
 
 namespace Tests\Unit;
 
-use App\DataObjects\ResponseObjects\{InventoryLocationBalance, InventoryLocationDetail, OwnershipItemDetail, OwnershipPiece, OwnershipResult};
+use App\DataObjects\ResponseObjects\InventoryLocationBalance;
+use App\DataObjects\ResponseObjects\InventoryLocationDetail;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemDetail;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipPiece;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\OwnershipResponseTestCase;
 
@@ -49,7 +53,7 @@ class OwnershipContractTest extends OwnershipResponseTestCase
     public function test_movement_keeps_signed_decimal_deltas(): void
     {
         // Consumption must expose negative owned and reserved changes as exact strings.
-        $row = new \App\DataObjects\ResponseObjects\OwnershipMovementRow(
+        $row = new \App\DTOs\Ownership\Public\ResponseObjects\OwnershipMovementRow(
             code: 'MOVE-A', lotCode: 'LOT-A', operation: 'SALE_CONSUME', quantity: '1.000',
             ownedDelta: '-1.000', reservedDelta: '-1.000', pledgedDelta: '0.000',
             sourceModule: 'SALES', sourceType: 'SaleLine', sourceCode: 'SALE-LINE-A',

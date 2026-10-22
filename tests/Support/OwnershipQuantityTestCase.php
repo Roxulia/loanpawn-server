@@ -2,7 +2,7 @@
 
 namespace Tests\Support;
 
-use App\DataObjects\RequestObjects\OwnershipPledgeSource;
+use App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource;
 use App\Exceptions\ApiException;
 use App\Services\TenantModule\OwnershipService;
 use Illuminate\Support\Facades\DB;

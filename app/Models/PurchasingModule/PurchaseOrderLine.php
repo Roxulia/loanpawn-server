@@ -16,6 +16,6 @@ class PurchaseOrderLine extends Model
     protected $casts = ['ordered_quantity' => 'decimal:3', 'unit_price' => 'decimal:2'];
     public function order(): BelongsTo { return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id'); }
     public function catalogItem(): BelongsTo { return $this->belongsTo(CatalogItem::class); }
-    // Resolve the stable Inventory item assigned when this purchase order item is first received.
+    // Resolve the stable Inventory identity, which may be assigned before physical receipt.
     public function inventoryItem(): BelongsTo { return $this->belongsTo(InventoryItem::class); }
 }

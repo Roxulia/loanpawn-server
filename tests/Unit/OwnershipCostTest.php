@@ -2,7 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\DataObjects\RequestObjects\OwnershipAcquisitionCreate;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
 use App\Exceptions\InvalidTenantRequest;
 use App\Support\OwnershipCost;
 use PHPUnit\Framework\Attributes\DataProvider;

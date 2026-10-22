@@ -108,6 +108,12 @@ return [
             'description' => 'Track tenant owned items, acquisition lots, and ownership changes.',
             'is_active' => true,
         ],
+        // Keep standalone acquisition unavailable until its release is approved.
+        'ownership_manual_acquisition' => [
+            'name' => 'Ownership manual acquisition',
+            'description' => 'Record ownership acquisitions outside business workflows.',
+            'is_active' => false,
+        ],
         'purchasing_management' => [
             'name' => 'Purchasing management',
             'description' => 'Record suppliers, purchases, receipts, payments, refunds, and returns.',

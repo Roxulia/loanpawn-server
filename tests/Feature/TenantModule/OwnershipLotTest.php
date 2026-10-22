@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\TenantModule;
 
-use App\DataObjects\RequestObjects\OwnershipLotFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipLotFilter;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\CoreModule\Currency;
 use App\Models\FinancialAccount;

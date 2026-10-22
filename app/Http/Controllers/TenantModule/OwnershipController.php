@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\TenantModule;
 
-use App\DataObjects\RequestObjects\OwnershipAcquisitionCreate;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\OwnershipService;
 use Illuminate\Http\JsonResponse;
@@ -91,8 +91,14 @@ class OwnershipController extends Controller
                 inventoryItemCode: '',
                 quantity: 0,
                 acquiredAt: $data['acquired_at'],
-                unitCostBasis: (float) $data['unit_cost_basis'],
-                estimatedUnitValue: isset($data['estimated_unit_value']) ? (float) $data['estimated_unit_value'] : null,
+                // Preserve the legacy Pawn JSON-number boundary without adding float arithmetic.
+                // Exact string inputs pass through unchanged; existing numeric clients retain their serialized digits.
+                unitCostBasis: is_float($data['unit_cost_basis'])
+                    ? json_encode($data['unit_cost_basis'], JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR)
+                    : $data['unit_cost_basis'],
+                estimatedUnitValue: isset($data['estimated_unit_value']) && is_float($data['estimated_unit_value'])
+                    ? json_encode($data['estimated_unit_value'], JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR)
+                    : ($data['estimated_unit_value'] ?? null),
                 currencyCode: strtoupper($data['currency_code']),
                 description: $data['description'] ?? null,
             ),

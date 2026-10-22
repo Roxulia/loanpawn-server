@@ -2,8 +2,12 @@
 
 namespace Tests\Unit;
 
-use App\DataObjects\RequestObjects\OwnershipListFilter;
-use App\DataObjects\ResponseObjects\{OwnershipItemPage, OwnershipLotPage, OwnershipMovementPage, OwnershipReceiptPage, OwnershipPiecePage};
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipListFilter;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipLotPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipMovementPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipReceiptPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipPiecePage;
 use App\Exceptions\InvalidTenantRequest;
 use App\Models\OwnershipModule\OwnedItem;
 use InvalidArgumentException;

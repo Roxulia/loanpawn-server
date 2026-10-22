@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\TenantModule;
 
-use App\DataObjects\RequestObjects\OwnershipListFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipListFilter;
 use App\Models\PawnModule\PawnCollateralItem;
 use App\Services\TenantModule\{InventoryService, OwnershipService};
 use Illuminate\Support\Facades\{Storage, URL};

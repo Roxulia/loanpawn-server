@@ -7,6 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Represents one occasion on which the tenant acquired an item.
+ * Stores the original source, date, quantity, unit cost, estimated value, and currency.
+ * Separate purchases produce separate lots even when they share the same owned item.
+ * These values are historical snapshots; current remaining quantities come from
+ * Ownership movements and checkpoints. Receipt links identify which acquired goods arrived.
+ */
 class AcquisitionLot extends Model
 {
     use BelongToTenant;

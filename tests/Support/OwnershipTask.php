@@ -106,7 +106,7 @@ class OwnershipTask extends WorkerTask
             app(OwnershipService::class)->acquirePurchaseLine($request['purchase_line'], $request['key']);
         } elseif ($request['action'] === 'link') {
             app(OwnershipService::class)->linkReceipt($request['owned_item_code'], $request['lot_code'],
-                \App\DataObjects\RequestObjects\OwnershipReceiptLinkRequest::fromValidated([
+                \App\DTOs\Ownership\Public\RequestObjects\OwnershipReceiptLinkRequest::fromValidated([
                     'purchase_receipt_line_code' => $request['receipt_line'], 'quantity' => $request['quantity'],
                     'serialized_item_codes' => $request['codes'] ?? [], 'update_key' => $request['update_key'],
                 ], $request['key']));
@@ -118,12 +118,12 @@ class OwnershipTask extends WorkerTask
         }
     }
 
-    private function pledgeSource(array $request): \App\DataObjects\RequestObjects\OwnershipPledgeSource
+    private function pledgeSource(array $request): \App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource
     {
         // Explicit resolver-output boundary data; do not invent lender tables or bypass authorization.
         $currency = DB::table('acquisition_lots')->where('tenant_id', $request['tenant'])
             ->where('code', $request['lot_code'])->value('currency_code');
-        return new \App\DataObjects\RequestObjects\OwnershipPledgeSource(tenantId: (int) $request['tenant'],
+        return new \App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource(tenantId: (int) $request['tenant'],
             sourceType: 'BusinessLoanCollateral', sourceCode: $request['source_code'],
             ownedItemCode: $request['owned_item_code'], lotCode: $request['lot_code'],
             quantity: $request['quantity'], currencyCode: $currency, serializedItemCodes: $request['codes'] ?? []);

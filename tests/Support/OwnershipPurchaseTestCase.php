@@ -2,8 +2,8 @@
 
 namespace Tests\Support;
 
-use App\DataObjects\ResponseObjects\OwnershipResult;
-use App\DataObjects\RequestObjects\OwnershipReceiptLinkRequest;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipReceiptLinkRequest;
 use App\Exceptions\{ApiException, TenantNotFound};
 use App\Models\InventoryModule\InventoryItem;
 use App\Models\OwnershipModule\{AcquisitionLot, OwnedItem, OwnershipMovement};

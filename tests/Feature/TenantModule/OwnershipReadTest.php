@@ -2,7 +2,10 @@
 
 namespace Tests\Feature\TenantModule;
 
-use App\DataObjects\RequestObjects\{OwnershipListFilter, OwnershipLotFilter, OwnershipMovementFilter, OwnershipCandidateFilter};
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipListFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipLotFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipMovementFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipCandidateFilter;
 use App\Services\TenantModule\OwnershipService;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\OwnershipQuantityTestCase;

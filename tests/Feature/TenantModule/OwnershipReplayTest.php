@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\TenantModule;
 
-use App\DataObjects\ResponseObjects\OwnershipResult;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult;
 use App\Exceptions\{ApiException, IdempotencyKeyConflict, InvalidTenantRequest};
 use App\Models\CoreModule\TenantIdempotencyKey;
 use App\Models\OwnershipModule\AcquisitionLot;
