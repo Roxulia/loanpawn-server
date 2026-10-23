@@ -170,7 +170,11 @@ class OwnershipRepository
 
     public function createMovement(int $tenantId, array $data): OwnershipMovement
     {
-        return OwnershipMovement::query()->create(['tenant_id' => $tenantId, ...$data]);
+        // Enforce append/publication exclusion for new and compatibility callers alike.
+        if ($this->lockAggregate($tenantId, (int) $data['owned_item_id']) === null) {
+            throw new \App\Exceptions\TenantNotFound(__('ownership.not_found'));
+        }
+        return OwnershipMovement::query()->create([...$data, 'tenant_id' => $tenantId]);
     }
 
     public function movements(int $tenantId, int $ownedItemId): Collection

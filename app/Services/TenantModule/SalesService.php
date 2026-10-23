@@ -157,13 +157,13 @@ class SalesService extends BaseTenantService
                 }
                 if ($action === 'confirm' && $order->status === 'DRAFT') {
                     // Acquire every item before per-line location, reservation, or Ownership work.
-                    $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
+                    $this->ownershipService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                     foreach ($order->lines as $line) {
                         $this->reserveLine($tenantId, $line);
                     }
                     $order->update(['status' => 'CONFIRMED']);
                 } elseif ($action === 'cancel' && $order->status === 'CONFIRMED' && $this->deliveredQuantity($order) <= 0.001) {
-                    $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
+                    $this->ownershipService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                     foreach ($order->lines as $line) {
                         foreach ($this->repository->reservationsForLine($tenantId, (int) $line->id, true) as $reservation) {
                             $quantity = (float) $reservation->remaining_quantity;
@@ -293,7 +293,7 @@ class SalesService extends BaseTenantService
                     throw ValidationException::withMessages(['sale_code' => [__('sales.invalid_order_transition')]]);
                 }
                 // Prelock all items before delivery allocations acquire stock/Ownership locks.
-                $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
+                $this->ownershipService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                 $saleDelivery = $this->repository->createDelivery($tenantId, [
                     'code' => $this->newCode($tenantId, 'sales_deliveries'), 'sales_order_id' => $order->id,
                     'delivered_at' => $data['delivered_at'], 'note' => 'Immediate counter sale', 'created_by' => $this->currentUserId(),
@@ -365,7 +365,7 @@ class SalesService extends BaseTenantService
                 if ($order === null || $order->status !== 'CONFIRMED') {
                     throw ValidationException::withMessages(['sale_code' => [__('sales.invalid_order_transition')]]);
                 }
-                $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
+                $this->ownershipService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                 $delivery = $this->deliveryChargeService->deliveryById($tenantId, (int) $data['delivery_id']);
                 if ($delivery === null) throw ValidationException::withMessages(['delivery_id' => ['Delivery record not found.']]);
                 $deliveredValue = 0.0;

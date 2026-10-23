@@ -54,8 +54,8 @@ class SaleReturnService extends BaseTenantService
                 if (in_array($order->status, ['DRAFT', 'CANCELLED'], true)) {
                     throw ValidationException::withMessages(['sale_code' => ['Only delivered Sales orders can be returned.']]);
                 }
-                // Lock the order's complete item set before return allocation/location work.
-                $this->inventoryService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
+                // Lock Inventory and Ownership sets before return allocation/location work.
+                $this->ownershipService->prelockItems($order->lines->map(fn ($line) => $line->inventoryItem->code)->all());
                 $return = $this->repository->createReturn($tenantId, [
                     'code' => $this->codeGenerator->generateForTenant($tenantId, 'sales_returns', CarbonImmutable::now()),
                     'sales_order_id' => $order->id, 'returned_at' => $data['returned_at'], 'note' => $data['note'] ?? null,

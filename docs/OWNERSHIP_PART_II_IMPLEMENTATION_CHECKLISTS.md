@@ -134,7 +134,7 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-16 | Typed command/read/result contracts | Complete — OWN-16a–f review accepted; module/Public-or-Internal/RequestObjects-or-ResponseObjects layout accepted; runtime tests pending |
 | OWN-17 | Batched checkpoint-backed balance queries | Complete — OWN-17a–f implementation/review accepted; selected runtime evidence recorded; public API/UI activation and release-wide verification remain later work |
 | OWN-18 | Source, receipt, and serialized-link queries | OWN-18a–e implemented/reused and wired into required consumers; focused suite passed 97 tests / 4,190 assertions; accepted |
-| OWN-19 | Ordered locking/current-read helpers | Not started |
+| OWN-19 | Ordered locking/current-read helpers | OWN-19a–e implemented/documented; awaiting review. New lock tests and selected contention cases passed; broader run has two UNIQUE setup errors and a Pawn photo failure; monthly publisher wiring remains OWN-27 |
 | OWN-20 | Validation helpers | Not started |
 | OWN-21 | Mutation/transaction/idempotency helpers | Not started |
 | OWN-22 | Acquisition orchestration | Not started |
@@ -1492,11 +1492,25 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Depends on:** OWN-10 concurrency tests and OWN-17/18.
 
+**2026-10-24 batch:** User requested "do for all 19", authorizing all five children together. Implementation and the caller-order audit are prepared in [OWNERSHIP_LOCK_REVIEW.md](OWNERSHIP_LOCK_REVIEW.md). Checkboxes remain unchecked until review acceptance; no runtime pass is claimed.
+
+| Unit | Delivered |
+|---|---|
+| OWN-19a | Recorded actual source → complete Inventory anchors → Ownership aggregates/lots/state → downstream Inventory custody order. Audited active Sales/Purchasing prelock sites and single-item primitives; compatibility mutations now acquire Inventory before Ownership. |
+| OWN-19b | Internal `LockService` reuses Inventory's existing validated complete-set prelock and tenant-bound aggregate lookup. Missing aggregates remain valid for first acquisition under the shared identity anchor. |
+| OWN-19c | Added deterministic batched aggregate/lot locking and reused ordered source-commitment/link/membership queries. Existing Sales/Sale Return/Purchasing complete-set call sites now use the Ownership facade before downstream operations; acquisition source-lot checks follow aggregate resolution. |
+| OWN-19d | Locked balance reads enforce the shared aggregate transaction, bind checkpoint children to actual tenant/item lots, and retain locking base/tail selection. Compatibility UNIQUE and quantity checks reuse exact current balance reads instead of stale snapshot SUMs; legacy float wire interfaces remain unchanged. |
+| OWN-19e | Repository movement append enforces `lockAggregate` before INSERT, an active transaction, and authoritative tenant scope. All application Ownership appends use that path. The future OWN-27 publisher's use of the same anchor and prohibition on later Inventory/source locks are documented; publisher implementation/execution is not claimed. |
+
+**Tests and checks:** Added five focused real-database tests in `OwnershipLockQueryTest` for complete-set ordering/no writes, absent first aggregate, tenant-bound shared anchors, wrong-item checkpoint children, and append lock/tenant enforcement. Existing Ownership worker complete-set setup now calls the production helper rather than only test-written prelocks; scenarios/assertions and FIFO real-lock acquisition remain preserved. All ten changed/new PHP files passed `php -l`; tracked diff whitespace passed. No PHPUnit, database queries, migrations, workers, jobs, scheduler or development server were run. Independent-connection current-read/contention verification remains pending; append-versus-summary execution also requires OWN-27.
+
 - [ ] **OWN-19a:** Document one actual cross-module order against existing callers: complete Inventory item anchor sets, Ownership aggregates, lots/commitments, then the reviewed downstream custody locks. Reconcile with active Inventory order before activation; no opposite acquisition/consumption order.
 - [ ] **OWN-19b:** Implement tenant-scoped aggregate anchor acquisition, including concurrent first acquisition when no aggregate exists, using the shared Inventory identity anchor where needed.
 - [ ] **OWN-19c:** Implement deterministic lot/source-commitment locking for one operation; multi-item callers prelock complete sets.
 - [ ] **OWN-19d:** Implement authoritative current balance/link/membership reads after locks; prevent repeatable-read snapshots from using stale checkpoint/base combinations.
 - [ ] **OWN-19e:** Make monthly summarization and every Ownership movement append coordinate on the same aggregate anchor. Review repository append enforcement separately from caller helper use.
+
+**2026-10-24 authorized runtime follow-up:** User requested related tests. Existing disposable MySQL structure passed. New lock tests passed 5/19; related Ownership batch ran 101 tests / 1,412 assertions with 99 passing and two UNIQUE fixture-order errors (Inventory reserved before Ownership availability validation). Five selected generic contention cases passed 167 assertions; the sixth waiting-sale case passed alongside Inventory/Pawn regression checks (20 tests / 142 assertions, 19 passing and a photo filesystem error). Authorized photo-only reruns resolved access but twice reached a one-second signed-URL expiry assertion failure. Four FIFO contention cases passed in the main batch. No tests/assertions were weakened, migrations run, or services started. Monthly publication remains a later dependency. Exact scope and unresolved checks are recorded in [the lock review execution follow-up](OWNERSHIP_LOCK_REVIEW.md#authorized-execution-follow-up--2026-10-24); neither the full suite nor all OWN-19 verification is marked passed.
 
 ### OWN-20 — Validation helpers
 

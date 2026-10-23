@@ -31,6 +31,12 @@ class OwnershipService extends BaseTenantService
     ) {
     }
 
+    public function prelockItems(array $inventoryItemCodes): void
+    {
+        // Lock the complete set before any caller enters downstream custody or quantity work.
+        app(\App\Services\TenantModule\Ownership\LockService::class)->items($inventoryItemCodes);
+    }
+
     public function allocateFifo(string $inventoryItemCode, mixed $quantity, array $serialNumbers = []): \App\DTOs\Ownership\Internal\ResponseObjects\OwnershipFifoResult
     {
         // Shared allocator retains caller locks and leaves business effects to the owning operation.
@@ -284,14 +290,19 @@ class OwnershipService extends BaseTenantService
                 throw ValidationException::withMessages(['inventory_item_code' => [__('ownership.inventory_unavailable')]]);
             }
             $this->validateQuantity($inventoryItem, $request->quantity);
-            if ($sourceCode !== null && $this->repository->findBySourceCode($tenantId, $sourceModule, $sourceType, $sourceCode) !== null) {
+            // Resolve the current aggregate before locking its canonical source lot.
+            $ownedItem = $this->repository->ownedItemForInventory($tenantId, $inventoryItem->id, true);
+            if ($sourceCode !== null && $this->repository->findBySourceCode($tenantId, $sourceModule, $sourceType, $sourceCode, true) !== null) {
                 throw ValidationException::withMessages(['source_code' => [__('ownership.source_already_recorded')]]);
             }
 
-            $ownedItem = $this->repository->ownedItemForInventory($tenantId, $inventoryItem->id, true);
-            if ($inventoryItem->tracking_mode === 'UNIQUE' && $ownedItem !== null
-                && $this->repository->movementBalances($tenantId, $ownedItem->id)['owned'] > 0) {
-                throw ValidationException::withMessages(['inventory_item_code' => [__('ownership.unique_already_owned')]]);
+            if ($inventoryItem->tracking_mode === 'UNIQUE' && $ownedItem !== null) {
+                // UNIQUE reacquisition must observe current rows rather than an earlier caller snapshot.
+                $lots = $this->repository->lockedLots($tenantId, (int) $ownedItem->id);
+                $current = app(\App\Services\TenantModule\Ownership\BalanceService::class)->locked((int) $ownedItem->id, $lots);
+                if (array_sum(array_column($current, 'owned')) > 0) {
+                    throw ValidationException::withMessages(['inventory_item_code' => [__('ownership.unique_already_owned')]]);
+                }
             }
             if ($ownedItem === null) {
                 $ownedItem = $this->repository->createOwnedItem($tenantId, [
@@ -354,10 +365,13 @@ class OwnershipService extends BaseTenantService
             function (int $tenantId, ?int $recordId) use ($ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign, $reservedSign): array {
                 return DB::transaction(function () use ($tenantId, $recordId, $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign, $reservedSign): array {
                     // Resolve business codes into internal ledger keys while holding tenant-scoped locks.
-                    $ownedItem = $this->repository->ownedItemByCode($tenantId, $ownedItemCode, true);
+                    $ownedItem = $this->repository->ownedItemByCode($tenantId, $ownedItemCode);
                     if ($ownedItem === null) {
                         throw ValidationException::withMessages(['owned_item_code' => [__('ownership.not_found')]]);
                     }
+                    // Compatibility mutations acquire Inventory before Ownership, like current commands.
+                    $this->inventoryService->findForOwnershipById((int) $ownedItem->inventory_item_id);
+                    $ownedItem = $this->repository->lockAggregate($tenantId, (int) $ownedItem->id);
                     $lot = $this->repository->lotByCode($tenantId, (int) $ownedItem->id, $lotCode, true);
                     if ($lot === null) {
                         throw ValidationException::withMessages(['acquisition_lot_code' => [__('ownership.lot_not_found')]]);
@@ -365,7 +379,9 @@ class OwnershipService extends BaseTenantService
                     if (! is_finite($quantity) || $quantity <= 0) {
                         throw ValidationException::withMessages(['quantity' => [__('ownership.quantity_positive')]]);
                     }
-                    $balances = $this->repository->lotBalances($tenantId, (int) $ownedItem->id, (int) $lot->id);
+                    // Use authoritative current reads even when an outer caller established an older snapshot.
+                    $scaled = app(\App\Services\TenantModule\Ownership\BalanceService::class)->locked((int) $ownedItem->id, [$lot])[$lot->id];
+                    $balances = array_map(fn (int $value): float => $value / 1000, $scaled);
                     $available = $balances['owned'] - $balances['pledged'] - ($balances['reserved'] ?? 0);
                     if (($ownedSign < 0 && $quantity > $available) || ($pledgedSign < 0 && $quantity > $balances['pledged'])
                         || ($pledgedSign > 0 && $quantity > $available)

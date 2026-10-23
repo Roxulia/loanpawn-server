@@ -20,8 +20,32 @@ trait StateQueries
     public function lockedLots(int $tenantId, int $itemId): Collection
     {
         // Lock the complete lot set by ID; allocation order is a separate service responsibility.
-        return AcquisitionLot::query()->where('tenant_id', $tenantId)->where('owned_item_id', $itemId)
-            ->orderBy('id')->lockForUpdate()->get();
+        return $this->lockedLotsForItems($tenantId, [$itemId]);
+    }
+
+    public function lockedAggregates(int $tenantId, array $inventoryItemIds): Collection
+    {
+        // Acquire aggregate sets only after the complete Inventory identity set is locked.
+        $this->requireLockTransaction();
+        if ($inventoryItemIds === []) return collect();
+        return OwnedItem::query()->where('tenant_id', $tenantId)->whereIn('inventory_item_id', $inventoryItemIds)
+            ->orderBy('inventory_item_id')->orderBy('id')->lockForUpdate()->get();
+    }
+
+    public function lockAggregate(int $tenantId, int $ownedItemId): ?OwnedItem
+    {
+        // Monthly publication and all movement appends share this retained aggregate anchor.
+        $this->requireLockTransaction();
+        return OwnedItem::query()->where('tenant_id', $tenantId)->whereKey($ownedItemId)->lockForUpdate()->first();
+    }
+
+    public function lockedLotsForItems(int $tenantId, array $ownedItemIds): Collection
+    {
+        // Database ID order is independent of input order and later FIFO business allocation.
+        $this->requireLockTransaction();
+        if ($ownedItemIds === []) return collect();
+        return AcquisitionLot::query()->where('tenant_id', $tenantId)->whereIn('owned_item_id', $ownedItemIds)
+            ->orderBy('owned_item_id')->orderBy('id')->lockForUpdate()->get();
     }
 
     public function receiptLinks(int $tenantId, array $lotIds, bool $lock = false): Collection
@@ -64,11 +88,17 @@ trait StateQueries
     public function lockedBalanceParts(int $tenantId, int $itemId, string $cutoff): array
     {
         // Use current locking rows after the aggregate anchor, even with an older repeatable-read snapshot.
+        if ($this->lockAggregate($tenantId, $itemId) === null) {
+            throw new \App\Exceptions\TenantNotFound(__('ownership.not_found'));
+        }
         $header = DB::table('ownership_monthly_checkpoints')->where('tenant_id', $tenantId)->where('owned_item_id', $itemId)
             ->whereNotNull('completed_at')->where('cutoff_at', '<=', $cutoff)->orderByDesc('month')->lockForUpdate()->first();
-        $base = $header === null ? collect() : DB::table('ownership_monthly_checkpoint_balances')
-            ->where('tenant_id', $tenantId)->where('ownership_monthly_checkpoint_id', $header->id)
-            ->orderBy('id')->lockForUpdate()->get()->keyBy('acquisition_lot_id');
+        // A saved child must belong to a real lot of this item as well as the selected parent.
+        $base = $header === null ? collect() : DB::table('ownership_monthly_checkpoint_balances as balance')
+            ->join('acquisition_lots as lot', 'lot.id', '=', 'balance.acquisition_lot_id')
+            ->where('balance.tenant_id', $tenantId)->where('lot.tenant_id', $tenantId)->where('lot.owned_item_id', $itemId)
+            ->where('balance.ownership_monthly_checkpoint_id', $header->id)
+            ->orderBy('balance.id')->select('balance.*')->lockForUpdate()->get()->keyBy('acquisition_lot_id');
         $tail = DB::table('ownership_movements')->where('tenant_id', $tenantId)->where('owned_item_id', $itemId)
             ->when($header !== null, fn ($q) => $q->where(function ($q) use ($header): void {
                 $q->where('id', '>', $header->movement_watermark)->orWhere('created_at', '>=', $header->cutoff_at)->orWhereNull('created_at');
@@ -139,5 +169,11 @@ trait StateQueries
         if ($updated !== 1) return false;
         $model->fill($data)->syncOriginal();
         return true;
+    }
+
+    private function requireLockTransaction(): void
+    {
+        // Autocommit would release the anchor before its protected read or append.
+        if (DB::transactionLevel() === 0) throw new \LogicException('Ownership locking requires an active transaction.');
     }
 }

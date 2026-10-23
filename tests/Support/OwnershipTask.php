@@ -2,7 +2,7 @@
 
 namespace Tests\Support;
 
-use App\Services\TenantModule\{InventoryService, OwnershipService};
+use App\Services\TenantModule\OwnershipService;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 use RuntimeException;
@@ -63,7 +63,8 @@ class OwnershipTask extends WorkerTask
         $lockedOrders = DB::table('purchase_orders')->where('tenant_id', $tenantId)->whereIn('code', $orders)
             ->orderBy('id')->lockForUpdate()->get();
         if ($lockedOrders->count() !== count($orders)) throw new LogicException('Unknown fixture purchase order.');
-        app(InventoryService::class)->prelockItems(array_merge($request['items'] ?? [], $ownedItemCodes));
+        // Exercise the production complete-set helper rather than proving only test-written anchor order.
+        app(OwnershipService::class)->prelockItems(array_merge($request['items'] ?? [], $ownedItemCodes));
         $ownedItems = DB::table('owned_items')->where('tenant_id', $tenantId)->whereIn('code', $ownedCodes)
             ->orderBy('id')->lockForUpdate()->get();
         if ($ownedItems->count() !== count($ownedCodes)) throw new LogicException('Unknown fixture Ownership aggregate.');

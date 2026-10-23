@@ -328,7 +328,7 @@ class PurchasingService extends BaseTenantService
                 $purchaseOrderItems[] = [$purchaseOrderItem, (float) $itemData['quantity'], $itemData];
             }
             // Lock the complete existing item set before any receipt writes or location locks.
-            $this->inventoryService->prelockItems(collect($purchaseOrderItems)->map(fn ($entry) => $entry[0]->inventoryItem?->code)->filter()->all());
+            $this->ownershipService->prelockItems(collect($purchaseOrderItems)->map(fn ($entry) => $entry[0]->inventoryItem?->code)->filter()->all());
             $receipt = $this->repository->createReceipt($tenantId, [
                 'code' => $this->newCode($tenantId, 'purchase_receipts'), 'purchase_order_id' => $order->id,
                 'received_at' => $data['received_at'], 'note' => $data['note'] ?? null, 'created_by' => Auth::id(),
@@ -422,7 +422,7 @@ class PurchasingService extends BaseTenantService
                 $receiptItems[] = [$receiptItem, (float) $itemData['quantity'], $itemData];
             }
             // Preserve item order across every return line before issuing stock.
-            $this->inventoryService->prelockItems(collect($receiptItems)->map(fn ($entry) => $entry[0]->inventoryItem->code)->all());
+            $this->ownershipService->prelockItems(collect($receiptItems)->map(fn ($entry) => $entry[0]->inventoryItem->code)->all());
             $returnRecord = $this->repository->createReturn($tenantId, [
                 'code' => $this->newCode($tenantId, 'purchase_returns'), 'purchase_order_id' => $order->id,
                 'returned_at' => $data['returned_at'], 'reason' => $data['reason'] ?? null,
