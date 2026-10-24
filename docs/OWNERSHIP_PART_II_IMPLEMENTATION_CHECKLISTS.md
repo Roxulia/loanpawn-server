@@ -137,14 +137,14 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-19 | Ordered locking/current-read helpers | OWN-19a–e accepted by user; implementation review complete. New lock tests and selected contention cases passed; UNIQUE setup errors were fixed and verified during OWN-20/21; Pawn photo failure remains; monthly publisher wiring remains OWN-27 |
 | OWN-20 | Validation helpers | OWN-20a-f accepted by user; reviewed helper refactors and selected runtime checks complete. Later orchestration dependencies recorded |
 | OWN-21 | Mutation/transaction/idempotency helpers | OWN-21a-e accepted by user; atomic/replay/checkpoint helper refactors and selected checks complete. Monthly orchestration remains OWN-27 |
-| OWN-22 | Acquisition orchestration | Not started |
-| OWN-23 | Receipt and exact-piece linking orchestration | Not started |
-| OWN-24 | Sale reservation/release/reduction orchestration | Not started |
-| OWN-25 | Pledge/release/forfeiture orchestration | Not started |
-| OWN-26 | Read orchestration | Not started |
-| OWN-27 | Monthly summary orchestration | Not started |
-| OWN-28 | Scheduled summary and recovery | Not started |
-| OWN-29 | Controller/API activation | Not started |
+| OWN-22 | Acquisition orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-23 | Receipt and exact-piece linking orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-24 | Sale reservation/release/reduction orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-25 | Pledge/release/forfeiture orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-26 | Read orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-27 | Monthly summary orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-28 | Scheduled summary and recovery | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
+| OWN-29 | Controller/API activation | Implemented and verified; awaiting user review. All 247 Ownership feature tests passed in the full MySQL testing run; unrelated old-feature failures left unchanged. See OWNERSHIP_API_INTEGRATION_REVIEW.md |
 | OWN-30 | Existing caller adaptations | Not started |
 | OWN-31 | Frontend connections | Not started |
 | OWN-32 | Acceptance verification | Not started |
@@ -1557,64 +1557,68 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Files:** `OwnershipService` and source service adapter only as required.
 
-- [ ] **OWN-22a:** Implement paid-source acquisition as a single reviewed orchestration function: qualify source, lock identity/aggregate, prevent duplicate acquisition, create lot and movement, return exact references. No physical receipt.
-- [ ] **OWN-22b:** Preserve depleted aggregate history and valid later new-lot acquisition; coordinate UNIQUE and serialized constraints without erasing old records.
-- [ ] **OWN-22c:** Adapt the existing internal/manual acquisition path only as needed for contracts; keep its public gate inactive.
+- [x] **OWN-22a:** Implement paid-source acquisition as a single reviewed orchestration function: qualify source, lock identity/aggregate, prevent duplicate acquisition, create lot and movement, return exact references. No physical receipt.
+- [x] **OWN-22b:** Preserve depleted aggregate history and valid later new-lot acquisition; coordinate UNIQUE and serialized constraints without erasing old records.
+- [x] **OWN-22c:** Adapt the existing internal/manual acquisition path only as needed for contracts; keep its public gate inactive.
 
 ### OWN-23 — Receipt and exact-piece linking orchestration
 
 **Depends on:** OWN-07 tests and OWN-22.
 
-- [ ] **OWN-23a:** Implement receipt quantity-to-lot linking: validate source and capacity, lock current state, persist links, return result; create no acquisition or cash effect.
-- [ ] **OWN-23b:** Implement exact serialized linking with the same live checks and database constraints. Successful linking does not alter original lot quantity/cost.
-- [ ] **OWN-23c:** Return pending-link quantity/state for reminder/action. Auto-link when the trusted immediate receipt supplies an unambiguous acquisition and exact pieces; retain manual resolution when not linked. User must see unresolved receipt links.
+- [x] **OWN-23a:** Implement receipt quantity-to-lot linking: validate source and capacity, lock current state, persist links, return result; create no acquisition or cash effect.
+- [x] **OWN-23b:** Implement exact serialized linking with the same live checks and database constraints. Successful linking does not alter original lot quantity/cost.
+- [x] **OWN-23c:** Return pending-link quantity/state for reminder/action. Auto-link when the trusted immediate receipt supplies an unambiguous acquisition and exact pieces; retain manual resolution when not linked. User must see unresolved receipt links.
 
 ### OWN-24 — Sale quantity orchestration
 
 **Depends on:** OWN-08a–d tests, OWN-19–23.
 
-- [ ] **OWN-24a:** Implement sale reservation with positive exact availability guard, source/lot/piece binding, and atomic commitment/movement writes.
-- [ ] **OWN-24b:** Implement partial/full same-source sale release without acquisition or physical receipt.
-- [ ] **OWN-24c:** Implement atomic reserved sale consumption: reduce owned and its reservation together; coordinate physical issue through the business caller's transaction.
-- [ ] **OWN-24d:** Implement the reviewed immediate sale helper contract without consuming another reservation; preserve existing internal return contracts separately.
+- [x] **OWN-24a:** Implement sale reservation with positive exact availability guard, source/lot/piece binding, and atomic commitment/movement writes.
+- [x] **OWN-24b:** Implement partial/full same-source sale release without acquisition or physical receipt.
+- [x] **OWN-24c:** Implement atomic reserved sale consumption: reduce owned and its reservation together; coordinate physical issue through the business caller's transaction.
+- [x] **OWN-24d:** Implement the reviewed immediate sale helper contract without consuming another reservation; preserve existing internal return contracts separately.
 
 ### OWN-25 — Pledge quantity orchestration
 
 **Depends on:** OWN-08e–h tests and shared helpers.
 
-- [ ] **OWN-25a:** Implement source-bound pledge reservation preserving owned quantity and exact lot/piece references.
-- [ ] **OWN-25b:** Implement same-source partial/full release; do not create a lot, acquisition, cash effect, or implied lender return.
-- [ ] **OWN-25c:** Implement pledged forfeiture reducing owned and the matching pledge atomically, including fully pledged stock.
-- [ ] **OWN-25d:** Return references needed by Part 8. Do not implement loan maturity decisions, lender custody transfers, or financial settlement in these helpers.
+- [x] **OWN-25a:** Implement source-bound pledge reservation preserving owned quantity and exact lot/piece references.
+- [x] **OWN-25b:** Implement same-source partial/full release; do not create a lot, acquisition, cash effect, or implied lender return.
+- [x] **OWN-25c:** Implement pledged forfeiture reducing owned and the matching pledge atomically, including fully pledged stock.
+- [x] **OWN-25d:** Return references needed by Part 8. Do not implement loan maturity decisions, lender custody transfers, or financial settlement in these helpers.
 
 ### OWN-26 — Read orchestration
 
 **Depends on:** OWN-09 tests, OWN-16–18; no lazy database work inside DTO serialization.
 
-- [ ] **OWN-26a:** Implement paginated item summary service using batch balances and Inventory projections, showing owned and physical quantities separately.
-- [ ] **OWN-26b:** Implement current item detail; retain paid/unreceived and depleted records without claiming they are sellable stock.
-- [ ] **OWN-26c:** Implement paginated lot service, then movement history as a separate unit; currency totals remain separate.
-- [ ] **OWN-26d:** Implement paginated link candidates and pending-link reads; reuse Inventory signed photos/expiry without storage-path exposure.
+- [x] **OWN-26a:** Implement paginated item summary service using batch balances and Inventory projections, showing owned and physical quantities separately.
+- [x] **OWN-26b:** Implement current item detail; retain paid/unreceived and depleted records without claiming they are sellable stock.
+- [x] **OWN-26c:** Implement paginated lot service, then movement history as a separate unit; currency totals remain separate.
+- [x] **OWN-26d:** Implement paginated link candidates and pending-link reads; reuse Inventory signed photos/expiry without storage-path exposure.
 
 ### OWN-27 — Monthly summary service
 
 **Depends on:** OWN-11 tests, OWN-17/19/21; details below.
 
-- [ ] **OWN-27a:** Implement strict completed-month/timezone boundary resolution using the existing business clock.
-- [ ] **OWN-27b:** Implement one-item checkpoint orchestration under the shared aggregate anchor: previous base, uncovered pre-cutoff deltas, watermark, header/lot balances, atomic commit.
-- [ ] **OWN-27c:** Implement tenant summary orchestration outside existing business transactions, bounded item streaming, per-item commits, completed-item skipping, and context restoration.
-- [ ] **OWN-27d:** Switch each operational balance/FIFO/read path to the same checkpoint-plus-tail helpers, one consumer per review. Preserve current source/receipt/piece checks.
+- [x] **OWN-27a:** Implement strict completed-month/timezone boundary resolution using the existing business clock.
+- [x] **OWN-27b:** Implement one-item checkpoint orchestration under the shared aggregate anchor: previous base, uncovered pre-cutoff deltas, watermark, header/lot balances, atomic commit.
+- [x] **OWN-27c:** Implement tenant summary orchestration outside existing business transactions, bounded item streaming, per-item commits, completed-item skipping, and context restoration.
+- [x] **OWN-27d:** Switch each operational balance/FIFO/read path to the same checkpoint-plus-tail helpers, one consumer per review. Preserve current source/receipt/piece checks.
 
 ### OWN-28 — Scheduled job and recovery command
 
 **Depends on:** OWN-27 and OWN-11j tests.
 
-- [ ] **OWN-28a:** Implement `SummarizeMonthlyOwnershipMovementsJob` tenant execution with existing scheduled queue, Redis availability, operation logging, and overlap conventions.
-- [ ] **OWN-28b:** Implement root tenant fan-out and pin each completed month before dispatch; retries retain the same period.
-- [ ] **OWN-28c:** Register monthly scheduling alongside existing financial/Inventory summary jobs. Proposed slot: day 2 at 01:00 UTC, after the existing 00:45 Inventory slot; independent correctness must not depend on job order.
-- [ ] **OWN-28d:** Implement `ownership:summarize-monthly --tenant=TENANT_ID --month=YYYY-MM` recovery using the same validation and resumable service. Omitted options process each tenant's previous completed month. No destructive force-rebuild option.
+- [x] **OWN-28a:** Implement `SummarizeMonthlyOwnershipMovementsJob` tenant execution with existing scheduled queue, Redis availability, operation logging, and overlap conventions.
+- [x] **OWN-28b:** Implement root tenant fan-out and pin each completed month before dispatch; retries retain the same period.
+- [x] **OWN-28c:** Register monthly scheduling alongside existing financial/Inventory summary jobs. Proposed slot: day 2 at 01:00 UTC, after the existing 00:45 Inventory slot; independent correctness must not depend on job order.
+- [x] **OWN-28d:** Implement `ownership:summarize-monthly --tenant=TENANT_ID --month=YYYY-MM` recovery using the same validation and resumable service. Omitted options process each tenant's previous completed month. No destructive force-rebuild option.
+
+**Orchestration acceptance:** User accepted OWN-22 through OWN-28 with "ok marks done and proceed to api integration" after the overall check (736 tests, 11,465 assertions; four then-pending API failures and one unrelated financial unit error). Legacy caller/result adapters remain subject to OWN-30; new operational reads/FIFO use the shared checkpoint-plus-tail helpers. No API/UI/caller acceptance is implied by the orchestration acceptance.
 
 ### OWN-29 — Thin controller and API activation
+
+**Implementation status:** OWN-29a-d implemented and verified; checkboxes remain pending acceptance. Paginated reads and protected receipt linking are active, with no public paid-source/loan/sale bypass. Full MySQL testing run: 1,003 tests / 12,955 assertions, 921 passed / 54 errors / 28 failures; all 247 Ownership feature tests passed. Old features remain unchanged at the user's explicit instruction. See [API review](OWNERSHIP_API_INTEGRATION_REVIEW.md).
 
 **Depends on:** Matching accepted orchestration and prewritten OWN-09 tests.
 

@@ -35,11 +35,16 @@ class OperationService extends BaseTenantService
 
     private function restoreOwnershipReplayResult(TenantIdempotencyKey $record, bool $publicReplay): OwnershipResult
     {
-        // HTTP adapters retain the existing replay exception; internal callers receive the original response DTO.
-        if ($publicReplay) $this->idempotency->replay($record);
+        // Rebuild the typed result so MySQL JSON key ordering cannot change the HTTP replay shape.
         $body = $record->response_body['data'] ?? $record->response_body;
-        return new OwnershipResult($body['owned_item_code'], $body['update_key'], $body['lot_codes'],
+        $result = new OwnershipResult($body['owned_item_code'], $body['update_key'], $body['lot_codes'],
             $body['movement_codes'], $body['receipt_link_codes'], $body['serialized_item_codes']);
+        if ($publicReplay) {
+            // Normalize the in-memory response only; completed records and their effects remain unchanged.
+            $record->response_body = ['data' => $result->toArray()];
+            $this->idempotency->replay($record);
+        }
+        return $result;
     }
 
     private function attachMutationAuditTarget(OwnershipMutationResult|OwnershipResult $result): OwnershipMutationResult

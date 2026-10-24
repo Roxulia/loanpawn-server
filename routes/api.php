@@ -16,6 +16,7 @@ use App\Http\Controllers\TenantModule\AuthController as TenantAuthController;
 use App\Http\Controllers\TenantModule\DefaultDataController;
 use App\Http\Controllers\TenantModule\CatalogController;
 use App\Http\Controllers\TenantModule\InventoryController;
+use App\Http\Controllers\TenantModule\OwnershipController;
 use App\Http\Controllers\TenantModule\FinancialAccountTypeController;
 use App\Http\Controllers\TenantModule\FinancialUnitController;
 use App\Http\Controllers\TenantModule\LanguageController;
@@ -558,19 +559,26 @@ Route::prefix('tenant')->group(function () {
             });
 
             Route::prefix('ownership')->middleware(['tenant.feature:ownership_management', 'tenant.feature:inventory_management'])->group(function () {
-                Route::get('expired-collateral', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'expiredCollateral'])
+                Route::get('expired-collateral', [OwnershipController::class, 'expiredCollateral'])
                     ->middleware('tenant.permission:list_owned_item');
-                Route::post('expired-collateral/{collateralCode}/transfer', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'transferExpiredCollateral'])
+                Route::post('expired-collateral/{collateralCode}/transfer', [OwnershipController::class, 'transferExpiredCollateral'])
                     ->middleware('tenant.permission:create_owned_item');
-                Route::get('inventory-options', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'inventoryOptions'])
+                Route::get('inventory-options', [OwnershipController::class, 'inventoryOptions'])
                     ->middleware('tenant.permission:list_owned_item');
-                Route::get('items', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'index'])
+                Route::get('items', [OwnershipController::class, 'index'])
                     ->middleware('tenant.permission:list_owned_item');
-                Route::get('items/{ownedItemCode}', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'show'])
+                Route::get('items/{ownedItemCode}', [OwnershipController::class, 'show'])
                     ->middleware('tenant.permission:list_owned_item');
-                Route::get('items/{ownedItemCode}/movements', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'movements'])
+                // Separate bounded lot/candidate reads from the permission-protected receipt mutation.
+                Route::get('items/{ownedItemCode}/lots', [OwnershipController::class, 'lots'])
                     ->middleware('tenant.permission:list_owned_item');
-                Route::post('acquisitions', [\App\Http\Controllers\TenantModule\OwnershipController::class, 'acquire'])
+                Route::get('items/{ownedItemCode}/lots/{lotCode}/receipt-link-candidates', [OwnershipController::class, 'receiptLinkCandidates'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::post('items/{ownedItemCode}/lots/{lotCode}/receipt-links', [OwnershipController::class, 'linkReceipt'])
+                    ->middleware('tenant.permission:manage_owned_item');
+                Route::get('items/{ownedItemCode}/movements', [OwnershipController::class, 'movements'])
+                    ->middleware('tenant.permission:list_owned_item');
+                Route::post('acquisitions', [OwnershipController::class, 'acquire'])
                     // Restrict standalone acquisition without blocking internal business acquisition.
                     ->middleware(['tenant.permission:create_owned_item', 'tenant.feature:ownership_manual_acquisition']);
             });

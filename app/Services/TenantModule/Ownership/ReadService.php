@@ -39,7 +39,8 @@ class ReadService extends BaseTenantService
             ?? throw new TenantNotFound(__('ownership.not_found'));
         $physical = $this->inventoryService->itemDetail($summary->inventoryItemCode);
         return new OwnershipItemDetail($summary, $physical->locations,
-            $summary->pendingLinkQuantity === '0.000' ? 'LINKED' : 'PENDING');
+            // Unreceived acquisitions still need receipt/link resolution, even with no received quantity to link yet.
+            $summary->awaitingReceiptQuantity === '0.000' && $summary->pendingLinkQuantity === '0.000' ? 'LINKED' : 'PENDING');
     }
 
     public function lotPage(string $code, OwnershipLotFilter $filter): OwnershipLotPage

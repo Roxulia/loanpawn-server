@@ -97,7 +97,7 @@ class OwnershipService extends BaseTenantService
 
     public function itemPage(OwnershipListFilter $filter): OwnershipItemPage
     {
-        // The new bounded contract is activated separately from legacy public endpoint consumers.
+        // Expose bounded API summaries while legacy internal caller adapters remain separate.
         return $this->readService->itemPage($filter);
     }
 
@@ -127,10 +127,10 @@ class OwnershipService extends BaseTenantService
         return $this->receiptLinkService->linkPurchaseReceipt($receiptCode);
     }
 
-    public function linkReceipt(string $code, string $lotCode, OwnershipReceiptLinkRequest $request): OwnershipResult
+    public function linkReceipt(string $code, string $lotCode, OwnershipReceiptLinkRequest $request, bool $publicReplay = false): OwnershipResult
     {
         // Real receipt linking is a dependency of FIFO's lot/piece eligibility, not a fake test setup.
-        return $this->receiptLinkService->link($code, $lotCode, $request);
+        return $this->receiptLinkService->link($code, $lotCode, $request, $publicReplay);
     }
 
     public function list(?string $search = null): array

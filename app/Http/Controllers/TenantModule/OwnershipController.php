@@ -4,6 +4,12 @@ namespace App\Http\Controllers\TenantModule;
 
 use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
 use App\DataObjects\RequestObjects\InventoryListFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipListFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipLotFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipMovementFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipCandidateFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipReceiptLinkRequest;
+use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\OwnershipService;
 use Illuminate\Http\JsonResponse;
@@ -17,21 +23,67 @@ class OwnershipController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        // Validate the list filter before delegating tenant-scoped search.
-        $data = $request->validate(['search' => ['nullable', 'string', 'max:120']]);
-        return $this->successResponse($this->ownershipService->list($data['search'] ?? null));
+        // Validate bounded filters before reading tenant-scoped Ownership summaries.
+        $data = $request->validate($this->paginationRules() + [
+            'search' => ['nullable', 'string', 'max:120'],
+            'tracking_mode' => ['nullable', 'string', 'in:QUANTITY,UNIQUE,SERIALIZED'],
+            'holding' => ['sometimes', 'string', 'in:all,current,depleted'],
+        ]);
+        return $this->successResponse($this->ownershipService->itemPage(OwnershipListFilter::fromValidated($data))->toArray());
     }
 
     public function show(string $ownedItemCode): JsonResponse
     {
-        // Return the Ownership aggregate and its cost lots.
-        return $this->successResponse($this->ownershipService->detailByCode($ownedItemCode));
+        // Read current detail without embedding unbounded lots or movement history.
+        return $this->successResponse($this->ownershipService->itemDetail($ownedItemCode)->toArray());
     }
 
-    public function movements(string $ownedItemCode): JsonResponse
+    public function lots(Request $request, string $ownedItemCode): JsonResponse
     {
-        // Expose append-only ownership history through a read permission.
-        return $this->successResponse($this->ownershipService->movementsByCode($ownedItemCode));
+        // Page historical cost layers independently from the item summary.
+        $data = $request->validate($this->paginationRules() + [
+            'currency_code' => ['nullable', 'string', 'max:10'],
+            'holding' => ['sometimes', 'string', 'in:all,current,depleted'],
+        ]);
+        return $this->successResponse($this->ownershipService->lotPage($ownedItemCode, OwnershipLotFilter::fromValidated($data))->toArray());
+    }
+
+    public function movements(Request $request, string $ownedItemCode): JsonResponse
+    {
+        // Page append-only history in the repository's stable occurrence/ID order.
+        $data = $request->validate($this->paginationRules());
+        return $this->successResponse($this->ownershipService->movementPage($ownedItemCode, OwnershipMovementFilter::fromValidated($data))->toArray());
+    }
+
+    public function receiptLinkCandidates(Request $request, string $ownedItemCode, string $lotCode): JsonResponse
+    {
+        // Public references select candidates; services verify tenant, item and purchase association.
+        $data = $request->validate($this->paginationRules() + [
+            'search' => ['nullable', 'string', 'max:120'],
+            'purchase_receipt_line_code' => ['nullable', 'string', 'max:40'],
+        ]);
+        return $this->successResponse($this->ownershipService->receiptLinkCandidates(
+            $ownedItemCode, $lotCode, OwnershipCandidateFilter::fromValidated($data),
+        )->toArray());
+    }
+
+    public function linkReceipt(Request $request, string $ownedItemCode, string $lotCode): JsonResponse
+    {
+        // Only the header supplies replay identity; privileged payload fields never enter the DTO.
+        $data = Validator::make(array_merge($request->all(), [
+            'idempotency_key' => $request->header('Idempotency-Key'),
+        ]), [
+            'purchase_receipt_line_code' => ['required', 'string', 'max:40'],
+            'quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'update_key' => ['required', 'integer', 'min:0', 'max:2147483647'],
+            'serialized_item_codes' => ['sometimes', 'array', 'list'],
+            'serialized_item_codes.*' => ['required', 'string', 'max:40', 'distinct:strict'],
+            'idempotency_key' => ['required', 'string', 'max:120', 'regex:/\\S/'],
+        ])->validate();
+        $command = OwnershipReceiptLinkRequest::fromValidated($data, $data['idempotency_key']);
+        return $this->successResponse($this->ownershipService->linkReceipt(
+            $ownedItemCode, $lotCode, $command, publicReplay: true,
+        )->toArray());
     }
 
     public function inventoryOptions(Request $request): JsonResponse
@@ -105,5 +157,14 @@ class OwnershipController extends Controller
             ),
             $idempotencyKey,
         ), statusCode: 201);
+    }
+
+    private function paginationRules(): array
+    {
+        // Keep the same bounded page contract across all Ownership reads.
+        return [
+            'page' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ];
     }
 }

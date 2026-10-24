@@ -21,7 +21,7 @@ class ReceiptLinkService extends BaseTenantService
         private InventoryService $inventoryService, private PurchaseSourceService $purchases,
         private OperationService $operations, private TableIdGenerationService $codes, private ReceiptValidationService $validation) {}
 
-    public function link(string $ownedCode, string $lotCode, OwnershipReceiptLinkRequest $request): OwnershipResult
+    public function link(string $ownedCode, string $lotCode, OwnershipReceiptLinkRequest $request, bool $publicReplay = false): OwnershipResult
     {
         // Replay is checked before version validation; normal retries return the original typed result.
         return $this->operations->runAtomicOwnershipOperation('ownership.receipt_link', $request->idempotencyKey,
@@ -30,7 +30,7 @@ class ReceiptLinkService extends BaseTenantService
                 $state = $this->resolveRequestedReceiptState($ownedCode, $lotCode, $request->purchaseReceiptLineCode);
                 if ((int) $state->owner->update_key !== $request->updateKey) throw new AlreadyUpdatedException(null);
                 return $this->persistReceiptOwnershipLink($state, $request->quantity, $request->serializedItemCodes, $recordId);
-            }, 200, 'ownership.receipt_linked');
+            }, 200, 'ownership.receipt_linked', $publicReplay);
     }
 
     public function linkPurchaseReceipt(string $receiptCode): OwnershipResult
