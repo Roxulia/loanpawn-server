@@ -144,9 +144,9 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-26 | Read orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
 | OWN-27 | Monthly summary orchestration | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
 | OWN-28 | Scheduled summary and recovery | Accepted by user after orchestration review and overall test check; API activation tracked separately in OWN-29 |
-| OWN-29 | Controller/API activation | Implemented and verified; awaiting user review. All 247 Ownership feature tests passed in the full MySQL testing run; unrelated old-feature failures left unchanged. See OWNERSHIP_API_INTEGRATION_REVIEW.md |
-| OWN-30 | Existing caller adaptations | Not started |
-| OWN-31 | Frontend connections | Not started |
+| OWN-29 | Controller/API activation | Accepted by user: "mark done. and continue until frintend is done". All 247 Ownership feature tests passed; see OWNERSHIP_API_INTEGRATION_REVIEW.md |
+| OWN-30 | Existing caller adaptations | Deferred by user: frontend work only; existing server APIs and business callers remain unchanged |
+| OWN-31 | Frontend connections | Accepted by user: "done review". OWN-31a-h complete; browser confirmation remains Stage 6 and OWN-30 stays deferred |
 | OWN-32 | Acceptance verification | Not started |
 | OWN-33 | Query plans and performance confirmation | Not started |
 | OWN-34 | Complexity review and completion record | Not started |
@@ -1618,18 +1618,20 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 ### OWN-29 — Thin controller and API activation
 
-**Implementation status:** OWN-29a-d implemented and verified; checkboxes remain pending acceptance. Paginated reads and protected receipt linking are active, with no public paid-source/loan/sale bypass. Full MySQL testing run: 1,003 tests / 12,955 assertions, 921 passed / 54 errors / 28 failures; all 247 Ownership feature tests passed. Old features remain unchanged at the user's explicit instruction. See [API review](OWNERSHIP_API_INTEGRATION_REVIEW.md).
+**Implementation status:** OWN-29a-d implemented, verified and accepted by the user; checkboxes are complete. Paginated reads and protected receipt linking are active, with no public paid-source/loan/sale bypass. Full MySQL testing run: 1,003 tests / 12,955 assertions, 921 passed / 54 errors / 28 failures; all 247 Ownership feature tests passed. Old features remain unchanged at the user's explicit instruction. See [API review](OWNERSHIP_API_INTEGRATION_REVIEW.md).
 
 **Depends on:** Matching accepted orchestration and prewritten OWN-09 tests.
 
 **Files:** `OwnershipController`, `routes/api.php`; affected frontend service contracts only when coordinating activation.
 
-- [ ] **OWN-29a:** Activate paginated item list, then detail as separate units. Keep existing endpoint paths where practical.
-- [ ] **OWN-29b:** Activate paginated lots and movement history separately; validate query filters before calling typed services.
-- [ ] **OWN-29c:** Activate paginated link-candidate reads, then the receipt-link write as separate units with source-safe input, permission, validation, and idempotency.
-- [ ] **OWN-29d:** Coordinate any acquisition/caller result replacement with its consumers. Do not expose a public request that declares goods fully paid or enables loan/sale internal operations.
+- [x] **OWN-29a:** Activate paginated item list, then detail as separate units. Keep existing endpoint paths where practical.
+- [x] **OWN-29b:** Activate paginated lots and movement history separately; validate query filters before calling typed services.
+- [x] **OWN-29c:** Activate paginated link-candidate reads, then the receipt-link write as separate units with source-safe input, permission, validation, and idempotency.
+- [x] **OWN-29d:** Coordinate any acquisition/caller result replacement with its consumers. Do not expose a public request that declares goods fully paid or enables loan/sale internal operations.
 
 ### OWN-30 — Existing caller adaptations
+
+**Scope update:** User explicitly requested frontend work instead of server changes. Existing APIs cover the reviewed frontend needs, so no server route, API or business caller was changed in this batch. OWN-30 remains deferred; this does not accept complete Purchasing/Sales/Pawn workflows.
 
 **Depends on:** Matching new contracts/operations. Review and activate one caller function at a time.
 
@@ -1642,18 +1644,20 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 ### OWN-31 — Frontend connections
 
+**Implementation status:** OWN-31a-h accepted by the user ("done review"), implemented against existing OWN-29 APIs and verified: TypeScript/build and targeted ownership/router/navigation lint passed; 10 focused frontend tests passed. The shared locale file has the same five pre-existing Fast Refresh lint errors as HEAD; left unchanged. Checkbox acceptance is complete; Stage 6 browser confirmation remains separate. Existing layout is retained with separate responsive control classes. Deferred manual/Pawn forms are hidden and direct URLs redirect through the protected Ownership register. See `lonepawn-frontend/docs/OWNERSHIP_FRONTEND_REVIEW.md`.
+
 **Depends on:** Matching API contracts and approved UI behavior; no unrelated redesign.
 
 **Files:** `lonepawn-frontend/src/modules/ownership/` services/types/pages/CSS; shared components/locales/routes only as needed.
 
-- [ ] **OWN-31a:** Update typed frontend contracts and service functions for one endpoint at a time; preserve decimal strings in new writes.
-- [ ] **OWN-31b:** Connect paginated item list/search and fresh detail-on-selection with stale-response protection. Keep depleted/history records accessible.
-- [ ] **OWN-31c:** Connect paginated lots, then paginated movement history separately; show owned/reserved/pledged quantities and cost currencies clearly.
-- [ ] **OWN-31d:** Show awaiting-receipt and received-but-unlinked quantities separately; do not label all owned quantity sellable.
-- [ ] **OWN-31e:** Add the received-item linking reminder/action and paginated exact-piece selection. Refresh candidates/selection after mutation; retain one replay key for unchanged retries.
-- [ ] **OWN-31f:** Reuse item photos, expiry handling, full-size opening, and the bundled default illustration for missing/failed images. No upload endpoint.
-- [ ] **OWN-31g:** Add English/Myanmar feedback and separate mobile/desktop classes or components for the affected controls. Keep manual/deferred actions hidden and direct routes restricted.
-- [ ] **OWN-31h:** Run authorized TypeScript/targeted lint checks and document existing unrelated failures separately. Browser confirmation remains Stage 6.
+- [x] **OWN-31a:** Update typed frontend contracts and service functions for one endpoint at a time; preserve decimal strings in new writes.
+- [x] **OWN-31b:** Connect paginated item list/search and fresh detail-on-selection with stale-response protection. Keep depleted/history records accessible.
+- [x] **OWN-31c:** Connect paginated lots, then paginated movement history separately; show owned/reserved/pledged quantities and cost currencies clearly.
+- [x] **OWN-31d:** Show awaiting-receipt and received-but-unlinked quantities separately; do not label all owned quantity sellable.
+- [x] **OWN-31e:** Add the received-item linking reminder/action and paginated exact-piece selection. Refresh candidates/selection after mutation; retain one replay key for unchanged retries.
+- [x] **OWN-31f:** Reuse item photos, expiry handling, full-size opening, and the bundled default illustration for missing/failed images. No upload endpoint.
+- [x] **OWN-31g:** Add English/Myanmar feedback and separate mobile/desktop classes or components for the affected controls. Keep manual/deferred actions hidden and direct routes restricted.
+- [x] **OWN-31h:** Run authorized TypeScript/targeted lint checks and document existing unrelated failures separately. Browser confirmation remains Stage 6.
 
 ## Monthly Ownership checkpoints
 
