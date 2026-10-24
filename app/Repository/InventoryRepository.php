@@ -610,6 +610,14 @@ class InventoryRepository
     }
 
     /** Fetch tenant-scoped identifiers matching a batch, preserving the literal "0". */
+    public function existingSerializedItemsForReceipt(array $identifiers): Collection
+    {
+        // Current identity facts under the prelocked item; retain tenant-wide identifier uniqueness.
+        $this->assertInventoryTransaction();
+        return $this->inventoryQuery(InventorySerializedItem::class)->whereIn('identifier', $identifiers)
+            ->orderBy('id')->lockForUpdate()->get();
+    }
+
     public function existingSerializedItemIdentifiers(array $identifiers): Collection
     {
         // Let database collation and tenant/identifier uniqueness determine matches.

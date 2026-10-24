@@ -54,6 +54,9 @@ use App\DataObjects\ResponseObjects\InventorySerializedItemDetail;
 use App\DataObjects\ResponseObjects\InventorySerializedItemListPage;
 use App\DataObjects\ResponseObjects\InventoryMovementDetail;
 use App\DataObjects\ResponseObjects\InventoryMovementListPage;
+use App\DataObjects\ResponseObjects\InventoryOwnershipStock;
+use App\DataObjects\ResponseObjects\InventorySaleLocationStock;
+use PDOException;
 use LogicException;
 use Throwable;
 
@@ -235,7 +238,7 @@ class InventoryService extends BaseTenantService
         return $this->createInventoryItem($this->resolveCurrentTenantId(), $request);
     }
 
-    public function ownershipStock(InventoryItem $item, array $serials = [], ?array $pieceCodes = null): \App\DataObjects\ResponseObjects\InventoryOwnershipStock
+    public function ownershipStock(InventoryItem $item, array $serials = [], ?array $pieceCodes = null): InventoryOwnershipStock
     {
         // Ownership has acquired its aggregate/lot anchors before entering downstream custody locks.
         $this->assertStockValidationTransaction();
@@ -243,7 +246,7 @@ class InventoryService extends BaseTenantService
             ? $this->repository->serializedItemsByIdentifiers((int) $item->id, $serials)->pluck('code')->all()
             : $pieceCodes;
         $locations = $this->repository->locations($this->resolveCurrentTenantId());
-        if ($locations->isEmpty()) return new \App\DataObjects\ResponseObjects\InventoryOwnershipStock([], []);
+        if ($locations->isEmpty()) return new InventoryOwnershipStock([], []);
         $stock = $this->lockStockForOperation([$item->code], $locations->pluck('code')->all(), [], $selected);
         $rows = [];
         $reservedCodes = [];
@@ -263,10 +266,10 @@ class InventoryService extends BaseTenantService
                 'location_id' => $locationId, 'available' => isset($rows[$locationId])
                     && $rows[$locationId]['available'] >= 1000 && ! isset($reservedCodes[$piece->code])];
         }
-        return new \App\DataObjects\ResponseObjects\InventoryOwnershipStock($rows, $pieces);
+        return new InventoryOwnershipStock($rows, $pieces);
     }
 
-    public function summariesByCodes(array $codes): \Illuminate\Support\Collection
+    public function summariesByCodes(array $codes): Collection
     {
         // Share the existing batch balance/photo path with Ownership's bounded item page.
         $items = $this->repository->summaryItemsByCodes($codes);
@@ -275,7 +278,7 @@ class InventoryService extends BaseTenantService
             $item, $this->buildItemReadLocations($item, $balances)))->keyBy('code');
     }
 
-    public function receiptPiecePage(string $itemCode, array $codes, \App\DataObjects\RequestObjects\InventorySerializedItemFilter $filter)
+    public function receiptPiecePage(string $itemCode, array $codes, InventorySerializedItemFilter $filter)
     {
         // Scope candidate identities before pagination, reusing custody/reservation projections.
         $item = $this->resolveItemForRead($itemCode);
@@ -331,7 +334,8 @@ class InventoryService extends BaseTenantService
 
             // Reuse exact tracking, reference, identifier, and current UNIQUE custody checks.
             $quantity = $this->validateReceiptForItem($item, $location, $request);
-            $identifiers = $this->validateSerializedReceive($tenantId, $item, $request->quantity, $request->serializedItemIdentifiers);
+            $identifiers = $this->validateSerializedReceive($tenantId, $item, $request->quantity, $request->serializedItemIdentifiers,
+                allowIssuedReuse: $request->sourceType === 'PurchaseReceiptLine' && $request->sourceCode !== null);
             $context = new InventoryMovementContext(
                 reason: $request->reason,
                 sourceType: $request->sourceType,
@@ -422,9 +426,9 @@ class InventoryService extends BaseTenantService
         $stock = $this->lockStockForOperation([$itemCode], $locations->pluck('code')->all());
         $item = $stock->items->get($itemCode);
         // Internal location models carry IDs needed by Sales without changing public DTOs.
-        return $stock->locations->map(function ($location) use ($stock, $item): \App\DataObjects\ResponseObjects\InventorySaleLocationStock {
+        return $stock->locations->map(function ($location) use ($stock, $item): InventorySaleLocationStock {
             [$reserved] = $this->summarizeLockedReservations($this->activeLockedReservationsAtLocation($stock, $item, $location), $item);
-            return new \App\DataObjects\ResponseObjects\InventorySaleLocationStock($location, max(0, ($stock->balances[$item->id][$location->id] ?? 0) - $reserved));
+            return new InventorySaleLocationStock($location, max(0, ($stock->balances[$item->id][$location->id] ?? 0) - $reserved));
         })->all();
     }
 
@@ -921,16 +925,38 @@ class InventoryService extends BaseTenantService
             return $this->buildStockMutationResult($item, $quantity, collect([$movement]));
         }
 
-        // Serialized receipts reuse identifier guards and one movement per newly created identity.
+        // A trusted repurchase reuses only an issued exact identity; normal receipts still create new pieces.
+        $reusable = $this->resolveIssuedPurchaseReceiptPieces($item, $location, $identifiers, $context);
         $movements = collect();
         $codes = [];
         foreach ($identifiers as $identifier) {
-            $serializedItem = $this->createSerializedItemForReceipt($tenantId, $item, $identifier);
+            $serializedItem = $reusable->get($identifier) ?? $this->createSerializedItemForReceipt($tenantId, $item, $identifier);
             $movements->push($this->appendMovement($tenantId, $item, null, (int) $location->id, '1.000', $movementType, $context, (int) $serializedItem->id));
             $codes[] = $serializedItem->code;
         }
 
         return $this->buildStockMutationResult($item, $quantity, $movements, $codes);
+    }
+
+    private function resolveIssuedPurchaseReceiptPieces(InventoryItem $item, InventoryLocation $location, array $identifiers,
+        InventoryMovementContext $context): Collection
+    {
+        // Source metadata is internal-only; public request factories cannot enable this receipt path.
+        if ($context->sourceType !== 'PurchaseReceiptLine' || $context->sourceCode === null || $item->tracking_mode !== 'SERIALIZED') return collect();
+        $pieces = $this->repository->existingSerializedItemsForReceipt(array_values(array_filter($identifiers, fn ($value) => $value !== null)));
+        if ($pieces->isEmpty()) return collect();
+        $stock = $this->lockStockForOperation([$item->code], [$location->code], [], $pieces->pluck('code')->all());
+        $held = [];
+        foreach ($stock->reservations as $reservation) {
+            foreach ($reservation->serialized_item_codes ?? [] as $code) $held[$code] = true;
+        }
+        foreach ($stock->serializedItems as $piece) {
+            $last = $stock->custody->get($piece->id);
+            if ((int) $piece->inventory_item_id !== (int) $item->id || $last === null || $last->to_location_id !== null || isset($held[$piece->code])) {
+                throw new InvalidTenantRequest(__('inventory.serialized_unavailable'));
+            }
+        }
+        return $stock->serializedItems->keyBy('identifier');
     }
 
     /** Persist a validated sale reservation through the existing repository. */
@@ -1779,7 +1805,7 @@ class InventoryService extends BaseTenantService
     {
         // Exclude lock timeouts, generic serialization errors, and arbitrary message matching.
         do {
-            if (($exception instanceof QueryException || $exception instanceof \PDOException)
+            if (($exception instanceof QueryException || $exception instanceof PDOException)
                 && (int) ($exception->errorInfo[1] ?? 0) === 1213) {
                 return true;
             }
@@ -2047,6 +2073,7 @@ class InventoryService extends BaseTenantService
         InventoryItem $item,
         string|int|float $quantity,
         array $identifiers,
+        bool $allowIssuedReuse = false,
     ): array
     {
         if ($item->tracking_mode !== 'SERIALIZED') {
@@ -2078,8 +2105,12 @@ class InventoryService extends BaseTenantService
             throw new DuplicateValueFound(__('inventory.identifier_duplicate'));
         }
         // Batch database checks; the unique constraint remains authoritative for races/collation.
-        if ($this->repository->existingSerializedItemIdentifiers($providedIdentifiers)->isNotEmpty()) {
-            throw new DuplicateValueFound(__('inventory.identifier_in_use'));
+        $existing = $this->repository->existingSerializedItemsForReceipt($providedIdentifiers);
+        foreach ($existing as $piece) {
+            if (! $allowIssuedReuse || (int) $piece->inventory_item_id !== (int) $item->id
+                || ! in_array($piece->identifier, $providedIdentifiers, true)) {
+                throw new DuplicateValueFound(__('inventory.identifier_in_use'));
+            }
         }
         return $normalizedIdentifiers;
     }
@@ -2129,7 +2160,7 @@ class InventoryService extends BaseTenantService
                 throw ValidationException::withMessages(['serialized_item_codes' => ['The selected units do not belong to this reservation.']]);
             }
             foreach ($units as $unit) {
-                $last = \App\Models\InventoryModule\InventoryMovement::query()
+                $last = InventoryMovement::query()
                     ->where('tenant_id', $tenantId)->where('inventory_serialized_item_id', $unit->id)->latest('id')->first();
                 if ((int) ($last?->to_location_id ?? 0) !== $locationId) {
                     throw ValidationException::withMessages(['serialized_item_codes' => ['A selected unit is not at this location.']]);

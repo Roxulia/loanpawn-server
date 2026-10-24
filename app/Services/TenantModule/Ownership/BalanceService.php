@@ -15,7 +15,9 @@ class BalanceService extends BaseTenantService
     public function locked(int $itemId, iterable $lots): array
     {
         // Current locking base/tail reads avoid stale repeatable-read snapshots established by callers.
-        [$base, $tail] = $this->repository->lockedBalanceParts($this->resolveCurrentTenantId(), $itemId, CarbonImmutable::now('UTC')->toDateTimeString());
+        $lots = collect($lots);
+        [$base, $tail] = $this->repository->lockedBalanceParts($this->resolveCurrentTenantId(), $itemId,
+            CarbonImmutable::now('UTC')->toDateTimeString(), $lots->pluck('id')->all());
         $result = [];
         foreach ($lots as $lot) {
             $row = $base->get($lot->id);

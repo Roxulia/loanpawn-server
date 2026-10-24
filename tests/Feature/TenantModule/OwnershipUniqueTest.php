@@ -106,12 +106,12 @@ class OwnershipUniqueTest extends OwnershipPurchaseTestCase
         $line = $this->saleLine($lot, $item, '1.000');
         $owned = OwnedItem::query()->findOrFail($lot->owned_item_id);
         $location = $this->ownershipFixture['location'];
+        // Reserve entitlement while physical stock is still free, then reserve the same caller's custody.
+        app(OwnershipService::class)->reserveSale($owned->code, $lot->code, '1.000', $line->code);
         $reservation = app(InventoryService::class)->reserveForSale(new InventoryReservationRequest(
             inventoryItemCode: $item->code, locationCode: $location->code, quantity: '1.000',
             sourceType: 'SaleOrderLine', sourceCode: $line->code,
         ));
-        app(OwnershipService::class)->reserveSale($owned->code, $lot->code, '1.000', $line->code);
-
         // Persist the real caller's reservation reference without manufacturing an Ownership balance.
         // This minimal source fixture supports quantity operations, not complete sale/payment acceptance.
         $saleReservation = SaleOrderReservation::query()->create([

@@ -33,6 +33,13 @@ class CurrencyRepository
         return Currency::query()->where('code', strtoupper($code))->where(fn ($q) => $q->whereNull('tenant_id')->when($tenantId, fn ($q) => $q->orWhere('tenant_id', $tenantId)))->orderByRaw('tenant_id IS NULL')->first();
     }
 
+    public function findActiveVisibleByIds(array $ids, int $tenantId): Collection
+    {
+        // Restrict the batch to requested active currencies visible to this tenant.
+        return Currency::query()->whereKey($ids)->where('is_active', true)
+            ->where(fn ($query) => $query->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))->get();
+    }
+
     public function findActiveVisibleById(int $id, int $tenantId): ?Currency
     {
         return Currency::query()

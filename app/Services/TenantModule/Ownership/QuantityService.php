@@ -2,142 +2,181 @@
 
 namespace App\Services\TenantModule\Ownership;
 
+use App\DTOs\Ownership\Internal\ResponseObjects\OwnershipMutationResult;
 use App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource;
+use App\DTOs\Ownership\Internal\ResponseObjects\OwnershipQuantityState;
+use App\DTOs\Ownership\Internal\ResponseObjects\OwnershipReturnSelection;
+use App\Models\OwnershipModule\{AcquisitionLot, OwnedItem};
 use App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult;
 use App\Exceptions\{InvalidTenantRequest, TenantNotFound};
 use App\Repository\OwnershipRepository;
 use App\Services\BaseTenantService;
-use App\Services\TenantModule\InventoryService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\InventoryService;
 use App\Support\InventoryQuantity;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\{Auth, DB};
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 /** Exact source-bound quantity effects used when a caller applies a FIFO allocation. */
 class QuantityService extends BaseTenantService
 {
     public function __construct(private OwnershipRepository $repository, private InventoryService $inventoryService,
         private LookupService $lookup, private BalanceService $balances, private SaleSourceService $sales,
-        private TableIdGenerationService $codes) {}
+        private TableIdGenerationService $codes, private QuantityValidationService $validation, private OperationService $operations, private MovementService $movements) {}
 
-    public function change(string $ownedCode, string $lotCode, mixed $quantity, string $sourceCode,
-        array $pieceCodes, string $action, ?OwnershipPledgeSource $pledge = null): OwnershipResult
+    public function applyOwnershipQuantityAction(string $ownedCode, string $lotCode, mixed $quantity, string $sourceCode,
+        array $pieceCodes, string $action, ?OwnershipPledgeSource $pledge = null, ?string $idempotencyKey = null): OwnershipResult
     {
-        // Source, complete item anchors, aggregate, lots/commitments, then downstream custody locks.
-        return DB::transaction(function () use ($ownedCode, $lotCode, $quantity, $sourceCode, $pieceCodes, $action, $pledge): OwnershipResult {
-            $tenant = $this->resolveCurrentTenantId();
-            $line = $pledge === null ? $this->sales->line($sourceCode) : null;
-            $owner = $this->lookup->byCode($ownedCode);
-            $item = $this->inventoryService->findForOwnershipByCode($owner->inventoryItem->code);
-            $owner = $this->lookup->byInventoryId((int) $item->id, true);
-            $lots = $this->repository->lockedLots($tenant, (int) $owner->id);
-            $lot = $lots->firstWhere('code', $lotCode) ?? throw new TenantNotFound(__('ownership.lot_not_found'));
-            $amount = InventoryQuantity::parse($quantity, $item->tracking_mode);
-            $quantity = InventoryQuantity::format($amount);
-            $this->validateSource($line, $pledge, $owner, $lot, $sourceCode, $quantity, $pieceCodes);
-            $balance = $this->balances->locked((int) $owner->id, $lots)[$lot->id];
-            $links = $this->repository->receiptLinks($tenant, [$lot->id], true);
-            $members = $this->repository->currentMemberships($tenant, [$lot->id], true, ownedItemId: (int) $owner->id);
-            $kind = $pledge === null ? 'SALE' : 'PLEDGE';
-            $sourceType = $pledge === null ? 'SaleOrderLine' : 'BusinessLoanCollateral';
-            // Reuse the existing query with source filters; unrelated sales/loans are not loaded or locked.
-            $commitments = $this->repository->commitments($tenant, $lots->pluck('id')->all(), true,
-                ownedItemId: (int) $owner->id, kind: $kind, sourceType: $sourceType, sourceCode: $sourceCode);
-            $commitment = $commitments->where('acquisition_lot_id', $lot->id)->where('kind', $kind)
-                ->where('source_type', $sourceType)->firstWhere('source_code', $sourceCode);
-            $held = $this->repository->pieceCommitments($tenant, $members->pluck('id')->all(), true);
-            if ($action === 'reserve' || $action === 'pledge') {
-                $received = 0;
-                foreach ($links as $link) $received += InventoryQuantity::parseBalance($link->remaining_owned_quantity);
-                if ($amount > min($balance['available'], $received - $balance['reserved'] - $balance['pledged'])) {
-                    throw new InvalidTenantRequest(__('ownership.insufficient_lot_balance'));
+        // Retain the caller transaction while sharing preparation, validation and piece selection.
+        return $this->operations->runAtomicOwnershipOperation('ownership.quantity.'.$action, $idempotencyKey,
+            compact('ownedCode', 'lotCode', 'quantity', 'sourceCode', 'pieceCodes', 'action'),
+            function () use ($ownedCode, $lotCode, $quantity, $sourceCode, $pieceCodes, $action, $pledge): OwnershipMutationResult {
+                $state = $this->prepareQuantityState($ownedCode, $lotCode, $quantity, $sourceCode, $pieceCodes, $pledge, $action);
+                $isReservation = $action === 'reserve' || $action === 'pledge';
+                $this->validation->validateQuantityActionBalance($action, $state->amount, $state->balance, $state->commitment?->remaining_quantity);
+                if ($isReservation) {
+                    $this->validateReceivedBacking($state);
+                } else {
+                    $this->validation->validateSourceCommitment($state->commitment, $state->owner, $state->lot,
+                        $state->kind, $state->sourceType, $state->sourceCode);
                 }
-                $stock = $this->inventoryService->ownershipStock($item, pieceCodes: $pieceCodes);
-                $selected = $this->validatePieces($item->tracking_mode, $amount, $pieceCodes, $stock, $members, $held, null);
-                $physical = array_sum(array_column($stock->locations, 'available'));
-                if ($amount > $physical) throw new InvalidTenantRequest(__('ownership.insufficient_lot_balance'));
-                $this->checkSourceCapacity($line, $commitments, $sourceCode, $amount);
-                $commitment = $this->reserve($commitment, $owner, $lot, $kind, $sourceType, $sourceCode, $amount);
-                foreach ($selected as $member) $this->repository->createPieceCommitment(['tenant_id' => $tenant,
-                    'ownership_commitment_id' => $commitment->id, 'ownership_piece_membership_id' => $member->id]);
-            } else {
-                if ($commitment === null || $amount > InventoryQuantity::parseBalance($commitment->remaining_quantity)) {
-                    throw new InvalidTenantRequest(__('ownership.commitment_insufficient'));
+
+                // Both branches use one authoritative custody read and one exact piece-selection check.
+                $stock = $this->inventoryService->ownershipStock($state->item, pieceCodes: $pieceCodes);
+                $selected = $this->validation->selectEligibleOwnershipPieces($state->item->tracking_mode, $state->amount, $pieceCodes,
+                    $stock, $state->members, $state->pieceHolds, $isReservation ? null : $state->commitment,
+                    requireCustody: $action === 'consume');
+                if ($isReservation) {
+                    $this->reserveOwnershipQuantity($state, $selected, array_sum(array_column($stock->locations, 'available')));
+                } else {
+                    $this->releaseOrConsumeOwnershipQuantity($state, $selected, $action);
                 }
-                $stock = $this->inventoryService->ownershipStock($item, pieceCodes: $pieceCodes);
-                $selected = $this->validatePieces($item->tracking_mode, $amount, $pieceCodes, $stock, $members, $held, $commitment);
-                $this->requireSaved($this->repository->updateCommitment($tenant, $commitment, $commitment->quantity,
-                    InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->remaining_quantity) - $amount)));
-                foreach ($held as $hold) {
-                    if ($selected->has($hold->ownership_piece_membership_id)) {
-                        $this->requireSaved($this->repository->endPieceCommitment($tenant, $hold, CarbonImmutable::now('UTC')));
-                    }
-                }
-                if ($action === 'consume') $this->consumeLinks($links, $selected, $amount, $item->tracking_mode);
-            }
-            $consume = $action === 'consume';
-            $delta = $action === 'release' || $consume ? '-'.$quantity : $quantity;
-            $movement = $this->repository->createMovement($tenant, ['code' => $this->codes->generate('ownership_movements', CarbonImmutable::now()),
-                'owned_item_id' => $owner->id, 'acquisition_lot_id' => $lot->id,
-                'movement_type' => match ($action) {'reserve' => 'SALE_RESERVE', 'release' => 'SALE_RELEASE', 'consume' => 'SALE_CONSUME', 'pledge' => 'PLEDGE'},
-                'quantity' => $quantity, 'owned_delta' => $consume ? '-'.$quantity : '0.000',
-                'reserved_delta' => $kind === 'SALE' ? $delta : '0.000', 'pledged_delta' => $kind === 'PLEDGE' ? $delta : '0.000',
-                'source_module' => $kind === 'SALE' ? 'SALES' : 'BUSINESS_LOAN', 'source_type' => $sourceType,
-                'source_code' => $sourceCode, 'created_by' => Auth::guard('tenantuser')->id(), 'occurred_at' => CarbonImmutable::now('UTC')]);
-            return new OwnershipResult($owner->code, $this->repository->advanceVersion($owner), [$lot->code], [$movement->code], [], $pieceCodes);
-        });
+                return $this->recordOwnershipQuantityAction($state, $pieceCodes, $action);
+            }, 200, 'ownership.quantity_changed');
     }
 
-    private function validateSource($line, ?OwnershipPledgeSource $pledge, $owner, $lot, string $sourceCode, string $quantity, array $codes): void
+    public function consumePurchaseReturnReceiptBacking(OwnedItem $owner, AcquisitionLot $lot, OwnershipReturnSelection $selection): void
     {
-        // Trusted pledge context is supplied by its owning workflow; no public bypass is exposed.
-        if ($line !== null && ((int) $line->inventory_item_id !== (int) $owner->inventory_item_id
-            || (int) $line->owned_item_id !== (int) $owner->id || $line->order->currency_code !== $lot->currency_code)) {
+        // Reuse the transaction's validated membership selection instead of repeating custody/membership reads.
+        $tenant = $this->resolveCurrentTenantId();
+        if ($selection->tenantId !== $tenant || $selection->ownedItemId !== (int) $owner->id
+            || $selection->lotId !== (int) $lot->id || $selection->sourceType !== 'PurchaseReturnLine') {
             throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
         }
-        if ($pledge !== null && ($pledge->tenantId !== $this->resolveCurrentTenantId() || $pledge->sourceType !== 'BusinessLoanCollateral'
-            || $pledge->sourceCode !== $sourceCode || $pledge->ownedItemCode !== $owner->code || $pledge->lotCode !== $lot->code
-            || $pledge->quantity !== $quantity || $pledge->currencyCode !== $lot->currency_code || $pledge->serializedItemCodes !== $codes)) {
+        $item = $owner->inventoryItem;
+        // Preserve the exact selected-count guard when a source authorizes more units than this request.
+        if ($item->tracking_mode === 'SERIALIZED' && $selection->members->count() * 1000 !== $selection->amount) {
+            throw new InvalidTenantRequest(__('ownership.piece_selection_invalid'));
+        }
+        $links = $this->repository->receiptLinks($tenant, [$lot->id], true);
+        $this->consumeLinks($links, $selection->members, $selection->amount, $item->tracking_mode);
+    }
+
+    private function prepareQuantityState(string $ownedCode, string $lotCode, mixed $quantity, string $sourceCode,
+        array $pieceCodes, ?OwnershipPledgeSource $pledge, string $action): OwnershipQuantityState
+    {
+        // Lock the business source before Inventory, then re-read Ownership after its shared identity anchor.
+        $tenant = $this->resolveCurrentTenantId();
+        $kind = $this->resolveQuantityActionKind($action, $pledge);
+        $line = $kind === 'SALE' ? $this->sales->line($sourceCode) : null;
+        $reference = $this->lookup->byCode($ownedCode);
+        $item = $this->inventoryService->findForOwnershipById((int) $reference->inventory_item_id);
+        $owner = $this->lookup->byInventoryId((int) $item->id, true);
+        $lot = $this->repository->lotByCode($tenant, (int) $owner->id, $lotCode, true)
+            ?? throw new TenantNotFound(__('ownership.lot_not_found'));
+        $amount = InventoryQuantity::parse($quantity, $item->tracking_mode);
+        $quantity = InventoryQuantity::format($amount);
+        if ($line !== null || $pledge !== null) {
+            $this->validation->validateQuantityActionSource($line, $pledge, $owner, $lot, $sourceCode, $quantity, $pieceCodes);
+        }
+        $balance = $this->balances->locked((int) $owner->id, [$lot])[$lot->id];
+        $links = $this->repository->receiptLinks($tenant, [$lot->id], true);
+        // Fungible items have no serialized state to load or lock.
+        $members = $item->tracking_mode === 'SERIALIZED'
+            ? $this->repository->currentMemberships($tenant, [$lot->id], true, ownedItemId: (int) $owner->id)
+            : collect();
+        $sourceType = $kind === 'SALE' ? 'SaleOrderLine' : 'BusinessLoanCollateral';
+
+        // The repository already filters kind/type/source; only select the target lot in memory.
+        $commitments = $this->repository->commitments($tenant, $action === 'reserve' ? null : [$lot->id], true,
+            ownedItemId: (int) $owner->id, kind: $kind, sourceType: $sourceType, sourceCode: $sourceCode);
+        $commitment = $commitments->firstWhere('acquisition_lot_id', $lot->id);
+        $holds = $members->isEmpty() ? collect()
+            : $this->repository->pieceCommitments($tenant, $members->pluck('id')->all(), true);
+        return new OwnershipQuantityState(
+            tenantId: $tenant, owner: $owner, item: $item, lot: $lot, amount: $amount, quantity: $quantity,
+            balance: $balance, links: $links, members: $members, commitments: $commitments, commitment: $commitment,
+            pieceHolds: $holds, saleLine: $line, kind: $kind, sourceType: $sourceType, sourceCode: $sourceCode,
+        );
+    }
+
+    private function resolveQuantityActionKind(string $action, ?OwnershipPledgeSource $pledge): string
+    {
+        // The action decides the ledger dimension; incompatible source contexts never reach writes.
+        $kind = match ($action) {
+            'reserve', 'release', 'consume' => 'SALE',
+            'pledge', 'unpledge', 'forfeit' => 'PLEDGE',
+            default => throw new InvalidTenantRequest(__('ownership.commitment_source_invalid')),
+        };
+        if (($action === 'pledge' && $pledge === null) || ($pledge !== null && $action !== 'pledge')) {
             throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
         }
+        return $kind;
     }
 
-    private function validatePieces(string $mode, int $amount, array $codes, $stock, $members, $held, $commitment)
+    private function validateReceivedBacking(OwnershipQuantityState $state): void
     {
-        // Consumption can use its own physical reservation; it must still own the exact source-bound pieces.
-        if ($mode !== 'SERIALIZED') {
-            if ($codes !== []) throw new InvalidTenantRequest(__('ownership.piece_selection_invalid'));
-            return collect();
+        // Free Ownership capacity was checked already; now check the distinct received-backing constraint.
+        $received = 0;
+        foreach ($state->links as $link) $received += InventoryQuantity::parseBalance($link->remaining_owned_quantity);
+        if ($state->amount > $received - $state->balance['reserved'] - $state->balance['pledged']) {
+            throw new InvalidTenantRequest(__('ownership.insufficient_lot_balance'));
         }
-        if (count($codes) * 1000 !== $amount || count(array_unique($codes)) !== count($codes)
-            || count($stock->pieces) !== count($codes)) throw new InvalidTenantRequest(__('ownership.piece_selection_invalid'));
-        $byPiece = $members->keyBy('inventory_serialized_item_id');
-        $holds = $held->keyBy('ownership_piece_membership_id');
-        $selected = collect();
-        foreach ($stock->pieces as $piece) {
-            $member = $byPiece->get($piece['id']);
-            $hold = $member === null ? null : $holds->get($member->id);
-            if ($member === null || ($commitment === null && (! $piece['available'] || $hold !== null))
-                || ($commitment !== null && ($hold === null || $hold->ownership_commitment_id !== $commitment->id))) {
-                throw new InvalidTenantRequest(__('ownership.receipt_link_required'));
-            }
-            $selected->put($member->id, $member);
-        }
-        return $selected;
     }
 
-    private function checkSourceCapacity($line, $commitments, string $source, int $amount): void
+    private function reserveOwnershipQuantity(OwnershipQuantityState $state, Collection $selected, int $physicalAvailable): void
     {
-        // A sale line cannot reserve more than its requested quantity across all cost layers.
-        if ($line === null) return;
-        $total = $amount;
-        foreach ($commitments->where('kind', 'SALE')->where('source_code', $source) as $row) {
-            $total += InventoryQuantity::parseBalance($row->quantity);
-        }
-        if ($total > InventoryQuantity::parse($line->ordered_quantity)) throw new InvalidTenantRequest(__('ownership.commitment_insufficient'));
+        // Reserve only physically available units within the existing source capacity rule.
+        if ($state->amount > $physicalAvailable) throw new InvalidTenantRequest(__('ownership.insufficient_lot_balance'));
+        $this->validation->validateSaleLineReservationCapacity($state->saleLine, $state->commitments, $state->sourceCode, $state->amount);
+        $commitment = $this->increaseSourceCommitment($state->commitment, $state->owner, $state->lot,
+            $state->kind, $state->sourceType, $state->sourceCode, $state->amount);
+        $this->repository->createSourcePieceHolds($state->tenantId, (int) $commitment->id, $selected->keys()->all(), CarbonImmutable::now('UTC'));
     }
 
-    private function reserve($commitment, $owner, $lot, string $kind, string $type, string $source, int $amount)
+    private function releaseOrConsumeOwnershipQuantity(OwnershipQuantityState $state, Collection $selected, string $action): void
+    {
+        // Identity and remaining capacity were validated once before entering this mutation helper.
+        $commitment = $state->commitment;
+        $remaining = InventoryQuantity::parseBalance($commitment->remaining_quantity) - $state->amount;
+        // Released sale capacity is reusable, whereas consumed quantity continues to count against the line.
+        $sourceQuantity = $action === 'release'
+            ? InventoryQuantity::format(InventoryQuantity::parseBalance($commitment->quantity) - $state->amount)
+            : $commitment->quantity;
+        $this->requireSaved($this->repository->updateCommitment($state->tenantId, $commitment,
+            $sourceQuantity, InventoryQuantity::format($remaining)));
+        $endedAt = CarbonImmutable::now('UTC');
+        $holdIds = $state->pieceHolds->filter(fn ($hold) => $selected->has($hold->ownership_piece_membership_id))->pluck('id')->all();
+        $this->requireSaved($this->repository->endSourcePieceHolds($state->tenantId, (int) $commitment->id, $holdIds, $endedAt) === count($holdIds));
+        if (in_array($action, ['consume', 'forfeit'], true)) $this->consumeLinks($state->links, $selected, $state->amount, $state->item->tracking_mode);
+    }
+
+    private function recordOwnershipQuantityAction(OwnershipQuantityState $state, array $pieceCodes, string $action): OwnershipMutationResult
+    {
+        // Append one exact transition and advance the version once for the complete logical action.
+        $occurredAt = CarbonImmutable::now('UTC');
+        $movement = $this->movements->appendOwnershipMovement($this->movements->buildOwnershipQuantityTransition($action, $state->quantity, [
+            'code' => $this->codes->generate('ownership_movements', $occurredAt),
+            'owned_item_id' => $state->owner->id, 'acquisition_lot_id' => $state->lot->id,
+            'source_module' => $state->kind === 'SALE' ? 'SALES' : 'BUSINESS_LOAN', 'source_type' => $state->sourceType,
+            'source_code' => $state->sourceCode, 'created_by' => Auth::guard('tenantuser')->id(), 'occurred_at' => $occurredAt]));
+        $response = new OwnershipResult($state->owner->code, $this->repository->advanceVersion($state->owner),
+            [$state->lot->code], [$movement->code], [], $pieceCodes);
+        return new OwnershipMutationResult($response, $state->owner);
+    }
+
+    private function increaseSourceCommitment($commitment, $owner, $lot, string $kind, string $type, string $source, int $amount)
     {
         // Repeated allocations for one source/location split accumulate on the same source-bound record.
         if ($commitment !== null) {
@@ -154,8 +193,9 @@ class QuantityService extends BaseTenantService
     private function consumeLinks($links, $selected, int $amount, string $mode): void
     {
         // Reduce original received backing; close membership episodes without deleting their history.
+        $pieceCounts = $mode === 'SERIALIZED' ? $selected->countBy('ownership_receipt_link_id') : collect();
         foreach ($links as $link) {
-            $take = $mode === 'SERIALIZED' ? $selected->where('ownership_receipt_link_id', $link->id)->count() * 1000
+            $take = $mode === 'SERIALIZED' ? $pieceCounts->get($link->id, 0) * 1000
                 : min($amount, InventoryQuantity::parseBalance($link->remaining_owned_quantity));
             if ($take === 0) continue;
             $this->requireSaved($this->repository->updateReceiptRemaining($this->resolveCurrentTenantId(), $link,
@@ -163,8 +203,10 @@ class QuantityService extends BaseTenantService
             $amount -= $take;
         }
         if ($amount !== 0) throw new InvalidTenantRequest(__('ownership.receipt_link_required'));
-        foreach ($selected as $member) {
-            $this->requireSaved($this->repository->endMembership($this->resolveCurrentTenantId(), $member, CarbonImmutable::now('UTC')));
+        if ($selected->isNotEmpty()) {
+            $lotId = (int) $selected->first()->acquisition_lot_id;
+            $this->requireSaved($this->repository->endLotPieceMemberships($this->resolveCurrentTenantId(), $lotId,
+                $selected->keys()->all(), CarbonImmutable::now('UTC')) === $selected->count());
         }
     }
 

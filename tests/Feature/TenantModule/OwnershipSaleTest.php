@@ -9,6 +9,21 @@ use Tests\Support\OwnershipQuantityTestCase;
 /** OWN-08a-d: source-bound reservations and consumption, without sale financial orchestration. */
 class OwnershipSaleTest extends OwnershipQuantityTestCase
 {
+    public function test_released_capacity_can_be_reserved_again_without_reusing_consumed_quantity(): void
+    {
+        // Releasing five restores the line allowance. Consuming two permanently uses two of its five units.
+        $goods = $this->linkedGoods();
+        $source = $this->sale($goods, '5.000');
+        $this->change($goods, 'reserve', '5.000', $source);
+        $this->change($goods, 'release', '5.000', $source);
+        $this->change($goods, 'reserve', '5.000', $source);
+        $this->change($goods, 'consume', '2.000', $source);
+        $this->change($goods, 'release', '3.000', $source);
+        $this->assertNoChange(fn () => $this->change($goods, 'reserve', '3.001', $source));
+        $this->change($goods, 'reserve', '3.000', $source);
+        $this->assertLotBalance($goods, '8.000', '3.000');
+    }
+
     public function test_exact_reservation_and_one_thousandth_excess(): void
     {
         // Four reserved units leave exactly six; a new source cannot take 6.001.

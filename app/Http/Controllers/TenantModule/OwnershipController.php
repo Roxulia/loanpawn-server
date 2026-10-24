@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\TenantModule;
 
 use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
+use App\DataObjects\RequestObjects\InventoryListFilter;
 use App\Http\Controllers\Controller;
 use App\Services\TenantModule\OwnershipService;
 use Illuminate\Http\JsonResponse;
@@ -42,7 +43,7 @@ class OwnershipController extends Controller
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
         return $this->successResponse($this->ownershipService->inventoryOptions(
-            \App\DataObjects\RequestObjects\InventoryListFilter::fromValidated($data),
+            InventoryListFilter::fromValidated($data),
         )->toArray());
     }
 

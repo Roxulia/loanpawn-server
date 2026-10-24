@@ -22,7 +22,7 @@ class OwnershipMonthlyReadTest extends OwnershipMonthlyTestCase
         $this->assertSame(999999999, app(TenantContext::class)->id());
         $this->setTenant($this->ownershipFixture);
         $header = $this->checkpoint($goods);
-        $this->assertSame('2026-10-31 17:30:00', $header->cutoff_at);
+        $this->assertSame('2026-10-31 17:30:00.000000', $header->cutoff_at);
         $this->assertSame('Asia/Yangon', $header->timezone);
         DB::table('tenant_settings')->where('tenant_id', $tenant)->where('key', 'timezone')->update(['value' => 'America/Los_Angeles']);
         $this->assertSame(0, $this->summarize());

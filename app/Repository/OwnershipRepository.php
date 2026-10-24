@@ -2,10 +2,15 @@
 
 namespace App\Repository;
 
+use App\Exceptions\TenantNotFound;
 use App\Models\InventoryModule\InventoryItem;
 use App\Models\OwnershipModule\AcquisitionLot;
 use App\Models\OwnershipModule\OwnedItem;
 use App\Models\OwnershipModule\OwnershipMovement;
+use App\Repository\Ownership\CheckpointQueries;
+use App\Repository\Ownership\ReadQueries;
+use App\Repository\Ownership\StateQueries;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection as ReadCollection;
@@ -13,8 +18,9 @@ use Illuminate\Support\Facades\DB;
 
 class OwnershipRepository
 {
-    use \App\Repository\Ownership\ReadQueries;
-    use \App\Repository\Ownership\StateQueries;
+    use ReadQueries;
+    use StateQueries;
+    use CheckpointQueries;
 
     /** @return ReadCollection<int, object> Latest eligible header keyed by owned-item ID. */
     public function latestCompletedCheckpoints(int $tenantId, array $ownedItemIds, string $cutoffAt): ReadCollection
@@ -172,9 +178,13 @@ class OwnershipRepository
     {
         // Enforce append/publication exclusion for new and compatibility callers alike.
         if ($this->lockAggregate($tenantId, (int) $data['owned_item_id']) === null) {
-            throw new \App\Exceptions\TenantNotFound(__('ownership.not_found'));
+            throw new TenantNotFound(__('ownership.not_found'));
         }
-        return OwnershipMovement::query()->create([...$data, 'tenant_id' => $tenantId]);
+        // Recording time is server-owned even when a caller provides an older business occurrence date.
+        $movement = new OwnershipMovement([...$data, 'tenant_id' => $tenantId]);
+        $movement->setCreatedAt(CarbonImmutable::now('UTC'));
+        $movement->save();
+        return $movement;
     }
 
     public function movements(int $tenantId, int $ownedItemId): Collection

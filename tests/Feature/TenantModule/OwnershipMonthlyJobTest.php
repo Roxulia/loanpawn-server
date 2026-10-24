@@ -21,7 +21,7 @@ class OwnershipMonthlyJobTest extends OwnershipMonthlyTestCase
         Bus::fake();
         $registry = \Mockery::mock(TenantSettingRepository::class);
         $tenant = (int) $this->ownershipFixture['tenant']->id;
-        $registry->shouldReceive('allTenantIds')->once()->andReturn(collect([$tenant]));
+        $registry->shouldReceive('streamTenantIds')->once()->andReturn(collect([$tenant]));
         $job = new SummarizeMonthlyOwnershipMovementsJob();
         $job->handle(app(OwnershipMonthlySummaryService::class), $registry);
         Bus::assertDispatched(SummarizeMonthlyOwnershipMovementsJob::class,

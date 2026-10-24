@@ -2,6 +2,7 @@
 
 namespace App\Models\OwnershipModule;
 
+use App\Models\PurchasingModule\PurchaseReceiptLine;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,6 @@ class OwnershipReceiptLink extends Model
     public function purchaseReceiptLine(): BelongsTo
     {
         // Resolve the stored reference within the existing tenant model conventions.
-        return $this->belongsTo(\App\Models\PurchasingModule\PurchaseReceiptLine::class, 'purchase_receipt_line_id');
+        return $this->belongsTo(PurchaseReceiptLine::class, 'purchase_receipt_line_id');
     }
 }

@@ -18,6 +18,13 @@ class PurchaseSourceService extends BaseTenantService
             ?? throw new TenantNotFound(__('ownership.purchase_source_invalid'));
     }
 
+    public function returnLine(string $code)
+    {
+        // Public return endpoints remain disabled; only existing internal callers use this resolver.
+        return $this->repository->ownershipReturnLine($this->resolveCurrentTenantId(), $code)
+            ?? throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
+    }
+
     public function qualifiedLine(string $code): array
     {
         // Full settlement establishes acquisition; physical receipt is a separate fact.

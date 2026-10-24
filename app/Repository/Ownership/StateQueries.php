@@ -2,14 +2,27 @@
 
 namespace App\Repository\Ownership;
 
+use App\Exceptions\TenantNotFound;
+use App\Models\OwnershipModule\OwnershipMovement;
 use App\Models\OwnershipModule\{AcquisitionLot, OwnedItem, OwnershipReceiptLink, OwnershipPieceMembership, OwnershipCommitment, OwnershipPieceCommitment};
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Collection;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /** Current locking reads and narrow persistence; transition rules stay in services. */
 trait StateQueries
 {
+    public function sourceMovements(int $tenantId, int $ownedItemId, string $type, string $code): Collection
+    {
+        // Return validation reads actual current reversal rows under the already-held aggregate anchor.
+        $this->requireLockTransaction();
+        return OwnershipMovement::query()->where('tenant_id', $tenantId)
+            ->where('owned_item_id', $ownedItemId)->where('source_type', $type)->where('source_code', $code)
+            ->orderBy('id')->lockForUpdate()->get();
+    }
+
     public function findOwnedByCode(int $tenantId, string $code, bool $lock = false): ?OwnedItem
     {
         // New bounded paths deliberately avoid the legacy eager-loaded aggregate lookup.
@@ -66,16 +79,81 @@ trait StateQueries
             ->whereNull('ended_at')->orderBy('id')->when($lock, fn ($q) => $q->lockForUpdate())->get();
     }
 
-    public function commitments(int $tenantId, array $lotIds, bool $lock = false, ?int $ownedItemId = null,
+    public function commitments(int $tenantId, ?array $lotIds, bool $lock = false, ?int $ownedItemId = null,
         ?string $kind = null, ?string $sourceType = null, ?string $sourceCode = null): Collection
     {
         // Filter before loading/locking; retain exhausted rows only for the requested source's history.
-        return OwnershipCommitment::query()->where('tenant_id', $tenantId)->whereIn('acquisition_lot_id', $lotIds)
+        if ($lotIds === null && $ownedItemId === null) throw new LogicException('Source commitments require an item or lot scope.');
+        return OwnershipCommitment::query()->where('tenant_id', $tenantId)
+            ->when($lotIds !== null, fn ($query) => $query->whereIn('acquisition_lot_id', $lotIds))
             ->when($ownedItemId !== null, fn ($query) => $query->where('owned_item_id', $ownedItemId))
             ->when($kind !== null, fn ($query) => $query->where('kind', $kind))
             ->when($sourceType !== null, fn ($query) => $query->where('source_type', $sourceType))
             ->when($sourceCode !== null, fn ($query) => $query->where('source_code', $sourceCode))
             ->orderBy('id')->when($lock, fn ($q) => $q->lockForUpdate())->get();
+    }
+
+    public function currentMembershipsForPieces(int $tenantId, array $pieceIds): Collection
+    {
+        // Exact piece IDs come from authoritative Inventory custody under the shared item/aggregate anchors.
+        $this->requireLockTransaction();
+        if ($pieceIds === []) return collect();
+        return OwnershipPieceMembership::query()->where('tenant_id', $tenantId)
+            ->whereIn('inventory_serialized_item_id', $pieceIds)->whereNull('ended_at')->orderBy('id')->lockForUpdate()->get();
+    }
+
+    public function latestLotMembershipsForPieces(int $tenantId, int $ownedItemId, int $lotId, array $pieceIds): Collection
+    {
+        // Resolve one latest historical episode per exact piece without loading all retained episodes.
+        $latest = OwnershipPieceMembership::query()->where('tenant_id', $tenantId)->where('owned_item_id', $ownedItemId)
+            ->where('acquisition_lot_id', $lotId)->whereIn('inventory_serialized_item_id', $pieceIds)
+            ->selectRaw('MAX(id) AS id')->groupBy('inventory_serialized_item_id');
+        return OwnershipPieceMembership::query()->where('tenant_id', $tenantId)->whereIn('id', $latest)
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('inventory_serialized_item_id');
+    }
+
+    public function insertOwnershipMemberships(array $rows): void
+    {
+        // Fixed service-built rows retain the database's single-current-piece uniqueness guard.
+        $this->requireLockTransaction();
+        for ($offset = 0; $offset < count($rows); $offset += 500) {
+            OwnershipPieceMembership::query()->insert(array_slice($rows, $offset, 500));
+        }
+    }
+
+    public function createSourcePieceHolds(int $tenantId, int $commitmentId, array $membershipIds, CarbonImmutable $now): void
+    {
+        // Bound INSERT bindings while retaining one source-bound open hold per selected membership.
+        $this->requireLockTransaction();
+        for ($offset = 0; $offset < count($membershipIds); $offset += 500) {
+            $rows = array_map(fn ($id) => ['tenant_id' => $tenantId, 'ownership_commitment_id' => $commitmentId,
+                'ownership_piece_membership_id' => $id, 'created_at' => $now, 'updated_at' => $now], array_slice($membershipIds, $offset, 500));
+            OwnershipPieceCommitment::query()->insert($rows);
+        }
+    }
+
+    public function endSourcePieceHolds(int $tenantId, int $commitmentId, array $holdIds, CarbonImmutable $now): int
+    {
+        // An incomplete/foreign set is detected by the caller and rolls back its outer operation.
+        $this->requireLockTransaction();
+        $updated = 0;
+        for ($offset = 0; $offset < count($holdIds); $offset += 500) {
+            $updated += OwnershipPieceCommitment::query()->where('tenant_id', $tenantId)->where('ownership_commitment_id', $commitmentId)
+                ->whereIn('id', array_slice($holdIds, $offset, 500))->whereNull('ended_at')->update(['ended_at' => $now]);
+        }
+        return $updated;
+    }
+
+    public function endLotPieceMemberships(int $tenantId, int $lotId, array $membershipIds, CarbonImmutable $now): int
+    {
+        // End exact current episodes in batches; original receipt/source history remains retained.
+        $this->requireLockTransaction();
+        $updated = 0;
+        for ($offset = 0; $offset < count($membershipIds); $offset += 500) {
+            $updated += OwnershipPieceMembership::query()->where('tenant_id', $tenantId)->where('acquisition_lot_id', $lotId)
+                ->whereIn('id', array_slice($membershipIds, $offset, 500))->whereNull('ended_at')->update(['ended_at' => $now]);
+        }
+        return $updated;
     }
 
     public function pieceCommitments(int $tenantId, array $membershipIds, bool $lock = false): Collection
@@ -85,11 +163,26 @@ trait StateQueries
             ->whereNull('ended_at')->orderBy('id')->when($lock, fn ($q) => $q->lockForUpdate())->get();
     }
 
-    public function lockedBalanceParts(int $tenantId, int $itemId, string $cutoff): array
+    public function lockedOwnedQuantity(int $tenantId, int $ownedItemId): string
+    {
+        // UNIQUE acquisition needs one total, not every old lot or movement model in PHP.
+        $this->requireLockTransaction();
+        $header = DB::table('ownership_monthly_checkpoints')->where('tenant_id', $tenantId)->where('owned_item_id', $ownedItemId)
+            ->whereNotNull('completed_at')->where('cutoff_at', '<=', CarbonImmutable::now('UTC')->toDateTimeString())
+            ->orderByDesc('month')->lockForUpdate()->first();
+        $tail = DB::table('ownership_movements')->where('tenant_id', $tenantId)->where('owned_item_id', $ownedItemId)
+            ->when($header !== null, fn ($query) => $query->where(function ($coverage) use ($header): void {
+                $coverage->where('id', '>', $header->movement_watermark)->orWhere('created_at', '>=', $header->cutoff_at)->orWhereNull('created_at');
+            }))->selectRaw('CAST(? + COALESCE(SUM(owned_delta), 0) AS DECIMAL(24,3)) AS owned', [$header->owned_quantity ?? '0.000'])
+            ->lockForUpdate()->first();
+        return (string) $tail->owned;
+    }
+
+    public function lockedBalanceParts(int $tenantId, int $itemId, string $cutoff, ?array $lotIds = null): array
     {
         // Use current locking rows after the aggregate anchor, even with an older repeatable-read snapshot.
         if ($this->lockAggregate($tenantId, $itemId) === null) {
-            throw new \App\Exceptions\TenantNotFound(__('ownership.not_found'));
+            throw new TenantNotFound(__('ownership.not_found'));
         }
         $header = DB::table('ownership_monthly_checkpoints')->where('tenant_id', $tenantId)->where('owned_item_id', $itemId)
             ->whereNotNull('completed_at')->where('cutoff_at', '<=', $cutoff)->orderByDesc('month')->lockForUpdate()->first();
@@ -98,8 +191,10 @@ trait StateQueries
             ->join('acquisition_lots as lot', 'lot.id', '=', 'balance.acquisition_lot_id')
             ->where('balance.tenant_id', $tenantId)->where('lot.tenant_id', $tenantId)->where('lot.owned_item_id', $itemId)
             ->where('balance.ownership_monthly_checkpoint_id', $header->id)
+            ->when($lotIds !== null, fn ($query) => $query->whereIn('balance.acquisition_lot_id', $lotIds))
             ->orderBy('balance.id')->select('balance.*')->lockForUpdate()->get()->keyBy('acquisition_lot_id');
         $tail = DB::table('ownership_movements')->where('tenant_id', $tenantId)->where('owned_item_id', $itemId)
+            ->when($lotIds !== null, fn ($query) => $query->whereIn('acquisition_lot_id', $lotIds))
             ->when($header !== null, fn ($q) => $q->where(function ($q) use ($header): void {
                 $q->where('id', '>', $header->movement_watermark)->orWhere('created_at', '>=', $header->cutoff_at)->orWhereNull('created_at');
             }))->orderBy('id')->lockForUpdate()->get();
@@ -161,7 +256,7 @@ trait StateQueries
         return (int) $item->update_key;
     }
 
-    private function persistState(int $tenantId, \Illuminate\Database\Eloquent\Model $model, array $data, bool $openOnly = false): bool
+    private function persistState(int $tenantId, Model $model, array $data, bool $openOnly = false): bool
     {
         // Narrow public helpers supply fixed columns; every write includes tenant and primary-key scope.
         $updated = $model->newQuery()->where('tenant_id', $tenantId)->whereKey($model->getKey())
@@ -174,6 +269,6 @@ trait StateQueries
     private function requireLockTransaction(): void
     {
         // Autocommit would release the anchor before its protected read or append.
-        if (DB::transactionLevel() === 0) throw new \LogicException('Ownership locking requires an active transaction.');
+        if (DB::transactionLevel() === 0) throw new LogicException('Ownership locking requires an active transaction.');
     }
 }

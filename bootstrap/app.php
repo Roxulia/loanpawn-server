@@ -10,6 +10,7 @@ use App\Console\Commands\RepairInterestSchedules;
 use App\Console\Commands\RepairTenantLenderCodes;
 use App\Console\Commands\SummarizeMonthlyFinancialMovements;
 use App\Console\Commands\SummarizeMonthlyInventoryMovements;
+use App\Console\Commands\SummarizeMonthlyOwnershipMovements;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\ApplyLocale;
 use App\Http\Middleware\EnsureAdminPasswordChanged;
@@ -34,6 +35,7 @@ use App\Jobs\PurgeExpiredTenantUserNotificationsJob;
 use App\Jobs\ResetTenantLicenseMonthlySlipCountJob;
 use App\Jobs\SummarizeMonthlyFinancialMovementsJob;
 use App\Jobs\SummarizeMonthlyInventoryMovementsJob;
+use App\Jobs\SummarizeMonthlyOwnershipMovementsJob;
 use App\Support\InternalServerErrorNotifier;
 use App\Utility\MessageCode;
 use App\Utility\Messages;
@@ -63,6 +65,7 @@ return Application::configure(basePath: dirname(__DIR__))
         EnsureTenantCurrencySettings::class,
         SummarizeMonthlyFinancialMovements::class,
         SummarizeMonthlyInventoryMovements::class,
+        SummarizeMonthlyOwnershipMovements::class,
         MigrateLegacyAccounting::class,
         ReconcileFinancialAccountBalances::class,
     ])
@@ -109,6 +112,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // All tenant-local prior months are closed by the second day in UTC.
         $schedule->job(new SummarizeMonthlyInventoryMovementsJob)
             ->monthlyOn(2, '00:45')->timezone('UTC')->withoutOverlapping();
+        // Ownership is independent of custody/financial publication order.
+        $schedule->job(new SummarizeMonthlyOwnershipMovementsJob)
+            ->monthlyOn(2, '01:00')->timezone('UTC')->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request) {

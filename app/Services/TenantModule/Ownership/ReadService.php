@@ -9,8 +9,8 @@ use App\Exceptions\{InvalidTenantRequest, TenantNotFound};
 use App\Repository\OwnershipRepository;
 use App\Services\BaseTenantService;
 use App\Services\TenantModule\InventoryService;
-use Carbon\CarbonImmutable;
 use Brick\Math\BigDecimal;
+use Carbon\CarbonImmutable;
 
 /** Bounded scalar projections with batched facts; serialization never triggers a query. */
 class ReadService extends BaseTenantService
@@ -28,29 +28,15 @@ class ReadService extends BaseTenantService
         $inventory = $this->inventoryService->summariesByCodes($rows->pluck('inventory_item_code')->all());
         $facts = $this->repository->lotFacts($tenant, $ids);
         $receipts = $this->purchases->itemReceipts($ids);
-        $items = $rows->map(function ($row) use ($inventory, $facts, $receipts): OwnershipItemSummary {
-            $physical = $inventory->get($row->inventory_item_code);
-            $lot = $facts->get($row->id);
-            $received = $receipts->get($row->id)?->quantity ?? '0.000';
-            return new OwnershipItemSummary(code: $row->code, inventoryItemCode: $row->inventory_item_code,
-                catalogItemCode: $row->catalog_item_code, name: $row->name, description: $row->description,
-                trackingMode: $row->tracking_mode, unitCode: $row->unit_code, unitName: $row->unit_name,
-                quantityScale: (string) $row->quantity_scale, ownedQuantity: $row->owned,
-                reservedQuantity: $row->reserved, pledgedQuantity: $row->pledged, availableQuantity: $row->available,
-                physicalQuantity: $physical->totalQuantity, receivedBackedQuantity: (string) ($lot?->received ?? '0.000'),
-                awaitingReceiptQuantity: $this->difference($lot?->acquired ?? '0.000', $received),
-                pendingLinkQuantity: $this->difference($received, $lot?->linked ?? '0.000'), lotCount: (int) ($lot?->lot_count ?? 0),
-                lifecycleStatus: $row->lifecycle_status, updateKey: (int) $row->update_key,
-                imageUrl: $physical->imageUrl, imageUrlExpiresAt: $physical->imageUrlExpiresAt);
-        })->all();
+        $items = $rows->map(fn ($row) => $this->buildOwnershipItemSummary($row, $inventory, $facts, $receipts))->all();
         return OwnershipItemPage::fromPaginator($page, $items);
     }
 
     public function detail(string $code): OwnershipItemDetail
     {
         // Detail never embeds all lots or pieces; each has its own bounded contract.
-        $this->lookup->byCode($code);
-        $summary = $this->itemPage(new OwnershipListFilter(), $code)->items[0];
+        $summary = $this->itemPage(new OwnershipListFilter(perPage: 1), $code)->items[0]
+            ?? throw new TenantNotFound(__('ownership.not_found'));
         $physical = $this->inventoryService->itemDetail($summary->inventoryItemCode);
         return new OwnershipItemDetail($summary, $physical->locations,
             $summary->pendingLinkQuantity === '0.000' ? 'LINKED' : 'PENDING');
@@ -65,18 +51,7 @@ class ReadService extends BaseTenantService
         $rows = collect($page->items());
         $facts = $this->repository->receiptFacts($tenant, $rows->pluck('id')->all());
         $receipts = $this->purchases->quantities($rows->where('source_module', 'PURCHASING')->where('source_type', 'PurchaseOrderLine')->pluck('source_code')->all());
-        $items = $rows->map(function ($row) use ($facts, $receipts): OwnershipLot {
-            $fact = $facts->get($row->id);
-            $received = $receipts->get($row->source_code)?->quantity ?? '0.000';
-            return new OwnershipLot(code: $row->code, sourceModule: $row->source_module, sourceType: $row->source_type,
-                sourceCode: $row->source_code, acquiredAt: $row->acquired_at, acquiredQuantity: $row->acquired_quantity,
-                ownedQuantity: $row->owned, reservedQuantity: $row->reserved, pledgedQuantity: $row->pledged,
-                availableQuantity: $row->available, receivedBackedQuantity: $fact?->received ?? '0.000',
-                awaitingReceiptQuantity: $this->difference($row->acquired_quantity, $received),
-                pendingLinkQuantity: $this->difference($received, $fact?->linked ?? '0.000'),
-                unitCostBasis: $row->unit_cost_basis, estimatedUnitValue: $row->estimated_unit_value,
-                currencyCode: $row->currency_code, description: $row->description);
-        })->all();
+        $items = $rows->map(fn ($row) => $this->buildOwnershipLotSummary($row, $facts, $receipts))->all();
         return OwnershipLotPage::fromPaginator($page, $items);
     }
 
@@ -103,7 +78,7 @@ class ReadService extends BaseTenantService
         if ($lot->source_module !== 'PURCHASING' || $lot->source_type !== 'PurchaseOrderLine') {
             throw new InvalidTenantRequest(__('ownership.receipt_link_invalid'));
         }
-        if ($filter->purchaseReceiptLineCode !== null) return $this->pieces($owner, $lot, $filter);
+        if ($filter->purchaseReceiptLineCode !== null) return $this->pageReceiptPieceCandidates($owner, $lot, $filter);
         $page = $this->purchases->page($lot->source_code, $filter);
         $allocated = $this->repository->receiptAllocatedTotals($tenant, collect($page->items())->pluck('id')->all());
         $items = collect($page->items())->map(function ($row) use ($allocated, $owner): OwnershipReceiptCandidate {
@@ -114,7 +89,40 @@ class ReadService extends BaseTenantService
         return OwnershipReceiptPage::fromPaginator($page, $items);
     }
 
-    private function pieces($owner, $lot, OwnershipCandidateFilter $filter): OwnershipPiecePage
+    private function buildOwnershipItemSummary($row, $inventory, $facts, $receipts): OwnershipItemSummary
+    {
+        // Page-level batched facts supply every field; mapping never issues a database query.
+        $physical = $inventory->get($row->inventory_item_code);
+        $lot = $facts->get($row->id);
+        $received = $receipts->get($row->id)?->quantity ?? '0.000';
+        return new OwnershipItemSummary(code: $row->code, inventoryItemCode: $row->inventory_item_code,
+            catalogItemCode: $row->catalog_item_code, name: $row->name, description: $row->description,
+            trackingMode: $row->tracking_mode, unitCode: $row->unit_code, unitName: $row->unit_name,
+            quantityScale: (string) $row->quantity_scale, ownedQuantity: $row->owned,
+            reservedQuantity: $row->reserved, pledgedQuantity: $row->pledged, availableQuantity: $row->available,
+            physicalQuantity: $physical->totalQuantity, receivedBackedQuantity: (string) ($lot?->received ?? '0.000'),
+            awaitingReceiptQuantity: $this->difference($lot?->acquired ?? '0.000', $received),
+            pendingLinkQuantity: $this->difference($received, $lot?->linked ?? '0.000'), lotCount: (int) ($lot?->lot_count ?? 0),
+            lifecycleStatus: $row->lifecycle_status, updateKey: (int) $row->update_key,
+            imageUrl: $physical->imageUrl, imageUrlExpiresAt: $physical->imageUrlExpiresAt);
+    }
+
+    private function buildOwnershipLotSummary($row, $facts, $receipts): OwnershipLot
+    {
+        // Preserve per-lot cost/currency and the distinction between awaiting receipt and pending linking.
+        $fact = $facts->get($row->id);
+        $received = $receipts->get($row->source_code)?->quantity ?? '0.000';
+        return new OwnershipLot(code: $row->code, sourceModule: $row->source_module, sourceType: $row->source_type,
+            sourceCode: $row->source_code, acquiredAt: $row->acquired_at, acquiredQuantity: $row->acquired_quantity,
+            ownedQuantity: $row->owned, reservedQuantity: $row->reserved, pledgedQuantity: $row->pledged,
+            availableQuantity: $row->available, receivedBackedQuantity: $fact?->received ?? '0.000',
+            awaitingReceiptQuantity: $this->difference($row->acquired_quantity, $received),
+            pendingLinkQuantity: $this->difference($received, $fact?->linked ?? '0.000'),
+            unitCostBasis: $row->unit_cost_basis, estimatedUnitValue: $row->estimated_unit_value,
+            currencyCode: $row->currency_code, description: $row->description);
+    }
+
+    private function pageReceiptPieceCandidates($owner, $lot, OwnershipCandidateFilter $filter): OwnershipPiecePage
     {
         // Restrict serial candidates to the selected receipt before paging them.
         $receipt = $this->purchases->receipt($filter->purchaseReceiptLineCode);

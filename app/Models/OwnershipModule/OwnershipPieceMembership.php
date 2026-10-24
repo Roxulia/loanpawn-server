@@ -2,6 +2,7 @@
 
 namespace App\Models\OwnershipModule;
 
+use App\Models\InventoryModule\InventorySerializedItem;
 use App\Traits\BelongToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,6 @@ class OwnershipPieceMembership extends Model
     public function serializedItem(): BelongsTo
     {
         // Resolve the stored reference within the existing tenant model conventions.
-        return $this->belongsTo(\App\Models\InventoryModule\InventorySerializedItem::class, 'inventory_serialized_item_id');
+        return $this->belongsTo(InventorySerializedItem::class, 'inventory_serialized_item_id');
     }
 }

@@ -3,20 +3,14 @@
 namespace Tests\Unit;
 
 use App\Exceptions\InvalidTenantRequest;
-use App\Models\OwnershipModule\{AcquisitionLot, OwnedItem};
 use App\Repository\OwnershipRepository;
-use App\Services\PawnModule\CollateralItemService;
-use App\Services\PawnModule\LoanContractServices\ExpirationService;
-use App\Services\TableIdGenerationService;
-use App\Services\TenantModule\{InventoryService, OwnershipService, TenantIdempotencyService};
-use App\Support\TenantContext;
-use Illuminate\Support\Facades\{Auth, DB};
+use App\Services\TenantModule\Ownership\{MovementService, QuantityValidationService};
+use App\Support\InventoryQuantity;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
-use RuntimeException;
 use Tests\TestCase;
 
-/** OWN-05e: exercise service decisions up to persistence, not real SQL balances or atomicity. */
+/** OWN-05e/20/21: pure transition and capacity contracts; database tests cover authority and atomicity. */
 class OwnershipTransitionTest extends TestCase
 {
     public function test_sale_reservation_increases_reserved_only(): void
@@ -79,20 +73,16 @@ class OwnershipTransitionTest extends TestCase
     public function test_excess_quantity_is_rejected_before_movement(string $operation, array $before, string $quantity): void
     {
         // Rejections must not reach ledger persistence, even for a one-thousandth shortfall.
-        [$service, $repository] = $this->service($before);
-        $repository->shouldNotReceive('createMovement');
         $this->expectException(InvalidTenantRequest::class);
-        $this->operate($service, $operation, $quantity);
+        $this->propose($operation, $before, $quantity);
     }
 
     #[DataProvider('invalidQuantities')]
     public function test_invalid_quantity_is_rejected_before_movement(string $operation, string $quantity): void
     {
         // Every operation rejects zero, negative and over-precision input without a proposed movement.
-        [$service, $repository] = $this->service(['10.000', '3.000', '3.000']);
-        $repository->shouldNotReceive('createMovement');
         $this->expectException(InvalidTenantRequest::class);
-        $this->operate($service, $operation, $quantity);
+        $this->propose($operation, ['10.000', '3.000', '3.000'], $quantity);
     }
 
     public static function excessQuantities(): array
@@ -125,21 +115,8 @@ class OwnershipTransitionTest extends TestCase
 
     private function assertMovement(string $operation, array $before, string $quantity, string $type, array $deltas): void
     {
-        // Capture the real service payload and stop at the mocked persistence boundary.
-        [$service, $repository] = $this->service($before);
-        $stop = new RuntimeException('Movement captured; no persistence performed.');
-        $movement = null;
-        $repository->shouldReceive('createMovement')->once()->with(1, Mockery::type('array'))
-            ->andReturnUsing(function (int $tenantId, array $data) use (&$movement, $stop): never {
-                $movement = $data;
-                throw $stop;
-            });
-        try {
-            $this->operate($service, $operation, $quantity);
-            $this->fail('The operation must reach the movement boundary.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($stop, $exception);
-        }
+        // Exercise the same pure helpers used by actual quantity mutations, without mocking source persistence.
+        $movement = $this->propose($operation, $before, $quantity);
 
         // Assert literal deltas instead of reproducing the transition calculation in test code.
         $this->assertIsArray($movement);
@@ -151,42 +128,21 @@ class OwnershipTransitionTest extends TestCase
         $this->assertSame('SOURCE-A', $movement['source_code']);
     }
 
-    private function service(array $before): array
+    private function propose(string $operation, array $before, string $quantity): array
     {
-        // Isolate external ports while executing the real service orchestration and validation.
-        app(TenantContext::class)->set(1);
-        DB::shouldReceive('transaction')->andReturnUsing(static fn (callable $callback) => $callback());
-        DB::shouldReceive('connection')->never();
-        DB::shouldReceive('table')->never();
-        Auth::shouldReceive('id')->andReturn(1);
+        // These are explicit locked-balance/source inputs, not evidence of tenant/custody/source resolution.
+        $actions = ['reserve' => 'reserve', 'releaseSale' => 'release', 'consume' => 'consume',
+            'pledge' => 'pledge', 'releasePledge' => 'unpledge', 'forfeit' => 'forfeit'];
+        $balance = ['owned' => InventoryQuantity::parseBalance($before[0]),
+            'reserved' => InventoryQuantity::parseBalance($before[1]), 'pledged' => InventoryQuantity::parseBalance($before[2])];
+        $balance['available'] = $balance['owned'] - $balance['reserved'] - $balance['pledged'];
+        $amount = InventoryQuantity::parse($quantity);
+        $sourceRemaining = in_array($operation, ['releasePledge', 'forfeit'], true) ? $before[2] : $before[1];
+        app(QuantityValidationService::class)->validateQuantityActionBalance($actions[$operation], $amount, $balance, $sourceRemaining);
+
+        // A pure proposal must not reach database persistence on either successful or rejected input.
         $repository = Mockery::mock(OwnershipRepository::class);
-        $item = (new OwnedItem())->forceFill(['id' => 11, 'tenant_id' => 1, 'code' => 'OWN-A']);
-        $lot = (new AcquisitionLot())->forceFill(['id' => 21, 'tenant_id' => 1, 'owned_item_id' => 11, 'code' => 'LOT-A']);
-        $repository->shouldReceive('ownedItemByCode')->with(1, 'OWN-A', true)->andReturn($item);
-        $repository->shouldReceive('lotByCode')->with(1, 11, 'LOT-A', true)->andReturn($lot);
-        $repository->shouldReceive('lotBalances')->with(1, 11, 21)
-            ->andReturn(['owned' => $before[0], 'reserved' => $before[1], 'pledged' => $before[2]]);
-        $idempotency = Mockery::mock(TenantIdempotencyService::class);
-        $idempotency->shouldReceive('reserveOptional')->andReturnNull();
-        $codes = Mockery::mock(TableIdGenerationService::class);
-        $codes->shouldReceive('generateForTenant')->andReturn('MOVE-A');
-
-        // Unconfigured mocks reject attempts to perform unrelated Inventory, Pawn or expiry work.
-        return [new OwnershipService($repository, Mockery::mock(InventoryService::class),
-            Mockery::mock(CollateralItemService::class), Mockery::mock(ExpirationService::class),
-            $idempotency, $codes), $repository];
-    }
-
-    private function operate(OwnershipService $service, string $operation, string $quantity): void
-    {
-        // Adapt public entrypoints only; never invoke private calculation methods through reflection.
-        match ($operation) {
-            'reserve' => $service->reserveSale('OWN-A', 'LOT-A', $quantity, 'SOURCE-A'),
-            'releaseSale' => $service->releaseSaleReservation('OWN-A', 'LOT-A', $quantity, 'SOURCE-A'),
-            'consume' => $service->consumeSaleReservation('OWN-A', 'LOT-A', $quantity, 'SOURCE-A'),
-            'pledge' => $service->reservePledge('OWN-A', 'LOT-A', $quantity, 'BusinessLoanCollateral', 'SOURCE-A'),
-            'releasePledge' => $service->releasePledge('OWN-A', 'LOT-A', $quantity, 'BusinessLoanCollateral', 'SOURCE-A'),
-            'forfeit' => $service->reduceForfeiture('OWN-A', 'LOT-A', $quantity, 'BusinessLoanCollateral', 'SOURCE-A'),
-        };
+        $repository->shouldNotReceive('createMovement');
+        return (new MovementService($repository))->buildOwnershipQuantityTransition($actions[$operation], $quantity, ['source_code' => 'SOURCE-A']);
     }
 }

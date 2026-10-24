@@ -9,6 +9,21 @@ use Tests\Support\OwnershipMonthlyTestCase;
 /** OWN-10d-g/11h-i: guarded committed fixtures, independent processes and observed lock waits. */
 class OwnershipConcurrencyTest extends OwnershipMonthlyTestCase
 {
+    public function test_distinct_paid_sources_cannot_create_two_current_unique_lots(): void
+    {
+        // Different source locks must still contend on the shared Inventory identity for first acquisition.
+        $item = $this->createItem('UNIQUE');
+        $first = $this->paidPurchase($item, '1.000', '12.34');
+        $second = $this->paidPurchase($item, '1.000', '12.34');
+        $a = ['purchase_orders' => [$first['order']->code], 'items' => [$item->code],
+            'purchase_line' => $first['line']->code, 'key' => 'unique-first-source'];
+        $b = ['purchase_orders' => [$second['order']->code], 'items' => [$item->code],
+            'purchase_line' => $second['line']->code, 'key' => 'unique-second-source'];
+        $this->race('acquire', $a, 'acquire', $b, 'rejected');
+        $this->assertSame(1, DB::table('acquisition_lots')->where('tenant_id', $this->ownershipFixture['tenant']->id)->count());
+        $this->assertSame('1.000', (string) DB::table('ownership_movements')->where('tenant_id', $this->ownershipFixture['tenant']->id)->sum('owned_delta'));
+    }
+
     public function test_one_purchase_source_cannot_be_acquired_twice(): void
     {
         $purchase = $this->paidPurchase($this->createItem(), '1.000', '12.34');

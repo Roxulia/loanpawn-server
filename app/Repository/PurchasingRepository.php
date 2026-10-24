@@ -17,6 +17,13 @@ use Illuminate\Support\Facades\DB;
 
 class PurchasingRepository
 {
+    public function ownershipReturnLine(int $tenantId, string $code): ?PurchaseReturnLine
+    {
+        // Resolve return authority through the owning module before Ownership anchors are acquired.
+        return PurchaseReturnLine::query()->where('tenant_id', $tenantId)->where('code', $code)
+            ->with(['returnRecord', 'receiptLine.orderLine'])->lockForUpdate()->first();
+    }
+
     public function ownershipLine(int $tenantId, string $code, bool $lock = false): ?PurchaseOrderLine
     {
         // Purchase-source resolution remains in its owning repository/service boundary.

@@ -2,17 +2,44 @@
 
 namespace App\Services\TenantModule;
 
+use App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource;
+use App\DTOs\Ownership\Internal\ResponseObjects\OwnershipFifoResult;
 use App\DTOs\Ownership\Public\RequestObjects\OwnershipAcquisitionCreate;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipCandidateFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipListFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipLotFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipMovementFilter;
+use App\DTOs\Ownership\Public\RequestObjects\OwnershipReceiptLinkRequest;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemDetail;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipLotPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipMovementPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipPiecePage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipReceiptPage;
+use App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult;
 use App\DataObjects\RequestObjects\InventoryListFilter;
 use App\DataObjects\ResponseObjects\InventoryItemListPage;
+use App\Exceptions\InvalidTenantRequest;
 use App\Models\InventoryModule\InventoryItem;
 use App\Models\OwnershipModule\AcquisitionLot;
 use App\Models\OwnershipModule\OwnedItem;
 use App\Repository\OwnershipRepository;
+use App\Services\BaseTenantService;
 use App\Services\PawnModule\CollateralItemService;
 use App\Services\PawnModule\LoanContractServices\ExpirationService;
-use App\Services\BaseTenantService;
 use App\Services\TableIdGenerationService;
+use App\Services\TenantModule\Ownership\AcquisitionService;
+use App\Services\TenantModule\Ownership\BalanceService;
+use App\Services\TenantModule\Ownership\FifoService;
+use App\Services\TenantModule\Ownership\LockService;
+use App\Services\TenantModule\Ownership\MovementService;
+use App\Services\TenantModule\Ownership\QuantityService;
+use App\Services\TenantModule\Ownership\ReadService;
+use App\Services\TenantModule\Ownership\ReceiptLinkService;
+use App\Services\TenantModule\Ownership\ReturnValidationService;
+use App\Services\TenantModule\Ownership\ReturnService;
+use App\Support\InventoryQuantity;
+use App\Support\OwnershipQuantity;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,65 +55,82 @@ class OwnershipService extends BaseTenantService
         private ExpirationService $expirationService,
         private TenantIdempotencyService $idempotencyService,
         private TableIdGenerationService $tableIdGenerationService,
+        // Declare stable module collaborators explicitly for container wiring and isolated tests.
+        private LockService $lockService,
+        private FifoService $fifoService,
+        private QuantityService $quantityService,
+        private AcquisitionService $acquisitionService,
+        private ReadService $readService,
+        private ReceiptLinkService $receiptLinkService,
+        private BalanceService $balanceService,
+        private MovementService $movementService,
+        private ReturnValidationService $returnValidationService,
+        private ReturnService $returnService,
     ) {
     }
 
     public function prelockItems(array $inventoryItemCodes): void
     {
         // Lock the complete set before any caller enters downstream custody or quantity work.
-        app(\App\Services\TenantModule\Ownership\LockService::class)->items($inventoryItemCodes);
+        $this->lockService->items($inventoryItemCodes);
     }
 
-    public function allocateFifo(string $inventoryItemCode, mixed $quantity, array $serialNumbers = []): \App\DTOs\Ownership\Internal\ResponseObjects\OwnershipFifoResult
+    public function allocateFifo(string $inventoryItemCode, mixed $quantity, array $serialNumbers = []): OwnershipFifoResult
     {
         // Shared allocator retains caller locks and leaves business effects to the owning operation.
-        return app(\App\Services\TenantModule\Ownership\FifoService::class)->allocate($inventoryItemCode, $quantity, $serialNumbers);
+        return $this->fifoService->allocate($inventoryItemCode, $quantity, $serialNumbers);
     }
 
     public function consumeSaleReservation(string $code, string $lotCode, string|int|float $quantity, string $sourceCode,
-        array $serializedItemCodes = []): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult
+        array $serializedItemCodes = []): OwnershipResult
     {
         // Consume only the selected sale's remaining commitment and its exact receipt-backed quantities.
-        return app(\App\Services\TenantModule\Ownership\QuantityService::class)
-            ->change($code, $lotCode, $quantity, $sourceCode, $serializedItemCodes, 'consume');
+        return $this->quantityService
+            ->applyOwnershipQuantityAction($code, $lotCode, $quantity, $sourceCode, $serializedItemCodes, 'consume');
     }
 
-    public function acquirePurchaseLine(string $lineCode, ?string $key = null): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult
+    public function acquirePurchaseLine(string $lineCode, ?string $key = null): OwnershipResult
     {
         // A settled source can be owned before receipt; later linking never creates another acquisition.
-        return app(\App\Services\TenantModule\Ownership\AcquisitionService::class)->purchaseLine($lineCode, $key);
+        return $this->acquisitionService->acquirePaidPurchaseLine($lineCode, $key);
     }
 
-    public function itemPage(\App\DTOs\Ownership\Public\RequestObjects\OwnershipListFilter $filter): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemPage
+    public function itemPage(OwnershipListFilter $filter): OwnershipItemPage
     {
         // The new bounded contract is activated separately from legacy public endpoint consumers.
-        return app(\App\Services\TenantModule\Ownership\ReadService::class)->itemPage($filter);
+        return $this->readService->itemPage($filter);
     }
 
-    public function itemDetail(string $code): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipItemDetail
+    public function itemDetail(string $code): OwnershipItemDetail
     {
-        return app(\App\Services\TenantModule\Ownership\ReadService::class)->detail($code);
+        return $this->readService->detail($code);
     }
 
-    public function lotPage(string $code, \App\DTOs\Ownership\Public\RequestObjects\OwnershipLotFilter $filter): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipLotPage
+    public function lotPage(string $code, OwnershipLotFilter $filter): OwnershipLotPage
     {
-        return app(\App\Services\TenantModule\Ownership\ReadService::class)->lotPage($code, $filter);
+        return $this->readService->lotPage($code, $filter);
     }
 
-    public function movementPage(string $code, \App\DTOs\Ownership\Public\RequestObjects\OwnershipMovementFilter $filter): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipMovementPage
+    public function movementPage(string $code, OwnershipMovementFilter $filter): OwnershipMovementPage
     {
-        return app(\App\Services\TenantModule\Ownership\ReadService::class)->movementPage($code, $filter);
+        return $this->readService->movementPage($code, $filter);
     }
 
-    public function receiptLinkCandidates(string $code, string $lotCode, \App\DTOs\Ownership\Public\RequestObjects\OwnershipCandidateFilter $filter): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipReceiptPage|\App\DTOs\Ownership\Public\ResponseObjects\OwnershipPiecePage
+    public function receiptLinkCandidates(string $code, string $lotCode, OwnershipCandidateFilter $filter): OwnershipReceiptPage|OwnershipPiecePage
     {
-        return app(\App\Services\TenantModule\Ownership\ReadService::class)->candidates($code, $lotCode, $filter);
+        return $this->readService->candidates($code, $lotCode, $filter);
     }
 
-    public function linkReceipt(string $code, string $lotCode, \App\DTOs\Ownership\Public\RequestObjects\OwnershipReceiptLinkRequest $request): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult
+    public function linkPurchaseReceipt(string $receiptCode): OwnershipResult
+    {
+        // Trusted immediate receipt uses actual persisted source and piece provenance.
+        return $this->receiptLinkService->linkPurchaseReceipt($receiptCode);
+    }
+
+    public function linkReceipt(string $code, string $lotCode, OwnershipReceiptLinkRequest $request): OwnershipResult
     {
         // Real receipt linking is a dependency of FIFO's lot/piece eligibility, not a fake test setup.
-        return app(\App\Services\TenantModule\Ownership\ReceiptLinkService::class)->link($code, $lotCode, $request);
+        return $this->receiptLinkService->link($code, $lotCode, $request);
     }
 
     public function list(?string $search = null): array
@@ -149,11 +193,11 @@ class OwnershipService extends BaseTenantService
         })->values()->all();
     }
 
-    public function reserveSale(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceCode, array $serializedItemCodes = []): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult
+    public function reserveSale(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceCode, array $serializedItemCodes = []): OwnershipResult
     {
         // Every new reservation creates a real source-bound commitment, including fungible quantities.
-        return app(\App\Services\TenantModule\Ownership\QuantityService::class)
-            ->change($ownedItemCode, $lotCode, $quantity, $sourceCode, $serializedItemCodes, 'reserve');
+        return $this->quantityService
+            ->applyOwnershipQuantityAction($ownedItemCode, $lotCode, $quantity, $sourceCode, $serializedItemCodes, 'reserve');
     }
 
     public function reserveLegacySale(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode): array
@@ -163,11 +207,11 @@ class OwnershipService extends BaseTenantService
             null, 'SALE_RESERVE', 0, 0, 1);
     }
 
-    public function releaseSaleReservation(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceCode, array $serializedItemCodes = []): \App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult
+    public function releaseSaleReservation(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceCode, array $serializedItemCodes = []): OwnershipResult
     {
         // Release only this sale's remaining source commitment.
-        return app(\App\Services\TenantModule\Ownership\QuantityService::class)
-            ->change($ownedItemCode, $lotCode, $quantity, $sourceCode, $serializedItemCodes, 'release');
+        return $this->quantityService
+            ->applyOwnershipQuantityAction($ownedItemCode, $lotCode, $quantity, $sourceCode, $serializedItemCodes, 'release');
     }
 
     public function releaseLegacySaleReservation(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode): array
@@ -231,26 +275,21 @@ class OwnershipService extends BaseTenantService
     }
 
     public function reservePledge(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceType, string $sourceCode,
-        ?string $idempotencyKey = null, ?array $serializedItemCodes = null,
-        ?\App\DTOs\Ownership\Internal\RequestObjects\OwnershipPledgeSource $sourceContext = null): array|\App\DTOs\Ownership\Public\ResponseObjects\OwnershipResult
+        ?string $idempotencyKey = null, ?array $serializedItemCodes = null, ?OwnershipPledgeSource $sourceContext = null): OwnershipResult
     {
-        // New trusted collateral commands carry resolver context; no public source-code-only bypass is added.
-        if ($sourceContext !== null) {
-            if ($sourceType !== 'BusinessLoanCollateral') throw new \App\Exceptions\InvalidTenantRequest(__('ownership.commitment_source_invalid'));
-            return app(\App\Services\TenantModule\Ownership\QuantityService::class)
-                ->change($ownedItemCode, $lotCode, $quantity, $sourceCode, $serializedItemCodes ?? [], 'pledge', $sourceContext);
-        }
-        if ($serializedItemCodes !== null) throw new \App\Exceptions\InvalidTenantRequest(__('ownership.commitment_source_invalid'));
-        // Reserve quantity against a specific lot while leaving total ownership unchanged.
-        return $this->changeQuantity('ownership.pledge', $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode,
-            $idempotencyKey, 'PLEDGE', 0, 1);
+        // Only a trusted resolved collateral source can create a pledge; no code-only acquisition bypass.
+        if ($sourceType !== 'BusinessLoanCollateral' || $sourceContext === null) throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
+        return $this->quantityService->applyOwnershipQuantityAction($ownedItemCode, $lotCode, $quantity, $sourceCode,
+            $serializedItemCodes ?? [], 'pledge', $sourceContext, $idempotencyKey);
     }
 
-    public function releasePledge(string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, ?string $idempotencyKey = null): array
+    public function releasePledge(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceType,
+        string $sourceCode, ?string $idempotencyKey = null, array $serializedItemCodes = []): OwnershipResult
     {
-        // Release a prior pledge against the same lot without creating another acquisition.
-        return $this->changeQuantity('ownership.release', $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode,
-            $idempotencyKey, 'RELEASE', 0, -1);
+        // Existing source-bound commitment supplies authority; this changes no lender custody or money.
+        if ($sourceType !== 'BusinessLoanCollateral') throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
+        return $this->quantityService->applyOwnershipQuantityAction($ownedItemCode, $lotCode, $quantity, $sourceCode,
+            $serializedItemCodes, 'unpledge', idempotencyKey: $idempotencyKey);
     }
 
     public function reduceForSale(string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, ?string $idempotencyKey = null): array
@@ -260,90 +299,110 @@ class OwnershipService extends BaseTenantService
             $idempotencyKey, 'SALE', -1, 0);
     }
 
-    public function restoreForSaleReturn(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode): array
+    public function restoreForSaleReturn(string $ownedItemCode, string $lotCode, string|int|float $quantity,
+        string $sourceCode, ?array $serializedItemCodes = null): OwnershipResult
     {
-        // Restore ownership against the original FIFO lot when a delivered item is returned.
-        return $this->changeQuantity('ownership.sale.return', $ownedItemCode, $lotCode, $quantity, 'SaleReturnLine', $sourceCode,
-            null, 'SALE_RETURN', 1, 0);
+        // Existing internal caller restores its original allocation; no public return workflow is enabled.
+        return $this->returnService->applyOriginalLotReturn($ownedItemCode, $lotCode, $quantity,
+            $sourceCode, 'SaleReturnLine', $serializedItemCodes);
     }
 
-    // Reduce the originating acquisition lot when goods are returned to their supplier.
-    public function reduceForPurchaseReturn(string $ownedItemCode, string $lotCode, float $quantity, string $sourceCode, ?string $idempotencyKey = null): array
+    public function reduceForPurchaseReturn(string $ownedItemCode, string $lotCode, string|int|float $quantity,
+        string $sourceCode, ?string $idempotencyKey = null): OwnershipResult
     {
-        return $this->changeQuantity('ownership.purchase_return', $ownedItemCode, $lotCode, $quantity,
-            'PurchaseReturnLine', $sourceCode, $idempotencyKey, 'PURCHASE_RETURN', -1, 0);
+        return $this->returnService->applyOriginalLotReturn($ownedItemCode, $lotCode, $quantity,
+            $sourceCode, 'PurchaseReturnLine', key: $idempotencyKey);
     }
 
-    public function reduceForfeiture(string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, bool $fromPledge = true, ?string $idempotencyKey = null): array
+    public function reduceForfeiture(string $ownedItemCode, string $lotCode, string|int|float $quantity, string $sourceType,
+        string $sourceCode, bool $fromPledge = true, ?string $idempotencyKey = null, array $serializedItemCodes = []): OwnershipResult
     {
-        // Remove forfeited ownership and, when forfeiting pledged goods, clear that reservation too.
-        return $this->changeQuantity('ownership.forfeiture', $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode,
-            $idempotencyKey, 'FORFEITURE', -1, $fromPledge ? -1 : 0);
+        // Forfeiture requires this source's pledge, including the fully pledged final units.
+        if (! $fromPledge || $sourceType !== 'BusinessLoanCollateral') throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
+        return $this->quantityService->applyOwnershipQuantityAction($ownedItemCode, $lotCode, $quantity, $sourceCode,
+            $serializedItemCodes, 'forfeit', idempotencyKey: $idempotencyKey);
     }
 
     private function recordAcquisition(int $tenantId, OwnershipAcquisitionCreate $request, string $sourceModule, string $sourceType, ?string $sourceCode, ?int $idempotencyRecordId): array
     {
-        // Lock the tenant-owned Inventory item before creating its Ownership aggregate and lot.
+        // Existing internal/manual callers retain their response contract until OWN-30 activation.
         return DB::transaction(function () use ($tenantId, $request, $sourceModule, $sourceType, $sourceCode, $idempotencyRecordId): array {
-            $inventoryItem = $this->inventoryService->findForOwnershipByCode($request->inventoryItemCode);
-            if ($inventoryItem->tenant_id !== $tenantId) {
-                throw ValidationException::withMessages(['inventory_item_code' => [__('ownership.inventory_unavailable')]]);
-            }
-            $this->validateQuantity($inventoryItem, $request->quantity);
-            // Resolve the current aggregate before locking its canonical source lot.
-            $ownedItem = $this->repository->ownedItemForInventory($tenantId, $inventoryItem->id, true);
-            if ($sourceCode !== null && $this->repository->findBySourceCode($tenantId, $sourceModule, $sourceType, $sourceCode, true) !== null) {
-                throw ValidationException::withMessages(['source_code' => [__('ownership.source_already_recorded')]]);
-            }
-
-            if ($inventoryItem->tracking_mode === 'UNIQUE' && $ownedItem !== null) {
-                // UNIQUE reacquisition must observe current rows rather than an earlier caller snapshot.
-                $lots = $this->repository->lockedLots($tenantId, (int) $ownedItem->id);
-                $current = app(\App\Services\TenantModule\Ownership\BalanceService::class)->locked((int) $ownedItem->id, $lots);
-                if (array_sum(array_column($current, 'owned')) > 0) {
-                    throw ValidationException::withMessages(['inventory_item_code' => [__('ownership.unique_already_owned')]]);
-                }
-            }
-            if ($ownedItem === null) {
-                $ownedItem = $this->repository->createOwnedItem($tenantId, [
-                    'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'owned_items', CarbonImmutable::now()),
-                    'inventory_item_id' => $inventoryItem->id,
-                    'catalog_item_id' => $inventoryItem->catalog_item_id,
-                    'lifecycle_status' => 'ACTIVE',
-                    'created_by' => Auth::id(),
-                ]);
-            }
-            $lot = $this->repository->createLot($tenantId, [
-                'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'acquisition_lots', CarbonImmutable::now()),
-                'owned_item_id' => $ownedItem->id,
-                'source_module' => $sourceModule,
-                'source_type' => $sourceType,
-                'source_code' => $sourceCode,
-                'acquired_at' => $request->acquiredAt,
-                'acquired_quantity' => $request->quantity,
-                'unit_cost_basis' => $request->unitCostBasis,
-                'estimated_unit_value' => $request->estimatedUnitValue,
-                'currency_code' => strtoupper($request->currencyCode),
-                'description' => $request->description,
-                'created_by' => Auth::id(),
-            ]);
-            $this->repository->createMovement($tenantId, [
-                'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'ownership_movements', CarbonImmutable::now()),
-                'owned_item_id' => $ownedItem->id,
-                'acquisition_lot_id' => $lot->id,
-                'movement_type' => 'ACQUISITION',
-                'quantity' => $request->quantity,
-                'owned_delta' => $request->quantity,
-                'pledged_delta' => 0,
-                'source_module' => $sourceModule,
-                'source_type' => $sourceType,
-                'source_code' => $sourceCode,
-                'idempotency_record_id' => $idempotencyRecordId,
-                'created_by' => Auth::id(),
-                'occurred_at' => now(),
-            ]);
-            return $this->ownedItemResource($tenantId, $this->repository->ownedItem($tenantId, $ownedItem->id));
+            $item = $this->inventoryService->findForOwnershipByCode($request->inventoryItemCode);
+            if ((int) $item->tenant_id !== $tenantId) throw new InvalidTenantRequest(__('ownership.inventory_unavailable'));
+            $this->validateQuantity($item, $request->quantity);
+            $owner = $this->resolveInternalAcquisitionOwner($tenantId, $item, $sourceModule, $sourceType, $sourceCode);
+            $lot = $this->createInternalAcquisitionLot($tenantId, $owner, $request, $sourceModule, $sourceType, $sourceCode);
+            $this->appendInternalAcquisitionMovement($owner, $lot, $request, $sourceModule, $sourceType, $sourceCode, $idempotencyRecordId);
+            return $this->ownedItemResource($tenantId, $this->repository->ownedItem($tenantId, (int) $owner->id));
         });
+    }
+
+    private function resolveInternalAcquisitionOwner(int $tenantId, InventoryItem $inventoryItem, string $sourceModule,
+        string $sourceType, ?string $sourceCode): OwnedItem
+    {
+        // Resolve the current aggregate before locking its canonical source lot.
+        $ownedItem = $this->repository->ownedItemForInventory($tenantId, $inventoryItem->id, true);
+        if ($sourceCode !== null && $this->repository->findBySourceCode($tenantId, $sourceModule, $sourceType, $sourceCode, true) !== null) {
+            throw ValidationException::withMessages(['source_code' => [__('ownership.source_already_recorded')]]);
+        }
+
+        if ($inventoryItem->tracking_mode === 'UNIQUE' && $ownedItem !== null) {
+            // UNIQUE reacquisition must observe current rows rather than an earlier caller snapshot.
+            if (OwnershipQuantity::compare($this->repository->lockedOwnedQuantity($tenantId, (int) $ownedItem->id), '0.000') > 0) {
+                throw ValidationException::withMessages(['inventory_item_code' => [__('ownership.unique_already_owned')]]);
+            }
+        }
+        if ($ownedItem === null) {
+            $ownedItem = $this->repository->createOwnedItem($tenantId, [
+                'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'owned_items', CarbonImmutable::now()),
+                'inventory_item_id' => $inventoryItem->id,
+                'catalog_item_id' => $inventoryItem->catalog_item_id,
+                'lifecycle_status' => 'ACTIVE',
+                'created_by' => Auth::id(),
+            ]);
+        }
+        return $ownedItem;
+    }
+
+    private function createInternalAcquisitionLot(int $tenantId, OwnedItem $ownedItem, OwnershipAcquisitionCreate $request,
+        string $sourceModule, string $sourceType, ?string $sourceCode): AcquisitionLot
+    {
+        // Persist immutable snapshots independently of later receipt or quantity changes.
+        return $this->repository->createLot($tenantId, [
+            'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'acquisition_lots', CarbonImmutable::now()),
+            'owned_item_id' => $ownedItem->id,
+            'source_module' => $sourceModule,
+            'source_type' => $sourceType,
+            'source_code' => $sourceCode,
+            'acquired_at' => $request->acquiredAt,
+            'acquired_quantity' => $request->quantity,
+            'unit_cost_basis' => $request->unitCostBasis,
+            'estimated_unit_value' => $request->estimatedUnitValue,
+            'currency_code' => strtoupper($request->currencyCode),
+            'description' => $request->description,
+            'created_by' => Auth::id(),
+        ]);
+    }
+
+    private function appendInternalAcquisitionMovement(OwnedItem $ownedItem, AcquisitionLot $lot, OwnershipAcquisitionCreate $request,
+        string $sourceModule, string $sourceType, ?string $sourceCode, ?int $idempotencyRecordId): void
+    {
+        // The shared append enforces exact deltas and aggregate/monthly-publication exclusion.
+        $this->movementService->appendOwnershipMovement([
+            'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'ownership_movements', CarbonImmutable::now()),
+            'owned_item_id' => $ownedItem->id,
+            'acquisition_lot_id' => $lot->id,
+            'movement_type' => 'ACQUISITION',
+            'quantity' => $request->quantity,
+            'owned_delta' => $request->quantity,
+            'pledged_delta' => 0,
+            'source_module' => $sourceModule,
+            'source_type' => $sourceType,
+            'source_code' => $sourceCode,
+            'idempotency_record_id' => $idempotencyRecordId,
+            'created_by' => Auth::id(),
+            'occurred_at' => now(),
+        ]);
     }
 
     private function changeQuantity(string $operation, string $ownedItemCode, string $lotCode, float $quantity, string $sourceType, string $sourceCode, ?string $idempotencyKey, string $movementType, int $ownedSign, int $pledgedSign, int $reservedSign = 0): array
@@ -364,6 +423,9 @@ class OwnershipService extends BaseTenantService
             compact('ownedItemCode', 'lotCode', 'quantity', 'sourceType', 'sourceCode'),
             function (int $tenantId, ?int $recordId) use ($ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign, $reservedSign): array {
                 return DB::transaction(function () use ($tenantId, $recordId, $ownedItemCode, $lotCode, $quantity, $sourceType, $sourceCode, $movementType, $ownedSign, $pledgedSign, $reservedSign): array {
+                    // Resolve internal return authority before Inventory/Ownership locks; public gates remain unchanged.
+                    $returnSource = in_array($sourceType, ['PurchaseReturnLine', 'SaleReturnLine'], true)
+                        ? $this->returnValidationService->resolveReturnSource($sourceType, $sourceCode) : null;
                     // Resolve business codes into internal ledger keys while holding tenant-scoped locks.
                     $ownedItem = $this->repository->ownedItemByCode($tenantId, $ownedItemCode);
                     if ($ownedItem === null) {
@@ -379,16 +441,24 @@ class OwnershipService extends BaseTenantService
                     if (! is_finite($quantity) || $quantity <= 0) {
                         throw ValidationException::withMessages(['quantity' => [__('ownership.quantity_positive')]]);
                     }
+                    if ($returnSource !== null) {
+                        // Original source/lot/pieces and remaining reversal quantity are authoritative.
+                        $validatedReturnSelection = $this->returnValidationService->validateReturnEligibility($returnSource, $ownedItem, $lot, $sourceType, $quantity, $ownedItem->inventoryItem->tracking_mode);
+                    }
                     // Use authoritative current reads even when an outer caller established an older snapshot.
-                    $scaled = app(\App\Services\TenantModule\Ownership\BalanceService::class)->locked((int) $ownedItem->id, [$lot])[$lot->id];
+                    $scaled = $this->balanceService->locked((int) $ownedItem->id, [$lot])[$lot->id];
                     $balances = array_map(fn (int $value): float => $value / 1000, $scaled);
                     $available = $balances['owned'] - $balances['pledged'] - ($balances['reserved'] ?? 0);
                     if (($ownedSign < 0 && $quantity > $available) || ($pledgedSign < 0 && $quantity > $balances['pledged'])
                         || ($pledgedSign > 0 && $quantity > $available)
                         || ($reservedSign < 0 && $quantity > ($balances['reserved'] ?? 0))) {
-                        throw ValidationException::withMessages(['quantity' => [__('ownership.insufficient_lot_balance')]]);
+                        throw new InvalidTenantRequest(__('ownership.insufficient_lot_balance'));
                     }
-                    $this->repository->createMovement($tenantId, [
+                    if ($sourceType === 'PurchaseReturnLine') {
+                        // Return only source-validated free backing; keep original receipt links and membership history.
+                        $this->quantityService->consumePurchaseReturnReceiptBacking($ownedItem, $lot, $validatedReturnSelection);
+                    }
+                    $this->movementService->appendOwnershipMovement([
                         'code' => $this->tableIdGenerationService->generateForTenant($tenantId, 'ownership_movements', CarbonImmutable::now()),
                         'owned_item_id' => $ownedItem->id,
                         'acquisition_lot_id' => $lot->id,
@@ -441,7 +511,7 @@ class OwnershipService extends BaseTenantService
     private function validateQuantity(InventoryItem $item, string $quantity): void
     {
         // Validate resolved acquisition quantity without converting the new DTO string back to a float.
-        \App\Support\OwnershipQuantity::normalize($quantity, $item->tracking_mode);
+        OwnershipQuantity::normalize($quantity, $item->tracking_mode);
     }
 
     private function ownedItemResource(int $tenantId, ?OwnedItem $ownedItem): array

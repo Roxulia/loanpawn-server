@@ -38,6 +38,12 @@ class TenantSettingRepository
             ->first();
     }
 
+    public function streamTenantIds()
+    {
+        // Bounded registry discovery for scheduled fan-out and recovery commands.
+        return Tenant::query()->select('id')->lazyById(200)->map(fn ($tenant) => (int) $tenant->id);
+    }
+
     public function allTenantIds(): Collection
     {
         return Tenant::query()->orderBy('id')->pluck('id');

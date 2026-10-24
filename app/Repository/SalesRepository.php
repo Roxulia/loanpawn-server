@@ -16,6 +16,13 @@ use Illuminate\Database\Eloquent\Collection;
 
 class SalesRepository
 {
+    public function ownershipReturnLine(int $tenantId, string $code): ?SaleReturnLine
+    {
+        // The internal return path must use its original allocation, item, lot and exact pieces.
+        return SaleReturnLine::query()->where('tenant_id', $tenantId)->where('code', $code)
+            ->with(['allocation.line', 'allocation.lot', 'returnRecord'])->lockForUpdate()->first();
+    }
+
     public function ownershipLine(int $tenantId, string $code): ?\App\Models\SalesModule\SaleOrderLine
     {
         // Source rows are locked before the caller acquires Inventory/Ownership anchors.

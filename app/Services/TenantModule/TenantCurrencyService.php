@@ -12,6 +12,7 @@ use App\Services\BaseTenantService;
 use App\Services\PlatformModule\TenantServices\TenantLicenseService;
 use App\Utility\MessageCode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -36,6 +37,18 @@ class TenantCurrencyService extends BaseTenantService
     {
         return $this->repository->findActiveVisibleById($currencyId, $tenantId)
             ?? throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyNotFound));
+    }
+
+    public function findActiveVisibleCurrenciesByIdsForTenant(int $tenantId, array $currencyIds): Collection
+    {
+        // Validate complete visibility in one lookup, preserving the existing missing/inactive-currency error.
+        $ids = array_values(array_unique(array_map('intval', $currencyIds)));
+        if ($ids === []) return new Collection();
+        $currencies = $this->repository->findActiveVisibleByIds($ids, $tenantId);
+        if ($currencies->count() !== count($ids)) {
+            throw new InvalidTenantRequest($this->responseMessage(MessageCode::FinanceCurrencyNotFound));
+        }
+        return $currencies;
     }
 
     public function findActiveVisibleByCodeForTenant(int $tenantId, string $code): Currency

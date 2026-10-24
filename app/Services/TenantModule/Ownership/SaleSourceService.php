@@ -21,4 +21,11 @@ class SaleSourceService extends BaseTenantService
         }
         return $line;
     }
+
+    public function returnLine(string $code)
+    {
+        // Resolve actual stored source authority without entering full Sales orchestration.
+        return $this->repository->ownershipReturnLine($this->resolveCurrentTenantId(), $code)
+            ?? throw new InvalidTenantRequest(__('ownership.commitment_source_invalid'));
+    }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature\TenantModule;
 
 use App\Models\PurchasingModule\{PurchaseReturn, PurchaseReturnLine};
 use App\Services\TenantModule\OwnershipService;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\OwnershipQuantityTestCase;
 
 class OwnershipReturnTest extends OwnershipQuantityTestCase
@@ -54,7 +55,27 @@ class OwnershipReturnTest extends OwnershipQuantityTestCase
             $other['owned']->code, $other['lot']->code, '1.000', $line->code, 'wrong-return'));
     }
 
-    private function purchaseReturn(array $goods, array $receipt, string $quantity): PurchaseReturnLine
+    public function test_serialized_purchase_return_reuses_validated_memberships(): void
+    {
+        // Validation resolves exact pieces once. The backing mutation must use that same selection.
+        $goods = $this->linkedPiece('RETURN-REUSE');
+        $source = $this->purchaseReturn($goods, $goods['receipt'], '1.000', [$goods['piece']]);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        try {
+            app(OwnershipService::class)->reduceForPurchaseReturn($goods['owned']->code, $goods['lot']->code,
+                '1.000', $source->code, 'return-reused-selection');
+            $membershipReads = collect(DB::getQueryLog())->pluck('query')->filter(fn ($sql) =>
+                str_starts_with(strtolower($sql), 'select') && str_contains($sql, 'ownership_piece_memberships'));
+        } finally {
+            DB::disableQueryLog();
+        }
+        $this->assertCount(1, $membershipReads);
+        $this->assertCurrentPieces($goods, []);
+        $this->assertLotBalance($goods, '0.000');
+    }
+
+    private function purchaseReturn(array $goods, array $receipt, string $quantity, array $pieceCodes = []): PurchaseReturnLine
     {
         // The stored receipt reference supplies source authority; no paid flag or alternate lot is trusted.
         $tenant = $this->ownershipFixture['tenant']->id;
@@ -63,7 +84,7 @@ class OwnershipReturnTest extends OwnershipQuantityTestCase
             'created_by' => $this->ownershipFixture['actor']->id]);
         return PurchaseReturnLine::query()->create(['tenant_id' => $tenant, 'code' => 'PL'.bin2hex(random_bytes(5)),
             'purchase_return_id' => $return->id, 'purchase_receipt_line_id' => $receipt['receiptLine']->id,
-            'returned_quantity' => $quantity, 'serialized_item_codes' => [], 'supplier_credit_amount' => '0.00',
+            'returned_quantity' => $quantity, 'serialized_item_codes' => $pieceCodes, 'supplier_credit_amount' => '0.00',
             'supplier_payable_adjusted_amount' => '0.00', 'cash_refund_amount' => '0.00']);
     }
 }

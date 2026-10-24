@@ -134,9 +134,9 @@ Suggested states: Not started, In progress, Tests written / awaiting review, Imp
 | OWN-16 | Typed command/read/result contracts | Complete — OWN-16a–f review accepted; module/Public-or-Internal/RequestObjects-or-ResponseObjects layout accepted; runtime tests pending |
 | OWN-17 | Batched checkpoint-backed balance queries | Complete — OWN-17a–f implementation/review accepted; selected runtime evidence recorded; public API/UI activation and release-wide verification remain later work |
 | OWN-18 | Source, receipt, and serialized-link queries | OWN-18a–e implemented/reused and wired into required consumers; focused suite passed 97 tests / 4,190 assertions; accepted |
-| OWN-19 | Ordered locking/current-read helpers | OWN-19a–e implemented/documented; awaiting review. New lock tests and selected contention cases passed; broader run has two UNIQUE setup errors and a Pawn photo failure; monthly publisher wiring remains OWN-27 |
-| OWN-20 | Validation helpers | Not started |
-| OWN-21 | Mutation/transaction/idempotency helpers | Not started |
+| OWN-19 | Ordered locking/current-read helpers | OWN-19a–e accepted by user; implementation review complete. New lock tests and selected contention cases passed; UNIQUE setup errors were fixed and verified during OWN-20/21; Pawn photo failure remains; monthly publisher wiring remains OWN-27 |
+| OWN-20 | Validation helpers | OWN-20a-f accepted by user; reviewed helper refactors and selected runtime checks complete. Later orchestration dependencies recorded |
+| OWN-21 | Mutation/transaction/idempotency helpers | OWN-21a-e accepted by user; atomic/replay/checkpoint helper refactors and selected checks complete. Monthly orchestration remains OWN-27 |
 | OWN-22 | Acquisition orchestration | Not started |
 | OWN-23 | Receipt and exact-piece linking orchestration | Not started |
 | OWN-24 | Sale reservation/release/reduction orchestration | Not started |
@@ -1492,7 +1492,9 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Depends on:** OWN-10 concurrency tests and OWN-17/18.
 
-**2026-10-24 batch:** User requested "do for all 19", authorizing all five children together. Implementation and the caller-order audit are prepared in [OWNERSHIP_LOCK_REVIEW.md](OWNERSHIP_LOCK_REVIEW.md). Checkboxes remain unchecked until review acceptance; no runtime pass is claimed.
+**Acceptance (2026-10-24):** User requested "mark as done and next 2 phase"; OWN-19a–e implementation review is accepted. Existing UNIQUE/photo failures and deferred monthly verification remain recorded; acceptance does not mark them passed. OWN-20/21 are authorized together as the next two phases.
+
+**2026-10-24 batch:** User requested "do for all 19", authorizing all five children together. Implementation and the caller-order audit are prepared in [OWNERSHIP_LOCK_REVIEW.md](OWNERSHIP_LOCK_REVIEW.md). Historical implementation-stage note: checkboxes were unchecked until the acceptance recorded above; runtime results are recorded separately below.
 
 | Unit | Delivered |
 |---|---|
@@ -1504,38 +1506,50 @@ All Ownership references in controllers, services, tests, and worker support wer
 
 **Tests and checks:** Added five focused real-database tests in `OwnershipLockQueryTest` for complete-set ordering/no writes, absent first aggregate, tenant-bound shared anchors, wrong-item checkpoint children, and append lock/tenant enforcement. Existing Ownership worker complete-set setup now calls the production helper rather than only test-written prelocks; scenarios/assertions and FIFO real-lock acquisition remain preserved. All ten changed/new PHP files passed `php -l`; tracked diff whitespace passed. No PHPUnit, database queries, migrations, workers, jobs, scheduler or development server were run. Independent-connection current-read/contention verification remains pending; append-versus-summary execution also requires OWN-27.
 
-- [ ] **OWN-19a:** Document one actual cross-module order against existing callers: complete Inventory item anchor sets, Ownership aggregates, lots/commitments, then the reviewed downstream custody locks. Reconcile with active Inventory order before activation; no opposite acquisition/consumption order.
-- [ ] **OWN-19b:** Implement tenant-scoped aggregate anchor acquisition, including concurrent first acquisition when no aggregate exists, using the shared Inventory identity anchor where needed.
-- [ ] **OWN-19c:** Implement deterministic lot/source-commitment locking for one operation; multi-item callers prelock complete sets.
-- [ ] **OWN-19d:** Implement authoritative current balance/link/membership reads after locks; prevent repeatable-read snapshots from using stale checkpoint/base combinations.
-- [ ] **OWN-19e:** Make monthly summarization and every Ownership movement append coordinate on the same aggregate anchor. Review repository append enforcement separately from caller helper use.
+- [x] **OWN-19a:** Document one actual cross-module order against existing callers: complete Inventory item anchor sets, Ownership aggregates, lots/commitments, then the reviewed downstream custody locks. Reconcile with active Inventory order before activation; no opposite acquisition/consumption order.
+- [x] **OWN-19b:** Implement tenant-scoped aggregate anchor acquisition, including concurrent first acquisition when no aggregate exists, using the shared Inventory identity anchor where needed.
+- [x] **OWN-19c:** Implement deterministic lot/source-commitment locking for one operation; multi-item callers prelock complete sets.
+- [x] **OWN-19d:** Implement authoritative current balance/link/membership reads after locks; prevent repeatable-read snapshots from using stale checkpoint/base combinations.
+- [x] **OWN-19e:** Make monthly summarization and every Ownership movement append coordinate on the same aggregate anchor. Review repository append enforcement separately from caller helper use.
 
 **2026-10-24 authorized runtime follow-up:** User requested related tests. Existing disposable MySQL structure passed. New lock tests passed 5/19; related Ownership batch ran 101 tests / 1,412 assertions with 99 passing and two UNIQUE fixture-order errors (Inventory reserved before Ownership availability validation). Five selected generic contention cases passed 167 assertions; the sixth waiting-sale case passed alongside Inventory/Pawn regression checks (20 tests / 142 assertions, 19 passing and a photo filesystem error). Authorized photo-only reruns resolved access but twice reached a one-second signed-URL expiry assertion failure. Four FIFO contention cases passed in the main batch. No tests/assertions were weakened, migrations run, or services started. Monthly publication remains a later dependency. Exact scope and unresolved checks are recorded in [the lock review execution follow-up](OWNERSHIP_LOCK_REVIEW.md#authorized-execution-follow-up--2026-10-24); neither the full suite nor all OWN-19 verification is marked passed.
 
 ### OWN-20 — Validation helpers
 
+**OWN-20 batch (2026-10-24):** User authorized the next two phases and related test execution/fixes. OWN-20a-f validators are implemented/reused and wired into existing applicable consumers. See [the validation/mutation review](OWNERSHIP_VALIDATION_MUTATION_REVIEW.md) for each child, scope, fixes and later dependencies. Checkboxes await user review.
+
 **Depends on:** OWN-14–19 and their tests; review one validator per child, splitting further where needed.
 
-- [ ] **OWN-20a:** Validate acquisition source eligibility through its owning service: same tenant/item, full settlement, active currency, allowed source, exact quantity/cost, and no duplicate source. Receipt is not a prerequisite.
-- [ ] **OWN-20b:** Validate receipt/lot association and exact remaining quantity to link, preserving immutable acquisition snapshots.
-- [ ] **OWN-20c:** Validate selected serialized pieces against live custody, tenant/item, lot capacity, and current membership; never perform one query per piece.
-- [ ] **OWN-20d:** Validate sale reservation/consumption against exact eligible owned quantity, physical availability, and the same source's commitment.
-- [ ] **OWN-20e:** Validate pledge availability and same-source release/forfeiture quantities. Forfeiture checks pledged quantity, not unpledged availability.
-- [ ] **OWN-20f:** Validate internal return compatibility against original lot/pieces/source and permitted reversal quantity; this does not authorize a deferred public return.
+- [x] **OWN-20a:** Validate acquisition source eligibility through its owning service: same tenant/item, full settlement, active currency, allowed source, exact quantity/cost, and no duplicate source. Receipt is not a prerequisite.
+- [x] **OWN-20b:** Validate receipt/lot association and exact remaining quantity to link, preserving immutable acquisition snapshots.
+- [x] **OWN-20c:** Validate selected serialized pieces against live custody, tenant/item, lot capacity, and current membership; never perform one query per piece.
+- [x] **OWN-20d:** Validate sale reservation/consumption against exact eligible owned quantity, physical availability, and the same source's commitment.
+- [x] **OWN-20e:** Validate pledge availability and same-source release/forfeiture quantities. Forfeiture checks pledged quantity, not unpledged availability.
+- [x] **OWN-20f:** Validate internal return compatibility against original lot/pieces/source and permitted reversal quantity; this does not authorize a deferred public return.
 
 ### OWN-21 — Mutation and atomic operation helpers
 
+**OWN-21 batch (2026-10-24):** OWN-21a-e helper implementation is prepared with reuse of OWN-18 writes, a shared movement/transaction/replay/audit boundary, and atomic checkpoint persistence. Final related feature checks passed **153 distinct tests / 3,055 assertions**; seven related unit classes passed **329 tests / 683 assertions**. Combined selected evidence is **482 tests / 3,738 assertions**. New helper cases include real checkpoint child-write rollback, replay and recording time. All 24 changed/new PHP files passed syntax checks; whitespace checks passed. The stale transition unit harness was adapted to the actual production helper while retaining literal business expectations. The exploratory run reached ten later-phase dependencies, listed explicitly in [the review](OWNERSHIP_VALIDATION_MUTATION_REVIEW.md#explicit-later-phase-dependencies). Per user instruction they remain untouched and are not marked passed. No migration or development service was started. Checkboxes await review.
+
 **Depends on:** OWN-19/20; OWN-10 transaction/replay tests.
 
-- [ ] **OWN-21a:** Implement an Ownership movement append helper with server recording timestamp, exact signed deltas, actor, occurrence date, and stable source references.
-- [ ] **OWN-21b:** Implement narrowly scoped receipt/membership writes and current commitment updates; preserve old history and single-current-piece constraints.
-- [ ] **OWN-21c:** Implement atomic mutation/completion/audit wrapper using existing services. Internal results return to the caller; public replay retains expected HTTP response behavior.
-- [ ] **OWN-21d:** Reuse parent transaction/replay where sufficient; retain independently repeatable keyed operations where required. Retry deadlocks only at the owning outer boundary; do not introduce nested replay-abort or generated-key duplication.
-- [ ] **OWN-21e:** Implement monthly checkpoint header/child publication helper inside one item transaction. It must not append a physical/Ownership movement or change entitlement.
+- [x] **OWN-21a:** Implement an Ownership movement append helper with server recording timestamp, exact signed deltas, actor, occurrence date, and stable source references.
+- [x] **OWN-21b:** Implement narrowly scoped receipt/membership writes and current commitment updates; preserve old history and single-current-piece constraints.
+- [x] **OWN-21c:** Implement atomic mutation/completion/audit wrapper using existing services. Internal results return to the caller; public replay retains expected HTTP response behavior.
+- [x] **OWN-21d:** Reuse parent transaction/replay where sufficient; retain independently repeatable keyed operations where required. Retry deadlocks only at the owning outer boundary; do not introduce nested replay-abort or generated-key duplication.
+- [x] **OWN-21e:** Implement monthly checkpoint header/child publication helper inside one item transaction. It must not append a physical/Ownership movement or change entitlement.
 
 ## Stage 5 — Orchestration function writing
 
+**Orchestration batch authorization:** User accepted OWN-20/21 and their helper refactors through "marks as done and proceed all orchestration related ones". OWN-22 through OWN-28 are authorized as one batch, with simple orchestration, small named helpers, bounded processing, and explicit space/time complexity evidence. OWN-29/31 API/UI activation and OWN-30 complete caller replacement remain separate.
+
 **Stage gate:** Do not build an orchestration function before its query, locking, validation, mutation, contract, and test dependencies are accepted. Wiring an endpoint or frontend action is a separate review from writing its service operation.
+
+**Ownership dependency/import follow-up:** User requested imports and constructor injection in place of inline fully qualified names and `app(Class::class)`. Ownership delegations now use nine explicit constructor collaborators; related type references use imports. Related feature checks passed **167 tests / 5,894 assertions** and units passed **329 tests / 683 assertions** (**496 / 6,577** combined). Phase boundaries and the unresolved later-phase/photo checks remain unchanged. See [the review](OWNERSHIP_VALIDATION_MUTATION_REVIEW.md#import-and-constructor-injection-follow-up).
+
+**Quantity action refactor follow-up:** At the user's requested priority, the combined quantity operation now uses typed prepared state and named reservation/release-consumption/recording helpers. Duplicate guards/source filters, a lazy Inventory relationship lookup and unnecessary fungible serialized-state queries were removed. The necessary current Ownership re-read and lock order remain. A new query regression failed before the optimization and passed after it; the final selection passed **150 tests / 2,943 assertions**. Reservation-capacity and action/source compatibility concerns remain separate. See [the review](OWNERSHIP_VALIDATION_MUTATION_REVIEW.md#quantity-action-readability-and-repeated-work-follow-up).
+
+**Remaining OWN-20/21 helper refactor:** User authorized named helper steps, reduced repeat queries and descriptive method names. Return selections, acquisition snapshots and audit targets are reused; checkpoint totals/overcommitment share one scan; payment currency identities use a scoped batch. All callers use the renamed methods. Five new real-database regressions and existing cases passed in the final selections: **180 feature tests / 6,173 assertions** and **329 unit tests / 683 assertions** (**509 / 6,856** combined). Existing business rules and later-phase exclusions remain; see [the review](OWNERSHIP_VALIDATION_MUTATION_REVIEW.md#remaining-helper-readability-names-and-repeated-query-follow-up).
 
 ### OWN-22 — Acquisition orchestration
 
